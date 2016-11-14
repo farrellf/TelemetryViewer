@@ -5,16 +5,14 @@ import javax.swing.JFrame;
 import javax.swing.UIManager;
 
 public class Main {
-	
-	JFrame window;
-	ChartsRegion chartsRegion;
-	ControlsRegion controlsRegion;
-	
-	public Main() {
+
+	public static void main(String[] args) {
 		
-		window = new JFrame("Telemetry Viewer");
-		chartsRegion = new ChartsRegion();
-		controlsRegion = new ControlsRegion();
+		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
+		
+		JFrame window = new JFrame("Telemetry Viewer v0.2");
+		OpenGLChartsRegion chartsRegion = new OpenGLChartsRegion();
+		ControlsRegion controlsRegion = new ControlsRegion();
 		
 		window.setLayout(new BorderLayout());
 		window.add(chartsRegion, BorderLayout.CENTER);
@@ -27,14 +25,6 @@ public class Main {
 		window.setMinimumSize(window.getPreferredSize());
 		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		window.setVisible(true);
-
-	}
-
-	public static void main(String[] args) {
-		
-		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
-		
-		new Main();
 		
 	}
 

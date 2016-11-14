@@ -21,9 +21,9 @@ public class Tester {
 				while(true) {
 					float scalar = ((System.currentTimeMillis() % 30000) - 15000) / 100.0f;
 					float[] newSamples = new float[] {
-						(System.nanoTime() % 100) * scalar * 1.0f,
-						(System.nanoTime() % 100) * scalar * 0.8f,
-						(System.nanoTime() % 100) * scalar * 0.6f
+						(System.nanoTime() % 100) * scalar * 1.0f / 14000f,
+						(System.nanoTime() % 100) * scalar * 0.8f / 14000f,
+						(System.nanoTime() % 100) * scalar * 0.6f / 14000f
 					};
 					Controller.insertSamples(newSamples);
 					Controller.insertSamples(newSamples);

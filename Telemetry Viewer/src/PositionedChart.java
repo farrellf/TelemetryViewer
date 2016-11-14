@@ -3,6 +3,8 @@ import javax.swing.BorderFactory;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+import com.jogamp.opengl.GL2;
+
 @SuppressWarnings("serial")
 public class PositionedChart extends JPanel {
 	
@@ -31,16 +33,6 @@ public class PositionedChart extends JPanel {
 			
 	}
 	
-	public void reposition(int columnWidth, int rowHeight) {
-		
-		int x = topLeftX * columnWidth;
-		int y = topLeftY * rowHeight;
-		int width = (bottomRightX - topLeftX + 1) * columnWidth;
-		int height = (bottomRightY - topLeftY + 1) * rowHeight;
-		setBounds(x, y, width, height);
-		
-	}
-	
 	public boolean regionOccupied(int startX, int startY, int endX, int endY) {
 
 		for(int x = startX; x <= endX; x++)
@@ -62,6 +54,10 @@ public class PositionedChart extends JPanel {
 			Controller.removeAllPositionedCharts();
 		}
 
+	}
+	
+	public void drawChart(GL2 gl, int width, int height) {
+		
 	}
 	
 }

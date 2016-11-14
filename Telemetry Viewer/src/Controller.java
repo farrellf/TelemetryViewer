@@ -255,7 +255,7 @@ public class Controller {
 	/**
 	 * Connects to a serial port and spawns a new thread to process incoming data.
 	 * 
-	 * @param sampleRate    Expected samples per second (Hz.) This is used for FFTs.
+	 * @param sampleRate    Expected samples per second. (Hertz) This is used for FFTs.
 	 * @param packetType    One of the Strings from Controller.getPacketTypes()
 	 * @param portName      One of the Strings from Controller.getSerialPortNames()
 	 * @param baudRate      One of the baud rates from Controller.getBaudRates()
@@ -521,6 +521,12 @@ public class Controller {
 		
 	}
 	
+	public static List<PositionedChart> getCharts() {
+		
+		return Model.charts;
+		
+	}
+	
 	/**
 	 * Checks if a region is available in the ChartsRegion.
 	 * 
@@ -542,19 +548,6 @@ public class Controller {
 				return false;
 		
 		return true;
-		
-	}
-	
-	/**
-	 * Repositions and resizes all charts.
-	 * 
-	 * @param columnWidth    The width of a column in the ChartsRegion grid.
-	 * @param rowHeight      The height of a row in the ChartsRegion grid.
-	 */
-	public static void repositionCharts(int columnWidth, int rowHeight) {
-		
-		for(PositionedChart chart : Model.charts)
-			chart.reposition(columnWidth, rowHeight);
 		
 	}
 	
@@ -872,19 +865,6 @@ public class Controller {
 		
 		if(!good)
 			throw new AssertionError();
-		
-	}
-	
-	/**
-	 * This specifies the target period for how long to wait between the rendering of frames.
-	 * This is the upper limit, if the CPU/GPU can't keep up, the rendering will of course slow down.
-	 * 15ms will ensure smooth updates on a 60Hz monitor. Making this number bigger will reduce CPU/GPU load but make the charts appear to stutter.
-	 * 
-	 * @return    The ideal number of milliseconds between frames.
-	 */
-	public static int getTargetFramePeriod() {
-		
-		return 15;
 		
 	}
 	

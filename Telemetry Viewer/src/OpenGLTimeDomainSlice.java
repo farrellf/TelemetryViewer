@@ -1,8 +1,9 @@
+import java.util.Arrays;
 import java.util.Set;
 
 import com.jogamp.opengl.GL2;
 
-public class RenderSlice {
+public class OpenGLTimeDomainSlice {
 
 	public int sliceMinX;
 	public int sliceMaxX;
@@ -10,12 +11,12 @@ public class RenderSlice {
 	public float sliceMinY;
 	public float sliceMaxY;
 	
-	public Samples[] glDataset;
+	public SamplesGL[] glDataset;
 	
 	int[] fbHandle;
 	int[] texHandle;
 	
-	public RenderSlice(GL2 gl) {
+	public OpenGLTimeDomainSlice(GL2 gl) {
 		
 		// create and use a framebuffer
 		fbHandle = new int[1];
@@ -47,20 +48,20 @@ public class RenderSlice {
 		sliceMaxX = maxX;
 		
 		if(glDataset == null)
-			glDataset = new Samples[dataset.length];
+			glDataset = new SamplesGL[dataset.length];
 		
 		if(glDataset[0] == null)
-			glDataset[0] = new Samples();
-		dataset[0].getGLdataset(minX, maxX, glDataset[0]);
-		sliceMinY = glDataset[0].minY;
-		sliceMaxY = glDataset[0].maxY;
+			glDataset[0] = new SamplesGL();
+		dataset[0].getGLsamples(minX, maxX, glDataset[0]);
+		sliceMinY = glDataset[0].min;
+		sliceMaxY = glDataset[0].max;
 		
 		for(int i = 1; i < dataset.length; i++) {
 			if(glDataset[i] == null)
-				glDataset[i] = new Samples();
-			dataset[i].getGLdataset(minX, maxX, glDataset[i]);
-			if(glDataset[i].minY < sliceMinY) sliceMinY = glDataset[i].minY;
-			if(glDataset[i].maxY > sliceMaxY) sliceMaxY = glDataset[i].maxY;
+				glDataset[i] = new SamplesGL();
+			dataset[i].getGLsamples(minX, maxX, glDataset[i]);
+			if(glDataset[i].min < sliceMinY) sliceMinY = glDataset[i].min;
+			if(glDataset[i].max > sliceMaxY) sliceMaxY = glDataset[i].max;
 		}
 		
 	}
@@ -140,6 +141,7 @@ public class RenderSlice {
 		}
 		if(xDivisions.size() > 1) {
 			Integer[] divs = xDivisions.toArray(new Integer[1]);
+			Arrays.sort(divs);
 			int xDivisionSize = Math.abs(divs[1] - divs[0]);
 			if(_xDivisionsSize != xDivisionSize) {
 				_xDivisionsSize = xDivisionSize;
@@ -161,6 +163,13 @@ public class RenderSlice {
 
 //		System.out.println(String.format("SLICE REDRAWN: sliceNumber = %d, sliceWidth = %d, sliceHeight = %d, plotWidth = %d, domain = %f, plotMinY = %f, plotMaxY = %f, firstIndex = %d, lastIndex = %d", sliceNumber, sliceWidth, sliceHeight, plotWidth, domain, plotMinY, plotMaxY, firstIndex, lastIndex));
 
+		// save the viewport, scissor test, modelview matrix, and projection matrix
+		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT);
+		gl.glMatrixMode(GL2.GL_MODELVIEW);
+		gl.glPushMatrix();
+		gl.glMatrixMode(GL2.GL_PROJECTION);
+		gl.glPushMatrix();
+		
 		// update glDatasets
 		updateSamples(datasets, firstIndex, lastIndex);
 		
@@ -171,23 +180,22 @@ public class RenderSlice {
 		// replace the existing texture
 		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGB, sliceWidth, sliceHeight, 0, GL2.GL_RGB, GL2.GL_UNSIGNED_BYTE, null);
 
-		// save and change the viewport
-		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT);
+		// set the viewport and disable the scissor test
 		gl.glViewport(0, 0, sliceWidth, sliceHeight);
+		gl.glDisable(GL2.GL_SCISSOR_TEST);
 		
-		// save and change the projection matrix
+		// set the projection matrix
 		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPushMatrix();
 		gl.glLoadIdentity();
 		gl.glOrtho(0, sliceWidth, 0, sliceHeight, -3, 3);
 		
-		// ensure the modelview matrix is an identity matrix
+		// set the modelview matrix
 		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();		
+		gl.glLoadIdentity();
 		
 		// draw gray background
 		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor3fv(Charts.plotBackgroundColor, 0);
+		gl.glColor3fv(Theme.plotBackgroundColor, 0);
 			gl.glVertex2f(0,          0);
 			gl.glVertex2f(0,          sliceHeight);
 			gl.glVertex2f(sliceWidth, sliceHeight);
@@ -197,8 +205,8 @@ public class RenderSlice {
 		// draw the vertical division lines
 		gl.glBegin(GL2.GL_LINES);
 		for(Integer xValue : xDivisions) {
-			float x = (float) xValue * (float) plotWidth / domain - (float) (sliceNumber * sliceWidth);
-			gl.glColor3fv(Charts.divisionLinesColor, 0);
+			float x = (float) xValue / domain * (float) plotWidth - (float) (sliceNumber * sliceWidth);
+			gl.glColor3fv(Theme.divisionLinesColor, 0);
 			gl.glVertex2f(x, 0);
 			gl.glVertex2f(x, sliceHeight);
 		}
@@ -208,7 +216,7 @@ public class RenderSlice {
 		gl.glBegin(GL2.GL_LINES);
 		for(Float yValue : yDivisions) {
 			float y = (yValue - plotMinY) / (plotMaxY - plotMinY) * (float) sliceHeight;
-			gl.glColor3fv(Charts.divisionLinesColor, 0);
+			gl.glColor3fv(Theme.divisionLinesColor, 0);
 			gl.glVertex2f(0,  y);
 			gl.glVertex2f(sliceWidth, y);
 		}
@@ -218,15 +226,17 @@ public class RenderSlice {
 		for(int i = 0; i < glDataset.length; i++) {
 			
 			int vertexCount = sliceMaxX - sliceMinX + 1;
+			if(vertexCount < 2)
+				break;
 			
 			gl.glMatrixMode(GL2.GL_MODELVIEW);
 			gl.glPushMatrix();
 			gl.glLoadIdentity();
 			
-			// adjust so x = x * plotWidth / domain - (sliceNumber * sliceWidth)
+			// adjust so x = x / domain * plotWidth - (sliceNumber * sliceWidth)
 			gl.glTranslatef(-(sliceNumber * sliceWidth), 0, 0);
-			gl.glScalef(1.0f / domain, 1, 1);
 			gl.glScalef(plotWidth, 1, 1);
+			gl.glScalef(1.0f / domain, 1, 1);
 			
 			// adjust so y = (y - plotMinY) / range * sliceHeight
 			gl.glScalef(1, sliceHeight, 1);
@@ -244,20 +254,14 @@ public class RenderSlice {
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
 		
-		// restore old viewport
+		// restore old viewport and scissor test state, projection matrix, and modelview matrix
 		gl.glPopAttrib();
-		
-		// restore old projection matrix
 		gl.glMatrixMode(GL2.GL_PROJECTION);
 		gl.glPopMatrix();
-		
-		// ensure the modelview matrix is an identity matrix
 		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();
+		gl.glPopMatrix();
 		
 	}
-	
-	// before: 19-30fps, 3-4ms code
 	
 	public void renderSliceAt(int bottomLeftX, int bottomLeftY, GL2 gl) {
 		

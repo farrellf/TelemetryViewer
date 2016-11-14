@@ -4,12 +4,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.jogamp.common.nio.Buffers;
 
 /**
- * Defines all of the details about a CSV column or Binary packet element, and stores all of its samples.
+ * Defines all of the details about one CSV column or Binary packet element, stores all of its samples, and provides several ways to get the samples.
  */
 public class Dataset {
 	
 	// constants defined at constructor-time
-	final int    location;
+	final int location;
 	final BinaryProcessor processor;
 	final String name;
 	final Color  color;
@@ -71,10 +71,12 @@ public class Dataset {
 	}
 	
 	/**
+	 * Gets one specific sample.
+	 * 
 	 * @param index    Which sample to obtain.
 	 * @return         The sample.
 	 */
-	public float get(int index) {
+	public float getSample(int index) {
 		
 		int slotNumber = index / slotSize;
 		int slotIndex  = index % slotSize;
@@ -83,37 +85,112 @@ public class Dataset {
 	}
 	
 	/**
-	 * Obtains an OpenGL-ready collection of XY coordinates.
+	 * Gets a series of samples as a float[].
 	 * 
-	 * @param startIndex    The first index (inclusive)
-	 * @param endIndex      The last index (inclusive)
-	 * @param samples       A Samples object to populate. 
+	 * @param startIndex    Index of the first sample (inclusive.)
+	 * @param endIndex      Index of the last sample (inclusive.)
+	 * @return              The samples as a float[].
 	 */
-	public void getGLdataset(int startIndex, int endIndex, Samples samples) {
-
-		samples.minY = slot[startIndex / slotSize][startIndex % slotSize];
-		samples.maxY = slot[startIndex / slotSize][startIndex % slotSize];
+	public float[] getSamplesArray(int startIndex, int endIndex) {
+		
+		int sampleCount = endIndex - startIndex + 1;
+		float[] samples = new float[sampleCount];
+		
+		for(int i = 0; i < sampleCount; i++) {
+			int slotNumber = (i + startIndex) / slotSize;
+			int slotIndex  = (i + startIndex) % slotSize;
+			samples[i] = slot[slotNumber][slotIndex];
+		}
+		
+		return samples;
+		
+	}
+	
+	/**
+	 * Gets a series of samples by updating a existing Samples object:
+	 * 
+	 * The buffer[] is updated with the requested series of samples.
+	 * The min/max values are updated to reflect the new series of samples.
+	 * The color/name/unit are updated. 
+	 * 
+	 * @param startIndex    Index of the first sample (inclusive.)
+	 * @param endIndex      Index of the last sample (inclusive.)
+	 * @param samples       Samples object to be filled with samples.
+	 */
+	public void getSamples(int startIndex, int endIndex, Samples samples) {
 		
 		if(samples.color == null)
-			samples.color = new float[3];
+			samples.color = new float[4];
 		samples.color[0] = (float) color.getRed()   / 255.0f;
 		samples.color[1] = (float) color.getGreen() / 255.0f;
 		samples.color[2] = (float) color.getBlue()  / 255.0f;
+		samples.color[3] = 1.0f;
 		
+		samples.name = name;
+		
+		samples.unit = unit;
+		
+		int sampleCount = endIndex - startIndex + 1;
+		
+		if(samples.buffer == null || samples.buffer.length != sampleCount)
+			samples.buffer = new float[sampleCount];
+		
+		samples.min = slot[startIndex / slotSize][startIndex % slotSize];
+		samples.max = slot[startIndex / slotSize][startIndex % slotSize];
+		
+		for(int i = 0; i < sampleCount; i++) {
+			int slotNumber = (i + startIndex) / slotSize;
+			int slotIndex  = (i + startIndex) % slotSize;
+			float value = slot[slotNumber][slotIndex];
+			samples.buffer[i] = value;
+			if(value < samples.min) samples.min = value;
+			if(value > samples.max) samples.max = value;
+		}
+		
+	}
+	
+	/**
+	 * Gets a series of samples by updating an existing SamplesGL object with an OpenGL-friendly vertex array.
+	 * 
+	 * The buffer FloatBuffer is updated with the requested series of samples.
+	 * The min/max/vertexCount values are updated to reflect the new series of samples.
+	 * The color/name/unit are updated. 
+	 * 
+	 * @param startIndex    The first index (inclusive.)
+	 * @param endIndex      The last index (inclusive.)
+	 * @param samples       A TimeDomainSamples object to populate. 
+	 */
+	public void getGLsamples(int startIndex, int endIndex, SamplesGL samples) {
+		
+		if(samples.color == null)
+			samples.color = new float[4];
+		samples.color[0] = (float) color.getRed()   / 255.0f;
+		samples.color[1] = (float) color.getGreen() / 255.0f;
+		samples.color[2] = (float) color.getBlue()  / 255.0f;
+		samples.color[3] = 1.0f;
+		
+		samples.name = name;
+		
+		samples.unit = unit;
+		
+		samples.min = slot[startIndex / slotSize][startIndex % slotSize];
+		samples.max = slot[startIndex / slotSize][startIndex % slotSize];
+
 		int vertexCount = endIndex - startIndex + 1;
+		samples.vertexCount = vertexCount;
+		
 		if(samples.buffer == null || samples.buffer.capacity() != 2 * vertexCount) {
 			samples.buffer = Buffers.newDirectFloatBuffer(2 * vertexCount);
-//			System.out.println("new float buffer");
 		}
 		
 		samples.buffer.rewind();
 		
-		for(int i = startIndex; i <= endIndex; i++) {
-			float value = slot[i / slotSize][i % slotSize];
-			samples.buffer.put(i);
-			samples.buffer.put(value);
-			if(value < samples.minY) samples.minY = value;
-			if(value > samples.maxY) samples.maxY = value;
+		for(int x = startIndex; x <= endIndex; x++) {
+			float y = slot[x / slotSize][x % slotSize];
+			samples.buffer.put(x);
+			samples.buffer.put(y);
+			if(y < samples.min) samples.min = y;
+			if(y > samples.max) samples.max = y;
 		}
 		samples.buffer.rewind();
 		
