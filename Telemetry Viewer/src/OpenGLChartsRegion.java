@@ -57,10 +57,14 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				GL2 gl = drawable.getGL().getGL2();
 				
-				gl.glEnable(GL2.GL_LINE_SMOOTH);
 				gl.glEnable(GL2.GL_BLEND);
 				gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
-			    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_DONT_CARE);
+				gl.glEnable(GL2.GL_POINT_SMOOTH);
+			    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
+				gl.glEnable(GL2.GL_LINE_SMOOTH);
+			    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
+				gl.glEnable(GL2.GL_POLYGON_SMOOTH);
+			    gl.glHint(GL2.GL_POLYGON_SMOOTH_HINT, GL2.GL_FASTEST);
 			    
 				gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
 			    
