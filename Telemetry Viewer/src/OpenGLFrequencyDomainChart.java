@@ -68,7 +68,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		int minX = maxX - duration + 1;
 		if(minX < 0) minX = 0;
 		
-		if(maxX < 1)
+		if(maxX < duration)
 			return;
 		
 		float[][] dfts = new float[datasets.length][];
