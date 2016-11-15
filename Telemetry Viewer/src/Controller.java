@@ -460,9 +460,10 @@ public class Controller {
 			
 		} else {		
 			
-			if(serialPortThread != null) {
+			if(serialPortThread != null)
 				serialPortThread.interrupt();
-			}
+			while(port != null)
+				try { Thread.sleep(1); } catch(Exception e) { }
 			
 		}
 		
@@ -737,8 +738,8 @@ public class Controller {
 	 */
 	static void openLayout(String inputFilePath) {
 		
-		Controller.removeAllDatasets();
 		Controller.disconnectFromSerialPort();
+		Controller.removeAllDatasets();
 		
 		try {
 			
