@@ -72,9 +72,10 @@ public class OpenGLDialChart extends PositionedChart {
 		int startIndex = endIndex - duration + 1;
 		if(startIndex < 0)
 			startIndex = 0;
-		int sampleCount = endIndex - startIndex + 1;
-		if(sampleCount < 1)
+		
+		if(endIndex < 0)
 			return;
+		
 		datasets[0].getSamples(startIndex, endIndex, samples);
 
 		// prepare

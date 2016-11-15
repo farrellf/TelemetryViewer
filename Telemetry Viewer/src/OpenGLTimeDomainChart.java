@@ -61,10 +61,12 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		gl.glEnd();
 		
 		// calculate domain
-		int sampleCount = Controller.getSamplesCount(datasets);
-		int plotMaxX = sampleCount - 1;
+		int plotMaxX = Controller.getSamplesCount(datasets) - 1;
 		int plotMinX = plotMaxX - duration;
 		float domain = plotMaxX - plotMinX;
+		
+		if(plotMaxX < 1)
+			return;
 		
 		// get the samples
 		if(slice == null) {

@@ -64,9 +64,13 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		gl.glEnd();
 		
 		// calculate the DFTs
-		int maxX = Controller.getSamplesCount(datasets);
+		int maxX = Controller.getSamplesCount(datasets) - 1;
 		int minX = maxX - duration + 1;
 		if(minX < 0) minX = 0;
+		
+		if(maxX < 1)
+			return;
+		
 		float[][] dfts = new float[datasets.length][];
 		for(int i = 0; i < datasets.length; i++) {
 			float[] samples = datasets[i].getSamplesArray(minX, maxX);

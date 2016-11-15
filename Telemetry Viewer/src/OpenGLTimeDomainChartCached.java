@@ -69,6 +69,9 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		int plotMaxX = sampleCount - 1;
 		int plotMinX = plotMaxX - duration;
 		float domain = plotMaxX - plotMinX;
+		
+		if(sampleCount < 2)
+			return;
 				
 		// calculate range based on the true range of the *previous* frame (so we can used that cached data)
 		float plotMinY = 0;

@@ -117,9 +117,11 @@ public class OpenGLHistogramChart extends PositionedChart {
 		int startIndex = endIndex - duration + 1;
 		if(startIndex < 0)
 			startIndex = 0;
+		
 		int sampleCount = endIndex - startIndex + 1;
 		if(sampleCount < 2)
 			return;
+		
 		for(int datasetN = 0; datasetN < samples.length; datasetN++)
 			datasets[datasetN].getSamples(startIndex, endIndex, samples[datasetN]);
 
