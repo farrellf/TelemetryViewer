@@ -209,9 +209,9 @@ public class ChartUtils {
 			float lastDivision  = minX - (minX % divisionSize);
 			firstDivision += divisionSize; // compensating for floating point error that may skip the end points
 			lastDivision -= divisionSize;
-			if(firstDivision > maxX)
+			while(firstDivision > maxX)
 				firstDivision -= divisionSize;
-			if(lastDivision < minX)
+			while(lastDivision < minX)
 				lastDivision += divisionSize;
 			int divisionCount = (int) Math.round((firstDivision - lastDivision) / divisionSize) + 1;
 			
