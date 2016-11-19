@@ -63,8 +63,8 @@ public class OpenGLChartsRegion extends JPanel {
 			    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
 				gl.glEnable(GL2.GL_LINE_SMOOTH);
 			    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
-				gl.glEnable(GL2.GL_POLYGON_SMOOTH);
-			    gl.glHint(GL2.GL_POLYGON_SMOOTH_HINT, GL2.GL_FASTEST);
+//				gl.glEnable(GL2.GL_POLYGON_SMOOTH);
+//			    gl.glHint(GL2.GL_POLYGON_SMOOTH_HINT, GL2.GL_FASTEST);
 			    
 				gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
 			    
