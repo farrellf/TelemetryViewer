@@ -327,6 +327,10 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			double powerW = (realV * realV) + (imaginaryV * imaginaryV);
 			powerW *= 2; // because DFT is from -Fs to +Fs
 			
+			// ensure powerW != 0, which would cause the Math.log10() below to return -Infinity
+			if(powerW == 0)
+				powerW = Double.MIN_VALUE;
+			
 			powerLevels[bin*2]     = (float) frequencyHz;
 			powerLevels[bin*2 + 1] = (float) Math.log10(powerW);
 		}
