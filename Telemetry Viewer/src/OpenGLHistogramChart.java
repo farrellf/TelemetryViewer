@@ -70,14 +70,14 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 		autoscale = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.20f);
 	
-//		xScale = XSCALE_AUTOSCALE;
+		xScale = XSCALE_AUTOSCALE;
 
 //		xScale = XSCALE_CENTERED;
 //		fixedCenterX = 0;	
 
-		xScale = XSCALE_FIXED;
-		fixedMinX = -1.5f;
-		fixedMaxX =  1.5f;
+//		xScale = XSCALE_FIXED;
+//		fixedMinX = -1.5f;
+//		fixedMaxX =  1.5f;
 		
 		yScale = YSCALE_AUTOSCALE;
 		
@@ -141,16 +141,16 @@ public class OpenGLHistogramChart extends PositionedChart {
 		float maxX = 0;
 		if(xScale == XSCALE_AUTOSCALE) {
 			minX = trueMinX;
-			maxX = trueMaxX;
+			maxX = Math.nextUp(trueMaxX); // increment because the bins are >=min, <max
 		} else if(xScale == XSCALE_FIXED) {
 			minX = fixedMinX;
-			maxX = fixedMaxX;
+			maxX = Math.nextUp(fixedMaxX); // increment because the bins are >=min, <max
 		} else if(xScale == XSCALE_CENTERED) {
 			float leftHalf  = (float) Math.abs(fixedCenterX - trueMinX);
 			float rightHalf = (float) Math.abs(fixedCenterX - trueMaxX);
 			float half = Float.max(leftHalf, rightHalf);
 			minX = fixedCenterX - half;
-			maxX = fixedCenterX + half;
+			maxX = Math.nextUp(fixedCenterX + half); // increment because the bins are >=min, <max
 		}
 		float range = maxX - minX;
 		float binSize = range / (float) binCount;
@@ -165,6 +165,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 				float sample = samples[datasetN].buffer[sampleN]; 
 				if(sample >= minX && sample < maxX) {
 					int binN = (int) Math.floor((sample - minX) / range * binCount);
+					if(binN == binCount) binN--; // needed because of float math imperfection
 					bins[datasetN][binN]++;
 				}
 			}
