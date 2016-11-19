@@ -73,7 +73,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		if(sampleCount < 2)
 			return;
 				
-		// calculate range based on the true range of the *previous* frame (so we can used that cached data)
+		// calculate range based on the true range of the *previous* frame (so we can use that cached data)
 		float plotMinY = 0;
 		float plotMaxY = 0;
 		if(slices.length > 0) {
