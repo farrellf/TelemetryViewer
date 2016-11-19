@@ -24,8 +24,8 @@ public class AutoScale {
 	 * 
 	 * @param mode          MODE_STICKY or MODE_EXPONENTIAL. Sticky mode will only rescale the axis when required, while Exponential mode will constantly rescale to keep things centered.
 	 * @param frameCount    How many frames for animating the transition to a new scale. 1 = immediate jump (no animation.)
-	 * @param hysteresis    When hitting an existing min/max, re-scale to leave this much extra room (relative to the current range),
-	 *                      When 1.5*this far from an existing min/max (relative to the current range), re-scale to leave only this much room.
+	 * @param hysteresis    When hitting an existing min/max, re-scale to leave this much extra room (relative to the new range),
+	 *                      When 1.5*this far from an existing min/max (relative to the new range), re-scale to leave only this much room.
 	 */
 	public AutoScale(int mode, int frameCount, float hysteresis) {
 		
@@ -53,40 +53,43 @@ public class AutoScale {
 	public void update(float newMin, float newMax) {
 		
 		if(mode == MODE_STICKY) {
-		
-			float newRange = Math.abs(newMax - newMin);
+
 			float oldMin = minSequence.peek();
 			float oldMax = maxSequence.peek();
+			float newRange = Math.abs(newMax - newMin);
+			float idealMin = newMin - (newRange * hysteresis);
+			float idealMax = newMax + (newRange * hysteresis);
 			
-			if(newMin < oldMin) {
-				// minimum got more extreme
-				minSequence.clear();
+			boolean maxExceededThreshold = newMax > oldMax;
+			boolean maxFarFromThreshold = newMax < oldMax - 1.5f*hysteresis*newRange;
+			boolean minExceededThreshold = newMin < oldMin;
+			boolean minFarFromThreshold = newMin > oldMin + 1.5f*hysteresis*newRange;
+			
+			if(maxExceededThreshold) {
+				maxSequence.clear();
 				for(int i = 1; i <= frameCount; i++) {
-					float adjustment = newRange * (float) (Math.sin(Math.PI/2/frameCount*i) * hysteresis);
-					minSequence.add(newMin - adjustment);
+					float delta = (idealMax - newMax) * (float) (Math.sin(Math.PI/2/frameCount*i));
+					maxSequence.add(newMax + delta);
 				}
-			} else if(newMin > oldMin + 1.5f*hysteresis*newRange) {
-				// minimum got less extreme
-				minSequence.clear();
+			} else if(maxFarFromThreshold) {
+				maxSequence.clear();
 				for(int i = 1; i <= frameCount; i++) {
-					float adjustment = newRange * (float) (Math.sin(Math.PI/2/frameCount*i) * hysteresis);
-					minSequence.add(oldMin + adjustment);
+					float delta = (idealMax - oldMax) * (float) (Math.sin(Math.PI/2/frameCount*i));
+					maxSequence.add(oldMax + delta);
 				}
 			}
 			
-			if(newMax > oldMax) {
-				// maximum got more extreme
-				maxSequence.clear();
+			if(minExceededThreshold) {
+				minSequence.clear();
 				for(int i = 1; i <= frameCount; i++) {
-					float adjustment = newRange * (float) (Math.sin(Math.PI/2/frameCount*i) * hysteresis);
-					maxSequence.add(newMax + adjustment);
+					float delta = (idealMin - newMin) * (float) (Math.sin(Math.PI/2/frameCount*i));
+					minSequence.add(newMin + delta);
 				}
-			} else if(newMax < oldMax - 1.5f*hysteresis*newRange) {
-				// maximum got less extreme
-				maxSequence.clear();
+			} else if(minFarFromThreshold) {
+				minSequence.clear();
 				for(int i = 1; i <= frameCount; i++) {
-					float adjustment = newRange * (float) (Math.sin(Math.PI/2/frameCount*i) * hysteresis);
-					maxSequence.add(oldMax - adjustment);
+					float delta = (idealMin - oldMin) * (float) (Math.sin(Math.PI/2/frameCount*i));
+					minSequence.add(oldMin + delta);
 				}
 			}
 			
