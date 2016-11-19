@@ -5,9 +5,11 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,6 +29,8 @@ public class Controller {
 	static SerialPort port;
 	static Thread serialPortThread;
 	static AtomicBoolean dataStructureDefined = new AtomicBoolean(false);
+	
+	static PrintWriter logFile;
 	
 	/**
 	 * @return    The percentage of 100dpi that the screen uses. It's currently rounded to an integer, but future plans will make use of floats.
@@ -447,7 +451,7 @@ public class Controller {
 	}
 	
 	/**
-	 * Disconnects from the active serial port and stops the data processing thread.
+	 * Disconnects from the active serial port, stops the data processing thread, and stops logging.
 	 */
 	public static void disconnectFromSerialPort() {
 		
@@ -465,6 +469,11 @@ public class Controller {
 			while(port != null)
 				try { Thread.sleep(1); } catch(Exception e) { }
 			
+		}
+		
+		if(logFile != null) {
+			logFile.close();
+			logFile = null;
 		}
 		
 	}
@@ -597,7 +606,7 @@ public class Controller {
 	}
 	
 	/**
-	 * Inserts one new sample into each of the datasets.
+	 * Inserts one new sample into each of the datasets, and logs the new samples.
 	 * 
 	 * @param newSamples    A float[] containing one sample for each dataset.
 	 */
@@ -606,12 +615,31 @@ public class Controller {
 		for(int i = 0; i < newSamples.length; i++)
 			Controller.getDatasetByIndex(i).add(newSamples[i]); // FIXME should be byLocation, but that breaks Binary mode
 		
+		if(logFile != null) {
+			logFile.print(new SimpleDateFormat("YYYY-MM-dd    HH:mm:ss.SSS").format(new Date()));
+			for(int i = 0; i < newSamples.length; i++)
+				logFile.print("," + Float.toString(newSamples[i]));
+			logFile.println();
+		}
+		
 	}
 	
 	/**
-	 * Allows reception of data from the UART. This should only be called after the data structure has been fully defined.
+	 * Starts logging, and allows reception of data from the UART. This should only be called after the data structure has been fully defined.
 	 */
 	static void startReceivingData() {
+		
+		if(logFile != null)
+			logFile.close();
+		try {
+			logFile = new PrintWriter("log.csv", "UTF-8");
+			logFile.print("PC Timestamp (YYYY-MM-DD    HH:MM:SS.SSS)");
+			for(int i = 0; i < Controller.getDatasetsCount(); i++) {
+				Dataset d = Controller.getDatasetByIndex(i);
+				logFile.print("," + d.name + " (" + d.unit + ")");
+			}
+			logFile.println();
+		} catch(Exception e) { }
 		
 		dataStructureDefined.set(true);
 		
