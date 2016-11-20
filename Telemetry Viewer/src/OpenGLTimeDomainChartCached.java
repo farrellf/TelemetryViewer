@@ -44,7 +44,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -65,8 +65,8 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		gl.glEnd();
 		
 		// calculate domain
-		int sampleCount = Controller.getSamplesCount(datasets);
-		int plotMaxX = sampleCount - 1;
+		int sampleCount = lastSampleNumber + 1;
+		int plotMaxX = lastSampleNumber;
 		int plotMinX = plotMaxX - duration;
 		float domain = plotMaxX - plotMinX;
 		

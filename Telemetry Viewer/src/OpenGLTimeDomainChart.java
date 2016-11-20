@@ -40,7 +40,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -61,7 +61,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		gl.glEnd();
 		
 		// calculate domain
-		int plotMaxX = Controller.getSamplesCount(datasets) - 1;
+		int plotMaxX = lastSampleNumber;
 		int plotMinX = plotMaxX - duration;
 		float domain = plotMaxX - plotMinX;
 		

@@ -47,7 +47,7 @@ public class OpenGLDialChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -68,7 +68,7 @@ public class OpenGLDialChart extends PositionedChart {
 		gl.glEnd();
 		
 		// get the samples
-		int endIndex = Controller.getSamplesCount(datasets) - 1;
+		int endIndex = lastSampleNumber;
 		int startIndex = endIndex - duration + 1;
 		if(startIndex < 0)
 			startIndex = 0;

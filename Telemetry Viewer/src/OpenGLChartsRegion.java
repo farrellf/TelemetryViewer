@@ -2,6 +2,8 @@ import java.awt.BorderLayout;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.util.List;
 
 import javax.swing.JFrame;
@@ -38,6 +40,10 @@ public class OpenGLChartsRegion extends JPanel {
 	int endX;
 	int endY;
 	
+	// what moment in time to show
+	boolean liveView;
+	int nonLiveViewSamplesCount;
+	
 	public OpenGLChartsRegion() {
 		
 		super();
@@ -49,6 +55,9 @@ public class OpenGLChartsRegion extends JPanel {
 		startY  = -1;
 		endX    = -1;
 		endY    = -1;
+		
+		liveView = true;
+		nonLiveViewSamplesCount = 0;
 		
 		GLCanvas glCanvas = new GLCanvas(new GLCapabilities(GLProfile.get(GLProfile.GL2)));
 		glCanvas.addGLEventListener(new GLEventListener() {
@@ -163,6 +172,9 @@ public class OpenGLChartsRegion extends JPanel {
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
 				List<PositionedChart> charts = Controller.getCharts();
+				if(charts.size() == 0)
+					liveView = true;
+				int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
 				gl.glEnable(GL2.GL_SCISSOR_TEST);
 				for(PositionedChart chart : charts) {
 					int width = columnWidth * (chart.bottomRightX - chart.topLeftX + 1);
@@ -174,7 +186,7 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glPushMatrix();
 					gl.glTranslatef(xOffset, yOffset, 0);
 					FontUtils.setOffsets(xOffset, yOffset);
-					chart.drawChart(gl, width, height);
+					chart.drawChart(gl, width, height, lastSampleNumber);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
 					gl.glPopMatrix();
 				}
@@ -259,6 +271,32 @@ public class OpenGLChartsRegion extends JPanel {
 			}
 			
 			@Override public void mouseMoved(MouseEvent me) { }
+			
+		});
+		
+		glCanvas.addMouseWheelListener(new MouseWheelListener() {
+			
+			// the mouse wheel was scrolled
+			@Override public void mouseWheelMoved(MouseWheelEvent mwe) {
+				
+				if(Controller.getCharts().size() == 0)
+					return;
+
+				int scrollAmount = mwe.getWheelRotation();
+				int samplesPerScroll = Controller.getSampleRate() / 4;
+				
+				if(scrollAmount != 0 && liveView == true) {
+					liveView = false;
+					nonLiveViewSamplesCount = (Controller.getSamplesCount() - 1);
+				}
+				
+				nonLiveViewSamplesCount += scrollAmount * samplesPerScroll;
+				
+				if(nonLiveViewSamplesCount >= Controller.getSamplesCount() - 1) {
+					liveView = true;
+				}
+				
+			}
 			
 		});
 		

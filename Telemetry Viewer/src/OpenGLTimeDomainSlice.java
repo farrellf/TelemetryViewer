@@ -203,8 +203,10 @@ public class OpenGLTimeDomainSlice {
 		gl.glEnd();
 		
 		// draw the vertical division lines
+		int firstXdiv = firstIndex - (firstIndex % _xDivisionsSize);
+		int lastXdiv = lastIndex - (lastIndex % _xDivisionsSize) + _xDivisionsSize;
 		gl.glBegin(GL2.GL_LINES);
-		for(Integer xValue : xDivisions) {
+		for(int xValue = firstXdiv; xValue <= lastXdiv; xValue += _xDivisionsSize) {
 			float x = (float) xValue / domain * (float) plotWidth - (float) (sliceNumber * sliceWidth);
 			gl.glColor3fv(Theme.divisionLinesColor, 0);
 			gl.glVertex2f(x, 0);

@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Scanner;
@@ -187,9 +186,9 @@ public class Controller {
 	/**
 	 * @return    The Datasets.
 	 */
-	public static Collection<Dataset> getAllDatasets() {
+	public static Dataset[] getAllDatasets() {
 		
-		return Model.datasets.values();
+		return Model.datasets.values().toArray(new Dataset[Model.datasets.size()]);
 		
 	}
 	
@@ -589,17 +588,21 @@ public class Controller {
 	}
 
 	/**
-	 * A helper function that calculates the sample count of datasets.
+	 * A helper function that calculates the sample count of all datasets.
 	 * Since datasets may contain different numbers of samples (due to live insertion of new samples), the smallest count is returned to ensure validity.
 	 * 
-	 * @param dataset    The Dataset[].
-	 * @return           Smallest sample count from the datasets.
+	 * @return    Smallest sample count from the datasets.
 	 */
-	static int getSamplesCount(Dataset[] dataset) {
+	static int getSamplesCount() {
 		
-		int[] count = new int[dataset.length];
-		for(int i = 0; i < dataset.length; i ++)
-			count[i] = dataset[i].size();
+		Dataset[] datasets = Controller.getAllDatasets();
+		
+		if(datasets.length == 0)
+			return 0;
+		
+		int[] count = new int[datasets.length];
+		for(int i = 0; i < datasets.length; i++)
+			count[i] = datasets[i].size();
 		Arrays.sort(count);
 		return count[0];
 		
