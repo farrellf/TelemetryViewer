@@ -13,7 +13,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		return new ChartDescriptor() {
 			
 			@Override public String toString()        { return "Time Domain Chart"; }
-			@Override public int getMinimumDuration() { return 2; }
+			@Override public int getMinimumDuration() { return 5; }
 			@Override public int getDefaultDuration() { return 150000; }
 			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
 			@Override public String[] getInputNames() { return null; }
@@ -40,7 +40,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -62,10 +62,12 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// calculate domain
 		int plotMaxX = lastSampleNumber;
-		int plotMinX = plotMaxX - duration;
+		int plotMinX = plotMaxX - (int) (duration * zoomLevel) + 1;
+		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		if(plotMaxX - plotMinX < minDomain) plotMinX = plotMaxX - minDomain;
 		float domain = plotMaxX - plotMinX;
 		
-		if(plotMaxX < 1)
+		if(plotMaxX < minDomain)
 			return;
 		
 		// get the samples

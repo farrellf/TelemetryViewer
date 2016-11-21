@@ -16,7 +16,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		return new ChartDescriptor() {
 			
 			@Override public String toString()        { return "Time Domain Chart (Cached)"; }
-			@Override public int getMinimumDuration() { return 2; }
+			@Override public int getMinimumDuration() { return 5; }
 			@Override public int getDefaultDuration() { return 150000; }
 			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
 			@Override public String[] getInputNames() { return null; }
@@ -44,7 +44,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -67,10 +67,12 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		// calculate domain
 		int sampleCount = lastSampleNumber + 1;
 		int plotMaxX = lastSampleNumber;
-		int plotMinX = plotMaxX - duration;
+		int plotMinX = plotMaxX - (int) (duration * zoomLevel) + 1;
+		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		if(plotMaxX - plotMinX < minDomain) plotMinX = plotMaxX - minDomain;
 		float domain = plotMaxX - plotMinX;
 		
-		if(sampleCount < 2)
+		if(plotMaxX < minDomain)
 			return;
 				
 		// calculate range based on the true range of the *previous* frame (so we can use that cached data)
@@ -161,7 +163,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		gl.glEnd();
 		
 		// determine which slices are needed
-		int lastSliceIndex  = (int) Math.floor((double) sampleCount / (double) duration * Math.floor(plotWidth) / (double) sliceWidth);
+		int lastSliceIndex  = (int) Math.floor((double) (sampleCount - 1) / (double) domain * Math.floor(plotWidth) / (double) sliceWidth);
 		int firstSliceIndex = lastSliceIndex - (int) Math.ceil(plotWidth / sliceWidth);
 		if(firstSliceIndex < 0)
 			firstSliceIndex = 0;
@@ -179,7 +181,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		// update textures if needed, and draw the slices
 		for(int i = firstSliceIndex; i <= lastSliceIndex; i++) {		
 			slices[i % slices.length].updateSliceTexture(i, sliceWidth, (int) plotHeight, (int) plotWidth, domain, plotMinY, plotMaxY, sampleCount, datasets, xDivisions.keySet(), yDivisions.keySet(), gl);
-			int x = (int) (xPlotRight + (i * sliceWidth) - ((double) sampleCount / (double) duration * (int) plotWidth));
+			int x = (int) (xPlotRight + (i * sliceWidth) - ((double) (sampleCount - 1) / (double) domain * (int) plotWidth));
 			int y = (int) yPlotBottom;
 			slices[i % slices.length].renderSliceAt(x, y, gl);
 		}

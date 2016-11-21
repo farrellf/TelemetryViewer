@@ -40,9 +40,10 @@ public class OpenGLChartsRegion extends JPanel {
 	int endX;
 	int endY;
 	
-	// what moment in time to show
+	// time and zoom settings
 	boolean liveView;
 	int nonLiveViewSamplesCount;
+	double zoomLevel;
 	
 	public OpenGLChartsRegion() {
 		
@@ -58,6 +59,7 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		liveView = true;
 		nonLiveViewSamplesCount = 0;
+		zoomLevel = 1;
 		
 		GLCanvas glCanvas = new GLCanvas(new GLCapabilities(GLProfile.get(GLProfile.GL2)));
 		glCanvas.addGLEventListener(new GLEventListener() {
@@ -186,7 +188,7 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glPushMatrix();
 					gl.glTranslatef(xOffset, yOffset, 0);
 					FontUtils.setOffsets(xOffset, yOffset);
-					chart.drawChart(gl, width, height, lastSampleNumber);
+					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
 					gl.glPopMatrix();
 				}
@@ -278,22 +280,47 @@ public class OpenGLChartsRegion extends JPanel {
 			
 			// the mouse wheel was scrolled
 			@Override public void mouseWheelMoved(MouseWheelEvent mwe) {
+
+				double scrollAmount = mwe.getPreciseWheelRotation();
+				double samplesPerScroll = Controller.getSampleRate() / 4;
+				double zoomPerScroll = 0.1;
 				
 				if(Controller.getCharts().size() == 0)
 					return;
-
-				int scrollAmount = mwe.getWheelRotation();
-				int samplesPerScroll = Controller.getSampleRate() / 4;
 				
-				if(scrollAmount != 0 && liveView == true) {
-					liveView = false;
-					nonLiveViewSamplesCount = (Controller.getSamplesCount() - 1);
-				}
+				if(scrollAmount == 0)
+					return;
 				
-				nonLiveViewSamplesCount += scrollAmount * samplesPerScroll;
+				if(mwe.isControlDown() == false) {
+					
+					// ctrl is not down, so we're timeshifting
+					if(liveView == true) {
+						liveView = false;
+						nonLiveViewSamplesCount = (Controller.getSamplesCount() - 1);
+					}
+					
+					double delta = scrollAmount * samplesPerScroll * zoomLevel;
+					if(delta < -0.5 || delta > 0.5)
+						delta = Math.round(delta);
+					else if(delta < 0)
+						delta = -1;
+					else if(delta >= 0)
+						delta = 1;
+					nonLiveViewSamplesCount += delta;
+					
+					if(nonLiveViewSamplesCount >= Controller.getSamplesCount() - 1)
+						liveView = true;
 				
-				if(nonLiveViewSamplesCount >= Controller.getSamplesCount() - 1) {
-					liveView = true;
+				} else {
+					
+					// ctrl is down, so we're zooming
+					zoomLevel *= 1 + (scrollAmount * zoomPerScroll);
+					
+					if(zoomLevel > 1)
+						zoomLevel = 1;
+					else if(zoomLevel < 0)
+						zoomLevel = Double.MIN_VALUE;
+					
 				}
 				
 			}

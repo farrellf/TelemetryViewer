@@ -37,7 +37,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		return new ChartDescriptor() {
 			
 			@Override public String toString()        { return "Histogram Chart"; }
-			@Override public int getMinimumDuration() { return 2; }
+			@Override public int getMinimumDuration() { return 5; }
 			@Override public int getDefaultDuration() { return 150000; }
 			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
 			@Override public String[] getInputNames() { return null; }
@@ -92,7 +92,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -114,12 +114,13 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
-		int startIndex = endIndex - duration + 1;
-		if(startIndex < 0)
-			startIndex = 0;
-		
+		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
+		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
+		if(startIndex < 0) startIndex = 0;
 		int sampleCount = endIndex - startIndex + 1;
-		if(sampleCount < 2)
+		
+		if(sampleCount - 1 < minDomain)
 			return;
 		
 		for(int datasetN = 0; datasetN < samples.length; datasetN++)
@@ -140,8 +141,13 @@ public class OpenGLHistogramChart extends PositionedChart {
 		float minX = 0;
 		float maxX = 0;
 		if(xScale == XSCALE_AUTOSCALE) {
-			minX = trueMinX;
-			maxX = Math.nextUp(trueMaxX); // increment because the bins are >=min, <max
+			if(trueMinX != trueMaxX) {
+				minX = trueMinX;
+				maxX = Math.nextUp(trueMaxX); // increment because the bins are >=min, <max
+			} else {
+				minX = Math.nextDown(trueMinX);
+				maxX = Math.nextUp(trueMaxX);
+			}
 		} else if(xScale == XSCALE_FIXED) {
 			minX = fixedMinX;
 			maxX = Math.nextUp(fixedMaxX); // increment because the bins are >=min, <max

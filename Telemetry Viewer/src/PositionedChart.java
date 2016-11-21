@@ -56,7 +56,7 @@ public class PositionedChart extends JPanel {
 
 	}
 	
-	public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
+	public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 	}
 	

@@ -19,7 +19,7 @@ public class OpenGLDialChart extends PositionedChart {
 		return new ChartDescriptor() {
 			
 			@Override public String toString()        { return "Dial Chart"; }
-			@Override public int getMinimumDuration() { return 2; }
+			@Override public int getMinimumDuration() { return 5; }
 			@Override public int getDefaultDuration() { return 150000; }
 			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
 			@Override public String[] getInputNames() { return new String[] {"Data"}; }
@@ -47,7 +47,7 @@ public class OpenGLDialChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -69,11 +69,12 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
-		int startIndex = endIndex - duration + 1;
-		if(startIndex < 0)
-			startIndex = 0;
+		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
+		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
+		if(startIndex < 0) startIndex = 0;
 		
-		if(endIndex < 0)
+		if(endIndex - startIndex < minDomain)
 			return;
 		
 		datasets[0].getSamples(startIndex, endIndex, samples);

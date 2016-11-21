@@ -16,7 +16,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		return new ChartDescriptor() {
 			
 			@Override public String toString()        { return "Frequency Domain Chart"; }
-			@Override public int getMinimumDuration() { return 2; }
+			@Override public int getMinimumDuration() { return 5; }
 			@Override public int getDefaultDuration() { return 1000; }
 			@Override public int getMaximumDuration() { return 50000; }
 			@Override public String[] getInputNames() { return null; }
@@ -43,7 +43,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// draw background
 		gl.glBegin(GL2.GL_QUADS);
@@ -65,10 +65,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		// calculate the DFTs
 		int maxX = lastSampleNumber;
-		int minX = maxX - duration + 1;
+		int minX = maxX - (int) (duration * zoomLevel) + 1;
+		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		if(maxX - minX < minDomain) minX = maxX - minDomain;
 		if(minX < 0) minX = 0;
 		
-		if(maxX < duration)
+		if(maxX - minX < minDomain)
 			return;
 		
 		float[][] dfts = new float[datasets.length][];
@@ -294,7 +296,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		int binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
 		
 		// generate the sine and cosine LUTs
-		if(sinLUT == null || cosLUT == null) {
+		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {
 			sinLUT = new double[binCount][sampleCount];
 			cosLUT = new double[binCount][sampleCount];
 			for(int bin = 0; bin < binCount; bin++) {

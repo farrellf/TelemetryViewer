@@ -132,6 +132,7 @@ public class ChartUtils {
 		int minSpacingBetweenText = textWidth;
 		int maxDivisionsCount = (int) plotWidth / (textWidth + minSpacingBetweenText) + 1;
 		int divisionSize = (maxX - minX) / maxDivisionsCount;
+		if(divisionSize == 0) divisionSize = 1;
 		int closestDivSize1 = (int) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/1.0))) * 1; // closest (10^n)*1 that is >= divisionSize, such as 1,10,100,1000
 		int closestDivSize2 = (int) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/2.0))) * 2; // closest (10^n)*2 that is >= divisionSize, such as 2,20,200,2000
 		int closestDivSize5 = (int) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/5.0))) * 5; // closest (10^n)*5 that is >= divisionSize, such as 5,50,500,5000
