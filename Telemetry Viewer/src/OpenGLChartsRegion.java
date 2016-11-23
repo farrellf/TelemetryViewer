@@ -114,6 +114,8 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				gl.glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 				gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
+				
+				gl.glLineWidth(Theme.strokeWidth);
 
 				// draw a neutral background
 				float[] backgroundColor = new float[] {getBackground().getRed() / 255.0f, getBackground().getGreen() / 255.0f, getBackground().getBlue() / 255.0f};
@@ -284,6 +286,7 @@ public class OpenGLChartsRegion extends JPanel {
 				double scrollAmount = mwe.getPreciseWheelRotation();
 				double samplesPerScroll = Controller.getSampleRate() / 4;
 				double zoomPerScroll = 0.1;
+				float  displayScalingPerScroll = 0.1f;
 				
 				if(Controller.getCharts().size() == 0)
 					return;
@@ -291,9 +294,9 @@ public class OpenGLChartsRegion extends JPanel {
 				if(scrollAmount == 0)
 					return;
 				
-				if(mwe.isControlDown() == false) {
+				if(mwe.isControlDown() == false && mwe.isShiftDown() == false) {
 					
-					// ctrl is not down, so we're timeshifting
+					// no modifiers held down, so we're timeshifting
 					if(liveView == true) {
 						liveView = false;
 						nonLiveViewSamplesCount = (Controller.getSamplesCount() - 1);
@@ -311,7 +314,7 @@ public class OpenGLChartsRegion extends JPanel {
 					if(nonLiveViewSamplesCount >= Controller.getSamplesCount() - 1)
 						liveView = true;
 				
-				} else {
+				} else if(mwe.isControlDown() == true) {
 					
 					// ctrl is down, so we're zooming
 					zoomLevel *= 1 + (scrollAmount * zoomPerScroll);
@@ -320,6 +323,12 @@ public class OpenGLChartsRegion extends JPanel {
 						zoomLevel = 1;
 					else if(zoomLevel < 0)
 						zoomLevel = Double.MIN_VALUE;
+					
+				} else if(mwe.isShiftDown() == true) {
+					
+					// shift is down, so we're setting the display scaling factor
+					float newFactor = Controller.getDisplayScalingFactor() * (1 - ((float)scrollAmount * displayScalingPerScroll));
+					Controller.setDisplayScalingFactor(newFactor);
 					
 				}
 				

@@ -1,5 +1,4 @@
 import java.awt.Color;
-import java.awt.Toolkit;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -32,11 +31,26 @@ public class Controller {
 	static PrintWriter logFile;
 	
 	/**
-	 * @return    The percentage of 100dpi that the screen uses. It's currently rounded to an integer, but future plans will make use of floats.
+	 * @return    The display scaling factor. By default, this is the percentage of 100dpi that the screen uses, rounded to an integer.
 	 */
 	public static float getDisplayScalingFactor() {
 		
-		return (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0);
+		return Model.displayScalingFactor;
+		
+	}
+	
+	/**
+	 * @param newFactor    The new display scaling factor.
+	 */
+	public static void setDisplayScalingFactor(float newFactor) {
+		
+		if(newFactor < Model.displayScalingFactorMinimum) newFactor = Model.displayScalingFactorMinimum;
+		if(newFactor > Model.displayScalingFactorMaximum) newFactor = Model.displayScalingFactorMaximum;
+		
+		Model.displayScalingFactor = newFactor;
+		
+		Theme.displayingScalingFactorChanged(newFactor);
+		FontUtils.displayingScalingFactorChanged(newFactor);
 		
 	}
 	

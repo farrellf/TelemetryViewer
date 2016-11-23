@@ -4,42 +4,62 @@ import java.awt.Font;
 public class Theme {
 	
 	// charts region
-	public static final float[] gridBackgroundColor     = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-	public static final float[] gridLinesColor          = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static final float[] gridBoxColor            = new float[] {0.5f, 0.5f, 0.5f, 1.0f};
+	public static float[] gridBackgroundColor     = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+	public static float[] gridLinesColor          = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float[] gridBoxColor            = new float[] {0.5f, 0.5f, 0.5f, 1.0f};
 	
 	// general
-	public static final float strokeWidth               = 1.0f * Controller.getDisplayScalingFactor();
-	public static final float perimeterPadding          = 5.0f * Controller.getDisplayScalingFactor();
-	public static final float[] perimeterOutlineColor   = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static final float[] backgroundColor         = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+	public static float strokeWidth               = 1.0f * Controller.getDisplayScalingFactor();
+	public static float perimeterPadding          = 5.0f * Controller.getDisplayScalingFactor();
+	public static float[] perimeterOutlineColor   = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float[] backgroundColor         = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
 	
 	// plot
-	public static final float[] plotOutlineColor        = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static final float[] plotBackgroundColor     = new float[] {230.0f/255.0f, 230.0f/255.0f, 230.0f/255.0f, 1.0f};
-	public static final float[] divisionLinesColor      = new float[] {180.0f/255.0f, 180.0f/255.0f, 180.0f/255.0f, 1.0f};
-	public static final float[] divisionLinesFadedColor = new float[] {180.0f/255.0f, 180.0f/255.0f, 180.0f/255.0f, 0.0f};
+	public static float[] plotOutlineColor        = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float[] plotBackgroundColor     = new float[] {230.0f/255.0f, 230.0f/255.0f, 230.0f/255.0f, 1.0f};
+	public static float[] divisionLinesColor      = new float[] {180.0f/255.0f, 180.0f/255.0f, 180.0f/255.0f, 1.0f};
+	public static float[] divisionLinesFadedColor = new float[] {180.0f/255.0f, 180.0f/255.0f, 180.0f/255.0f, 0.0f};
 	
 	// tick marks
-	public static final float[] tickLinesColor          = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static final float   tickLength              = 6.0f * Controller.getDisplayScalingFactor();
-	public static final float   tickTextPadding         = 3.0f * Controller.getDisplayScalingFactor();
-	public static final Font    tickFont                = new Font("Geneva", Font.PLAIN, (int) (12.0 * Controller.getDisplayScalingFactor()));
-	public static final Color   tickFontColor           = Color.BLACK;
+	public static float[] tickLinesColor          = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float   tickLength              = 6.0f * Controller.getDisplayScalingFactor();
+	public static float   tickTextPadding         = 3.0f * Controller.getDisplayScalingFactor();
+	public static Font    tickFont                = new Font("Geneva", Font.PLAIN, (int) (12.0 * Controller.getDisplayScalingFactor()));
+	public static Color   tickFontColor           = Color.BLACK;
 	
 	// legend
-	public static final float[] legendOutlineColor      = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static final float   legendTextPadding       = 5.0f * Controller.getDisplayScalingFactor();
-	public static final float   legendNamesPadding      = 25.0f * Controller.getDisplayScalingFactor();
-	public static final Font    legendFont              = new Font("Geneva", Font.BOLD, (int) (14.0 * Controller.getDisplayScalingFactor()));
-	public static final Color   legendFontColor         = Color.BLACK;
+	public static float[] legendOutlineColor      = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float   legendTextPadding       = 5.0f * Controller.getDisplayScalingFactor();
+	public static float   legendNamesPadding      = 25.0f * Controller.getDisplayScalingFactor();
+	public static Font    legendFont              = new Font("Geneva", Font.BOLD, (int) (14.0 * Controller.getDisplayScalingFactor()));
+	public static Color   legendFontColor         = Color.BLACK;
 
 	// x-axis title
-	public static final Font  xAxisFont                 = new Font("Geneva", Font.BOLD, (int) (18.0 * Controller.getDisplayScalingFactor()));
-	public static final Color xAxisFontColor            = Color.BLACK;
+	public static Font  xAxisFont                 = new Font("Geneva", Font.BOLD, (int) (18.0 * Controller.getDisplayScalingFactor()));
+	public static Color xAxisFontColor            = Color.BLACK;
 	
 	// y-axis title
-	public static final Font  yAxisFont                 = new Font("Geneva", Font.BOLD, (int) (18.0 * Controller.getDisplayScalingFactor()));
-	public static final Color yAxisFontColor            = Color.BLACK;
+	public static Font  yAxisFont                 = new Font("Geneva", Font.BOLD, (int) (18.0 * Controller.getDisplayScalingFactor()));
+	public static Color yAxisFontColor            = Color.BLACK;
+	
+	/**
+	 * Called by the Controller when the display scaling factor changes.
+	 * 
+	 * @param newFactor    The new display scaling factor.
+	 */
+	public static void displayingScalingFactorChanged(float newFactor) {
+		
+		strokeWidth        = 1.0f * newFactor;
+		perimeterPadding   = 5.0f * newFactor;
+		tickLength         = 6.0f * newFactor;
+		tickTextPadding    = 3.0f * newFactor;
+		tickFont           = new Font("Geneva", Font.PLAIN, (int) (12.0 * newFactor));
+		legendTextPadding  = 5.0f * newFactor;
+		legendNamesPadding = 25.0f * newFactor;
+		legendFont         = new Font("Geneva", Font.BOLD, (int) (14.0 * newFactor));
+		xAxisFont          = new Font("Geneva", Font.BOLD, (int) (18.0 * newFactor));
+		yAxisFont          = new Font("Geneva", Font.BOLD, (int) (18.0 * newFactor));
+		
+	}
 
 }

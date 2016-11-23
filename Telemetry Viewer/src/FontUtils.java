@@ -18,30 +18,42 @@ public class FontUtils {
 	
 	private static int xOffset = 0;
 	private static int yOffset = 0;
+	private static boolean displayScalingChanged = false;
 	
 	private static final Queue<PositionedText> tickTextQueue    = new LinkedList<PositionedText>();
-	private static final TextRenderer          tickTextRenderer = new TextRenderer(Theme.tickFont, true, true);
-	private static final FontRenderContext     tickTextFRC      = tickTextRenderer.getFontRenderContext(); 
-	public  static final float                 tickTextHeight   = Theme.tickFont.createGlyphVector(tickTextFRC, "Test").getPixelBounds(tickTextFRC, 0, 0).height;
+	private static       TextRenderer          tickTextRenderer = new TextRenderer(Theme.tickFont, true, true);
+	private static       FontRenderContext     tickTextFRC      = tickTextRenderer.getFontRenderContext();
+	public  static       float                 tickTextHeight   = Theme.tickFont.createGlyphVector(tickTextFRC, "Test").getPixelBounds(tickTextFRC, 0, 0).height;
 	public  static       float                 tickTextWidth(String text) { return (float) Theme.tickFont.getStringBounds(text, tickTextFRC).getWidth(); }
 	
 	private static final Queue<PositionedText> legendTextQueue    = new LinkedList<PositionedText>();
-	private static final TextRenderer          legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
-	private static final FontRenderContext     legendTextFRC      = legendTextRenderer.getFontRenderContext(); 
-	public  static final float                 legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextFRC, "Test").getPixelBounds(legendTextFRC, 0, 0).height;
+	private static       TextRenderer          legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
+	private static       FontRenderContext     legendTextFRC      = legendTextRenderer.getFontRenderContext();
+	public  static       float                 legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextFRC, "Test").getPixelBounds(legendTextFRC, 0, 0).height;
 	public  static       float                 legendTextWidth(String text) { return (float) Theme.legendFont.getStringBounds(text, legendTextFRC).getWidth(); }
 	
 	private static final Queue<PositionedText> xAxisTextQueue    = new LinkedList<PositionedText>();
-	private static final TextRenderer          xAxisTextRenderer = new TextRenderer(Theme.xAxisFont, true, true);
-	private static final FontRenderContext     xAxisTextFRC      = xAxisTextRenderer.getFontRenderContext(); 
-	public  static final float                 xAxisTextHeight   = Theme.xAxisFont.createGlyphVector(xAxisTextFRC, "Test").getPixelBounds(xAxisTextFRC, 0, 0).height;
+	private static       TextRenderer          xAxisTextRenderer = new TextRenderer(Theme.xAxisFont, true, true);
+	private static       FontRenderContext     xAxisTextFRC      = xAxisTextRenderer.getFontRenderContext();
+	public  static       float                 xAxisTextHeight   = Theme.xAxisFont.createGlyphVector(xAxisTextFRC, "Test").getPixelBounds(xAxisTextFRC, 0, 0).height;
 	public  static       float                 xAxisTextWidth(String text) { return (float) Theme.xAxisFont.getStringBounds(text, xAxisTextFRC).getWidth(); }
 	
 	private static final Queue<PositionedText> yAxisTextQueue    = new LinkedList<PositionedText>();
-	private static final TextRenderer          yAxisTextRenderer = new TextRenderer(Theme.yAxisFont, true, true);
-	private static final FontRenderContext     yAxisTextFRC      = yAxisTextRenderer.getFontRenderContext(); 
-	public  static final float                 yAxisTextHeight   = Theme.yAxisFont.createGlyphVector(yAxisTextFRC, "Test").getPixelBounds(yAxisTextFRC, 0, 0).height;
+	private static       TextRenderer          yAxisTextRenderer = new TextRenderer(Theme.yAxisFont, true, true);
+	private static       FontRenderContext     yAxisTextFRC      = yAxisTextRenderer.getFontRenderContext();
+	public  static       float                 yAxisTextHeight   = Theme.yAxisFont.createGlyphVector(yAxisTextFRC, "Test").getPixelBounds(yAxisTextFRC, 0, 0).height;
 	public  static       float                 yAxisTextWidth(String text) { return (float) Theme.yAxisFont.getStringBounds(text, yAxisTextFRC).getWidth(); }
+	
+	/**
+	 * Called by the Controller when the display scaling factor changes.
+	 * 
+	 * @param newFactor    The new display scaling factor.
+	 */
+	public static void displayingScalingFactorChanged(float newFactor) {
+		
+		displayScalingChanged = true;
+		
+	}
 	
 	/**
 	 * Saves the location of the chart's lower-left corner in the GLcanvas. This needs to be called before using any of the draw*text() methods.
@@ -71,6 +83,28 @@ public class FontUtils {
 	}
 	
 	static void drawQueuedText(GL2 gl, int width, int height) {
+		
+		if(displayScalingChanged) {
+			
+			tickTextRenderer   = new TextRenderer(Theme.tickFont, true, true);
+			tickTextFRC        = tickTextRenderer.getFontRenderContext();
+			tickTextHeight     = Theme.tickFont.createGlyphVector(tickTextFRC, "Test").getPixelBounds(tickTextFRC, 0, 0).height;
+			
+			legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
+			legendTextFRC      = legendTextRenderer.getFontRenderContext();
+			legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextFRC, "Test").getPixelBounds(legendTextFRC, 0, 0).height;
+			
+			xAxisTextRenderer  = new TextRenderer(Theme.xAxisFont, true, true);
+			xAxisTextFRC       = xAxisTextRenderer.getFontRenderContext(); 
+			xAxisTextHeight    = Theme.xAxisFont.createGlyphVector(xAxisTextFRC, "Test").getPixelBounds(xAxisTextFRC, 0, 0).height;
+			
+			yAxisTextRenderer  = new TextRenderer(Theme.yAxisFont, true, true);
+			yAxisTextFRC       = yAxisTextRenderer.getFontRenderContext();
+			yAxisTextHeight    = Theme.yAxisFont.createGlyphVector(yAxisTextFRC, "Test").getPixelBounds(yAxisTextFRC, 0, 0).height;
+			
+			displayScalingChanged = false;
+			
+		}
 		
 		tickTextRenderer.beginRendering(width, height);
 		tickTextRenderer.setColor(Theme.tickFontColor);
@@ -106,6 +140,7 @@ public class FontUtils {
 			yAxisTextRenderer.setColor(Theme.yAxisFontColor);
 			yAxisTextRenderer.draw(pt.text, 0, 0);
 			yAxisTextRenderer.endRendering();
+			yAxisTextRenderer.flush();
 			gl.glPopMatrix();
 		}
 			

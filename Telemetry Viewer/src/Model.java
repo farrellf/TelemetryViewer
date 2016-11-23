@@ -1,5 +1,5 @@
 import java.awt.Color;
-import java.awt.Font;
+import java.awt.Toolkit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +27,9 @@ public class Model {
 	
 	final static Color lineColorDefault = Color.RED;
 	
-	final static Font chartTitleFont = new Font("Arial", Font.PLAIN, 18);
+	static float displayScalingFactor = (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0);
+	final static float displayScalingFactorMinimum =  0.5f;
+	final static float displayScalingFactorMaximum = 20.0f;
 	
 	// attributes of the possible charts
 	static ChartDescriptor[] chartDescriptors = new ChartDescriptor[] {
