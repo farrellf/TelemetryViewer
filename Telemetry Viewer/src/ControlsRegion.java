@@ -27,6 +27,7 @@ public class ControlsRegion extends JPanel {
 	JButton openLayoutButton;
 	JButton saveLayoutButton;
 	JButton resetButton;
+	JButton helpButton;
 	
 	JTextField columnsTextfield;
 	JTextField rowsTextfield;
@@ -81,6 +82,27 @@ public class ControlsRegion extends JPanel {
 		resetButton.addActionListener(new ActionListener() {
 			@Override public void actionPerformed(ActionEvent arg0) {
 				Controller.removeAllPositionedCharts();
+			}
+		});
+		
+		helpButton = new JButton("Help");
+		helpButton.addActionListener(new ActionListener() {
+			@Override public void actionPerformed(ActionEvent e) {
+				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+				String helpText = "<html><b>Telemetry Viewer v0.2 (2016-11-24)</b><br>" +
+				                  "A fast and simple tool for visualizing data received over a UART.<br><br>" +
+				                  "Step 1: Use the controls at the lower-right corner of the main window to connect to a serial port.<br>" +
+				                  "Step 2: A \"Data Structure\" window will pop up, use it to specify how your data is laid out, then click \"Done\"<br>" +
+				                  "Step 3: Click-and-drag in the grid region to place a chart.<br>" +
+				                  "Step 4: A \"New Chart\" window will pop up, use it to specify the type of chart and its settings.<br>" +
+				                  "Repeat steps 3 and 4 to create more charts.<br><br>" +
+				                  "Use your scroll wheel to rewind or fast forward.<br>" +
+				                  "Use your scroll wheel while holding down Ctrl to zoom in or out.<br>" +
+				                  "Use your scroll wheel while holding down Shift to adjust display scaling.<br><br>" +
+				                  "This software is free and open source.<br>" +
+				                  "Author: Farrell Farahbod <a href=\"http://www.farrellf.com\">http://www.farrellf.com</a></html>";
+				JLabel helpLabel = new JLabel(helpText);
+				JOptionPane.showMessageDialog(parentWindow, helpLabel, "Help", JOptionPane.PLAIN_MESSAGE);
 			}
 		});
 		
@@ -275,6 +297,8 @@ public class ControlsRegion extends JPanel {
 		add(saveLayoutButton);
 		add(Box.createHorizontalStrut(5));
 		add(resetButton);
+		add(Box.createHorizontalStrut(5));
+		add(helpButton);
 		add(Box.createHorizontalStrut(5));
 		add(Box.createHorizontalGlue());
 		add(new JLabel("Grid size:"));
