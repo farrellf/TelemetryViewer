@@ -24,8 +24,8 @@ public class Controller {
 	static List<GridChangedListener> gridChangedListeners = new ArrayList<GridChangedListener>();
 	static List<SerialPortListener>   serialPortListeners = new ArrayList<SerialPortListener>(); 
 	static List<ChartListener>             chartListeners = new ArrayList<ChartListener>();
-	static SerialPort port;
-	static Thread serialPortThread;
+	static volatile SerialPort port;
+	static volatile Thread serialPortThread;
 	static AtomicBoolean dataStructureDefined = new AtomicBoolean(false);
 	
 	static PrintWriter logFile;
@@ -219,6 +219,7 @@ public class Controller {
 	
 	private static final int SERIAL_CONNECTION_OPENED = 0;
 	private static final int SERIAL_CONNECTION_CLOSED = 1;
+	private static final int SERIAL_CONNECTION_LOST   = 2;
 	/**
 	 * Notifies all registered listeners about a change in the serial port status.
 	 * 
@@ -231,6 +232,8 @@ public class Controller {
 				listener.connectionOpened(Model.sampleRate, Model.packetType, Model.portName, Model.baudRate);
 			else if(status == SERIAL_CONNECTION_CLOSED)
 				listener.connectionClosed();
+			else if(status == SERIAL_CONNECTION_LOST)
+				listener.connectionLost();
 		
 	}
 	
@@ -280,6 +283,12 @@ public class Controller {
 	@SuppressWarnings("deprecation")
 	public static void connectToSerialPort(int sampleRate, String packetType, String portName, int baudRate) {
 		
+		// sanity checks
+		if(port != null)
+			port.closePort();
+		if(serialPortThread != null && serialPortThread.isAlive())
+			serialPortThread.stop();
+		
 		if(portName.equals("Test")) {
 			
 			Tester.populateDataStructure();
@@ -302,7 +311,7 @@ public class Controller {
 			if(!port.openPort()) { // try 3 times before giving up
 				if(!port.openPort()) {
 					if(!port.openPort()) {
-						notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
+						notifySerialPortListeners(SERIAL_CONNECTION_LOST);
 						return;
 					}
 				}
@@ -313,8 +322,7 @@ public class Controller {
 			Model.portName = portName;
 			Model.baudRate = baudRate;
 			
-			if(serialPortThread != null && serialPortThread.isAlive())
-				serialPortThread.stop();
+			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
 			
 			serialPortThread = new Thread(new Runnable() {
 				@Override public void run() {
@@ -326,10 +334,6 @@ public class Controller {
 					Scanner scanner = new Scanner(port.getInputStream());
 					
 					while(scanner.hasNextLine()) {
-						
-						// stop receiving data if the thread has been interrupted
-						if(serialPortThread.isInterrupted())
-							break;
 						
 						try {
 							
@@ -346,15 +350,14 @@ public class Controller {
 					scanner.close();
 					port.closePort();
 					port = null;
-					notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
+					notifySerialPortListeners(SERIAL_CONNECTION_LOST);
 					
 				}
 			});
+			
 			serialPortThread.setPriority(Thread.MAX_PRIORITY);
 			serialPortThread.setName("Serial Port Receiver");
 			serialPortThread.start();
-			
-			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
 			return;
 			
 		} else if(packetType.equals("Binary")) {
@@ -366,7 +369,7 @@ public class Controller {
 			if(!port.openPort()) { // try 3 times before giving up
 				if(!port.openPort()) {
 					if(!port.openPort()) {
-						notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
+						notifySerialPortListeners(SERIAL_CONNECTION_LOST);
 						return;
 					}
 				}
@@ -377,8 +380,7 @@ public class Controller {
 			Model.portName = portName;
 			Model.baudRate = baudRate;
 			
-			if(serialPortThread != null && serialPortThread.isAlive())
-				serialPortThread.stop();
+			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
 			
 			serialPortThread = new Thread(new Runnable() {
 				@Override public void run() {
@@ -393,15 +395,7 @@ public class Controller {
 					int packetSize = Controller.getBinaryPacketSize();
 					float[] samples = new float[Controller.getDatasetsCount()];
 					
-					while(true) {
-						
-						// stop receiving data if the thread has been interrupted
-						if(serialPortThread.isInterrupted()) {
-							port.closePort();
-							port = null;
-							notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
-							return;
-						}
+					while(port.isOpen()) {
 						
 						// wait for sync byte of 0xAA
 						while(rx_buffer[0] != (byte) 0xAA) // the byte cast is required!
@@ -450,13 +444,15 @@ public class Controller {
 							System.err.println("checksum failed");
 						
 					}
+					port.closePort();
+					port = null;
+					notifySerialPortListeners(SERIAL_CONNECTION_LOST);
 				}
 			});
+			
 			serialPortThread.setPriority(Thread.MAX_PRIORITY);
 			serialPortThread.setName("Serial Port Receiver");
 			serialPortThread.start();
-			
-			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
 			return;
 			
 		}
@@ -466,6 +462,7 @@ public class Controller {
 	/**
 	 * Disconnects from the active serial port, stops the data processing thread, and stops logging.
 	 */
+	@SuppressWarnings("deprecation")
 	public static void disconnectFromSerialPort() {
 		
 		dataStructureDefined.set(false);
@@ -477,10 +474,16 @@ public class Controller {
 			
 		} else {		
 			
-			if(serialPortThread != null)
-				serialPortThread.interrupt();
-			while(port != null)
-				try { Thread.sleep(1); } catch(Exception e) { }
+			if(serialPortThread != null && serialPortThread.isAlive())
+				serialPortThread.stop();
+			
+			if(port != null)
+				port.closePort();
+			
+			notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
+			
+			serialPortThread = null;
+			port = null;
 			
 		}
 		
@@ -653,12 +656,15 @@ public class Controller {
 			logFile.print("PC Timestamp (YYYY-MM-DD    HH:MM:SS.SSS)");
 			for(int i = 0; i < Controller.getDatasetsCount(); i++) {
 				Dataset d = Controller.getDatasetByIndex(i);
-				logFile.print("," + d.name + " (" + d.unit + ")");
+				logFile.print("," + d.name);
 			}
 			logFile.println();
 		} catch(Exception e) { }
 		
 		dataStructureDefined.set(true);
+		
+		for(PositionedChart chart : Controller.getCharts())
+			chart.reconnectDatasets();
 		
 	}
 	

@@ -38,7 +38,6 @@ public class ControlsRegion extends JPanel {
 	JButton connectButton;
 	
 	AtomicBoolean waitingForSerialConnection;
-	AtomicBoolean waitingForSerialDisconnection;
 	
 	/**
 	 * Creates the panel of controls and registers their event handlers.
@@ -50,7 +49,6 @@ public class ControlsRegion extends JPanel {
 		setBorder(new EmptyBorder(5, 5, 5, 5));
 		
 		waitingForSerialConnection = new AtomicBoolean(false);
-		waitingForSerialDisconnection = new AtomicBoolean(false);
 		
 		openLayoutButton = new JButton("Open Layout");
 		openLayoutButton.addActionListener(new ActionListener() {
@@ -161,6 +159,7 @@ public class ControlsRegion extends JPanel {
 		baudRatesCombobox.setMaximumSize(baudRatesCombobox.getPreferredSize());
 		
 		Controller.addSerialPortListener(new SerialPortListener() {
+			
 			@Override public void connectionOpened(int sampleRate, String packetType, String portName, int baudRate) {
 				
 				// enable or disable UI elements
@@ -213,13 +212,15 @@ public class ControlsRegion extends JPanel {
 				// update UI state
 				connectButton.setText("Connect");
 				
-				if(waitingForSerialDisconnection.compareAndSet(true, false)){
-					// do nothing, this was expected
-				} else {
-					// notify the user because they did not initiate the disconnection
-					JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-					JOptionPane.showMessageDialog(parentWindow, "Serial connection lost.", "Serial Connection Lost", JOptionPane.WARNING_MESSAGE);
-				}
+			}
+
+			@Override public void connectionLost() {
+
+				connectionClosed();
+
+				// notify the user because they did not initiate the disconnection
+				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+				JOptionPane.showMessageDialog(parentWindow, "Serial connection lost.", "Serial Connection Lost", JOptionPane.WARNING_MESSAGE);
 				
 			}
 		});
@@ -248,6 +249,7 @@ public class ControlsRegion extends JPanel {
 					connectButton.setEnabled(false);
 					
 					waitingForSerialConnection.set(true);
+					
 					Controller.connectToSerialPort(sampleRate, packetType, portName, baudRate);
 					
 				} else if(connectButton.getText().equals("Disconnect")) {
@@ -260,7 +262,6 @@ public class ControlsRegion extends JPanel {
 					baudRatesCombobox.setEnabled(false);
 					connectButton.setEnabled(false);
 					
-					waitingForSerialDisconnection.set(true);
 					Controller.disconnectFromSerialPort();
 					
 				}
