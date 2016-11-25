@@ -38,7 +38,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			
 			@Override public String toString()        { return "Histogram Chart"; }
 			@Override public int getMinimumDuration() { return 5; }
-			@Override public int getDefaultDuration() { return 150000; }
+			@Override public int getDefaultDuration() { return 1000; }
 			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
 			@Override public String[] getInputNames() { return null; }
 			
