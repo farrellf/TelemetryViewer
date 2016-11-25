@@ -45,6 +45,11 @@ public class OpenGLChartsRegion extends JPanel {
 	int nonLiveViewSamplesCount;
 	double zoomLevel;
 	
+	// mouse pointer's current location (pixels, origin at bottom-left)
+	int mouseX;
+	int mouseY;
+	PositionedChart chartToCloseOnClick;
+	
 	public OpenGLChartsRegion() {
 		
 		super();
@@ -60,6 +65,10 @@ public class OpenGLChartsRegion extends JPanel {
 		liveView = true;
 		nonLiveViewSamplesCount = 0;
 		zoomLevel = 1;
+		
+		mouseX = -1;
+		mouseY = -1;
+		chartToCloseOnClick = null;
 		
 		GLCanvas glCanvas = new GLCanvas(new GLCapabilities(GLProfile.get(GLProfile.GL2)));
 		glCanvas.addGLEventListener(new GLEventListener() {
@@ -179,6 +188,7 @@ public class OpenGLChartsRegion extends JPanel {
 				if(charts.size() == 0)
 					liveView = true;
 				int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
+				PositionedChart chartToClose = null;
 				gl.glEnable(GL2.GL_SCISSOR_TEST);
 				for(PositionedChart chart : charts) {
 					int width = columnWidth * (chart.bottomRightX - chart.topLeftX + 1);
@@ -192,9 +202,54 @@ public class OpenGLChartsRegion extends JPanel {
 					FontUtils.setOffsets(xOffset, yOffset);
 					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+					
+					boolean mouseOverThisChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
+					if(mouseOverThisChart) {
+						float iconWidth = 15f * Controller.getDisplayScalingFactor();
+						float inset = iconWidth * 0.2f;
+						float closeIconX1 = xOffset + width - iconWidth;
+						float closeIconX2 = xOffset + width;
+						float closeIconY1 = yOffset + height - iconWidth;
+						float closeIconY2 = yOffset + height;
+						boolean mouseOverCloseIcon = mouseX >= closeIconX1 && mouseX <= closeIconX2 && mouseY >= closeIconY1 && mouseY <= closeIconY2;
+						if(mouseOverCloseIcon)
+							chartToClose = chart;
+						gl.glBegin(GL2.GL_QUADS);
+							if(mouseOverCloseIcon)
+								gl.glColor4f(0, 0, 0, 1);
+							else
+								gl.glColor4f(1, 1, 1, 1);
+							gl.glVertex2f(width,             height);
+							gl.glVertex2f(width,             height - iconWidth);
+							gl.glVertex2f(width - iconWidth, height - iconWidth);
+							gl.glVertex2f(width - iconWidth, height);
+						gl.glEnd();
+						gl.glBegin(GL2.GL_LINE_LOOP);
+							if(mouseOverCloseIcon)
+								gl.glColor4f(1, 1, 1, 1);
+							else
+								gl.glColor4f(0, 0, 0, 1);
+							gl.glVertex2f(width,             height);
+							gl.glVertex2f(width,             height - iconWidth);
+							gl.glVertex2f(width - iconWidth, height - iconWidth);
+							gl.glVertex2f(width - iconWidth, height);
+						gl.glEnd();
+						gl.glBegin(GL2.GL_LINES);
+							if(mouseOverCloseIcon)
+								gl.glColor4f(1, 1, 1, 1);
+							else
+								gl.glColor4f(0, 0, 0, 1);
+							gl.glVertex2f(width - inset, height - inset);
+							gl.glVertex2f(width - iconWidth + inset, height - iconWidth + inset);
+							gl.glVertex2f(width - iconWidth + inset, height - inset);
+							gl.glVertex2f(width - inset, height - iconWidth + inset);
+						gl.glEnd();
+					}
+					
 					gl.glPopMatrix();
 				}
 				gl.glDisable(GL2.GL_SCISSOR_TEST);
+				chartToCloseOnClick = chartToClose;
 				
 //				System.out.println(String.format("%2.2fFPS, %2dms", animator.getLastFPS(), animator.getLastFPSPeriod()));
 				
@@ -250,9 +305,23 @@ public class OpenGLChartsRegion extends JPanel {
 				
 			}
 
-			@Override public void mouseExited (MouseEvent e) { }
-			@Override public void mouseEntered(MouseEvent e) { }
-			@Override public void mouseClicked(MouseEvent e) { }
+			// the mouse left the canvas, no longer need to show the chart close icon
+			@Override public void mouseExited (MouseEvent me) {
+				
+				mouseX = -1;
+				mouseY = -1;
+				
+			}
+			
+			// the user clicked, possibly to close a chart
+			@Override public void mouseClicked(MouseEvent me) {
+				
+				if(chartToCloseOnClick != null)
+					Controller.removePositionedChart(chartToCloseOnClick);
+				
+			}
+			
+			@Override public void mouseEntered(MouseEvent me) { }
 			
 		});
 		
@@ -274,7 +343,13 @@ public class OpenGLChartsRegion extends JPanel {
 				
 			}
 			
-			@Override public void mouseMoved(MouseEvent me) { }
+			// log the mouse position so a chart close icon can be drawn
+			@Override public void mouseMoved(MouseEvent me) {
+				
+				mouseX = me.getX();
+				mouseY = glCanvas.getHeight() - me.getY();
+				
+			}
 			
 		});
 		

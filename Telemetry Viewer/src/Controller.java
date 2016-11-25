@@ -22,8 +22,7 @@ import com.fazecast.jSerialComm.SerialPort;
 public class Controller {
 	
 	static List<GridChangedListener> gridChangedListeners = new ArrayList<GridChangedListener>();
-	static List<SerialPortListener>   serialPortListeners = new ArrayList<SerialPortListener>(); 
-	static List<ChartListener>             chartListeners = new ArrayList<ChartListener>();
+	static List<SerialPortListener>   serialPortListeners = new ArrayList<SerialPortListener>();
 	static volatile SerialPort port;
 	static volatile Thread serialPortThread;
 	static AtomicBoolean dataStructureDefined = new AtomicBoolean(false);
@@ -495,43 +494,11 @@ public class Controller {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when a chart is added or removed.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addChartsListener(ChartListener listener) {
-		
-		chartListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new chart.
-	 */
-	private static void notifyChartListenersOfAddition(PositionedChart chart) {
-		
-		for(ChartListener listener : chartListeners)
-			listener.chartAdded(chart);
-		
-	}
-	
-	/**
-	 * Notifies all registered Listeners about a removed chart.
-	 */
-	private static void notifyChartListenersOfRemoval(PositionedChart chart) {
-		
-		for(ChartListener listener : chartListeners)
-			listener.chartRemoved(chart);
-		
-	}
-	
-	/**
 	 * @param chart    New chart to insert and display.
 	 */
 	public static void addPositionedChart(PositionedChart chart) {
 		
 		Model.charts.add(chart);
-		notifyChartListenersOfAddition(chart);
 		
 	}
 	
@@ -540,10 +507,18 @@ public class Controller {
 	 */
 	public static void removeAllPositionedCharts() {
 		
-		for(PositionedChart chart : Model.charts)
-			notifyChartListenersOfRemoval(chart);
-		
 		Model.charts.clear();
+		
+	}
+	
+	/**
+	 * Removes a specific chart.
+	 * 
+	 * @param chart    Chart to remove.
+	 */
+	public static void removePositionedChart(PositionedChart chart) {
+
+		Model.charts.remove(chart);
 		
 	}
 	
