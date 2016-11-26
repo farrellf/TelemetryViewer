@@ -22,5 +22,15 @@
 	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-windows-amd64.jar"/>
 	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/gluegen-rt-natives-windows-i586.jar"/>
 	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-windows-i586.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/gluegen-rt-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/gluegen-rt-natives-linux-armv6.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/gluegen-rt-natives-linux-armv6hf.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/gluegen-rt-natives-linux-i586.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/gluegen-rt-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-linux-armv6.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-linux-armv6hf.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-linux-i586.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-macosx-universal.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
