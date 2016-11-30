@@ -207,7 +207,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 		
 		// draw the legend
-		float xOffset = xLegendBorderLeft + Theme.strokeWidth + Theme.legendTextPadding;
+		float xOffset = xLegendBorderLeft + Theme.lineWidth + Theme.legendTextPadding;
 		for(Dataset dataset : datasets) {
 			gl.glBegin(GL2.GL_QUADS);
 			gl.glColor4f(dataset.color.getRed()/255.0f, dataset.color.getGreen()/255.0f, dataset.color.getBlue()/255.0f, 1);
@@ -262,9 +262,15 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		gl.glTranslatef(0, -plotMinY, 0);
 		
 		for(int i = 0; i < datasets.length; i++) {
+			int dftBinCount = dfts[i].length / 2;
+			
 			gl.glColor4f(datasets[i].color.getRed()/255.0f, datasets[i].color.getGreen()/255.0f, datasets[i].color.getBlue()/255.0f, 1);
 			gl.glVertexPointer(2, GL2.GL_FLOAT, 0, Buffers.newDirectFloatBuffer(dfts[i]));
-			gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, dfts[i].length / 2);
+			gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, dftBinCount);
+			
+			// also draw points if there are relatively few bins on screen
+			if(plotWidth / dftBinCount > 2 * Theme.pointSize)
+				gl.glDrawArrays(GL2.GL_POINTS, 0, dftBinCount);
 		}
 		
 		gl.glPopMatrix();

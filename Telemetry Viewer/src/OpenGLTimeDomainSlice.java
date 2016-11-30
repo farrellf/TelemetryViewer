@@ -251,6 +251,10 @@ public class OpenGLTimeDomainSlice {
 			gl.glVertexPointer(2, GL2.GL_FLOAT, 0, glDataset[i].buffer);
 			gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, vertexCount);
 			
+			// also draw points if there are relatively few samples on screen
+			if(_plotWidth / _domain > 2 * Theme.pointSize)
+				gl.glDrawArrays(GL2.GL_POINTS, 0, vertexCount);
+			
 			gl.glPopMatrix();
 			
 		}

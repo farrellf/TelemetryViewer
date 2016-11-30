@@ -394,7 +394,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		}
 		
 		// draw legend
-		float xOffset = xLegendBorderLeft + Theme.strokeWidth + Theme.legendTextPadding;
+		float xOffset = xLegendBorderLeft + Theme.lineWidth + Theme.legendTextPadding;
 		for(Dataset dataset : datasets) {
 			gl.glBegin(GL2.GL_QUADS);
 			gl.glColor3f(dataset.color.getRed()/255.0f, dataset.color.getGreen()/255.0f, dataset.color.getBlue()/255.0f);

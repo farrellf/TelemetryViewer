@@ -191,7 +191,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		}
 		
 		// draw the legend
-		float xOffset = xLegendBorderLeft + Theme.strokeWidth + Theme.legendTextPadding;
+		float xOffset = xLegendBorderLeft + Theme.lineWidth + Theme.legendTextPadding;
 		for(SamplesGL dataset : slice.glDataset) {
 			gl.glBegin(GL2.GL_QUADS);
 			gl.glColor4fv(dataset.color, 0);
@@ -251,6 +251,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				gl.glColor4fv(slice.glDataset[i].color, 0);
 				gl.glVertexPointer(2, GL2.GL_FLOAT, 0, slice.glDataset[i].buffer);
 				gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, slice.glDataset[i].vertexCount);
+				
+				// also draw points if there are relatively few samples on screen
+				if(plotWidth / domain > 2 * Theme.pointSize)
+					gl.glDrawArrays(GL2.GL_POINTS, 0, slice.glDataset[i].vertexCount);
 				
 				gl.glPopMatrix();
 				

@@ -9,7 +9,8 @@ public class Theme {
 	public static float[] gridBoxColor            = new float[] {0.5f, 0.5f, 0.5f, 1.0f};
 	
 	// general
-	public static float strokeWidth               = 1.0f * Controller.getDisplayScalingFactor();
+	public static float lineWidth                 = 1.0f * Controller.getDisplayScalingFactor();
+	public static float pointSize                 = 3.0f * Controller.getDisplayScalingFactor();
 	public static float perimeterPadding          = 5.0f * Controller.getDisplayScalingFactor();
 	public static float[] perimeterOutlineColor   = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
 	public static float[] backgroundColor         = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
@@ -49,7 +50,8 @@ public class Theme {
 	 */
 	public static void displayingScalingFactorChanged(float newFactor) {
 		
-		strokeWidth        = 1.0f * newFactor;
+		lineWidth          = 1.0f * newFactor;
+		pointSize          = 3.0f * newFactor;
 		perimeterPadding   = 5.0f * newFactor;
 		tickLength         = 6.0f * newFactor;
 		tickTextPadding    = 3.0f * newFactor;

@@ -88,7 +88,8 @@ public class OpenGLChartsRegion extends JPanel {
 			    
 				gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
 			    
-				gl.glLineWidth(Theme.strokeWidth);
+				gl.glLineWidth(Theme.lineWidth);
+				gl.glPointSize(Theme.pointSize);
 				
 				gl.setSwapInterval(1);
 				
@@ -124,7 +125,8 @@ public class OpenGLChartsRegion extends JPanel {
 				gl.glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 				gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
 				
-				gl.glLineWidth(Theme.strokeWidth);
+				gl.glLineWidth(Theme.lineWidth);
+				gl.glPointSize(Theme.pointSize);
 
 				// draw a neutral background
 				float[] backgroundColor = new float[] {getBackground().getRed() / 255.0f, getBackground().getGreen() / 255.0f, getBackground().getBlue() / 255.0f};
