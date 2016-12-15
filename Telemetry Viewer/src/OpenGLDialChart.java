@@ -13,6 +13,10 @@ public class OpenGLDialChart extends PositionedChart {
 	final int   dialResolution = 200; // how many quads to draw
 	final float dialThickness = 0.4f; // percentage of the radius
 	Samples     samples;
+	boolean     showStatistics;
+	boolean     autoRange;
+	float       manualRangeMin;
+	float       manualRangeMax;
 	
 	public static ChartDescriptor getDescriptor() {
 		
@@ -44,6 +48,12 @@ public class OpenGLDialChart extends PositionedChart {
 		super(x1, y1, x2, y2, chartDuration, chartInputs);
 		
 		samples = new Samples();
+		
+		showStatistics = false;
+		
+		autoRange = false;
+		manualRangeMin = -2.0f;
+		manualRangeMax =  2.0f;
 
 	}
 	
@@ -79,30 +89,26 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		datasets[0].getSamples(startIndex, endIndex, samples);
 
-		// prepare
-		float dialMin = samples.min;
-		float dialMax = samples.max;
+		// calculate range
+		float dialMin = autoRange ? samples.min : manualRangeMin;
+		float dialMax = autoRange ? samples.max : manualRangeMax;
 		float range = dialMax - dialMin;
 		
-		double[] doubles = new double[samples.buffer.length];
-		for(int i = 0; i < samples.buffer.length; i++)
-			doubles[i] = (double) samples.buffer[i];
-		DescriptiveStatistics stats = new DescriptiveStatistics(doubles);
-		
+		// generate text
 		float reading      = samples.buffer[samples.buffer.length - 1];
 		String minText     = ChartUtils.formattedNumber(dialMin, 6);
 		String maxText     = ChartUtils.formattedNumber(dialMax, 6);
 		String readingText = ChartUtils.formattedNumber(reading, 6) + " " + datasets[0].unit;
-		String meanText    = "Mean: " +    ChartUtils.formattedNumber(stats.getMean(), 6);
-		String stdDevText  = "Std Dev: " + ChartUtils.formattedNumber(stats.getStandardDeviation(), 6);
 		String titleText   = datasets[0].name;
 		
-		// calculate x and y positions of everything
+		// calculate x and y positions of everything except the statistics
 		float xPlotLeft = Theme.perimeterPadding;
 		float xPlotRight = width - Theme.perimeterPadding;
 		float plotWidth = xPlotRight - xPlotLeft;
 
-		float yStatsTextBaseline = height - Theme.perimeterPadding - FontUtils.tickTextHeight;
+		float yStatsTextBaseline = height - Theme.perimeterPadding;
+		if(showStatistics)
+			yStatsTextBaseline -= FontUtils.tickTextHeight;
 		float yMinMaxTextBaseline = Theme.perimeterPadding;
 		float yDialBottom = yMinMaxTextBaseline + FontUtils.tickTextHeight + Theme.tickTextPadding;
 		
@@ -114,8 +120,6 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		float xMinXtextLeft = xCircleCenter - circleRadius;
 		float xMaxXtextLeft = xCircleCenter + circleRadius - FontUtils.tickTextWidth(maxText);
-		float xMeanTextLeft = xPlotLeft;
-		float xStdDevTextLeft = xPlotRight - FontUtils.tickTextWidth(stdDevText);
 		float xReadingTextLeft = xCircleCenter - FontUtils.xAxisTextWidth(readingText) / 2f;
 		float yTitleBaseline = yMinMaxTextBaseline + FontUtils.xAxisTextHeight + Theme.tickTextPadding;
 		float xTitleLeft = (width / 2f) - (FontUtils.xAxisTextWidth(titleText) / 2f);
@@ -146,14 +150,30 @@ public class OpenGLDialChart extends PositionedChart {
 				
 			}
 		gl.glEnd();
-		
+				
 		// draw the text
 		FontUtils.drawTickText(minText,      (int) xMinXtextLeft,    (int) yMinMaxTextBaseline);
 		FontUtils.drawTickText(maxText,      (int) xMaxXtextLeft,    (int) yMinMaxTextBaseline);
-		FontUtils.drawTickText(meanText,     (int) xMeanTextLeft,    (int) yStatsTextBaseline);
-		FontUtils.drawTickText(stdDevText,   (int) xStdDevTextLeft,  (int) yStatsTextBaseline);
 		FontUtils.drawXaxisText(titleText,   (int) xTitleLeft,       (int) yTitleBaseline);
 		FontUtils.drawXaxisText(readingText, (int) xReadingTextLeft, (int) yMinMaxTextBaseline);
+		
+		// draw the statistics if enabled
+		if(showStatistics) {
+			
+			double[] doubles = new double[samples.buffer.length];
+			for(int i = 0; i < samples.buffer.length; i++)
+				doubles[i] = (double) samples.buffer[i];
+			DescriptiveStatistics stats = new DescriptiveStatistics(doubles);
+			
+			String meanText    = "Mean: " +    ChartUtils.formattedNumber(stats.getMean(), 6);
+			String stdDevText  = "Std Dev: " + ChartUtils.formattedNumber(stats.getStandardDeviation(), 6);
+			
+			float xMeanTextLeft = xPlotLeft;
+			float xStdDevTextLeft = xPlotRight - FontUtils.tickTextWidth(stdDevText);
+			FontUtils.drawTickText(meanText,     (int) xMeanTextLeft,    (int) yStatsTextBaseline);
+			FontUtils.drawTickText(stdDevText,   (int) xStdDevTextLeft,  (int) yStatsTextBaseline);
+			
+		}
 		
 	}
 
