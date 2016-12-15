@@ -618,7 +618,7 @@ public class Controller {
 	 * 
 	 * @param inputFilePath    An absolute path to a .txt file.
 	 */
-	static void openLayout(String inputFilePath) { // FIXME add fault checking: do charts reference datasets that exist?
+	static void openLayout(String inputFilePath) {
 		
 		Controller.disconnectFromSerialPort();
 		
@@ -627,49 +627,49 @@ public class Controller {
 			List<String> lines = Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8);
 			int n = 0;
 			
-			parse(lines.get(n++), "Telemetry Viewer File Format v0.1");
-			parse(lines.get(n++), "");
+			parse(n, lines.get(n++), "Telemetry Viewer File Format v0.1");
+			parse(n, lines.get(n++), "");
 			
-			parse(lines.get(n++), "Grid Settings:");
-			parse(lines.get(n++), "");
+			parse(n, lines.get(n++), "Grid Settings:");
+			parse(n, lines.get(n++), "");
 			
-			int gridColumns = (int) parse(lines.get(n++), "\tcolumn count = %d");
-			int gridRows = (int) parse(lines.get(n++), "\trow count = %d");
-			parse(lines.get(n++), "");
+			int gridColumns = (int) parse(n, lines.get(n++), "\tcolumn count = %d");
+			int gridRows = (int) parse(n, lines.get(n++), "\trow count = %d");
+			parse(n, lines.get(n++), "");
 			
 			Controller.setGridColumns(gridColumns);
 			Controller.setGridRows(gridRows);
 
-			parse(lines.get(n++), "Serial Port Settings:");
-			parse(lines.get(n++), "");
-			String portName = (String) parse(lines.get(n++), "\tport = %s");
-			int baudRate = (int) parse(lines.get(n++), "\tbaud = %d");
+			parse(n, lines.get(n++), "Serial Port Settings:");
+			parse(n, lines.get(n++), "");
+			String portName = (String) parse(n, lines.get(n++), "\tport = %s");
+			int baudRate = (int) parse(n, lines.get(n++), "\tbaud = %d");
 			
-			String packetType = (String) parse(lines.get(n++), "\tpacket type = %s");
-			int sampleRate = (int) parse(lines.get(n++), "\tsample rate = %d");
-			parse(lines.get(n++), "");
+			String packetType = (String) parse(n, lines.get(n++), "\tpacket type = %s");
+			int sampleRate = (int) parse(n, lines.get(n++), "\tsample rate = %d");
+			parse(n, lines.get(n++), "");
 
 			if(packetType.equals(Model.csvPacket.toString()))
 				Model.packet = Model.csvPacket;
 			else if(packetType.equals(Model.binaryPacket.toString()))
 				Model.packet = Model.binaryPacket;
 			else
-				throw new AssertionError(); // invalid packet type
+				throw new AssertionError("Line " + n + ": Invalid packet type.");
 			
 			Model.packet.clear();
 			
-			int locationsCount = (int) parse(lines.get(n++), "%d Data Structure Locations:");
+			int locationsCount = (int) parse(n, lines.get(n++), "%d Data Structure Locations:");
 
 			for(int i = 0; i < locationsCount; i++) {
 				
-				parse(lines.get(n++), "");
-				int location = (int) parse(lines.get(n++), "\tlocation = %d");
-				int processorIndex = (int) parse(lines.get(n++), "\tprocessor index = %d");
-				String name = (String) parse(lines.get(n++), "\tname = %s");
-				String colorText = (String) parse(lines.get(n++), "\tcolor = 0x%s");
-				String unit = (String) parse(lines.get(n++), "\tunit = %s");
-				float conversionFactorA = (float) parse(lines.get(n++), "\tconversion factor a = %f");
-				float conversionFactorB = (float) parse(lines.get(n++), "\tconversion factor b = %f");
+				parse(n, lines.get(n++), "");
+				int location = (int) parse(n, lines.get(n++), "\tlocation = %d");
+				int processorIndex = (int) parse(n, lines.get(n++), "\tprocessor index = %d");
+				String name = (String) parse(n, lines.get(n++), "\tname = %s");
+				String colorText = (String) parse(n, lines.get(n++), "\tcolor = 0x%s");
+				String unit = (String) parse(n, lines.get(n++), "\tunit = %s");
+				float conversionFactorA = (float) parse(n, lines.get(n++), "\tconversion factor a = %f");
+				float conversionFactorB = (float) parse(n, lines.get(n++), "\tconversion factor b = %f");
 				
 				int colorNumber = Integer.parseInt(colorText, 16);
 				Color color = new Color(colorNumber);
@@ -683,11 +683,11 @@ public class Controller {
 			
 			if(Model.packet == Model.binaryPacket) {
 				
-				parse(lines.get(n++), "");
-				parse(lines.get(n++), "Checksum:");
-				parse(lines.get(n++), "");
-				int checksumOffset = (int) parse(lines.get(n++), "\tlocation = %d");
-				int checksumIndex = (int) parse(lines.get(n++), "\tchecksum processor index = %d");
+				parse(n, lines.get(n++), "");
+				parse(n, lines.get(n++), "Checksum:");
+				parse(n, lines.get(n++), "");
+				int checksumOffset = (int) parse(n, lines.get(n++), "\tlocation = %d");
+				int checksumIndex = (int) parse(n, lines.get(n++), "\tchecksum processor index = %d");
 				
 				if(checksumOffset >= 1) {
 					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
@@ -698,26 +698,29 @@ public class Controller {
 			
 			Controller.connectToSerialPort(sampleRate, Model.packet, portName, baudRate, null);
 
-			parse(lines.get(n++), "");
-			int chartsCount = (int) parse(lines.get(n++), "%d Charts:");
+			parse(n, lines.get(n++), "");
+			int chartsCount = (int) parse(n, lines.get(n++), "%d Charts:");
 
 			for(int i = 0; i < chartsCount; i++) {
 				
-				parse(lines.get(n++), "");
-				String chartType = (String) parse(lines.get(n++), "\tchart type = %s");
-				int duration = (int) parse(lines.get(n++), "\tduration = %d");
-				int topLeftX = (int) parse(lines.get(n++), "\ttop left x = %d");
-				int topLeftY = (int) parse(lines.get(n++), "\ttop left y = %d");
-				int bottomRightX = (int) parse(lines.get(n++), "\tbottom right x = %d");
-				int bottomRightY = (int) parse(lines.get(n++), "\tbottom right y = %d");
-				int datasetsCount = (int) parse(lines.get(n++), "\tdatasets count = %d");
+				parse(n, lines.get(n++), "");
+				String chartType = (String) parse(n, lines.get(n++), "\tchart type = %s");
+				int duration = (int) parse(n, lines.get(n++), "\tduration = %d");
+				int topLeftX = (int) parse(n, lines.get(n++), "\ttop left x = %d");
+				int topLeftY = (int) parse(n, lines.get(n++), "\ttop left y = %d");
+				int bottomRightX = (int) parse(n, lines.get(n++), "\tbottom right x = %d");
+				int bottomRightY = (int) parse(n, lines.get(n++), "\tbottom right y = %d");
+				int datasetsCount = (int) parse(n, lines.get(n++), "\tdatasets count = %d");
 				
 				Dataset[] datasets = new Dataset[datasetsCount];
 				
 				for(int j = 0; j < datasetsCount; j++) {
 					
-					int location = (int) parse(lines.get(n++), "\t\tdataset location = %d");
+					int location = (int) parse(n, lines.get(n++), "\t\tdataset location = %d");
 					datasets[j] = Controller.getDatasetByLocation(location);
+					
+					if(datasets[j] == null)
+						throw new AssertionError("Line " + n + ": Dataset does not exist.");
 					
 				}
 				
@@ -730,13 +733,13 @@ public class Controller {
 				
 			}
 			
-		} catch (IOException e) {
+		} catch (IOException ioe) {
 			
-			JOptionPane.showMessageDialog(null, "Unable to open the file.", "Error: Unable to Open the File", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(null, "Unable to open the file.", "Error", JOptionPane.ERROR_MESSAGE);
 			
-		} catch(AssertionError e) {
+		} catch(AssertionError ae) {
 		
-			JOptionPane.showMessageDialog(null, "Unable to parse the file.", "Error: Unable to Parse the File", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(null, "Error while parsing the file:\n" + ae.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 		
 		}
 		
@@ -745,7 +748,8 @@ public class Controller {
 	/**
 	 * Takes a string of text and attempts to parse it with a format string.
 	 * Throws an exception if the text does not match the format string, or if the format string is invalid.
-	 *  
+	 * 
+	 * @param line            Line number to show in the error message if an error occurs.
 	 * @param text            Line of text to parse.
 	 * @param formatString    Printf-style format string but with many limitations:
 	 *                            1. Only %d %f or %s can be used.
@@ -753,14 +757,17 @@ public class Controller {
                                   3. There must be a space between %d/%f/%s and the rest of the text.
 	 * @return                An Integer if %d was used, a Float if %f was used, a String if %s was used, or null if no format specifier was used.
 	 */
-	private static Object parse(String text, String formatString) {
+	private static Object parse(int line, String text, String formatString) {
+		
+		// error message line numbers should start at 1 but the argument starts at 0
+		line++;
 		
 		// no format specifier, so just ensure the text matches the formatString exactly
 		if(!formatString.contains("%")) {
 			if(text.equals(formatString))
 				return null;
 			else
-				throw new AssertionError();
+				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 		}
 		
 		// starting with %d, so an integer should be at the start of the text
@@ -775,9 +782,9 @@ public class Controller {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError(); // text does not match
+					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError(); // text does not start with an integer
+				throw new AssertionError("Line " + line + ": Text does not start with an integer.");
 			}
 		}
 		
@@ -793,9 +800,9 @@ public class Controller {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError(); // text does not match
+					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError(); // text does not start with a float
+				throw new AssertionError("Line " + line + ": Text does not start with a floating point number.");
 			}
 		}
 		
@@ -811,9 +818,9 @@ public class Controller {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError(); // text does not match
+					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError(); // text does not end with an integer
+				throw new AssertionError("Line " + line + ": Text does not end with an integer.");
 			}
 		}
 		
@@ -829,9 +836,9 @@ public class Controller {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError(); // text does not match
+					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError(); // text does not end with a float
+				throw new AssertionError("Line " + line + ": Text does not end with a floating point number.");
 			}
 		}
 		
@@ -844,14 +851,14 @@ public class Controller {
 				if(actualText.equals(expectedText))
 					return token;
 				else
-					throw new AssertionError(); // text does not match
+					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError(); // index out of bounds
+				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			}
 		}
 		
 		// formatString is not as expected
-		throw new AssertionError();
+		throw new AssertionError("Line " + line + ": Source code contains an invalid format string.");
 		
 	}
 	
