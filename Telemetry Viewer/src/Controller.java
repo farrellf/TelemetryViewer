@@ -627,65 +627,53 @@ public class Controller {
 			List<String> lines = Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8);
 			int n = 0;
 			
-			verify(lines.get(n++).equals("Telemetry Viewer File Format v0.1"));
-			verify(lines.get(n++).equals(""));
+			parse(lines.get(n++), "Telemetry Viewer File Format v0.1");
+			parse(lines.get(n++), "");
 			
-			verify(lines.get(n++).equals("Grid Settings:"));
-			verify(lines.get(n++).equals(""));
+			parse(lines.get(n++), "Grid Settings:");
+			parse(lines.get(n++), "");
 			
-			verify(lines.get(n++).startsWith("\tcolumn count = "));
-			int gridColumns = Integer.parseInt(lines.get(n-1).substring(16));
-			verify(lines.get(n++).startsWith("\trow count = "));
-			int gridRows = Integer.parseInt(lines.get(n-1).substring(13));
-			verify(lines.get(n++).equals(""));
+			int gridColumns = (int) parse(lines.get(n++), "\tcolumn count = %d");
+			int gridRows = (int) parse(lines.get(n++), "\trow count = %d");
+			parse(lines.get(n++), "");
 			
 			Controller.setGridColumns(gridColumns);
 			Controller.setGridRows(gridRows);
 
-			verify(lines.get(n++).equals("Serial Port Settings:"));
-			verify(lines.get(n++).equals(""));
-			verify(lines.get(n++).startsWith("\tport = "));
-			String portName = lines.get(n-1).substring(8);
-			verify(lines.get(n++).startsWith("\tbaud = "));
-			int baudRate = Integer.parseInt(lines.get(n-1).substring(8));
-			verify(lines.get(n++).startsWith("\tpacket type = "));
-			String packetType = lines.get(n-1).substring(15);
-			verify(lines.get(n++).startsWith("\tsample rate = "));
-			int sampleRate = Integer.parseInt(lines.get(n-1).substring(15));
-			verify(lines.get(n++).equals(""));
+			parse(lines.get(n++), "Serial Port Settings:");
+			parse(lines.get(n++), "");
+			String portName = (String) parse(lines.get(n++), "\tport = %s");
+			int baudRate = (int) parse(lines.get(n++), "\tbaud = %d");
+			
+			String packetType = (String) parse(lines.get(n++), "\tpacket type = %s");
+			int sampleRate = (int) parse(lines.get(n++), "\tsample rate = %d");
+			parse(lines.get(n++), "");
 
 			if(packetType.equals(Model.csvPacket.toString()))
 				Model.packet = Model.csvPacket;
 			else if(packetType.equals(Model.binaryPacket.toString()))
 				Model.packet = Model.binaryPacket;
 			else
-				throw new AssertionError();
+				throw new AssertionError(); // invalid packet type
 			
 			Model.packet.clear();
 			
-			verify(lines.get(n++).endsWith(" Data Structure Locations:"));
-			int locationsCount = Integer.parseInt(lines.get(n-1).split(" ")[0]);
+			int locationsCount = (int) parse(lines.get(n++), "%d Data Structure Locations:");
 
 			for(int i = 0; i < locationsCount; i++) {
 				
-				verify(lines.get(n++).equals(""));
-				verify(lines.get(n++).startsWith("\tlocation = "));
-				int location = Integer.parseInt(lines.get(n-1).substring(12));
-				verify(lines.get(n++).startsWith("\tprocessor index = "));
-				int processorIndex = Integer.parseInt(lines.get(n-1).substring(19));
-				BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[processorIndex];
-				verify(lines.get(n++).startsWith("\tname = "));
-				String name = lines.get(n-1).substring(8);
-				verify(lines.get(n++).startsWith("\tcolor = 0x"));
-				int colorNumber = Integer.parseInt(lines.get(n-1).substring(11), 16);
-				Color color = new Color(colorNumber);
-				verify(lines.get(n++).startsWith("\tunit = "));
-				String unit = lines.get(n-1).substring(8);
-				verify(lines.get(n++).startsWith("\tconversion factor a = "));
-				float conversionFactorA = Float.parseFloat(lines.get(n-1).substring(23));
-				verify(lines.get(n++).startsWith("\tconversion factor b = "));
-				float conversionFactorB = Float.parseFloat(lines.get(n-1).substring(23));
+				parse(lines.get(n++), "");
+				int location = (int) parse(lines.get(n++), "\tlocation = %d");
+				int processorIndex = (int) parse(lines.get(n++), "\tprocessor index = %d");
+				String name = (String) parse(lines.get(n++), "\tname = %s");
+				String colorText = (String) parse(lines.get(n++), "\tcolor = 0x%s");
+				String unit = (String) parse(lines.get(n++), "\tunit = %s");
+				float conversionFactorA = (float) parse(lines.get(n++), "\tconversion factor a = %f");
+				float conversionFactorB = (float) parse(lines.get(n++), "\tconversion factor b = %f");
 				
+				int colorNumber = Integer.parseInt(colorText, 16);
+				Color color = new Color(colorNumber);
+				BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[processorIndex];
 				if(Model.packet == Model.csvPacket)
 					Model.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
 				else if(Model.packet == Model.binaryPacket)
@@ -695,15 +683,13 @@ public class Controller {
 			
 			if(Model.packet == Model.binaryPacket) {
 				
-				verify(lines.get(n++).equals(""));
-				verify(lines.get(n++).equals("Checksum:"));
-				verify(lines.get(n++).equals(""));
-				verify(lines.get(n++).startsWith("\tlocation = "));
-				int checksumOffset = Integer.parseInt(lines.get(n-1).substring(12));
-				verify(lines.get(n++).startsWith("\tchecksum processor index = "));
+				parse(lines.get(n++), "");
+				parse(lines.get(n++), "Checksum:");
+				parse(lines.get(n++), "");
+				int checksumOffset = (int) parse(lines.get(n++), "\tlocation = %d");
+				int checksumIndex = (int) parse(lines.get(n++), "\tchecksum processor index = %d");
 				
-				if(checksumOffset >= 0) {
-					int checksumIndex = Integer.parseInt(lines.get(n-1).substring(28));
+				if(checksumOffset >= 1) {
 					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
 					Model.binaryPacket.insertChecksum(checksumOffset, processor);
 				}
@@ -712,34 +698,25 @@ public class Controller {
 			
 			Controller.connectToSerialPort(sampleRate, Model.packet, portName, baudRate, null);
 
-			verify(lines.get(n++).equals(""));
-			verify(lines.get(n++).endsWith(" Charts:"));
-			int chartsCount = Integer.parseInt(lines.get(n-1).split(" ")[0]);
+			parse(lines.get(n++), "");
+			int chartsCount = (int) parse(lines.get(n++), "%d Charts:");
 
 			for(int i = 0; i < chartsCount; i++) {
 				
-				verify(lines.get(n++).equals(""));
-				verify(lines.get(n++).startsWith("\tchart type = "));
-				String chartType = lines.get(n-1).substring(14);
-				verify(lines.get(n++).startsWith("\tduration = "));
-				int duration = Integer.parseInt(lines.get(n-1).substring(12));
-				verify(lines.get(n++).startsWith("\ttop left x = "));
-				int topLeftX = Integer.parseInt(lines.get(n-1).substring(14));
-				verify(lines.get(n++).startsWith("\ttop left y = "));
-				int topLeftY = Integer.parseInt(lines.get(n-1).substring(14));
-				verify(lines.get(n++).startsWith("\tbottom right x = "));
-				int bottomRightX = Integer.parseInt(lines.get(n-1).substring(18));
-				verify(lines.get(n++).startsWith("\tbottom right y = "));
-				int bottomRightY = Integer.parseInt(lines.get(n-1).substring(18));
-				verify(lines.get(n++).startsWith("\tdatasets count = "));
-				int datasetsCount = Integer.parseInt(lines.get(n-1).substring(18));
+				parse(lines.get(n++), "");
+				String chartType = (String) parse(lines.get(n++), "\tchart type = %s");
+				int duration = (int) parse(lines.get(n++), "\tduration = %d");
+				int topLeftX = (int) parse(lines.get(n++), "\ttop left x = %d");
+				int topLeftY = (int) parse(lines.get(n++), "\ttop left y = %d");
+				int bottomRightX = (int) parse(lines.get(n++), "\tbottom right x = %d");
+				int bottomRightY = (int) parse(lines.get(n++), "\tbottom right y = %d");
+				int datasetsCount = (int) parse(lines.get(n++), "\tdatasets count = %d");
 				
 				Dataset[] datasets = new Dataset[datasetsCount];
 				
 				for(int j = 0; j < datasetsCount; j++) {
 					
-					verify(lines.get(n++).startsWith("\t\tdataset location = "));
-					int location = Integer.parseInt(lines.get(n-1).substring(21));
+					int location = (int) parse(lines.get(n++), "\t\tdataset location = %d");
 					datasets[j] = Controller.getDatasetByLocation(location);
 					
 				}
@@ -766,14 +743,115 @@ public class Controller {
 	}
 	
 	/**
-	 * A helper function that is essentially an "assert" and throws an exception if the assert fails.
+	 * Takes a string of text and attempts to parse it with a format string.
+	 * Throws an exception if the text does not match the format string, or if the format string is invalid.
 	 *  
-	 * @param good    If true nothing will happen, if false an AssertionError will be thrown.
+	 * @param text            Line of text to parse.
+	 * @param formatString    Printf-style format string but with many limitations:
+	 *                            1. Only %d %f or %s can be used.
+                                  2. A %d or %f can only be at the very beginning or very end. A %s can only be at the very end.
+                                  3. There must be a space between %d/%f/%s and the rest of the text.
+	 * @return                An Integer if %d was used, a Float if %f was used, a String if %s was used, or null if no format specifier was used.
 	 */
-	private static void verify(boolean good) {
+	private static Object parse(String text, String formatString) {
 		
-		if(!good)
-			throw new AssertionError();
+		// no format specifier, so just ensure the text matches the formatString exactly
+		if(!formatString.contains("%")) {
+			if(text.equals(formatString))
+				return null;
+			else
+				throw new AssertionError();
+		}
+		
+		// starting with %d, so an integer should be at the start of the text
+		if(formatString.startsWith("%d")) {
+			try {
+				String[] tokens = text.split(" ");
+				int number = Integer.parseInt(tokens[0]);
+				String expectedText = formatString.substring(2);
+				String remainingText = "";
+				for(int i = 1; i < tokens.length; i++)
+					remainingText += " " + tokens[i];
+				if(remainingText.equals(expectedText))
+					return number;
+				else
+					throw new AssertionError(); // text does not match
+			} catch(Exception e) {
+				throw new AssertionError(); // text does not start with an integer
+			}
+		}
+		
+		// starting with %f, so a float should be at the start of the text
+		if(formatString.startsWith("%f")) {
+			try {
+				String[] tokens = text.split(" ");
+				float number = Float.parseFloat(tokens[0]);
+				String expectedText = formatString.substring(2);
+				String remainingText = "";
+				for(int i = 1; i < tokens.length; i++)
+					remainingText += " " + tokens[i];
+				if(remainingText.equals(expectedText))
+					return number;
+				else
+					throw new AssertionError(); // text does not match
+			} catch(Exception e) {
+				throw new AssertionError(); // text does not start with a float
+			}
+		}
+		
+		// ending with %d, so an integer should be at the end of the text
+		if(formatString.endsWith("%d")) {
+			try {
+				String[] tokens = text.split(" ");
+				int number = Integer.parseInt(tokens[tokens.length - 1]);
+				String expectedText = formatString.substring(0, formatString.length() - 2);
+				String remainingText = "";
+				for(int i = 0; i < tokens.length - 1; i++)
+					remainingText += tokens[i] + " ";
+				if(remainingText.equals(expectedText))
+					return number;
+				else
+					throw new AssertionError(); // text does not match
+			} catch(Exception e) {
+				throw new AssertionError(); // text does not end with an integer
+			}
+		}
+		
+		// ending with %f, so a float should be at the end of the text
+		if(formatString.endsWith("%f")) {
+			try {
+				String[] tokens = text.split(" ");
+				float number = Float.parseFloat(tokens[tokens.length - 1]);
+				String expectedText = formatString.substring(0, formatString.length() - 2);
+				String remainingText = "";
+				for(int i = 0; i < tokens.length - 1; i++)
+					remainingText += tokens[i] + " ";
+				if(remainingText.equals(expectedText))
+					return number;
+				else
+					throw new AssertionError(); // text does not match
+			} catch(Exception e) {
+				throw new AssertionError(); // text does not end with a float
+			}
+		}
+		
+		// ending with %s, so a String should be at the end of the text
+		if(formatString.endsWith("%s")) {
+			try {
+				String expectedText = formatString.substring(0, formatString.length() - 2);
+				String actualText = text.substring(0, expectedText.length());
+				String token = text.substring(expectedText.length()); 
+				if(actualText.equals(expectedText))
+					return token;
+				else
+					throw new AssertionError(); // text does not match
+			} catch(Exception e) {
+				throw new AssertionError(); // index out of bounds
+			}
+		}
+		
+		// formatString is not as expected
+		throw new AssertionError();
 		
 	}
 	
