@@ -19,9 +19,14 @@ public class Model {
 	final static int gridRowsMaximum = 20;
 	static int gridRows = gridRowsDefault;
 	
+	static Map<Integer, Dataset> datasets = Collections.synchronizedMap(new TreeMap<Integer, Dataset>());
+	static List<PositionedChart> charts = Collections.synchronizedList(new ArrayList<PositionedChart>());
+	static CsvPacket csvPacket = new CsvPacket();
+	static BinaryPacket binaryPacket = new BinaryPacket();
+	
 	// serial port state
 	static int sampleRate = 10000;
-	static String packetType = "";
+	static Packet packet = csvPacket;
 	static String portName = "";
 	static int baudRate = 0;
 	
@@ -40,8 +45,5 @@ public class Model {
 		OpenGLDialChart.getDescriptor()
 	};
 
-	static Map<Integer, Dataset> datasets = Collections.synchronizedMap(new TreeMap<Integer, Dataset>());
-	
-	static List<PositionedChart> charts = Collections.synchronizedList(new ArrayList<PositionedChart>());
 	
 }

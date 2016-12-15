@@ -1,12 +1,11 @@
 import java.awt.Color;
 import javax.swing.BorderFactory;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 import com.jogamp.opengl.GL2;
 
 @SuppressWarnings("serial")
-public class PositionedChart extends JPanel {
+public abstract class PositionedChart extends JPanel {
 	
 	// grid coordinates, not pixels
 	int topLeftX;
@@ -44,20 +43,6 @@ public class PositionedChart extends JPanel {
 		
 	}
 	
-	public void reconnectDatasets() {
-		
-		try {
-			for(int i = 0; i < datasets.length; i++)
-				datasets[i] = Controller.getDatasetByLocation(datasets[i].location);
-		} catch(Exception e) {
-			JOptionPane.showMessageDialog(this, "The data structure has significantly changed so the charts will be removed. New charts can be added as usual.", "Notice: Data Structure Changed Significantly", JOptionPane.WARNING_MESSAGE);
-			Controller.removeAllPositionedCharts();
-		}
-
-	}
-	
-	public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
-		
-	}
+	public abstract void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel);
 	
 }

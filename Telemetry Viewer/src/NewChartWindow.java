@@ -25,7 +25,7 @@ public class NewChartWindow extends JFrame {
 	public NewChartWindow(JFrame parentWindow, int x1, int y1, int x2, int y2) {
 		
 		if(Controller.getDatasetsCount() == 0) {
-			JOptionPane.showMessageDialog(this, "Error: The data structure table must be setup before adding charts. Do this by clicking the Connect button located at the bottom-right corner of the main window.", "Error: Empty Data Structure Table", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(this, "Error: The data structure table must be setup before adding charts. Do this by clicking the Connect button located at the bottom-right corner of the main window.", "Error", JOptionPane.ERROR_MESSAGE);
 			dispose();
 			return;
 		}
@@ -102,7 +102,7 @@ public class NewChartWindow extends JFrame {
 								chartInputs[i] = (Dataset) inputComboboxesList.get(i).getSelectedItem();
 
 							int chartDuration = Integer.parseInt(durationTextfield.getText().trim());
-							Controller.addPositionedChart(chart.createChart(x1, y1, x2, y2, chartDuration, chartInputs));
+							Controller.addChart(chart.createChart(x1, y1, x2, y2, chartDuration, chartInputs));
 							dispose();
 						}
 					});
@@ -148,7 +148,7 @@ public class NewChartWindow extends JFrame {
 									chartInputs[input++] = inputPossibility.getValue();
 
 							int chartDuration = Integer.parseInt(durationTextfield.getText().trim());
-							Controller.addPositionedChart(chart.createChart(x1, y1, x2, y2, chartDuration, chartInputs));
+							Controller.addChart(chart.createChart(x1, y1, x2, y2, chartDuration, chartInputs));
 							dispose();
 						}
 					});

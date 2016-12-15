@@ -3,8 +3,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -33,12 +31,10 @@ public class ControlsRegion extends JPanel {
 	JTextField rowsTextfield;
 	
 	JTextField sampleRateTextfield;
-	JComboBox<String> packetTypeCombobox;
+	JComboBox<Packet> packetTypeCombobox;
 	JComboBox<String> portNamesCombobox;
 	JComboBox<Integer> baudRatesCombobox;
 	JButton connectButton;
-	
-	AtomicBoolean waitingForSerialConnection;
 	
 	/**
 	 * Creates the panel of controls and registers their event handlers.
@@ -48,8 +44,6 @@ public class ControlsRegion extends JPanel {
 		super();
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		setBorder(new EmptyBorder(5, 5, 5, 5));
-		
-		waitingForSerialConnection = new AtomicBoolean(false);
 		
 		openLayoutButton = new JButton("Open Layout");
 		openLayoutButton.addActionListener(new ActionListener() {
@@ -81,7 +75,7 @@ public class ControlsRegion extends JPanel {
 		resetButton = new JButton("Reset");
 		resetButton.addActionListener(new ActionListener() {
 			@Override public void actionPerformed(ActionEvent arg0) {
-				Controller.removeAllPositionedCharts();
+				Controller.removeAllCharts();
 			}
 		});
 		
@@ -164,9 +158,9 @@ public class ControlsRegion extends JPanel {
 			}
 		});
 		
-		packetTypeCombobox = new JComboBox<String>();
-		for(String packetType : Controller.getPacketTypes())
-			packetTypeCombobox.addItem(packetType);
+		packetTypeCombobox = new JComboBox<Packet>();
+		for(Packet packet : Controller.getPacketTypes())
+			packetTypeCombobox.addItem(packet);
 		packetTypeCombobox.setMaximumSize(packetTypeCombobox.getPreferredSize());
 		
 		portNamesCombobox = new JComboBox<String>();
@@ -182,7 +176,7 @@ public class ControlsRegion extends JPanel {
 		
 		Controller.addSerialPortListener(new SerialPortListener() {
 			
-			@Override public void connectionOpened(int sampleRate, String packetType, String portName, int baudRate) {
+			@Override public void connectionOpened(int sampleRate, Packet packet, String portName, int baudRate) {
 				
 				// enable or disable UI elements
 				openLayoutButton.setEnabled(true);
@@ -195,11 +189,7 @@ public class ControlsRegion extends JPanel {
 				
 				// update UI state
 				sampleRateTextfield.setText(Integer.toString(sampleRate));
-				for(int i = 0; i < packetTypeCombobox.getItemCount(); i++)
-					if(packetTypeCombobox.getItemAt(i).equals(packetType)) {
-						packetTypeCombobox.setSelectedIndex(i);
-						break;
-					}
+				packetTypeCombobox.setSelectedItem(packet);
 				for(int i = 0; i < portNamesCombobox.getItemCount(); i++)
 					if(portNamesCombobox.getItemAt(i).equals(portName)) {
 						portNamesCombobox.setSelectedIndex(i);
@@ -211,12 +201,6 @@ public class ControlsRegion extends JPanel {
 						break;
 					}
 				connectButton.setText("Disconnect");
-
-				// show the DataStructureWindow if the user initiated the connection
-				if(waitingForSerialConnection.compareAndSet(true, false)) {
-					JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-					new DataStructureWindow(parentWindow, packetType, portName.equals("Test"));
-				}
 				
 			}
 			
@@ -242,7 +226,7 @@ public class ControlsRegion extends JPanel {
 
 				// notify the user because they did not initiate the disconnection
 				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				JOptionPane.showMessageDialog(parentWindow, "Serial connection lost.", "Serial Connection Lost", JOptionPane.WARNING_MESSAGE);
+				JOptionPane.showMessageDialog(parentWindow, "Warning: Serial connection lost.", "Warning", JOptionPane.WARNING_MESSAGE);
 				
 			}
 		});
@@ -253,12 +237,12 @@ public class ControlsRegion extends JPanel {
 				if(connectButton.getText().equals("Connect")) {
 					
 					if(portNamesCombobox.getSelectedItem() == null) {
-						JOptionPane.showMessageDialog(null, "Error: No port name specified.", "No Port Name Specified", JOptionPane.ERROR_MESSAGE);
+						JOptionPane.showMessageDialog(null, "Error: No port name specified.", "Error", JOptionPane.ERROR_MESSAGE);
 						return;
 					}
 					
 					int sampleRate = Integer.parseInt(sampleRateTextfield.getText());
-					String packetType = packetTypeCombobox.getSelectedItem().toString();
+					Packet packet = (Packet) packetTypeCombobox.getSelectedItem();
 					String portName = portNamesCombobox.getSelectedItem().toString();
 					int baudRate = (int) baudRatesCombobox.getSelectedItem();
 					
@@ -270,9 +254,8 @@ public class ControlsRegion extends JPanel {
 					baudRatesCombobox.setEnabled(false);
 					connectButton.setEnabled(false);
 					
-					waitingForSerialConnection.set(true);
-					
-					Controller.connectToSerialPort(sampleRate, packetType, portName, baudRate);
+					JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+					Controller.connectToSerialPort(sampleRate, packet, portName, baudRate, parentWindow);
 					
 				} else if(connectButton.getText().equals("Disconnect")) {
 					

@@ -319,7 +319,7 @@ public class OpenGLChartsRegion extends JPanel {
 			@Override public void mouseClicked(MouseEvent me) {
 				
 				if(chartToCloseOnClick != null)
-					Controller.removePositionedChart(chartToCloseOnClick);
+					Controller.removeChart(chartToCloseOnClick);
 				
 			}
 			

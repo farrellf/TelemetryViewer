@@ -4,13 +4,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.jogamp.common.nio.Buffers;
 
 /**
- * Defines all of the details about one CSV column or Binary packet element, stores all of its samples, and provides several ways to get the samples.
+ * Defines all of the details about one CSV column or Binary packet field, stores all of its samples, and provides several ways to get the samples.
  */
 public class Dataset {
 	
 	// constants defined at constructor-time
 	final int location;
-	final BinaryProcessor processor;
+	final BinaryFieldProcessor processor;
 	final String name;
 	final Color  color;
 	final String unit;
@@ -19,7 +19,7 @@ public class Dataset {
 	final float conversionFactor;
 
 	// samples are stored in an array of double[]'s, each containing 1M doubles, and allocated as needed.
-	// access to the samples is controlled with an atomic integer, providing lockless concurrency if only there is only one writer.
+	// access to the samples is controlled with an atomic integer, providing lockless concurrency if there is only one writer.
 	final int slotSize = (int) Math.pow(2, 20); // 1M doubles per slot
 	final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
 	float[][] slot;
@@ -36,7 +36,7 @@ public class Dataset {
 	 * @param conversionFactorA    This many unprocessed LSBs...
 	 * @param conversionFactorB    ... equals this many units.
 	 */
-	public Dataset(int location, BinaryProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	public Dataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
 		this.location          = location;
 		this.processor         = processor;

@@ -9,9 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.Scanner;
-import java.util.concurrent.atomic.AtomicBoolean;
-
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 
 import com.fazecast.jSerialComm.SerialPort;
@@ -24,8 +22,6 @@ public class Controller {
 	static List<GridChangedListener> gridChangedListeners = new ArrayList<GridChangedListener>();
 	static List<SerialPortListener>   serialPortListeners = new ArrayList<SerialPortListener>();
 	static volatile SerialPort port;
-	static volatile Thread serialPortThread;
-	static AtomicBoolean dataStructureDefined = new AtomicBoolean(false);
 	
 	static PrintWriter logFile;
 	
@@ -179,9 +175,25 @@ public class Controller {
 	 * @param conversionFactorA    This many unprocessed LSBs...
 	 * @param conversionFactorB    ... equals this many units.
 	 */
-	public static void insertDataset(int location, BinaryProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	public static void insertDataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
 		Model.datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
+		
+	}
+	
+	/**
+	 * Removes a specific dataset. This should only be called when charts do not exist.
+	 * 
+	 * @return    true on success, false if nothing existing there.
+	 */
+	public static boolean removeDataset(int location) { // FIXME: remove any charts that use the dataset before removing the dataset
+		
+		Dataset removedDataset = Model.datasets.remove(location);
+		
+		if(removedDataset == null)
+			return false;
+		else
+			return true;
 		
 	}
 	
@@ -190,7 +202,7 @@ public class Controller {
 	 */
 	public static void removeAllDatasets() {
 		
-		Controller.removeAllPositionedCharts();
+		Controller.removeAllCharts();
 		
 		Model.datasets.clear();
 		
@@ -216,19 +228,19 @@ public class Controller {
 		
 	}
 	
-	private static final int SERIAL_CONNECTION_OPENED = 0;
-	private static final int SERIAL_CONNECTION_CLOSED = 1;
-	private static final int SERIAL_CONNECTION_LOST   = 2;
+	static final int SERIAL_CONNECTION_OPENED = 0;
+	static final int SERIAL_CONNECTION_CLOSED = 1;
+	static final int SERIAL_CONNECTION_LOST   = 2;
 	/**
 	 * Notifies all registered listeners about a change in the serial port status.
 	 * 
-	 * @param status    Either SERIAL_CONNECTION_OPENED or SERIAL_CONNECTION_CLOSED.
+	 * @param status    Either SERIAL_CONNECTION_OPENED or SERIAL_CONNECTION_CLOSED or SERIAL_CONNECTION_LOST.
 	 */
-	private static void notifySerialPortListeners(int status) {
+	static void notifySerialPortListeners(int status) {
 		
 		for(SerialPortListener listener : serialPortListeners)
 			if(status == SERIAL_CONNECTION_OPENED)
-				listener.connectionOpened(Model.sampleRate, Model.packetType, Model.portName, Model.baudRate);
+				listener.connectionOpened(Model.sampleRate, Model.packet, Model.portName, Model.baudRate);
 			else if(status == SERIAL_CONNECTION_CLOSED)
 				listener.connectionClosed();
 			else if(status == SERIAL_CONNECTION_LOST)
@@ -263,30 +275,27 @@ public class Controller {
 	}
 	
 	/**
-	 * @return    A String[] of descriptions for supported UART packet types.
+	 * @return    A Packet[] of the supported UART packet types.
 	 */
-	public static String[] getPacketTypes() {
+	public static Packet[] getPacketTypes() {
 		
-		return new String[] {"ASCII CSVs", "Binary"};
+		return new Packet[] {Model.csvPacket, Model.binaryPacket};
 		
 	}
 	
 	/**
-	 * Connects to a serial port and spawns a new thread to process incoming data.
+	 * Connects to a serial port and shows a DataStructureWindow if necessary.
 	 * 
-	 * @param sampleRate    Expected samples per second. (Hertz) This is used for FFTs.
-	 * @param packetType    One of the Strings from Controller.getPacketTypes()
-	 * @param portName      One of the Strings from Controller.getSerialPortNames()
-	 * @param baudRate      One of the baud rates from Controller.getBaudRates()
+	 * @param sampleRate      Expected samples per second. (Hertz) This is used for FFTs.
+	 * @param packet          One of the Packets from Controller.getPacketTypes()
+	 * @param portName        One of the Strings from Controller.getSerialPortNames()
+	 * @param baudRate        One of the baud rates from Controller.getBaudRates()
+	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
 	 */
-	@SuppressWarnings("deprecation")
-	public static void connectToSerialPort(int sampleRate, String packetType, String portName, int baudRate) {
-		
-		// sanity checks
+	public static void connectToSerialPort(int sampleRate, Packet packet, String portName, int baudRate, JFrame parentWindow) { // FIXME make this robust: give up after some time.
+
 		if(port != null)
 			port.closePort();
-		if(serialPortThread != null && serialPortThread.isAlive())
-			serialPortThread.stop();
 		
 		if(portName.equals("Test")) {
 			
@@ -294,177 +303,50 @@ public class Controller {
 			Tester.startTransmission();
 			
 			Model.sampleRate = sampleRate;
-			Model.packetType = packetType;
+			Model.packet = null;
 			Model.portName = portName;
 			Model.baudRate = 9600;
 			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
 			
 			return;
 			
-		} else if(packetType.equals("ASCII CSVs")) {
-			
-			port = SerialPort.getCommPort(portName);
-			port.setBaudRate(baudRate);
-			port.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
-			
-			if(!port.openPort()) { // try 3 times before giving up
-				if(!port.openPort()) {
-					if(!port.openPort()) {
-						notifySerialPortListeners(SERIAL_CONNECTION_LOST);
-						return;
-					}
-				}
-			}
-			
-			Model.sampleRate = sampleRate;
-			Model.packetType = packetType;
-			Model.portName = portName;
-			Model.baudRate = baudRate;
-			
-			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
-			
-			serialPortThread = new Thread(new Runnable() {
-				@Override public void run() {
-					
-					// wait for the data structure to be defined
-					while(!dataStructureDefined.get())
-						try { Thread.sleep(10); } catch(Exception e) { }
-					
-					Scanner scanner = new Scanner(port.getInputStream());
-					
-					while(scanner.hasNextLine()) {
-						
-						try {
-							
-							String line = scanner.nextLine();
-							String[] tokens = line.split(",");
-							float[] samples = new float[tokens.length];
-							for(int i = 0; i < tokens.length; i++)
-								samples[i] = Float.parseFloat(tokens[i]);
-							Controller.insertSamples(samples);
-							
-						} catch(Exception e) { }
-						
-					}
-					scanner.close();
-					port.closePort();
-					port = null;
-					notifySerialPortListeners(SERIAL_CONNECTION_LOST);
-					
-				}
-			});
-			
-			serialPortThread.setPriority(Thread.MAX_PRIORITY);
-			serialPortThread.setName("Serial Port Receiver");
-			serialPortThread.start();
-			return;
-			
-		} else if(packetType.equals("Binary")) {
-			
-			port = SerialPort.getCommPort(portName);
-			port.setBaudRate(baudRate);
-			port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
-			
-			if(!port.openPort()) { // try 3 times before giving up
-				if(!port.openPort()) {
-					if(!port.openPort()) {
-						notifySerialPortListeners(SERIAL_CONNECTION_LOST);
-						return;
-					}
-				}
-			}
-			
-			Model.sampleRate = sampleRate;
-			Model.packetType = packetType;
-			Model.portName = portName;
-			Model.baudRate = baudRate;
-			
-			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
-			
-			serialPortThread = new Thread(new Runnable() {
-				@Override public void run() {
-					
-					byte[] rx_buffer = new byte[1024];
-					
-					// wait for data structure to be defined
-					while(!dataStructureDefined.get())
-						try { Thread.sleep(10); } catch(Exception e) { }
-					
-					// get packet size (includes 1 byte sync word)
-					int packetSize = Controller.getBinaryPacketSize();
-					float[] samples = new float[Controller.getDatasetsCount()];
-					
-					while(port.isOpen()) {
-						
-						// wait for sync byte of 0xAA
-						while(rx_buffer[0] != (byte) 0xAA) // the byte cast is required!
-							port.readBytes(rx_buffer, 1);
-						
-						// get rest of packet after the sync word
-						port.readBytes(rx_buffer, packetSize - 1 + 2); // -1 for sync word, +2 for checksum
-						
-						// extract all samples from the packet
-						for(int datasetNumber = 0; datasetNumber < samples.length; datasetNumber++) {
-							
-							Dataset dataset = Controller.getDatasetByIndex(datasetNumber);
-							
-							byte[] rawData = new byte[dataset.processor.getByteCount()];
-							
-							int rx_buffer_index = dataset.location - 1; // -1 for the sync word
-							for(int i = 0; i < rawData.length; i++)
-								rawData[i] = rx_buffer[rx_buffer_index++];
-							
-							samples[datasetNumber] = dataset.processor.extractValue(rawData);
-							
-						}
-						
-						// calculate the sum
-						int wordCount = (packetSize - 1) / 2; // -1 for sync word, /2 for 16bit words
-						
-						int sum = 0;
-						int lsb = 0;
-						int msb = 0;
-						for(int i = 0; i < wordCount; i++) {
-							lsb = 0xFF & rx_buffer[i*2];
-							msb = 0xFF & rx_buffer[i*2 + 1];
-							sum += (msb << 8 | lsb);
-						}
-						
-						// extract the checksum
-						lsb = 0xFF & rx_buffer[wordCount*2];
-						msb = 0xFF & rx_buffer[wordCount*2 + 1];
-						int checksum = (msb << 8 | lsb);
-						
-						// add samples to the database if the checksum passed
-						sum %= 65535;
-						if(sum == checksum)
-							Controller.insertSamples(samples);
-						else
-							System.err.println("checksum failed");
-						
-					}
-					port.closePort();
-					port = null;
-					notifySerialPortListeners(SERIAL_CONNECTION_LOST);
-				}
-			});
-			
-			serialPortThread.setPriority(Thread.MAX_PRIORITY);
-			serialPortThread.setName("Serial Port Receiver");
-			serialPortThread.start();
-			return;
-			
 		}
+			
+		port = SerialPort.getCommPort(portName);
+		port.setBaudRate(baudRate);
+		if(packet instanceof CsvPacket)
+			port.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
+		else if(packet instanceof BinaryPacket)
+			port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
+		
+		// try 3 times before giving up
+		if(!port.openPort()) {
+			if(!port.openPort()) {
+				if(!port.openPort()) {
+					notifySerialPortListeners(SERIAL_CONNECTION_LOST);
+					return;
+				}
+			}
+		}
+		
+		Model.sampleRate = sampleRate;
+		Model.packet = packet;
+		Model.portName = portName;
+		Model.baudRate = baudRate;
+		
+		notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
+		
+		if(parentWindow != null)
+			packet.showDataStructureWindow(parentWindow, false);
+		
+		packet.startReceivingData(port);
 		
 	}
 	
 	/**
-	 * Disconnects from the active serial port, stops the data processing thread, and stops logging.
+	 * Stops the serial port receiver thread, disconnects from the active serial port, and stops logging.
 	 */
-	@SuppressWarnings("deprecation")
 	public static void disconnectFromSerialPort() {
-		
-		dataStructureDefined.set(false);
 		
 		if(Model.portName.equals("Test")) {
 			
@@ -473,15 +355,13 @@ public class Controller {
 			
 		} else {		
 			
-			if(serialPortThread != null && serialPortThread.isAlive())
-				serialPortThread.stop();
+			Model.packet.stopReceivingData();
 			
 			if(port != null)
 				port.closePort();
 			
 			notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
 			
-			serialPortThread = null;
 			port = null;
 			
 		}
@@ -496,18 +376,9 @@ public class Controller {
 	/**
 	 * @param chart    New chart to insert and display.
 	 */
-	public static void addPositionedChart(PositionedChart chart) {
+	public static void addChart(PositionedChart chart) {
 		
 		Model.charts.add(chart);
-		
-	}
-	
-	/**
-	 * Removes all charts.
-	 */
-	public static void removeAllPositionedCharts() {
-		
-		Model.charts.clear();
 		
 	}
 	
@@ -516,9 +387,18 @@ public class Controller {
 	 * 
 	 * @param chart    Chart to remove.
 	 */
-	public static void removePositionedChart(PositionedChart chart) {
+	public static void removeChart(PositionedChart chart) {
 
 		Model.charts.remove(chart);
+		
+	}
+	
+	/**
+	 * Removes all charts.
+	 */
+	public static void removeAllCharts() {
+		
+		Model.charts.clear();
 		
 	}
 	
@@ -605,7 +485,7 @@ public class Controller {
 	 * 
 	 * @param newSamples    A float[] containing one sample for each dataset.
 	 */
-	static void insertSamples(float[] newSamples) {
+	static void insertSamples(float[] newSamples) { // FIXME this isnt used by new code, so no logging would occur
 
 		for(int i = 0; i < newSamples.length; i++)
 			Controller.getDatasetByIndex(i).add(newSamples[i]); // FIXME should be byLocation, but that breaks Binary mode
@@ -620,9 +500,9 @@ public class Controller {
 	}
 	
 	/**
-	 * Starts logging, and allows reception of data from the UART. This should only be called after the data structure has been fully defined.
+	 * Starts logging. This should only be called after the data structure has been fully defined.
 	 */
-	static void startReceivingData() {
+	static void startLoggingRawData() {
 		
 		if(logFile != null)
 			logFile.close();
@@ -635,48 +515,6 @@ public class Controller {
 			}
 			logFile.println();
 		} catch(Exception e) { }
-		
-		dataStructureDefined.set(true);
-		
-		for(PositionedChart chart : Controller.getCharts())
-			chart.reconnectDatasets();
-		
-	}
-	
-	/**
-	 * @return    The number of bytes in a complete Binary data packet (including the 0xAA sync word.)
-	 */
-	static int getBinaryPacketSize() {
-		
-		Dataset lastDataset = Controller.getDatasetByIndex(Controller.getDatasetsCount() - 1);
-		return lastDataset.location + lastDataset.processor.getByteCount();
-		
-	}
-	
-	/**
-	 * @return    An array of BinaryProcessor's that each describe their data type and can convert raw bytes into a number.
-	 */
-	static BinaryProcessor[] getBinaryProcessors() {
-		
-		BinaryProcessor[] processor = new BinaryProcessor[2];
-		
-		processor[0] = new BinaryProcessor() {
-			
-			@Override public String toString()                   { return "uint16 LSB First"; }
-			@Override public int getByteCount()                  { return 2; }
-			@Override public float extractValue(byte[] rawByte) { return (float) ((0xFF & rawByte[1]) << 8 | (0xFF & rawByte[0])); }
-			
-		};
-		
-		processor[1] = new BinaryProcessor() {
-			
-			@Override public String toString()                   { return "uint16 MSB First"; }
-			@Override public int getByteCount()                  { return 2; }
-			@Override public float extractValue(byte[] rawByte) { return (float) ((0xFF & rawByte[0]) << 8 | (0xFF & rawByte[1])); }
-			
-		};
-		
-		return processor;
 		
 	}
 	
@@ -703,7 +541,7 @@ public class Controller {
 			outputFile.println("");
 			outputFile.println("\tport = " + port.getSystemPortName());
 			outputFile.println("\tbaud = " + port.getBaudRate());
-			outputFile.println("\tpacket type = " + Model.packetType);
+			outputFile.println("\tpacket type = " + Model.packet);
 			outputFile.println("\tsample rate = " + Model.sampleRate);
 			outputFile.println("");
 			
@@ -711,10 +549,10 @@ public class Controller {
 			
 			for(Dataset dataset : Model.datasets.values()) {
 				
-				int processorIndex = 0;
-				BinaryProcessor[] processors = Controller.getBinaryProcessors();
+				int processorIndex = -1;
+				BinaryFieldProcessor[] processors = BinaryPacket.getBinaryFieldProcessors();
 				for(int i = 0; i < processors.length; i++)
-					if(dataset.processor == processors[i])
+					if(dataset.processor.toString().equals(processors[i].toString()))
 						processorIndex = i;
 				
 				outputFile.println("");
@@ -726,6 +564,24 @@ public class Controller {
 				outputFile.println("\tconversion factor a = " + dataset.conversionFactorA);
 				outputFile.println("\tconversion factor b = " + dataset.conversionFactorB);
 				
+			}
+			
+			if(Model.packet.toString().equals("Binary")) {
+			
+				BinaryPacket packet = (BinaryPacket) Model.packet;
+				
+				int checksumProcessorIndex = -1;
+				BinaryChecksumProcessor[] processors = BinaryPacket.getBinaryChecksumProcessors();
+				for(int i = 0; i < processors.length; i++)
+					if(packet.checksumProcessor.toString().equals(processors[i].toString()))
+						checksumProcessorIndex = i;
+				
+				outputFile.println("");
+				outputFile.println("Checksum:");
+				outputFile.println("");
+				outputFile.println("\tlocation = " + packet.checksumProcessorOffset);
+				outputFile.println("\tchecksum processor index = " + checksumProcessorIndex);
+			
 			}
 			
 			outputFile.println("");
@@ -762,10 +618,9 @@ public class Controller {
 	 * 
 	 * @param inputFilePath    An absolute path to a .txt file.
 	 */
-	static void openLayout(String inputFilePath) {
+	static void openLayout(String inputFilePath) { // FIXME add fault checking: do charts reference datasets that exist?
 		
 		Controller.disconnectFromSerialPort();
-		Controller.removeAllDatasets();
 		
 		try {
 			
@@ -798,8 +653,15 @@ public class Controller {
 			verify(lines.get(n++).startsWith("\tsample rate = "));
 			int sampleRate = Integer.parseInt(lines.get(n-1).substring(15));
 			verify(lines.get(n++).equals(""));
+
+			if(packetType.equals(Model.csvPacket.toString()))
+				Model.packet = Model.csvPacket;
+			else if(packetType.equals(Model.binaryPacket.toString()))
+				Model.packet = Model.binaryPacket;
+			else
+				throw new AssertionError();
 			
-			Controller.connectToSerialPort(sampleRate, packetType, portName, baudRate);
+			Model.packet.clear();
 			
 			verify(lines.get(n++).endsWith(" Data Structure Locations:"));
 			int locationsCount = Integer.parseInt(lines.get(n-1).split(" ")[0]);
@@ -811,7 +673,7 @@ public class Controller {
 				int location = Integer.parseInt(lines.get(n-1).substring(12));
 				verify(lines.get(n++).startsWith("\tprocessor index = "));
 				int processorIndex = Integer.parseInt(lines.get(n-1).substring(19));
-				BinaryProcessor processor = Controller.getBinaryProcessors()[processorIndex];
+				BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[processorIndex];
 				verify(lines.get(n++).startsWith("\tname = "));
 				String name = lines.get(n-1).substring(8);
 				verify(lines.get(n++).startsWith("\tcolor = 0x"));
@@ -824,11 +686,31 @@ public class Controller {
 				verify(lines.get(n++).startsWith("\tconversion factor b = "));
 				float conversionFactorB = Float.parseFloat(lines.get(n-1).substring(23));
 				
-				Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				if(Model.packet == Model.csvPacket)
+					Model.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
+				else if(Model.packet == Model.binaryPacket)
+					Model.binaryPacket.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
 			}
 			
-			Controller.startReceivingData();
+			if(Model.packet == Model.binaryPacket) {
+				
+				verify(lines.get(n++).equals(""));
+				verify(lines.get(n++).equals("Checksum:"));
+				verify(lines.get(n++).equals(""));
+				verify(lines.get(n++).startsWith("\tlocation = "));
+				int checksumOffset = Integer.parseInt(lines.get(n-1).substring(12));
+				verify(lines.get(n++).startsWith("\tchecksum processor index = "));
+				
+				if(checksumOffset >= 0) {
+					int checksumIndex = Integer.parseInt(lines.get(n-1).substring(28));
+					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
+					Model.binaryPacket.insertChecksum(checksumOffset, processor);
+				}
+			
+			}
+			
+			Controller.connectToSerialPort(sampleRate, Model.packet, portName, baudRate, null);
 
 			verify(lines.get(n++).equals(""));
 			verify(lines.get(n++).endsWith(" Charts:"));
@@ -865,7 +747,7 @@ public class Controller {
 				for(ChartDescriptor descriptor : Controller.getChartDescriptors())
 					if(descriptor.toString().equals(chartType)) {
 						PositionedChart chart = descriptor.createChart(topLeftX, topLeftY, bottomRightX, bottomRightY, duration, datasets);
-						Controller.addPositionedChart(chart);
+						Controller.addChart(chart);
 						break;
 					}
 				

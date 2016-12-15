@@ -58,7 +58,7 @@ public class Tester {
 		Controller.removeAllDatasets();
 		
 		int location = 0;
-		BinaryProcessor processor = Controller.getBinaryProcessors()[0];
+		BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[0];
 		String name = "";
 		Color color = null;
 		String unit = "Volts";
