@@ -365,7 +365,7 @@ public class OpenGLChartsRegion extends JPanel {
 				double zoomPerScroll = 0.1;
 				float  displayScalingPerScroll = 0.1f;
 				
-				if(Controller.getCharts().size() == 0)
+				if(Controller.getCharts().size() == 0 && mwe.isShiftDown() == false)
 					return;
 				
 				if(scrollAmount == 0)

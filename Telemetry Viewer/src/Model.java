@@ -33,8 +33,8 @@ public class Model {
 	final static Color lineColorDefault = Color.RED;
 	
 	static float displayScalingFactor = (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0);
-	final static float displayScalingFactorMinimum =  0.5f;
-	final static float displayScalingFactorMaximum = 20.0f;
+	final static float displayScalingFactorMinimum =  1.0f * displayScalingFactor;
+	final static float displayScalingFactorMaximum = 10.0f * displayScalingFactor;
 	
 	// attributes of the possible charts
 	static ChartDescriptor[] chartDescriptors = new ChartDescriptor[] {
