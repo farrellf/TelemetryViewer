@@ -24,6 +24,7 @@ public class ControlsRegion extends JPanel {
 	
 	JButton openLayoutButton;
 	JButton saveLayoutButton;
+	JButton exportCsvLogButton;
 	JButton resetButton;
 	JButton helpButton;
 	
@@ -68,6 +69,20 @@ public class ControlsRegion extends JPanel {
 					if(!filePath.endsWith(".txt"))
 						filePath += ".txt";
 					Controller.saveLayout(filePath);
+				}
+			}
+		});
+		
+		exportCsvLogButton = new JButton("Export CSV Log");
+		exportCsvLogButton.addActionListener(new ActionListener() {
+			@Override public void actionPerformed(ActionEvent e) {
+				JFileChooser saveFile = new JFileChooser();
+				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+				if(saveFile.showSaveDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
+					String filePath = saveFile.getSelectedFile().getAbsolutePath();
+					if(!filePath.endsWith(".csv"))
+						filePath += ".csv";
+					Controller.exportCsvLogFile(filePath);
 				}
 			}
 		});
@@ -278,6 +293,8 @@ public class ControlsRegion extends JPanel {
 		add(openLayoutButton);
 		add(Box.createHorizontalStrut(5));
 		add(saveLayoutButton);
+		add(Box.createHorizontalStrut(5));
+		add(exportCsvLogButton);
 		add(Box.createHorizontalStrut(5));
 		add(resetButton);
 		add(Box.createHorizontalStrut(5));

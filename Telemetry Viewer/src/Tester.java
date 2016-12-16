@@ -25,16 +25,11 @@ public class Tester {
 						(System.nanoTime() % 100) * scalar * 0.8f / 14000f,
 						(System.nanoTime() % 100) * scalar * 0.6f / 14000f
 					};
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
-					Controller.insertSamples(newSamples);
+					for(int i = 0; i < 10; i++) {
+						Controller.getDatasetByIndex(0).add(newSamples[0]);
+						Controller.getDatasetByIndex(1).add(newSamples[1]);
+						Controller.getDatasetByIndex(2).add(newSamples[2]);
+					}
 					try { Thread.sleep(1); } catch(Exception e) {} // wait 1ms
 				}
 				

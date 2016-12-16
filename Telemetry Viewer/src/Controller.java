@@ -4,10 +4,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
@@ -22,8 +20,6 @@ public class Controller {
 	static List<GridChangedListener> gridChangedListeners = new ArrayList<GridChangedListener>();
 	static List<SerialPortListener>   serialPortListeners = new ArrayList<SerialPortListener>();
 	static volatile SerialPort port;
-	
-	static PrintWriter logFile;
 	
 	/**
 	 * @return    The display scaling factor. By default, this is the percentage of 100dpi that the screen uses, rounded to an integer.
@@ -366,11 +362,6 @@ public class Controller {
 			
 		}
 		
-		if(logFile != null) {
-			logFile.close();
-			logFile = null;
-		}
-		
 	}
 	
 	/**
@@ -481,39 +472,34 @@ public class Controller {
 	}
 	
 	/**
-	 * Inserts one new sample into each of the datasets, and logs the new samples.
+	 * Exports all samples to a CSV file.
 	 * 
-	 * @param newSamples    A float[] containing one sample for each dataset.
+	 * @param path    Full path with file name.
 	 */
-	static void insertSamples(float[] newSamples) { // FIXME this isnt used by new code, so no logging would occur
-
-		for(int i = 0; i < newSamples.length; i++)
-			Controller.getDatasetByIndex(i).add(newSamples[i]); // FIXME should be byLocation, but that breaks Binary mode
+	static void exportCsvLogFile(String filepath) {
 		
-		if(logFile != null) {
-			logFile.print(new SimpleDateFormat("YYYY-MM-dd    HH:mm:ss.SSS").format(new Date()));
-			for(int i = 0; i < newSamples.length; i++)
-				logFile.print("," + Float.toString(newSamples[i]));
-			logFile.println();
-		}
+		int datasetsCount = Controller.getDatasetsCount();
+		int sampleCount = Controller.getSamplesCount();
 		
-	}
-	
-	/**
-	 * Starts logging. This should only be called after the data structure has been fully defined.
-	 */
-	static void startLoggingRawData() {
-		
-		if(logFile != null)
-			logFile.close();
 		try {
-			logFile = new PrintWriter("log.csv", "UTF-8");
-			logFile.print("PC Timestamp (YYYY-MM-DD    HH:MM:SS.SSS)");
-			for(int i = 0; i < Controller.getDatasetsCount(); i++) {
+			
+			PrintWriter logFile = new PrintWriter(filepath, "UTF-8");
+			logFile.print("Sample Number (" + Model.sampleRate + " samples per second)");
+			for(int i = 0; i < datasetsCount; i++) {
 				Dataset d = Controller.getDatasetByIndex(i);
-				logFile.print("," + d.name);
+				logFile.print("," + d.name + " (" + d.unit + ")");
 			}
 			logFile.println();
+			
+			for(int i = 0; i < sampleCount; i++) {
+				logFile.print(i);
+				for(int n = 0; n < datasetsCount; n++)
+					logFile.print("," + Float.toString(Controller.getDatasetByIndex(n).getSample(i)));
+				logFile.println();
+			}
+			
+			logFile.close();
+			
 		} catch(Exception e) { }
 		
 	}
