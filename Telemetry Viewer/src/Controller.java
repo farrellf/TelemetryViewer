@@ -178,11 +178,17 @@ public class Controller {
 	}
 	
 	/**
-	 * Removes a specific dataset. This should only be called when charts do not exist.
+	 * Removes a specific dataset.
 	 * 
-	 * @return    true on success, false if nothing existing there.
+	 * @return    true on success, false if nothing existed there.
 	 */
-	public static boolean removeDataset(int location) { // FIXME: remove any charts that use the dataset before removing the dataset
+	public static boolean removeDataset(int location) {
+		
+		PositionedChart[] charts = Controller.getCharts().toArray(new PositionedChart[0]);
+		for(PositionedChart chart : charts)
+			for(Dataset dataset : chart.datasets)
+				if(dataset.location == location)
+					Controller.removeChart(chart);
 		
 		Dataset removedDataset = Model.datasets.remove(location);
 		
