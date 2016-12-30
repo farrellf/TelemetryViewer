@@ -300,7 +300,7 @@ public class OpenGLChartsRegion extends JPanel {
 				}
 				
 				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(OpenGLChartsRegion.this);
-				new NewChartWindow(parentWindow, startX, startY, endX, endY);
+				new AddChartWindow(parentWindow, startX, startY, endX, endY);
 				
 				startX = startY = -1;
 				endX   = endY   = -1;

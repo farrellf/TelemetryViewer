@@ -1,5 +1,7 @@
 import java.util.Map;
 
+import javax.swing.JPanel;
+
 import com.jogamp.opengl.GL2;
 
 /**
@@ -32,18 +34,61 @@ public class OpenGLHistogramChart extends PositionedChart {
 	boolean yAxisShowsFrequency;
 	boolean yAxisShowsRelativeFrequency;
 	
-	public static ChartDescriptor getDescriptor() {
+	public static ChartFactory getFactory() {
 		
-		return new ChartDescriptor() {
+		return new ChartFactory() {
 			
-			@Override public String toString()        { return "Histogram Chart"; }
-			@Override public int getMinimumDuration() { return 5; }
-			@Override public int getDefaultDuration() { return 1000; }
-			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
-			@Override public String[] getInputNames() { return null; }
+			WidgetDatasets datasetsWidget;
+			WidgetTextfieldInteger sampleCountWidget;
+			WidgetTextfieldInteger binCountWidget;
+			WidgetHistogramXaxisType xAxisTypeWidget;
+			WidgetHistogramYaxisType yAxisTypeWidget;
 			
-			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
-				return new OpenGLHistogramChart(x1, y1, x2, y2, chartDuration, chartInputs);
+			@Override public String toString() { return "Histogram Chart"; }
+			
+			@Override public JPanel[] getWidgets() {
+
+				datasetsWidget    = new WidgetDatasets();
+				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 5, Integer.MAX_VALUE);
+				binCountWidget    = new WidgetTextfieldInteger("Bin Count", 60, 2, Integer.MAX_VALUE);
+				xAxisTypeWidget   = new WidgetHistogramXaxisType(0.001f, 1.0f, 0.5f, -Float.MAX_VALUE, Float.MAX_VALUE);
+				yAxisTypeWidget   = new WidgetHistogramYaxisType(0.0f, 1.0f, 0.0f, 1.0f);
+	
+				JPanel[] widgets = new JPanel[8];
+				
+				widgets[0] = datasetsWidget;
+				widgets[1] = null;
+				widgets[2] = sampleCountWidget;
+				widgets[3] = binCountWidget;
+				widgets[4] = null;
+				widgets[5] = xAxisTypeWidget;
+				widgets[6] = null;
+				widgets[7] = yAxisTypeWidget;
+
+				return widgets;
+				
+			}
+			
+			@Override public int getMinimumSampleCount() {
+				return 5;
+			}
+			
+			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
+
+				int sampleCount = sampleCountWidget.getValue();
+				Dataset[] datasets = datasetsWidget.getDatasets();
+				
+				if(datasets.length == 0)
+					return null;
+				
+				return new OpenGLHistogramChart(x1, y1, x2, y2, sampleCount, datasets);
+				
+			}
+			
+			@Override public PositionedChart createOldChart(int x1, int y1, int x2, int y2, int sampleCount, Dataset[] datasets) {
+
+				return new OpenGLHistogramChart(x1, y1, x2, y2, sampleCount, datasets);
+				
 			}
 			
 		};
@@ -115,7 +160,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		// get the samples
 		int endIndex = lastSampleNumber;
 		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
-		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		int minDomain = OpenGLHistogramChart.getFactory().getMinimumSampleCount() - 1;
 		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
 		if(startIndex < 0) startIndex = 0;
 		int sampleCount = endIndex - startIndex + 1;

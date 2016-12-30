@@ -36,14 +36,4 @@ public class Model {
 	final static float displayScalingFactorMinimum =  1.0f * displayScalingFactor;
 	final static float displayScalingFactorMaximum = 10.0f * displayScalingFactor;
 	
-	// attributes of the possible charts
-	static ChartDescriptor[] chartDescriptors = new ChartDescriptor[] {
-		OpenGLTimeDomainChart.getDescriptor(),
-		OpenGLTimeDomainChartCached.getDescriptor(),
-		OpenGLFrequencyDomainChart.getDescriptor(),
-		OpenGLHistogramChart.getDescriptor(),
-		OpenGLDialChart.getDescriptor()
-	};
-
-	
 }

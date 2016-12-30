@@ -123,11 +123,15 @@ public class Controller {
 	}
 	
 	/**
-	 * @return    An array of ChartDescriptor's, one for each possible chart type.
+	 * @return    An array of ChartFactory objects, one for each possible chart type.
 	 */
-	public static ChartDescriptor[] getChartDescriptors() {
+	public static ChartFactory[] getChartFactories() {
 		
-		return Model.chartDescriptors;
+		return new ChartFactory[] {OpenGLTimeDomainChart.getFactory(),
+		                           OpenGLTimeDomainChartCached.getFactory(),
+		                           OpenGLFrequencyDomainChart.getFactory(),
+		                           OpenGLHistogramChart.getFactory(),
+		                           OpenGLDialChart.getFactory()};
 		
 	}
 	
@@ -399,6 +403,9 @@ public class Controller {
 		
 	}
 	
+	/**
+	 * @return    All charts.
+	 */
 	public static List<PositionedChart> getCharts() {
 		
 		return Model.charts;
@@ -408,10 +415,10 @@ public class Controller {
 	/**
 	 * Checks if a region is available in the ChartsRegion.
 	 * 
-	 * @param x1    The x-coordinate of a bounding-box corner in the ChartsRegion grid.
-	 * @param y1    The y-coordinate of a bounding-box corner in the ChartsRegion grid.
-	 * @param x2    The x-coordinate of the opposite bounding-box corner in the ChartsRegion grid.
-	 * @param y2    The y-coordinate of the opposite bounding-box corner in the ChartsRegion grid.
+	 * @param x1    The x-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param y1    The y-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param x2    The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param y2    The y-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
 	 * @return      True if available, false if not.
 	 */
 	public static boolean gridRegionAvailable(int x1, int y1, int x2, int y2) {
@@ -716,9 +723,9 @@ public class Controller {
 					
 				}
 				
-				for(ChartDescriptor descriptor : Controller.getChartDescriptors())
-					if(descriptor.toString().equals(chartType)) {
-						PositionedChart chart = descriptor.createChart(topLeftX, topLeftY, bottomRightX, bottomRightY, duration, datasets);
+				for(ChartFactory factory : Controller.getChartFactories())
+					if(factory.toString().equals(chartType)) {
+						PositionedChart chart = factory.createOldChart(topLeftX, topLeftY, bottomRightX, bottomRightY, duration, datasets);
 						Controller.addChart(chart);
 						break;
 					}

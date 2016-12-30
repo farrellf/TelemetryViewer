@@ -1,5 +1,7 @@
 import java.util.Map;
 
+import javax.swing.JPanel;
+
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2;
 
@@ -11,18 +13,54 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 	
 	AutoScale autoscale;
 	
-	public static ChartDescriptor getDescriptor() {
+	public static ChartFactory getFactory() {
 		
-		return new ChartDescriptor() {
+		return new ChartFactory() {
 			
-			@Override public String toString()        { return "Frequency Domain Chart"; }
-			@Override public int getMinimumDuration() { return 5; }
-			@Override public int getDefaultDuration() { return 1000; }
-			@Override public int getMaximumDuration() { return 50000; }
-			@Override public String[] getInputNames() { return null; }
+			WidgetDatasets datasetsWidget;
+			WidgetTextfieldInteger sampleCountWidget;
+			WidgetTextfieldsOptionalMinMax minMaxWidget;
 			
-			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
-				return new OpenGLFrequencyDomainChart(x1, y1, x2, y2, chartDuration, chartInputs);
+			@Override public String toString() { return "Frequency Domain Chart"; }
+			
+			@Override public JPanel[] getWidgets() {
+
+				datasetsWidget    = new WidgetDatasets();
+				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 5, 50000);
+				minMaxWidget      = new WidgetTextfieldsOptionalMinMax("Y-Axis", 0.001f, 1.0f, Float.MIN_VALUE, Float.MAX_VALUE);
+	
+				JPanel[] widgets = new JPanel[5];
+				
+				widgets[0] = datasetsWidget;
+				widgets[1] = null;
+				widgets[2] = sampleCountWidget;
+				widgets[3] = null;
+				widgets[4] = minMaxWidget;
+
+				return widgets;
+				
+			}
+			
+			@Override public int getMinimumSampleCount() {
+				return 5;
+			}
+			
+			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
+
+				int sampleCount = sampleCountWidget.getValue();
+				Dataset[] datasets = datasetsWidget.getDatasets();
+				
+				if(datasets.length == 0)
+					return null;
+				
+				return new OpenGLFrequencyDomainChart(x1, y1, x2, y2, sampleCount, datasets);
+				
+			}
+			
+			@Override public PositionedChart createOldChart(int x1, int y1, int x2, int y2, int sampleCount, Dataset[] datasets) {
+
+				return new OpenGLFrequencyDomainChart(x1, y1, x2, y2, sampleCount, datasets);
+				
 			}
 			
 		};
@@ -66,7 +104,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// calculate the DFTs
 		int maxX = lastSampleNumber;
 		int minX = maxX - (int) (duration * zoomLevel) + 1;
-		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		int minDomain = OpenGLFrequencyDomainChart.getFactory().getMinimumSampleCount() - 1;
 		if(maxX - minX < minDomain) minX = maxX - minDomain;
 		if(minX < 0) minX = 0;
 		

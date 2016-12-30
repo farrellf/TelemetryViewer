@@ -1,3 +1,4 @@
+import javax.swing.JPanel;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import com.jogamp.opengl.GL2;
@@ -10,7 +11,7 @@ import com.jogamp.opengl.GL2;
 @SuppressWarnings("serial")
 public class OpenGLDialChart extends PositionedChart {
 	
-	final int   dialResolution = 200; // how many quads to draw
+	final int   dialResolution = 400; // how many quads to draw
 	final float dialThickness = 0.4f; // percentage of the radius
 	Samples     samples;
 	boolean     showStatistics;
@@ -18,20 +19,55 @@ public class OpenGLDialChart extends PositionedChart {
 	float       manualRangeMin;
 	float       manualRangeMax;
 	
-	public static ChartDescriptor getDescriptor() {
+	public static ChartFactory getFactory() {
 		
-		return new ChartDescriptor() {
+		return new ChartFactory() {
 			
-			@Override public String toString()        { return "Dial Chart"; }
-			@Override public int getMinimumDuration() { return 5; }
-			@Override public int getDefaultDuration() { return 1000; }
-			@Override public int getMaximumDuration() { return Integer.MAX_VALUE; }
-			@Override public String[] getInputNames() { return new String[] {"Data"}; }
+			WidgetDataset datasetWidget;
+			WidgetTextfieldsOptionalMinMax minMaxWidget;
+			WidgetEnumeration statisticsWidget;
+			WidgetTextfieldInteger sampleCountWidget;
 			
-			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
-				return new OpenGLDialChart(x1, y1, x2, y2, chartDuration, chartInputs);
+			@Override public String toString() { return "Dial Chart"; }
+			
+			@Override public JPanel[] getWidgets() {
+
+				datasetWidget     = new WidgetDataset();
+				minMaxWidget      = new WidgetTextfieldsOptionalMinMax("Dial", -1,  1, -Float.MAX_VALUE, Float.MAX_VALUE);
+				statisticsWidget  = new WidgetEnumeration("Show Statistics", new String[] {"Yes", "No"});
+				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 3, Integer.MAX_VALUE);
+				
+				JPanel[] widgets = new JPanel[6];
+				
+				widgets[0] = datasetWidget;
+				widgets[1] = null;
+				widgets[2] = minMaxWidget;
+				widgets[3] = null;
+				widgets[4] = statisticsWidget;
+				widgets[5] = sampleCountWidget;
+
+				return widgets;
+				
 			}
 			
+			@Override public int getMinimumSampleCount() {
+				return 3;
+			}
+			
+			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
+
+				int sampleCount = sampleCountWidget.getValue();
+				Dataset[] datasets = new Dataset[] {datasetWidget.getDataset()};
+				return new OpenGLDialChart(x1, y1, x2, y2, sampleCount, datasets);
+				
+			}
+			
+			@Override public PositionedChart createOldChart(int x1, int y1, int x2, int y2, int sampleCount, Dataset[] datasets) {
+
+				return new OpenGLDialChart(x1, y1, x2, y2, sampleCount, datasets);
+				
+			}
+
 		};
 		
 	}
@@ -80,7 +116,7 @@ public class OpenGLDialChart extends PositionedChart {
 		// get the samples
 		int endIndex = lastSampleNumber;
 		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
-		int minDomain = getDescriptor().getMinimumDuration() - 1;
+		int minDomain = OpenGLDialChart.getFactory().getMinimumSampleCount() - 1;
 		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
 		if(startIndex < 0) startIndex = 0;
 		
