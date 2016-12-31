@@ -274,10 +274,10 @@ public class ChartUtils {
 	 * @param line            Line number to show in the error message if an error occurs.
 	 * @param text            Line of text to parse.
 	 * @param formatString    Printf-style format string but with many limitations:
-	 *                            1. Only %d %f or %s can be used.
-                                  2. A %d or %f can only be at the very beginning or very end. A %s can only be at the very end.
-                                  3. There must be a space between %d/%f/%s and the rest of the text.
-	 * @return                An Integer if %d was used, a Float if %f was used, a String if %s was used, or null if no format specifier was used.
+	 *                            1. Only %d %f %s or %b (boolean) can be used.
+                                  2. A %d or %f can only be at the very beginning or very end. A %s or %b can only be at the very end.
+                                  3. There must be a space between %d/%f/%s/%b and the rest of the text.
+	 * @return                An Integer if %d was used, a Float if %f was used, a String if %s was used, a Boolean if %b was used, or null if no format specifier was used.
 	 */
 	public static Object parse(int line, String text, String formatString) {
 		
@@ -372,6 +372,21 @@ public class ChartUtils {
 				String token = text.substring(expectedText.length()); 
 				if(actualText.equals(expectedText))
 					return token;
+				else
+					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
+			} catch(Exception e) {
+				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
+			}
+		}
+		
+		// ending with %b, so a Boolean should be at the end of the text
+		if(formatString.endsWith("%b")) {
+			try {
+				String expectedText = formatString.substring(0, formatString.length() - 2);
+				String actualText = text.substring(0, expectedText.length());
+				String token = text.substring(expectedText.length()); 
+				if(actualText.equals(expectedText))
+					return Boolean.parseBoolean(token);
 				else
 					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
 			} catch(Exception e) {

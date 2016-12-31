@@ -4,9 +4,9 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import com.jogamp.opengl.GL2;
 
 /**
- * Renders a dial showing the most recent sample's value.
- * The range of the dial is determined by the min and max values in the chart's duration.
- * The mean and standard deviation of that chart's duration is also shown.
+ * Renders a dial showing the value of the most recent sample.
+ * The range of the dial can be constant, or autoscaled by the min and max values from the chart's samples.
+ * The mean and standard deviation of the chart's samples can be shown if desired.
  */
 @SuppressWarnings("serial")
 public class OpenGLDialChart extends PositionedChart {
@@ -15,9 +15,10 @@ public class OpenGLDialChart extends PositionedChart {
 	final float dialThickness = 0.4f; // percentage of the radius
 	Samples     samples;
 	boolean     showStatistics;
-	boolean     autoRange;
-	float       manualRangeMin;
-	float       manualRangeMax;
+	boolean     autoscaleMin;
+	boolean     autoscaleMax;
+	float       manualMin;
+	float       manualMax;
 	
 	public static ChartFactory getFactory() {
 		
@@ -35,7 +36,7 @@ public class OpenGLDialChart extends PositionedChart {
 				datasetWidget     = new WidgetDataset();
 				minMaxWidget      = new WidgetTextfieldsOptionalMinMax("Dial", -1,  1, -Float.MAX_VALUE, Float.MAX_VALUE);
 				statisticsWidget  = new WidgetEnumeration("Show Statistics", new String[] {"Yes", "No"});
-				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 3, Integer.MAX_VALUE);
+				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 1, Integer.MAX_VALUE);
 				
 				JPanel[] widgets = new JPanel[6];
 				
@@ -51,23 +52,45 @@ public class OpenGLDialChart extends PositionedChart {
 			}
 			
 			@Override public int getMinimumSampleCount() {
-				return 3;
+				
+				return 1;
+				
 			}
 			
 			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
 
-				int sampleCount = sampleCountWidget.getValue();
-				Dataset[] datasets = new Dataset[] {datasetWidget.getDataset()};
-				return new OpenGLDialChart(x1, y1, x2, y2, sampleCount, datasets);
+				int sampleCount      = sampleCountWidget.getValue();
+				Dataset[] dataset    = datasetWidget.getDataset();
+				boolean autoscaleMin = minMaxWidget.isMinimumAutomatic();
+				float manualMin      = minMaxWidget.getMinimumValue();
+				boolean autoscaleMax = minMaxWidget.isMaximumAutomatic();
+				float manualMax      = minMaxWidget.getMaximumValue();
+				boolean showStats    = statisticsWidget.getValue().equals("Yes");
+				
+				OpenGLDialChart chart = new OpenGLDialChart(x1, y1, x2, y2, sampleCount, dataset);
+				chart.setDialRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
+				chart.showStatistics(showStats);
+				
+				return chart;
 				
 			}
 			
 			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
 				
-				if(lines.length != 0)
+				if(lines.length != 5)
 					throw new AssertionError("Line " + firstLineNumber + ": Invalid Dial Chart configuration section.");
 				
-				return new OpenGLDialChart(x1, y1, x2, y2, sampleCount, datasets);
+				boolean autoscaleMin = (boolean) ChartUtils.parse(firstLineNumber + 0, lines[0], "autoscale minimum = %b");
+				float manualMin      =   (float) ChartUtils.parse(firstLineNumber + 1, lines[1], "manual minimum = %f");
+				boolean autoscaleMax = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "autoscale maximum = %b");
+				float manualMax      =   (float) ChartUtils.parse(firstLineNumber + 3, lines[3], "manual maximum = %f");
+				boolean showStats    = (boolean) ChartUtils.parse(firstLineNumber + 4, lines[4], "show statistics = %b");
+				
+				OpenGLDialChart chart = new OpenGLDialChart(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setDialRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
+				chart.showStatistics(showStats);
+				
+				return chart;
 				
 			}
 
@@ -77,7 +100,15 @@ public class OpenGLDialChart extends PositionedChart {
 	
 	@Override public String[] exportChartSettings() {
 		
-		return null;
+		String[] lines = new String[5];
+		
+		lines[0] = "autoscale minimum = " + autoscaleMin;
+		lines[1] = "manual minimum = " + manualMin;
+		lines[2] = "autoscale maximum = " + autoscaleMax;
+		lines[3] = "manual maximum = " + manualMax;
+		lines[4] = "show statistics = " + showStatistics;
+		
+		return lines;
 		
 	}
 	
@@ -94,12 +125,28 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		samples = new Samples();
 		
-		showStatistics = false;
+		showStatistics = true;
 		
-		autoRange = false;
-		manualRangeMin = -2.0f;
-		manualRangeMax =  2.0f;
+		autoscaleMin = true;
+		autoscaleMax = true;
+		manualMin = -1.0f;
+		manualMax =  1.0f;
 
+	}
+	
+	public void showStatistics(boolean visibility) {
+		
+		showStatistics = visibility;
+		
+	}
+	
+	public void setDialRange(boolean autoscaleMinimum, float manualMinimum, boolean autoscaleMaximum, float manualMaximum) {
+		
+		autoscaleMin = autoscaleMinimum;
+		autoscaleMax = autoscaleMaximum;
+		manualMin = manualMinimum;
+		manualMax = manualMaximum;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
@@ -135,8 +182,8 @@ public class OpenGLDialChart extends PositionedChart {
 		datasets[0].getSamples(startIndex, endIndex, samples);
 
 		// calculate range
-		float dialMin = autoRange ? samples.min : manualRangeMin;
-		float dialMax = autoRange ? samples.max : manualRangeMax;
+		float dialMin = autoscaleMin ? samples.min : manualMin;
+		float dialMax = autoscaleMax ? samples.max : manualMax;
 		float range = dialMax - dialMin;
 		
 		// generate text

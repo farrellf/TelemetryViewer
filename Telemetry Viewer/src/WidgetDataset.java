@@ -27,11 +27,11 @@ public class WidgetDataset extends JPanel {
 	}
 	
 	/**
-	 * @return    The selected dataset.
+	 * @return    The selected dataset, as a one-element array because the charts use arrays.
 	 */
-	public Dataset getDataset() {
+	public Dataset[] getDataset() {
 		
-		return (Dataset) combobox.getSelectedItem();
+		return new Dataset[] {(Dataset) combobox.getSelectedItem()};
 		
 	}
 
