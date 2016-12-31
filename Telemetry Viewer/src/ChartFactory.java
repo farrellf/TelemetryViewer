@@ -33,16 +33,19 @@ public interface ChartFactory {
 	public PositionedChart createChart(int x1, int y1, int x2, int y2);
 	
 	/**
-	 * Creates the chart based on the specified sample count and datasets.
+	 * Creates a chart based on the relevant lines of text from a layout file.
+	 * To reduce code duplication, Controller.openLayout() will have already parsed the settings common to all charts: grid location, datasets and sample count.
 	 * 
-	 * @param x1             The x-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
-	 * @param y1             The y-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
-	 * @param x2             The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
-	 * @param y2             The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
-	 * @param sampleCount    Number of samples to visualize.
-	 * @param datasets       The datasets to visualize.
-	 * @return               The new chart.
+	 * @param x1                 The x-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param y1                 The y-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param x2                 The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param y2                 The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param datasets           The datasets to visualize.
+	 * @param sampleCount        Number of samples to visualize.
+	 * @param lines              Any other lines of unparsed relevant text from the layout file.
+	 * @param firstLineNumber    The line number for lines[0], provided so helpful error messages can be generated.
+	 * @return                   The new chart.
 	 */
-	public PositionedChart createOldChart(int x1, int y1, int x2, int y2, int sampleCount, Dataset[] datasets);
+	public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber);
 
 }

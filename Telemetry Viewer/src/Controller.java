@@ -527,7 +527,7 @@ public class Controller {
 		try {
 			
 			PrintWriter outputFile = new PrintWriter(new File(outputFilePath), "UTF-8");
-			outputFile.println("Telemetry Viewer File Format v0.1");
+			outputFile.println("Telemetry Viewer File Format v0.3");
 			outputFile.println("");
 			
 			outputFile.println("Grid Settings:");
@@ -590,7 +590,6 @@ public class Controller {
 				
 				outputFile.println("");
 				outputFile.println("\tchart type = " + chart.toString());
-				outputFile.println("\tduration = " + chart.duration);
 				outputFile.println("\ttop left x = " + chart.topLeftX);
 				outputFile.println("\ttop left y = " + chart.topLeftY);
 				outputFile.println("\tbottom right x = " + chart.bottomRightX);
@@ -598,6 +597,12 @@ public class Controller {
 				outputFile.println("\tdatasets count = " + chart.datasets.length);
 				for(int i = 0; i < chart.datasets.length; i++)
 					outputFile.println("\t\tdataset location = " + chart.datasets[i].location);
+				outputFile.println("\tsample count = " + chart.duration);
+				
+				String[] additionalLines = chart.exportChartSettings();
+				if(additionalLines != null)
+					for(String line : additionalLines)
+						outputFile.println("\t" + line);
 				
 			}
 			
@@ -626,27 +631,27 @@ public class Controller {
 			List<String> lines = Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8);
 			int n = 0;
 			
-			parse(n, lines.get(n++), "Telemetry Viewer File Format v0.1");
-			parse(n, lines.get(n++), "");
+			ChartUtils.parse(n, lines.get(n++), "Telemetry Viewer File Format v0.3");
+			ChartUtils.parse(n, lines.get(n++), "");
 			
-			parse(n, lines.get(n++), "Grid Settings:");
-			parse(n, lines.get(n++), "");
+			ChartUtils.parse(n, lines.get(n++), "Grid Settings:");
+			ChartUtils.parse(n, lines.get(n++), "");
 			
-			int gridColumns = (int) parse(n, lines.get(n++), "\tcolumn count = %d");
-			int gridRows = (int) parse(n, lines.get(n++), "\trow count = %d");
-			parse(n, lines.get(n++), "");
+			int gridColumns = (int) ChartUtils.parse(n, lines.get(n++), "\tcolumn count = %d");
+			int gridRows = (int) ChartUtils.parse(n, lines.get(n++), "\trow count = %d");
+			ChartUtils.parse(n, lines.get(n++), "");
 			
 			Controller.setGridColumns(gridColumns);
 			Controller.setGridRows(gridRows);
 
-			parse(n, lines.get(n++), "Serial Port Settings:");
-			parse(n, lines.get(n++), "");
-			String portName = (String) parse(n, lines.get(n++), "\tport = %s");
-			int baudRate = (int) parse(n, lines.get(n++), "\tbaud = %d");
+			ChartUtils.parse(n, lines.get(n++), "Serial Port Settings:");
+			ChartUtils.parse(n, lines.get(n++), "");
+			String portName = (String) ChartUtils.parse(n, lines.get(n++), "\tport = %s");
+			int baudRate = (int) ChartUtils.parse(n, lines.get(n++), "\tbaud = %d");
 			
-			String packetType = (String) parse(n, lines.get(n++), "\tpacket type = %s");
-			int sampleRate = (int) parse(n, lines.get(n++), "\tsample rate = %d");
-			parse(n, lines.get(n++), "");
+			String packetType = (String) ChartUtils.parse(n, lines.get(n++), "\tpacket type = %s");
+			int sampleRate = (int) ChartUtils.parse(n, lines.get(n++), "\tsample rate = %d");
+			ChartUtils.parse(n, lines.get(n++), "");
 
 			if(packetType.equals(Model.csvPacket.toString()))
 				Model.packet = Model.csvPacket;
@@ -657,18 +662,18 @@ public class Controller {
 			
 			Model.packet.clear();
 			
-			int locationsCount = (int) parse(n, lines.get(n++), "%d Data Structure Locations:");
+			int locationsCount = (int) ChartUtils.parse(n, lines.get(n++), "%d Data Structure Locations:");
 
 			for(int i = 0; i < locationsCount; i++) {
 				
-				parse(n, lines.get(n++), "");
-				int location = (int) parse(n, lines.get(n++), "\tlocation = %d");
-				int processorIndex = (int) parse(n, lines.get(n++), "\tprocessor index = %d");
-				String name = (String) parse(n, lines.get(n++), "\tname = %s");
-				String colorText = (String) parse(n, lines.get(n++), "\tcolor = 0x%s");
-				String unit = (String) parse(n, lines.get(n++), "\tunit = %s");
-				float conversionFactorA = (float) parse(n, lines.get(n++), "\tconversion factor a = %f");
-				float conversionFactorB = (float) parse(n, lines.get(n++), "\tconversion factor b = %f");
+				ChartUtils.parse(n, lines.get(n++), "");
+				int location = (int) ChartUtils.parse(n, lines.get(n++), "\tlocation = %d");
+				int processorIndex = (int) ChartUtils.parse(n, lines.get(n++), "\tprocessor index = %d");
+				String name = (String) ChartUtils.parse(n, lines.get(n++), "\tname = %s");
+				String colorText = (String) ChartUtils.parse(n, lines.get(n++), "\tcolor = 0x%s");
+				String unit = (String) ChartUtils.parse(n, lines.get(n++), "\tunit = %s");
+				float conversionFactorA = (float) ChartUtils.parse(n, lines.get(n++), "\tconversion factor a = %f");
+				float conversionFactorB = (float) ChartUtils.parse(n, lines.get(n++), "\tconversion factor b = %f");
 				
 				int colorNumber = Integer.parseInt(colorText, 16);
 				Color color = new Color(colorNumber);
@@ -682,11 +687,11 @@ public class Controller {
 			
 			if(Model.packet == Model.binaryPacket) {
 				
-				parse(n, lines.get(n++), "");
-				parse(n, lines.get(n++), "Checksum:");
-				parse(n, lines.get(n++), "");
-				int checksumOffset = (int) parse(n, lines.get(n++), "\tlocation = %d");
-				int checksumIndex = (int) parse(n, lines.get(n++), "\tchecksum processor index = %d");
+				ChartUtils.parse(n, lines.get(n++), "");
+				ChartUtils.parse(n, lines.get(n++), "Checksum:");
+				ChartUtils.parse(n, lines.get(n++), "");
+				int checksumOffset = (int) ChartUtils.parse(n, lines.get(n++), "\tlocation = %d");
+				int checksumIndex = (int) ChartUtils.parse(n, lines.get(n++), "\tchecksum processor index = %d");
 				
 				if(checksumOffset >= 1) {
 					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
@@ -697,25 +702,22 @@ public class Controller {
 			
 			Controller.connectToSerialPort(sampleRate, Model.packet, portName, baudRate, null);
 
-			parse(n, lines.get(n++), "");
-			int chartsCount = (int) parse(n, lines.get(n++), "%d Charts:");
+			ChartUtils.parse(n, lines.get(n++), "");
+			int chartsCount = (int) ChartUtils.parse(n, lines.get(n++), "%d Charts:");
+			ChartUtils.parse(n, lines.get(n++), "");
 
 			for(int i = 0; i < chartsCount; i++) {
 				
-				parse(n, lines.get(n++), "");
-				String chartType = (String) parse(n, lines.get(n++), "\tchart type = %s");
-				int duration = (int) parse(n, lines.get(n++), "\tduration = %d");
-				int topLeftX = (int) parse(n, lines.get(n++), "\ttop left x = %d");
-				int topLeftY = (int) parse(n, lines.get(n++), "\ttop left y = %d");
-				int bottomRightX = (int) parse(n, lines.get(n++), "\tbottom right x = %d");
-				int bottomRightY = (int) parse(n, lines.get(n++), "\tbottom right y = %d");
-				int datasetsCount = (int) parse(n, lines.get(n++), "\tdatasets count = %d");
-				
+				String chartType = (String) ChartUtils.parse(n, lines.get(n++), "\tchart type = %s");
+				int topLeftX = (int) ChartUtils.parse(n, lines.get(n++), "\ttop left x = %d");
+				int topLeftY = (int) ChartUtils.parse(n, lines.get(n++), "\ttop left y = %d");
+				int bottomRightX = (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right x = %d");
+				int bottomRightY = (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right y = %d");
+				int datasetsCount = (int) ChartUtils.parse(n, lines.get(n++), "\tdatasets count = %d");
 				Dataset[] datasets = new Dataset[datasetsCount];
-				
 				for(int j = 0; j < datasetsCount; j++) {
 					
-					int location = (int) parse(n, lines.get(n++), "\t\tdataset location = %d");
+					int location = (int) ChartUtils.parse(n, lines.get(n++), "\t\tdataset location = %d");
 					datasets[j] = Controller.getDatasetByLocation(location);
 					
 					if(datasets[j] == null)
@@ -723,9 +725,32 @@ public class Controller {
 					
 				}
 				
+				int duration = (int) ChartUtils.parse(n, lines.get(n++), "\tsample count = %d");
+				
+				List<String> list = new ArrayList<String>();
+				int firstLineNunber = n;
+				
+				while(true) {
+					
+					// stop at end of file
+					if(n >= lines.size())
+						break;
+					
+					String line = lines.get(n++);
+					
+					// stop at end of section
+					if(line.equals(""))
+						break;
+					
+					list.add(line.substring(1)); // skip past the \t
+					
+				}
+				
+				String[] additionalLines = list.toArray(new String[0]);
+				
 				for(ChartFactory factory : Controller.getChartFactories())
 					if(factory.toString().equals(chartType)) {
-						PositionedChart chart = factory.createOldChart(topLeftX, topLeftY, bottomRightX, bottomRightY, duration, datasets);
+						PositionedChart chart = factory.importChart(topLeftX, topLeftY, bottomRightX, bottomRightY, datasets, duration, additionalLines, firstLineNunber);
 						Controller.addChart(chart);
 						break;
 					}
@@ -741,123 +766,6 @@ public class Controller {
 			JOptionPane.showMessageDialog(null, "Error while parsing the file:\n" + ae.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 		
 		}
-		
-	}
-	
-	/**
-	 * Takes a string of text and attempts to parse it with a format string.
-	 * Throws an exception if the text does not match the format string, or if the format string is invalid.
-	 * 
-	 * @param line            Line number to show in the error message if an error occurs.
-	 * @param text            Line of text to parse.
-	 * @param formatString    Printf-style format string but with many limitations:
-	 *                            1. Only %d %f or %s can be used.
-                                  2. A %d or %f can only be at the very beginning or very end. A %s can only be at the very end.
-                                  3. There must be a space between %d/%f/%s and the rest of the text.
-	 * @return                An Integer if %d was used, a Float if %f was used, a String if %s was used, or null if no format specifier was used.
-	 */
-	private static Object parse(int line, String text, String formatString) {
-		
-		// error message line numbers should start at 1 but the argument starts at 0
-		line++;
-		
-		// no format specifier, so just ensure the text matches the formatString exactly
-		if(!formatString.contains("%")) {
-			if(text.equals(formatString))
-				return null;
-			else
-				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-		}
-		
-		// starting with %d, so an integer should be at the start of the text
-		if(formatString.startsWith("%d")) {
-			try {
-				String[] tokens = text.split(" ");
-				int number = Integer.parseInt(tokens[0]);
-				String expectedText = formatString.substring(2);
-				String remainingText = "";
-				for(int i = 1; i < tokens.length; i++)
-					remainingText += " " + tokens[i];
-				if(remainingText.equals(expectedText))
-					return number;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not start with an integer.");
-			}
-		}
-		
-		// starting with %f, so a float should be at the start of the text
-		if(formatString.startsWith("%f")) {
-			try {
-				String[] tokens = text.split(" ");
-				float number = Float.parseFloat(tokens[0]);
-				String expectedText = formatString.substring(2);
-				String remainingText = "";
-				for(int i = 1; i < tokens.length; i++)
-					remainingText += " " + tokens[i];
-				if(remainingText.equals(expectedText))
-					return number;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not start with a floating point number.");
-			}
-		}
-		
-		// ending with %d, so an integer should be at the end of the text
-		if(formatString.endsWith("%d")) {
-			try {
-				String[] tokens = text.split(" ");
-				int number = Integer.parseInt(tokens[tokens.length - 1]);
-				String expectedText = formatString.substring(0, formatString.length() - 2);
-				String remainingText = "";
-				for(int i = 0; i < tokens.length - 1; i++)
-					remainingText += tokens[i] + " ";
-				if(remainingText.equals(expectedText))
-					return number;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not end with an integer.");
-			}
-		}
-		
-		// ending with %f, so a float should be at the end of the text
-		if(formatString.endsWith("%f")) {
-			try {
-				String[] tokens = text.split(" ");
-				float number = Float.parseFloat(tokens[tokens.length - 1]);
-				String expectedText = formatString.substring(0, formatString.length() - 2);
-				String remainingText = "";
-				for(int i = 0; i < tokens.length - 1; i++)
-					remainingText += tokens[i] + " ";
-				if(remainingText.equals(expectedText))
-					return number;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not end with a floating point number.");
-			}
-		}
-		
-		// ending with %s, so a String should be at the end of the text
-		if(formatString.endsWith("%s")) {
-			try {
-				String expectedText = formatString.substring(0, formatString.length() - 2);
-				String actualText = text.substring(0, expectedText.length());
-				String token = text.substring(expectedText.length()); 
-				if(actualText.equals(expectedText))
-					return token;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			}
-		}
-		
-		// formatString is not as expected
-		throw new AssertionError("Line " + line + ": Source code contains an invalid format string.");
 		
 	}
 	

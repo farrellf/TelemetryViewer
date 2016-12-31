@@ -54,13 +54,22 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				
 			}
 			
-			@Override public PositionedChart createOldChart(int x1, int y1, int x2, int y2, int sampleCount, Dataset[] datasets) {
-
+			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
+				
+				if(lines.length != 0)
+					throw new AssertionError("Line " + firstLineNumber + ": Invalid Time Domain Chart configuration section.");
+				
 				return new OpenGLTimeDomainChart(x1, y1, x2, y2, sampleCount, datasets);
 				
 			}
 			
 		};
+		
+	}
+	
+	@Override public String[] exportChartSettings() {
+		
+		return null;
 		
 	}
 	
