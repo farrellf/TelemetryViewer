@@ -5,13 +5,21 @@ import javax.swing.JPanel;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.util.Animator;
 
+/**
+ * Renders a time-domain line chart, and uses off-screen framebuffers to cache pixels.
+ * The range of the y-axis can be constant, or autoscaled by the min and max values from the chart's samples.
+ */
 @SuppressWarnings("serial")
 public class OpenGLTimeDomainChartCached extends PositionedChart {
 	
 	OpenGLTimeDomainSlice[] slices;
-	Animator animator;
-	AutoScale autoscale;
 	final int sliceWidth = 32;
+	Animator  animator;
+	AutoScale autoscale;
+	boolean   autoscaleMin;
+	boolean   autoscaleMax;
+	float     manualMin;
+	float     manualMax;
 	
 	public static ChartFactory getFactory() {
 		
@@ -27,7 +35,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 
 				datasetsWidget    = new WidgetDatasets();
 				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 5, Integer.MAX_VALUE);
-				minMaxWidget      = new WidgetTextfieldsOptionalMinMax("Y-Axis", 0.001f, 1.0f, Float.MIN_VALUE, Float.MAX_VALUE);
+				minMaxWidget      = new WidgetTextfieldsOptionalMinMax("Y-Axis", -1.0f, 1.0f, -Float.MAX_VALUE, Float.MAX_VALUE);
 	
 				JPanel[] widgets = new JPanel[5];
 				
@@ -47,22 +55,37 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			
 			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
 
-				int sampleCount = sampleCountWidget.getValue();
-				Dataset[] datasets = datasetsWidget.getDatasets();
+				int sampleCount      = sampleCountWidget.getValue();
+				Dataset[] datasets   = datasetsWidget.getDatasets();
+				boolean autoscaleMin = minMaxWidget.isMinimumAutomatic();
+				float manualMin      = minMaxWidget.getMinimumValue();
+				boolean autoscaleMax = minMaxWidget.isMaximumAutomatic();
+				float manualMax      = minMaxWidget.getMaximumValue();
 				
 				if(datasets.length == 0)
 					return null;
 				
-				return new OpenGLTimeDomainChartCached(x1, y1, x2, y2, sampleCount, datasets);
+				OpenGLTimeDomainChartCached chart = new OpenGLTimeDomainChartCached(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setYaxisRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
+				
+				return chart;
 				
 			}
 			
 			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
 				
-				if(lines.length != 0)
+				if(lines.length != 4)
 					throw new AssertionError("Line " + firstLineNumber + ": Invalid Time Domain Chart (Cached) configuration section.");
 				
-				return new OpenGLTimeDomainChartCached(x1, y1, x2, y2, sampleCount, datasets);
+				boolean autoscaleMin = (boolean) ChartUtils.parse(firstLineNumber + 0, lines[0], "autoscale minimum = %b");
+				float manualMin      =   (float) ChartUtils.parse(firstLineNumber + 1, lines[1], "manual minimum = %f");
+				boolean autoscaleMax = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "autoscale maximum = %b");
+				float manualMax      =   (float) ChartUtils.parse(firstLineNumber + 3, lines[3], "manual maximum = %f");
+				
+				OpenGLTimeDomainChartCached chart = new OpenGLTimeDomainChartCached(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setYaxisRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
+				
+				return chart;
 				
 			}
 			
@@ -72,7 +95,14 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 	
 	@Override public String[] exportChartSettings() {
 		
-		return null;
+		String[] lines = new String[4];
+		
+		lines[0] = "autoscale minimum = " + autoscaleMin;
+		lines[1] = "manual minimum = " + manualMin;
+		lines[2] = "autoscale maximum = " + autoscaleMax;
+		lines[3] = "manual maximum = " + manualMax;
+		
+		return lines;
 		
 	}
 	
@@ -87,8 +117,20 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		super(x1, y1, x2, y2, chartDuration, chartInputs);
 		
 		slices = new OpenGLTimeDomainSlice[0];
+		
 		autoscale = new AutoScale(AutoScale.MODE_STICKY, 1, 0.10f);
+		autoscaleMin = true;
+		autoscaleMax = true;
 
+	}
+	
+	public void setYaxisRange(boolean autoscaleMinimum, float manualMinimum, boolean autoscaleMaximum, float manualMaximum) {
+		
+		autoscaleMin = autoscaleMinimum;
+		autoscaleMax = autoscaleMaximum;
+		manualMin = manualMinimum;
+		manualMax = manualMaximum;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
@@ -134,10 +176,6 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			if(slices[i].sliceMaxY > plotMaxY) plotMaxY = slices[i].sliceMaxY;
 		}
 
-//		// FIXME testing
-//		plotMaxY =  18000;
-//		plotMinY = -18000;
-
 		// ensure range is >0
 		if(plotMinY == plotMaxY) {
 			float value = plotMinY;
@@ -145,8 +183,8 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			plotMaxY = value + 0.001f;
 		}
 		autoscale.update(plotMinY, plotMaxY);
-		plotMaxY = autoscale.getMax();
-		plotMinY = autoscale.getMin();
+		plotMaxY = autoscaleMax ? autoscale.getMax() : manualMax;
+		plotMinY = autoscaleMin ? autoscale.getMin() : manualMin;
 		float plotRange = plotMaxY - plotMinY;
 		
 		// calculate x and y positions of everything
