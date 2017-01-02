@@ -28,7 +28,7 @@ public class ChartUtils {
 		else if(error2 < error1 && error2 < error5)
 			divisionSize = closestDivSize2;
 		else
-			divisionSize= closestDivSize5;
+			divisionSize = closestDivSize5;
 		
 		// decide if the numbers should be displayed as integers, or as floats to one significant decimal place
 		int precision = 0;
@@ -67,7 +67,7 @@ public class ChartUtils {
 	}
 	
 	/**
-	 * Determines the best Log y values to use for vertical divisions. Division size will be either 10e1, 10e3 or 10e9.
+	 * Determines the best Log10 y values to use for vertical divisions. Division size will be either 1e1, 1e3 or 1e9.
 	 * 
 	 * @param plotHeight    Number of pixels for the y-axis
 	 * @param minY          Y value at the bottom of the plot
@@ -103,13 +103,13 @@ public class ChartUtils {
 		if(lastDivision < minY)
 			lastDivision += divisionSize;
 		int divisionCount = (int) Math.round((firstDivision - lastDivision) / divisionSize) + 1;
-		if(divisionCount > Math.floor(maxDivisionsCount))
-			divisionCount = (int) Math.floor(maxDivisionsCount);
+//		if(divisionCount > Math.floor(maxDivisionsCount))
+//			divisionCount = (int) Math.floor(maxDivisionsCount);
 		
 		Map<Float, String> yValues = new HashMap<Float, String>();
 		for(int i = 0; i < divisionCount; i++) {
 			float number = firstDivision - (i * divisionSize);
-			String text = "10e" + Integer.toString((int) number);
+			String text = "1e" + Integer.toString((int) number);
 			yValues.put(number, text);
 		}
 		
