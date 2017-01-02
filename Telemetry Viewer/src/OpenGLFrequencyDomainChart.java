@@ -6,12 +6,17 @@ import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2;
 
 /**
- * Renders a Fourier transformation line chart.
+ * Renders a Fourier transformation as a line chart.
+ * The range of the y-axis can be constant, or autoscaled by the min and max values from the samples' Fourier transformation.
  */
 @SuppressWarnings("serial")
 public class OpenGLFrequencyDomainChart extends PositionedChart {
 	
 	AutoScale autoscale;
+	boolean   autoscaleMin;
+	boolean   autoscaleMax;
+	float     manualMin;
+	float     manualMax;
 	
 	public static ChartFactory getFactory() {
 		
@@ -42,27 +47,44 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			}
 			
 			@Override public int getMinimumSampleCount() {
+				
 				return 5;
+				
 			}
 			
 			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
 
-				int sampleCount = sampleCountWidget.getValue();
-				Dataset[] datasets = datasetsWidget.getDatasets();
+				int sampleCount      = sampleCountWidget.getValue();
+				Dataset[] datasets   = datasetsWidget.getDatasets();
+				boolean autoscaleMin = minMaxWidget.isMinimumAutomatic();
+				float manualMin      = minMaxWidget.getMinimumValue();
+				boolean autoscaleMax = minMaxWidget.isMaximumAutomatic();
+				float manualMax      = minMaxWidget.getMaximumValue();
 				
 				if(datasets.length == 0)
 					return null;
 				
-				return new OpenGLFrequencyDomainChart(x1, y1, x2, y2, sampleCount, datasets);
+				OpenGLFrequencyDomainChart chart = new OpenGLFrequencyDomainChart(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setYaxisRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
+				
+				return chart;
 				
 			}
 			
 			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
 				
-				if(lines.length != 0)
+				if(lines.length != 4)
 					throw new AssertionError("Line " + firstLineNumber + ": Invalid Frequency Domain Chart configuration section.");
 				
-				return new OpenGLFrequencyDomainChart(x1, y1, x2, y2, sampleCount, datasets);
+				boolean autoscaleMin = (boolean) ChartUtils.parse(firstLineNumber + 0, lines[0], "autoscale minimum = %b");
+				float manualMin      =   (float) ChartUtils.parse(firstLineNumber + 1, lines[1], "manual minimum = %f");
+				boolean autoscaleMax = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "autoscale maximum = %b");
+				float manualMax      =   (float) ChartUtils.parse(firstLineNumber + 3, lines[3], "manual maximum = %f");
+				
+				OpenGLFrequencyDomainChart chart = new OpenGLFrequencyDomainChart(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setYaxisRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
+				
+				return chart;
 				
 			}
 			
@@ -72,7 +94,14 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 	
 	@Override public String[] exportChartSettings() {
 		
-		return null;
+		String[] lines = new String[4];
+		
+		lines[0] = "autoscale minimum = " + autoscaleMin;
+		lines[1] = "manual minimum = " + manualMin;
+		lines[2] = "autoscale maximum = " + autoscaleMax;
+		lines[3] = "manual maximum = " + manualMax;
+		
+		return lines;
 		
 	}
 	
@@ -87,7 +116,18 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		super(x1, y1, x2, y2, chartDuration, chartInputs);
 		
 		autoscale = new AutoScale(AutoScale.MODE_EXPONENTIAL, 90, 0.20f);
+		autoscaleMin = true;
+		autoscaleMax = true;
 
+	}
+	
+	public void setYaxisRange(boolean autoscaleMinimum, float manualMinimum, boolean autoscaleMaximum, float manualMaximum) {
+		
+		autoscaleMin = autoscaleMinimum;
+		autoscaleMax = autoscaleMaximum;
+		manualMin = manualMinimum;
+		manualMax = manualMaximum;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
@@ -149,8 +189,8 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			plotMaxY = value + 0.001f;
 		}
 		autoscale.update(plotMinY, plotMaxY);
-		plotMaxY = autoscale.getMax();
-		plotMinY = autoscale.getMin();
+		plotMaxY = autoscaleMax ? autoscale.getMax() : (float) Math.log10(manualMax);
+		plotMinY = autoscaleMin ? autoscale.getMin() : (float) Math.log10(manualMin);
 		float plotRange = plotMaxY - plotMinY;
 		
 		// calculate x and y positions of everything
@@ -292,6 +332,11 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			FontUtils.drawYaxisText(yAxisTitle, (int) x, (int) y, 90);
 		}
 		
+		// clip to the plot region
+		int[] originalScissorArgs = new int[4];
+		gl.glGetIntegerv(GL2.GL_SCISSOR_BOX, originalScissorArgs, 0);
+		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
+		
 		// draw the DFTs
 		gl.glMatrixMode(GL2.GL_MODELVIEW);
 		gl.glPushMatrix();
@@ -321,6 +366,9 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 		
 		gl.glPopMatrix();
+		
+		// stop clipping to the plot region
+		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 
 		// draw the plot border
 		gl.glBegin(GL2.GL_LINE_LOOP);
