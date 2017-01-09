@@ -31,18 +31,28 @@ public class WidgetHistogramYaxisType extends JPanel {
 	JCheckBox minCheckbox;
 	JTextField maxTextfield;
 	JTextField minTextfield;
-	float upperLimit;
-	float lowerLimit;
-	float defaultMaximum;
-	float defaultMinimum;
+	
+	float relativeFrequencyUpperLimit;
+	float relativeFrequencyLowerLimit;
+	float relativeFrequencyDefaultMaximum;
+	float relativeFrequencyDefaultMinimum;
+	
+	float frequencyUpperLimit;
+	float frequencyLowerLimit;
+	float frequencyDefaultMaximum;
+	float frequencyDefaultMinimum;
 	
 	/**
-	 * @param defaultMinimum     Default value for axis minimum.
-	 * @param defaultMaximum     Default value for axis maximum.
-	 * @param lowerLimit         Minimum allowed value.
-	 * @param upperLimit         Maximum allowed value.
+	 * @param relativeFrequencyDefaultMinimum     Default value for axis minimum.
+	 * @param relativeFrequencyDefaultMaximum     Default value for axis maximum.
+	 * @param relativeFrequencyLowerLimit         Minimum allowed value.
+	 * @param relativeFrequencyUpperLimit         Maximum allowed value.
+	 * @param frequencyDefaultMinimum             Default value for axis minimum.
+	 * @param frequencyDefaultMaximum             Default value for axis maximum.
+	 * @param frequencyLowerLimit                 Minimum allowed value.
+	 * @param frequencyUpperLimit                 Maximum allowed value.
 	 */
-	public WidgetHistogramYaxisType(float defaultMinimum, float defaultMaximum, float lowerLimit, float upperLimit) {
+	public WidgetHistogramYaxisType(float relativeFrequencyDefaultMinimum, float relativeFrequencyDefaultMaximum, float relativeFrequencyLowerLimit, float relativeFrequencyUpperLimit, float frequencyDefaultMinimum, float frequencyDefaultMaximum, float frequencyLowerLimit, float frequencyUpperLimit) {
 		
 		super();
 		
@@ -51,17 +61,21 @@ public class WidgetHistogramYaxisType extends JPanel {
 		maxLabel = new JLabel("Relative Frequency Maximum: ");
 		minLabel = new JLabel("Relative Frequency Minimum: ");
 		maxCheckbox = new JCheckBox("Automatic");
-		minCheckbox = new JCheckBox("Automatic");
+		minCheckbox = new JCheckBox("Zero");
 		maxCheckbox.setSelected(true);
 		minCheckbox.setSelected(true);
-		maxTextfield = new JTextField(Float.toString(defaultMaximum));
-		minTextfield = new JTextField(Float.toString(defaultMinimum));
+		maxTextfield = new JTextField(Float.toString(relativeFrequencyDefaultMaximum));
+		minTextfield = new JTextField(Float.toString(relativeFrequencyDefaultMinimum));
 		maxTextfield.setEnabled(false);
 		minTextfield.setEnabled(false);
-		this.upperLimit = upperLimit;
-		this.lowerLimit = lowerLimit;
-		this.defaultMaximum = defaultMaximum;
-		this.defaultMinimum = defaultMinimum;
+		this.relativeFrequencyUpperLimit = relativeFrequencyUpperLimit;
+		this.relativeFrequencyLowerLimit = relativeFrequencyLowerLimit;
+		this.relativeFrequencyDefaultMaximum = relativeFrequencyDefaultMaximum;
+		this.relativeFrequencyDefaultMinimum = relativeFrequencyDefaultMinimum;
+		this.frequencyUpperLimit = frequencyUpperLimit;
+		this.frequencyLowerLimit = frequencyLowerLimit;
+		this.frequencyDefaultMaximum = frequencyDefaultMaximum;
+		this.frequencyDefaultMinimum = frequencyDefaultMinimum;
 		
 		axisTypeCombobox.addActionListener(new ActionListener() {
 			@Override public void actionPerformed(ActionEvent ae) {
@@ -131,7 +145,7 @@ public class WidgetHistogramYaxisType extends JPanel {
 	}
 	
 	/**
-	 * Ensures that minimum < maximum.
+	 * Ensures that minimum < maximum and that they are within limits.
 	 */
 	private void sanityCheckMinMax() {
 		
@@ -143,22 +157,47 @@ public class WidgetHistogramYaxisType extends JPanel {
 			float max = Float.parseFloat(maxTextfield.getText());
 			float min = Float.parseFloat(minTextfield.getText());
 			
+			if(maxLabel.getText().equals("Frequency Maximum: ")) {
+				max = (float) Math.floor(max);
+				min = (float) Math.floor(min);
+			}
+			
 			// clip to limits
-			if(max > upperLimit) max = upperLimit;
-			if(max < lowerLimit) max = lowerLimit;
-			if(min > upperLimit) min = upperLimit;
-			if(min < lowerLimit) min = lowerLimit;
+			if(maxLabel.getText().equals("Relative Frequency Maximum: ")) {
+				if(max > relativeFrequencyUpperLimit) max = relativeFrequencyUpperLimit;
+				if(max < relativeFrequencyLowerLimit) max = relativeFrequencyLowerLimit;
+				if(min > relativeFrequencyUpperLimit) min = relativeFrequencyUpperLimit;
+				if(min < relativeFrequencyLowerLimit) min = relativeFrequencyLowerLimit;
+			} else {
+				if(max > frequencyUpperLimit) max = frequencyUpperLimit;
+				if(max < frequencyLowerLimit) max = frequencyLowerLimit;
+				if(min > frequencyUpperLimit) min = frequencyUpperLimit;
+				if(min < frequencyLowerLimit) min = frequencyLowerLimit;
+			}
 			
 			// ensure min < max
-			if(min == max) {
-				if(max == upperLimit)
-					min = Math.nextDown(min);
-				else
-					max = Math.nextUp(max);
-			} else if(min > max) {
-				float temp = max;
-				max = min;
-				min = temp;
+			if(maxLabel.getText().equals("Relative Frequency Maximum: ")) {
+				if(min == max) {
+					if(max == relativeFrequencyUpperLimit)
+						min = Math.nextDown(min);
+					else
+						max = Math.nextUp(max);
+				} else if(min > max) {
+					float temp = max;
+					max = min;
+					min = temp;
+				}
+			} else {
+				if(min == max) {
+					if(max == frequencyUpperLimit)
+						min--;
+					else
+						max++;
+				} else if(min > max) {
+					float temp = max;
+					max = min;
+					min = temp;
+				}
 			}
 			
 			// update textfields
@@ -168,19 +207,28 @@ public class WidgetHistogramYaxisType extends JPanel {
 		} catch(Exception e) {
 			
 			// one of the textfields doesn't contain a valid number, so reset both to defaults
-			maxTextfield.setText(Float.toString(defaultMaximum));
-			minTextfield.setText(Float.toString(defaultMinimum));
+			maxTextfield.setText(Float.toString(relativeFrequencyDefaultMaximum));
+			minTextfield.setText(Float.toString(relativeFrequencyDefaultMinimum));
 			
 		}
 		
 	}
 	
 	/**
-	 * @return    "Relative Frequency" or "Frequency" or "Both"
+	 * @return    True if relative frequency should be shown.
 	 */
-	public String getAxisType() {
+	public boolean isRelativeFrequencyShown() {
 		
-		return axisTypeCombobox.getSelectedItem().toString();
+		return axisTypeCombobox.getSelectedItem().toString().equals("Relative Frequency") || axisTypeCombobox.getSelectedItem().toString().equals("Both");
+		
+	}
+	
+	/**
+	 * @return    True if frequency should be shown.
+	 */
+	public boolean isFrequencyShown() {
+		
+		return axisTypeCombobox.getSelectedItem().toString().equals("Frequency") || axisTypeCombobox.getSelectedItem().toString().equals("Both");
 		
 	}
 	
@@ -194,9 +242,9 @@ public class WidgetHistogramYaxisType extends JPanel {
 	}
 	
 	/**
-	 * @return    True if the minimum should be automatic.
+	 * @return    True if the minimum should be zero.
 	 */
-	public boolean isMinimumAutomatic() {
+	public boolean isMinimumZero() {
 		
 		return minCheckbox.isSelected();
 		
