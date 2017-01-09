@@ -1,5 +1,7 @@
 import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowFocusListener;
 
 import javax.swing.JFrame;
 import javax.swing.UIManager;
@@ -25,6 +27,15 @@ public class Main {
 		window.setMinimumSize(window.getPreferredSize());
 		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		window.setVisible(true);
+		
+		LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
+		
+		window.addWindowFocusListener(new WindowFocusListener() {
+			@Override public void windowGainedFocus(WindowEvent we) {
+				mouse.enableSmoothScrolling();
+			}
+			@Override public void windowLostFocus(WindowEvent we) { }
+		});
 		
 	}
 

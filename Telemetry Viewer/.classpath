@@ -32,5 +32,12 @@
 	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-linux-armv6hf.jar"/>
 	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-linux-i586.jar"/>
 	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jogl/jogl-all-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/websocket-api-9.4.0.v20161208.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/websocket-client-9.4.0.v20161208.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/websocket-common-9.4.0.v20161208.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jetty-util-9.4.0.v20161208.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jetty-io-9.4.0.v20161208.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jetty-client-9.4.0.v20161208.jar"/>
+	<classpathentry kind="lib" path="C:/Users/FarrellF/Google Drive/Eclipse Workspace/jetty-http-9.4.0.v20161208.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
