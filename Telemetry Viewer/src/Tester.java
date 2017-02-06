@@ -3,6 +3,7 @@ import java.awt.Color;
 public class Tester {
 	
 	private static Thread transmitter;
+	private static double counter = 0;
 	
 	/**
 	 * Simulates the transmission of 3 numbers every 1ms.
@@ -30,6 +31,11 @@ public class Tester {
 						Controller.getDatasetByIndex(1).add(newSamples[1]);
 						Controller.getDatasetByIndex(2).add(newSamples[2]);
 					}
+					for(int i = 0; i < 10; i++) {
+						Controller.getDatasetByIndex(3).add((float) Math.sin(2 * Math.PI * 1000 * counter));
+						counter += 0.0001;
+					}
+					
 					try { Thread.sleep(1); } catch(Exception e) {} // wait 1ms
 				}
 				
@@ -73,6 +79,11 @@ public class Tester {
 		location = 2;
 		name = "Waveform C";
 		color = Color.BLUE;
+		Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+		
+		location = 3;
+		name = "Sine Wave 1kHz";
+		color = Color.CYAN;
 		Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 		
 	}
