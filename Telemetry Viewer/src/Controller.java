@@ -549,10 +549,13 @@ public class Controller {
 			for(Dataset dataset : Model.datasets.values()) {
 				
 				int processorIndex = -1;
-				BinaryFieldProcessor[] processors = BinaryPacket.getBinaryFieldProcessors();
-				for(int i = 0; i < processors.length; i++)
-					if(dataset.processor.toString().equals(processors[i].toString()))
-						processorIndex = i;
+				
+				if(Model.packet instanceof BinaryPacket) {
+					BinaryFieldProcessor[] processors = BinaryPacket.getBinaryFieldProcessors();
+					for(int i = 0; i < processors.length; i++)
+						if(dataset.processor.toString().equals(processors[i].toString()))
+							processorIndex = i;
+				}
 				
 				outputFile.println("");
 				outputFile.println("\tlocation = " + dataset.location);
@@ -677,11 +680,13 @@ public class Controller {
 				
 				int colorNumber = Integer.parseInt(colorText, 16);
 				Color color = new Color(colorNumber);
-				BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[processorIndex];
-				if(Model.packet == Model.csvPacket)
+				
+				if(Model.packet == Model.csvPacket) {
 					Model.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
-				else if(Model.packet == Model.binaryPacket)
+				} else if(Model.packet == Model.binaryPacket) {
+					BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[processorIndex];
 					Model.binaryPacket.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				}
 				
 			}
 			
