@@ -12,13 +12,13 @@ public class WidgetDataset extends JPanel {
 	JLabel label;
 	JComboBox<Dataset> combobox;
 
-	public WidgetDataset() {
+	public WidgetDataset(String labelText) {
 		
 		super();
 		
 		setLayout(new GridLayout(1, 2, 10, 10));
 		
-		label = new JLabel("Dataset: ");
+		label = new JLabel(labelText + ": ");
 		add(label);
 		
 		combobox = new JComboBox<Dataset>(Controller.getAllDatasets());

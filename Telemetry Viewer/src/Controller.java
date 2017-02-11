@@ -131,7 +131,8 @@ public class Controller {
 		                           OpenGLTimeDomainChartCached.getFactory(),
 		                           OpenGLFrequencyDomainChart.getFactory(),
 		                           OpenGLHistogramChart.getFactory(),
-		                           OpenGLDialChart.getFactory()};
+		                           OpenGLDialChart.getFactory(),
+		                           OpenGLQuaternionChart.getFactory()};
 		
 	}
 	

@@ -1,5 +1,9 @@
+import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 public class ChartUtils {
 
@@ -396,6 +400,61 @@ public class ChartUtils {
 		
 		// formatString is not as expected
 		throw new AssertionError("Line " + line + ": Source code contains an invalid format string.");
+		
+	}
+	
+	/**
+	 * Parses an ASCII STL file to extract it's vertices and normal vectors.
+	 * 
+	 * Blender users: when exporting the STL file (File > Export > Stl) ensure the "Ascii" checkbox is selected,
+	 * and ensure your model fits in a bounding box from -1 to +1 Blender units, centered at the origin.
+	 * 
+	 * @param fileStream    InputStream of an ASCII STL file.
+	 * @returns             A float[] with a layout of u,v,w,x1,y1,z1,x2,y2,z2,x3,y3,z3 ... or null if the InputStream could not be parsed.
+	 */
+	public static float[] getShapeFromAsciiStl(InputStream fileStream) {
+		
+		try {
+			
+			// get the lines of text
+			List<String> lines = new ArrayList<String>();
+			Scanner s = new Scanner(fileStream);
+			while(s.hasNextLine())
+				lines.add(s.nextLine());
+			s.close();
+			
+			// count the vertices
+			int vertexCount = 0;
+			for(String line : lines)
+				if(line.startsWith("facet normal") || line.startsWith("vertex"))
+					vertexCount += 3;
+			
+			
+			// copy the vertices into the float[]
+			float[] shape = new float[vertexCount];
+			int vertex = 0;
+			for(String line : lines) {
+				if(line.startsWith("facet normal")) {
+					String[] token = line.split(" ");
+					shape[vertex++] = Float.parseFloat(token[2]);
+					shape[vertex++] = Float.parseFloat(token[3]);
+					shape[vertex++] = Float.parseFloat(token[4]);
+				} else if(line.startsWith("vertex")) {
+					String[] token = line.split(" ");
+					shape[vertex++] = Float.parseFloat(token[1]);
+					shape[vertex++] = Float.parseFloat(token[2]);
+					shape[vertex++] = Float.parseFloat(token[3]);
+				}
+			}
+			
+			return shape;
+			
+		} catch (Exception e) {
+			
+			e.printStackTrace();
+			return null;
+			
+		}
 		
 	}
 	

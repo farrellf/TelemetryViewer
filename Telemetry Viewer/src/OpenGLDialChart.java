@@ -33,7 +33,7 @@ public class OpenGLDialChart extends PositionedChart {
 			
 			@Override public JPanel[] getWidgets() {
 
-				datasetWidget     = new WidgetDataset();
+				datasetWidget     = new WidgetDataset("Dataset");
 				minMaxWidget      = new WidgetTextfieldsOptionalMinMax("Dial", -1,  1, -Float.MAX_VALUE, Float.MAX_VALUE);
 				statisticsWidget  = new WidgetEnumeration("Show Statistics", new String[] {"Yes", "No"});
 				sampleCountWidget = new WidgetTextfieldInteger("Sample Count", 1000, 1, Integer.MAX_VALUE);

@@ -101,7 +101,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				gl.glMatrixMode(GL2.GL_PROJECTION);
 				gl.glLoadIdentity();
-				gl.glOrtho(0, width, 0, height, -1, 1);
+				gl.glOrtho(0, width, 0, height, -100000, 100000);
 				
 				canvasWidth = width;
 				canvasHeight = height;
