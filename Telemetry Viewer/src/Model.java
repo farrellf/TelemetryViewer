@@ -34,6 +34,6 @@ public class Model {
 	
 	static float displayScalingFactor = (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0);
 	final static float displayScalingFactorMinimum =  1.0f * displayScalingFactor;
-	final static float displayScalingFactorMaximum = 10.0f * displayScalingFactor;
+	final static float displayScalingFactorMaximum = 10.0f;
 	
 }

@@ -1,17 +1,22 @@
 import java.awt.Color;
 import java.awt.Font;
 
+import javax.swing.JPanel;
+
 public class Theme {
 	
 	// charts region
-	public static float[] gridBackgroundColor     = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-	public static float[] gridLinesColor          = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static float[] gridBoxColor            = new float[] {0.5f, 0.5f, 0.5f, 1.0f};
+	public static float[] tileColor               = new float[] {0.8f, 0.8f, 0.8f, 1.0f};
+	public static float[] tileShadowColor         = new float[] {0.7f, 0.7f, 0.7f, 1.0f};
+	public static float[] tileSelectedColor       = new float[] {0.5f, 0.5f, 0.5f, 1.0f};
+	public static float   tilePadding             = 5.0f * Controller.getDisplayScalingFactor();
+	public static float   tileShadowOffset        = tilePadding / 2;
+	public static float[] neutralColor            = new float[] {new JPanel().getBackground().getRed() / 255.0f, new JPanel().getBackground().getGreen() / 255.0f, new JPanel().getBackground().getBlue() / 255.0f, 1.0f};
+	public static float[] transparentNeutralColor = new float[] {neutralColor[0], neutralColor[1], neutralColor[2], 0.7f};
 	
 	// general
 	public static float lineWidth                 = 1.0f * Controller.getDisplayScalingFactor();
 	public static float pointSize                 = 3.0f * Controller.getDisplayScalingFactor();
-	public static float perimeterPadding          = 5.0f * Controller.getDisplayScalingFactor();
 	public static float[] perimeterOutlineColor   = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
 	public static float[] backgroundColor         = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
 	
@@ -52,7 +57,8 @@ public class Theme {
 		
 		lineWidth          = 1.0f * newFactor;
 		pointSize          = 3.0f * newFactor;
-		perimeterPadding   = 5.0f * newFactor;
+		tilePadding        = 5.0f * newFactor;
+		tileShadowOffset   = tilePadding / 2;
 		tickLength         = 6.0f * newFactor;
 		tickTextPadding    = 3.0f * newFactor;
 		tickFont           = new Font("Geneva", Font.PLAIN, (int) (12.0 * newFactor));

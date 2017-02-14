@@ -246,26 +246,26 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		String minPowerText = "Power Range: 1e" + Math.round(plotMinPower);
 		String maxPowerText = "1e" + Math.round(plotMaxPower);
 		
-		float yPowerTextBaseline = Theme.perimeterPadding;
+		float yPowerTextBaseline = Theme.tilePadding;
 		float yPowerTextTop = yPowerTextBaseline + FontUtils.tickTextHeight;
-		float yDftInfoLine2baseline = type.equals("Waveform View") ? Theme.perimeterPadding : yPowerTextTop + Theme.tickTextPadding;
+		float yDftInfoLine2baseline = type.equals("Waveform View") ? Theme.tilePadding : yPowerTextTop + Theme.tickTextPadding;
 		float yDftInfoLine2top = yDftInfoLine2baseline + FontUtils.tickTextHeight;
-		float yDftInfoLine1baseline = type.equals("Live View") ? Theme.perimeterPadding : yDftInfoLine2top + Theme.tickTextPadding;
+		float yDftInfoLine1baseline = type.equals("Live View") ? Theme.tilePadding : yDftInfoLine2top + Theme.tickTextPadding;
 		float yDftInfoLine1top = yDftInfoLine1baseline + FontUtils.tickTextHeight;
-		float xDftInfoLine2left = width - Theme.perimeterPadding - FontUtils.tickTextWidth(dftWindowCountText);
-		float xDftInfoLine1left = width - Theme.perimeterPadding - FontUtils.tickTextWidth(dftWindowLengthText);
-		float xMaxPowerTextLeft = width - Theme.perimeterPadding - FontUtils.tickTextWidth(maxPowerText);
+		float xDftInfoLine2left = width - Theme.tilePadding - FontUtils.tickTextWidth(dftWindowCountText);
+		float xDftInfoLine1left = width - Theme.tilePadding - FontUtils.tickTextWidth(dftWindowLengthText);
+		float xMaxPowerTextLeft = width - Theme.tilePadding - FontUtils.tickTextWidth(maxPowerText);
 		float xPowerScaleRight = xMaxPowerTextLeft - Theme.tickTextPadding;
 		float xPowerScaleLeft = xPowerScaleRight - (100 * Controller.getDisplayScalingFactor());
 		float xMinPowerTextLeft = xPowerScaleLeft - Theme.tickTextPadding - FontUtils.tickTextWidth(minPowerText);
 		
-		float xLegendBorderLeft = Theme.perimeterPadding;
-		float yLegendBorderBottom = Theme.perimeterPadding;
+		float xLegendBorderLeft = Theme.tilePadding;
+		float yLegendBorderBottom = Theme.tilePadding;
 		float yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
 		float yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 		float yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 		
-		float yXaxisTitleTextBasline = Theme.perimeterPadding;
+		float yXaxisTitleTextBasline = Theme.tilePadding;
 		float yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
 		
 		float yXaxisTickTextBaseline = Float.max(yLegendBorderTop + Theme.legendTextPadding, yXaxisTitleTextTop + Theme.legendTextPadding);
@@ -275,7 +275,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		float yXaxisTickTop = (int) (yXaxisTickBottom + Theme.tickLength);
 		
 		float yPlotBottom = yXaxisTickTop;
-		float yPlotTop = (int) (height - Theme.perimeterPadding);
+		float yPlotTop = (int) (height - Theme.tilePadding);
 		float plotHeight = yPlotTop - yPlotBottom;
 		if(plotHeight < 1.0f)
 			return;
@@ -289,7 +289,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				maxYtickTextWidth = w;
 		}
 		
-		float xYaxisTitleTextTop = Theme.perimeterPadding;
+		float xYaxisTitleTextTop = Theme.tilePadding;
 		float xYaxisTitleTextBaseline = xYaxisTitleTextTop + FontUtils.yAxisTextHeight;
 		
 		float xYaxisTickTextLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
@@ -298,7 +298,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		float xYaxisTickRight = (int) (xYaxisTickLeft + Theme.tickLength);
 		
 		float xPlotLeft = xYaxisTickRight;
-		float xPlotRight = (int) (width - Theme.perimeterPadding);
+		float xPlotRight = (int) (width - Theme.tilePadding);
 		float plotWidth = xPlotRight - xPlotLeft;
 		if(plotWidth < 1.0f)
 			return;

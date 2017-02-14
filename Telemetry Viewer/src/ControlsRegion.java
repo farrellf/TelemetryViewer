@@ -333,5 +333,23 @@ public class ControlsRegion extends JPanel {
 		setPreferredSize(size);
 		
 	}
+	
+	/**
+	 * @return    The x value of openLayoutButton's center.
+	 */
+	public int getOpenLayoutButtonLocation() {
+		
+		return openLayoutButton.getLocation().x + (openLayoutButton.getWidth() / 2);
+		
+	}
+	
+	/**
+	 * @return    The x value of connectButton's center.
+	 */
+	public int getConnectButtonLocation() {
+		
+		return connectButton.getLocation().x + (connectButton.getWidth() / 2);
+		
+	}
 
 }

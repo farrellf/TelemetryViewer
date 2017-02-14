@@ -194,17 +194,17 @@ public class OpenGLDialChart extends PositionedChart {
 		String titleText   = datasets[0].name;
 		
 		// calculate x and y positions of everything except the statistics
-		float xPlotLeft = Theme.perimeterPadding;
-		float xPlotRight = width - Theme.perimeterPadding;
+		float xPlotLeft = Theme.tilePadding;
+		float xPlotRight = width - Theme.tilePadding;
 		float plotWidth = xPlotRight - xPlotLeft;
 
-		float yStatsTextBaseline = height - Theme.perimeterPadding;
+		float yStatsTextBaseline = height - Theme.tilePadding;
 		if(showStatistics)
 			yStatsTextBaseline -= FontUtils.tickTextHeight;
-		float yMinMaxTextBaseline = Theme.perimeterPadding;
+		float yMinMaxTextBaseline = Theme.tilePadding;
 		float yDialBottom = yMinMaxTextBaseline + FontUtils.tickTextHeight + Theme.tickTextPadding;
 		
-		float xCircleCenter = plotWidth / 2f + Theme.perimeterPadding;
+		float xCircleCenter = plotWidth / 2f + Theme.tilePadding;
 		float yCircleCenter = yDialBottom;
 		float circleRadius = Float.min(yStatsTextBaseline - Theme.tickTextPadding - yCircleCenter, plotWidth / 2f);
 		if(circleRadius < 0)

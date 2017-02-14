@@ -128,18 +128,18 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		float q3 = datasets[3].getSample(lastSampleNumber);
 		
 		// calculate x and y positions of everything
-		float xPlotLeft = Theme.perimeterPadding;
-		float xPlotRight = width - Theme.perimeterPadding;
+		float xPlotLeft = Theme.tilePadding;
+		float xPlotRight = width - Theme.tilePadding;
 		float plotWidth = xPlotRight - xPlotLeft;
 
 		String titleText = String.format("Quaternion (%+1.3f,%+1.3f,%+1.3f,%+1.3f)", q0, q1, q2, q3);
-		float yTitleBaseline = Theme.perimeterPadding;
+		float yTitleBaseline = Theme.tilePadding;
 		float yTitleTop = yTitleBaseline + FontUtils.xAxisTextHeight;
 		float xTitleLeft = (width / 2f) - (FontUtils.xAxisTextWidth(titleText) / 2f);
 		float xTitleRight = xTitleLeft + FontUtils.xAxisTextWidth(titleText);
 		
 		float yPlotBottom = yTitleTop + Theme.tickTextPadding;
-		float yPlotTop = height - Theme.perimeterPadding;
+		float yPlotTop = height - Theme.tilePadding;
 		float plotHeight = yPlotTop - yPlotBottom;
 		
 		// make the plot square so it doesn't stretch the 3D shape

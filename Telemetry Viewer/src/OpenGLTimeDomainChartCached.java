@@ -190,13 +190,13 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		// calculate x and y positions of everything
 		String xAxisTitle = "Sample Number";
 		String yAxisTitle = datasets[0].unit;
-		float xLegendBorderLeft = Theme.perimeterPadding;
-		float yLegendBorderBottom = Theme.perimeterPadding;
+		float xLegendBorderLeft = Theme.tilePadding;
+		float yLegendBorderBottom = Theme.tilePadding;
 		float yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
 		float yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 		float yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 		
-		float yXaxisTitleTextBasline = Theme.perimeterPadding;
+		float yXaxisTitleTextBasline = Theme.tilePadding;
 		float yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
 		
 		float yXaxisTickTextBaseline = Float.max(yLegendBorderTop + Theme.legendTextPadding, yXaxisTitleTextTop + Theme.legendTextPadding);
@@ -205,7 +205,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		float yXaxisTickTop = yXaxisTickBottom + Theme.tickLength;
 		
 		float yPlotBottom = yXaxisTickTop;
-		float yPlotTop = height - Theme.perimeterPadding;
+		float yPlotTop = height - Theme.tilePadding;
 		float plotHeight = yPlotTop - yPlotBottom;
 		if(plotHeight < 1.0f)
 			return;
@@ -219,7 +219,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 				maxYtickTextWidth = w;
 		}
 		
-		float xYaxisTitleTextTop = Theme.perimeterPadding;
+		float xYaxisTitleTextTop = Theme.tilePadding;
 		float xYaxisTitleTextBaseline = xYaxisTitleTextTop + FontUtils.yAxisTextHeight;
 		
 		float xYaxisTickTextLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
@@ -228,7 +228,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		float xYaxisTickRight = xYaxisTickLeft + Theme.tickLength;
 		
 		float xPlotLeft = xYaxisTickRight;
-		float xPlotRight = width - Theme.perimeterPadding;
+		float xPlotRight = width - Theme.tilePadding;
 		float plotWidth = xPlotRight - xPlotLeft;
 		if(plotWidth < 1.0f)
 			return;

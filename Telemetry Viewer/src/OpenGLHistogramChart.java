@@ -345,13 +345,13 @@ public class OpenGLHistogramChart extends PositionedChart {
 		yFreqRange = maxYfreq - minYfreq;
 		
 		// calculate x and y positions of everything (coordinate system has 0,0 at the bottom-left)
-		float xLegendBorderLeft = Theme.perimeterPadding;
-		float yLegendBorderBottom = Theme.perimeterPadding;
+		float xLegendBorderLeft = Theme.tilePadding;
+		float yLegendBorderBottom = Theme.tilePadding;
 		float yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
 		float yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 		float yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 		
-		float yXaxisTitleTextBasline = Theme.perimeterPadding;
+		float yXaxisTitleTextBasline = Theme.tilePadding;
 		float yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
 		
 		float yXaxisTickTextBaseline = Float.max(yLegendBorderTop + Theme.legendTextPadding, yXaxisTitleTextTop + Theme.legendTextPadding);
@@ -360,7 +360,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		float yXaxisTickTop = yXaxisTickBottom + Theme.tickLength;
 		
 		float yPlotBottom = yXaxisTickTop;
-		float yPlotTop = height - Theme.perimeterPadding;
+		float yPlotTop = height - Theme.tilePadding;
 		float plotHeight = yPlotTop - yPlotBottom;
 		if(plotHeight < 1.0f)
 			return;
@@ -382,7 +382,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 				maxYrelativeFrequencyTickTextWidth = w;
 		}
 		
-		float xLeftYaxisTitleTextTop = Theme.perimeterPadding;
+		float xLeftYaxisTitleTextTop = Theme.tilePadding;
 		float xLeftYaxisTitleTextBaseline = xLeftYaxisTitleTextTop + FontUtils.yAxisTextHeight;
 		
 		float xLeftYaxisTickTextLeft = xLeftYaxisTitleTextBaseline + Theme.tickTextPadding;
@@ -390,7 +390,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		float xLeftYaxisTickLeft = xLeftYaxisTickTextRight + Theme.tickTextPadding;
 		float xLeftYaxisTickRight = xLeftYaxisTickLeft + Theme.tickLength;
 		
-		float xRightYaxisTitleTextTop = width - Theme.perimeterPadding;
+		float xRightYaxisTitleTextTop = width - Theme.tilePadding;
 		float xRightYaxisTitleTextBaseline = xRightYaxisTitleTextTop - FontUtils.yAxisTextHeight;
 		
 		float xRightYaxisTickTextRight = xRightYaxisTitleTextBaseline - Theme.tickTextPadding;
@@ -399,7 +399,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		float xRightYaxisTickLeft = xRightYaxisTickRight - Theme.tickLength;
 		
 		float xPlotLeft = xLeftYaxisTickRight;
-		float xPlotRight = (yAxisShowsFrequency && yAxisShowsRelativeFrequency) ? xRightYaxisTickLeft : width - Theme.perimeterPadding;
+		float xPlotRight = (yAxisShowsFrequency && yAxisShowsRelativeFrequency) ? xRightYaxisTickLeft : width - Theme.tilePadding;
 		float plotWidth = xPlotRight - xPlotLeft;
 		if(plotWidth < 1.0f)
 			return;
