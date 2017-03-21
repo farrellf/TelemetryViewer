@@ -301,68 +301,43 @@ public class OpenGLChartsRegion extends JPanel {
 				// the scissor test is used to clip rendering to the region allocated for each chart.
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
-				int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
 				PositionedChart chartToClose = null;
-				gl.glEnable(GL2.GL_SCISSOR_TEST);
 				for(PositionedChart chart : charts) {
+					
+					// draw the tile
 					int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
 					int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
 					int xOffset = chart.topLeftX * tileWidth;
-					int yOffset = chart.topLeftY * tileHeight;
-					yOffset = canvasHeight - yOffset - height;
+					int yOffset = canvasHeight - (chart.topLeftY * tileHeight) - height;
+					drawTile(gl, xOffset, yOffset, width, height);
+					
+					// draw the chart
+					xOffset += Theme.tilePadding;
+					yOffset += Theme.tilePadding;
+					width  -= 2 * Theme.tilePadding;
+					height -= 2 * Theme.tilePadding;
+					
+					gl.glEnable(GL2.GL_SCISSOR_TEST);
 					gl.glScissor(xOffset, yOffset, width, height);
 					gl.glPushMatrix();
 					gl.glTranslatef(xOffset, yOffset, 0);
+					
 					FontUtils.setOffsets(xOffset, yOffset);
+					int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
 					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
 					
-					boolean mouseOverThisChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
-					if(mouseOverThisChart) {
-						float iconWidth = 15f * Controller.getDisplayScalingFactor();
-						float inset = iconWidth * 0.2f;
-						float closeIconX1 = xOffset + width - iconWidth;
-						float closeIconX2 = xOffset + width;
-						float closeIconY1 = yOffset + height - iconWidth;
-						float closeIconY2 = yOffset + height;
-						boolean mouseOverCloseIcon = mouseX >= closeIconX1 && mouseX <= closeIconX2 && mouseY >= closeIconY1 && mouseY <= closeIconY2;
-						if(mouseOverCloseIcon)
-							chartToClose = chart;
-						gl.glBegin(GL2.GL_QUADS);
-							if(mouseOverCloseIcon)
-								gl.glColor4f(0, 0, 0, 1);
-							else
-								gl.glColor4f(1, 1, 1, 1);
-							gl.glVertex2f(width,             height);
-							gl.glVertex2f(width,             height - iconWidth);
-							gl.glVertex2f(width - iconWidth, height - iconWidth);
-							gl.glVertex2f(width - iconWidth, height);
-						gl.glEnd();
-						gl.glBegin(GL2.GL_LINE_LOOP);
-							if(mouseOverCloseIcon)
-								gl.glColor4f(1, 1, 1, 1);
-							else
-								gl.glColor4f(0, 0, 0, 1);
-							gl.glVertex2f(width,             height);
-							gl.glVertex2f(width,             height - iconWidth);
-							gl.glVertex2f(width - iconWidth, height - iconWidth);
-							gl.glVertex2f(width - iconWidth, height);
-						gl.glEnd();
-						gl.glBegin(GL2.GL_LINES);
-							if(mouseOverCloseIcon)
-								gl.glColor4f(1, 1, 1, 1);
-							else
-								gl.glColor4f(0, 0, 0, 1);
-							gl.glVertex2f(width - inset, height - inset);
-							gl.glVertex2f(width - iconWidth + inset, height - iconWidth + inset);
-							gl.glVertex2f(width - iconWidth + inset, height - inset);
-							gl.glVertex2f(width - inset, height - iconWidth + inset);
-						gl.glEnd();
-					}
-					
 					gl.glPopMatrix();
+					gl.glDisable(GL2.GL_SCISSOR_TEST);
+					
+					// draw the chart close button
+					width += (int) Theme.tileShadowOffset;
+					boolean mouseOverCloseButton = drawChartCloseButton(gl, xOffset, yOffset, width, height);
+					if(mouseOverCloseButton)
+						chartToClose = chart;
+					
 				}
-				gl.glDisable(GL2.GL_SCISSOR_TEST);
+				
 				chartToRemoveOnClick = chartToClose;
 				
 //				System.out.println(String.format("%2.2fFPS, %2dms", animator.getLastFPS(), animator.getLastFPSPeriod()));
@@ -558,6 +533,104 @@ public class OpenGLChartsRegion extends JPanel {
 				serialPortConnected = false;
 			}
 		});
+		
+	}
+	
+	/**
+	 * Draws a tile, the tile's drop-shadow, and a margin around the tile.
+	 * 
+	 * @param gl         The OpenGL context.
+	 * @param xOffset    Lower-left x location.
+	 * @param yOffset    Lower-left y location.
+	 * @param width      Total region width, including the tile, drop-shadow and margin.
+	 * @param height     Total region height, including the tile, drop-shadow and margin.
+	 */
+	private void drawTile(GL2 gl, int xOffset, int yOffset, int width, int height) {
+		
+		// draw the background (margin)
+		gl.glBegin(GL2.GL_QUADS);
+		gl.glColor4fv(Theme.neutralColor, 0);
+			gl.glVertex2f(xOffset,         yOffset);
+			gl.glVertex2f(xOffset,         yOffset + height);
+			gl.glVertex2f(xOffset + width, yOffset + height);
+			gl.glVertex2f(xOffset + width, yOffset);
+		gl.glEnd();
+		
+		// draw the tile's drop-shadow
+		gl.glBegin(GL2.GL_QUADS);
+		gl.glColor4fv(Theme.tileShadowColor, 0);
+			gl.glVertex2f(xOffset         + Theme.tilePadding + Theme.tileShadowOffset, yOffset          + Theme.tilePadding - Theme.tileShadowOffset);
+			gl.glVertex2f(xOffset         + Theme.tilePadding + Theme.tileShadowOffset, yOffset + height - Theme.tilePadding - Theme.tileShadowOffset);
+			gl.glVertex2f(xOffset + width - Theme.tilePadding + Theme.tileShadowOffset, yOffset + height - Theme.tilePadding - Theme.tileShadowOffset);
+			gl.glVertex2f(xOffset + width - Theme.tilePadding + Theme.tileShadowOffset, yOffset          + Theme.tilePadding - Theme.tileShadowOffset);
+		gl.glEnd();
+
+		// draw the tile
+		gl.glBegin(GL2.GL_QUADS);
+		gl.glColor4fv(Theme.tileColor, 0);
+			gl.glVertex2f(xOffset         + Theme.tilePadding, yOffset          + Theme.tilePadding);
+			gl.glVertex2f(xOffset         + Theme.tilePadding, yOffset + height - Theme.tilePadding);
+			gl.glVertex2f(xOffset + width - Theme.tilePadding, yOffset + height - Theme.tilePadding);
+			gl.glVertex2f(xOffset + width - Theme.tilePadding, yOffset          + Theme.tilePadding);
+		gl.glEnd();
+		
+	}
+	
+	/**
+	 * Draws an "X" close chart button for the user to click on if the mouse is over this chart.
+	 * 
+	 * @param gl         The OpenGL context.
+	 * @param xOffset    Chart region lower-left x location.
+	 * @param yOffset    Chart region lower-left y location.
+	 * @param width      Chart region width.
+	 * @param height     Chart region height.
+	 * @return           True if the mouse cursor is over this button, false if not.
+	 */
+	private boolean drawChartCloseButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
+		
+		// only draw if necessary
+		boolean mouseOverChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
+		if(!mouseOverChart)
+			return false;
+		
+		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
+		float inset = buttonWidth * 0.2f;
+		float buttonXleft = xOffset + width - buttonWidth;
+		float buttonXright = xOffset + width;
+		float buttonYtop = yOffset + height;
+		float buttonYbottom = yOffset + height - buttonWidth;
+		boolean mouseOverButton = mouseX >= buttonXleft && mouseX <= buttonXright && mouseY >= buttonYbottom && mouseY <= buttonYtop;
+		float[] white = new float[] {1, 1, 1, 1};
+		float[] black = new float[] {0, 0, 0, 1};
+		
+		// draw button background
+		gl.glBegin(GL2.GL_QUADS);
+			gl.glColor4fv(mouseOverButton ? black : white, 0);
+			gl.glVertex2f(buttonXleft, buttonYbottom);
+			gl.glVertex2f(buttonXleft, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYbottom);
+		gl.glEnd();
+		
+		// draw button outline
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glColor4fv(mouseOverButton ? white : black, 0);
+			gl.glVertex2f(buttonXleft, buttonYbottom);
+			gl.glVertex2f(buttonXleft, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYbottom);
+		gl.glEnd();
+		
+		// draw the "X"
+		gl.glBegin(GL2.GL_LINES);
+			gl.glColor4fv(mouseOverButton ? white : black, 0);
+			gl.glVertex2f(buttonXleft  + inset, buttonYtop    - inset);
+			gl.glVertex2f(buttonXright - inset, buttonYbottom + inset);
+			gl.glVertex2f(buttonXleft  + inset, buttonYbottom + inset);
+			gl.glVertex2f(buttonXright - inset, buttonYtop    - inset);
+		gl.glEnd();
+		
+		return mouseOverButton;
 		
 	}
 	

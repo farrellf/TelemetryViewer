@@ -130,24 +130,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
-		// draw background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.backgroundColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
-		// draw perimeter outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.perimeterOutlineColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
 		// calculate domain
 		int plotMaxX = lastSampleNumber;
 		int plotMinX = plotMaxX - (int) (duration * zoomLevel) + 1;

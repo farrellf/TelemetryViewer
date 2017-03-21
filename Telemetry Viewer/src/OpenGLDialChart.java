@@ -151,24 +151,6 @@ public class OpenGLDialChart extends PositionedChart {
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
-		// draw background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.backgroundColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
-		// draw perimeter outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.perimeterOutlineColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
 		// get the samples
 		int endIndex = lastSampleNumber;
 		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
@@ -201,20 +183,48 @@ public class OpenGLDialChart extends PositionedChart {
 		float yStatsTextBaseline = height - Theme.tilePadding;
 		if(showStatistics)
 			yStatsTextBaseline -= FontUtils.tickTextHeight;
-		float yMinMaxTextBaseline = Theme.tilePadding;
-		float yDialBottom = yMinMaxTextBaseline + FontUtils.tickTextHeight + Theme.tickTextPadding;
+		float yBottomTextBaseline = Theme.tilePadding;
+		float yDialBottom = yBottomTextBaseline + FontUtils.tickTextHeight + Theme.tickTextPadding;
 		
-		float xCircleCenter = plotWidth / 2f + Theme.tilePadding;
+		float xCircleCenter = plotWidth / 2 + Theme.tilePadding;
 		float yCircleCenter = yDialBottom;
-		float circleRadius = Float.min(yStatsTextBaseline - Theme.tickTextPadding - yCircleCenter, plotWidth / 2f);
-		if(circleRadius < 0)
-			return;
+		float circleOuterRadius = Float.min(yStatsTextBaseline - Theme.tickTextPadding - yCircleCenter, plotWidth / 2f);
+		float circleInnerRadius = circleOuterRadius * (1 - dialThickness);
 		
-		float xMinXtextLeft = xCircleCenter - circleRadius;
-		float xMaxXtextLeft = xCircleCenter + circleRadius - FontUtils.tickTextWidth(maxText);
+		// determine text locations
+		float xMinXtextLeft = xCircleCenter - circleOuterRadius;
+		float xMaxXtextLeft = xCircleCenter + circleOuterRadius - FontUtils.tickTextWidth(maxText);
 		float xReadingTextLeft = xCircleCenter - FontUtils.xAxisTextWidth(readingText) / 2f;
-		float yTitleBaseline = yMinMaxTextBaseline + FontUtils.xAxisTextHeight + Theme.tickTextPadding;
+		float yTitleBaseline = yBottomTextBaseline + FontUtils.xAxisTextHeight + Theme.tickTextPadding;
+		float yTitleTop = yTitleBaseline + FontUtils.xAxisTextHeight;
+		float yReadingTop = yBottomTextBaseline + FontUtils.xAxisTextHeight;
 		float xTitleLeft = (width / 2f) - (FontUtils.xAxisTextWidth(titleText) / 2f);
+		
+		// determine what text can be drawn
+		float titleTextWidth    = FontUtils.xAxisTextWidth(titleText);
+		float readingTextWidth  = FontUtils.xAxisTextWidth(readingText);
+		float minTextWidth      = FontUtils.tickTextWidth(minText);
+		float maxTextWidth      = FontUtils.tickTextWidth(maxText);
+		float titleTextRadius   = (float) Math.sqrt((titleTextWidth / 2) * (titleTextWidth / 2) + (yTitleTop - yCircleCenter) * (yTitleTop - yCircleCenter));
+		float readingTextRadius = (float) Math.sqrt((readingTextWidth / 2) * (readingTextWidth / 2) + (yReadingTop - yCircleCenter) * (yReadingTop - yCircleCenter));
+		boolean drawTitleText   = titleTextRadius < circleInnerRadius;
+		boolean drawReadingText = readingTextRadius < circleInnerRadius;
+		boolean drawMinMaxText  = drawReadingText ? readingTextWidth + minTextWidth + maxTextWidth < 2 * circleOuterRadius - Theme.tickTextPadding : minTextWidth + maxTextWidth < 2 * circleOuterRadius - Theme.tickTextPadding;
+		
+		// if none of the bottom text can be drawn, let the dial and title text use that space
+		if(!drawMinMaxText && !drawReadingText) {
+			yDialBottom = yBottomTextBaseline;
+			yCircleCenter = yDialBottom;
+			circleOuterRadius = Float.min(yStatsTextBaseline - Theme.tickTextPadding - yCircleCenter, plotWidth / 2f);
+			circleInnerRadius = circleOuterRadius * (1 - dialThickness);
+			yTitleBaseline = yDialBottom;
+			yTitleTop = yTitleBaseline + FontUtils.xAxisTextHeight;
+			titleTextRadius = (float) Math.sqrt((titleTextWidth / 2) * (titleTextWidth / 2) + (yTitleTop - yCircleCenter) * (yTitleTop - yCircleCenter));
+			drawTitleText = titleTextRadius < circleInnerRadius;
+		}
+		
+		if(circleOuterRadius < 0)
+			return;
 		
 		// draw the dial
 		float dialPercentage = (reading - dialMin) / range;
@@ -226,14 +236,14 @@ public class OpenGLDialChart extends PositionedChart {
 				else
 					gl.glColor4fv(samples.color, 0);
 				
-				float x1 = -1f * circleRadius * (float) Math.cos(angle) + xCircleCenter;                                                  // top-left
-				float y1 =       circleRadius * (float) Math.sin(angle) + yCircleCenter;
-				float x2 = -1f * circleRadius * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter;                       // top-right
-				float y2 =       circleRadius * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
-				float x4 = -1f * circleRadius * (1 - dialThickness) * (float) Math.cos(angle) + xCircleCenter;                            // bottom-left
-				float y4 =       circleRadius * (1 - dialThickness) * (float) Math.sin(angle) + yCircleCenter;
-				float x3 = -1f * circleRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
-				float y3 =       circleRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
+				float x1 = -1f * circleOuterRadius *                       (float) Math.cos(angle)                            + xCircleCenter; // top-left
+				float y1 =       circleOuterRadius *                       (float) Math.sin(angle)                            + yCircleCenter;
+				float x2 = -1f * circleOuterRadius *                       (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // top-right
+				float y2 =       circleOuterRadius *                       (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
+				float x4 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle)                            + xCircleCenter; // bottom-left
+				float y4 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle)                            + yCircleCenter;
+				float x3 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
+				float y3 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
 				
 				gl.glVertex2f(x1, y1);
 				gl.glVertex2f(x2, y2);
@@ -243,13 +253,19 @@ public class OpenGLDialChart extends PositionedChart {
 			}
 		gl.glEnd();
 				
-		// draw the text
-		FontUtils.drawTickText(minText,      (int) xMinXtextLeft,    (int) yMinMaxTextBaseline);
-		FontUtils.drawTickText(maxText,      (int) xMaxXtextLeft,    (int) yMinMaxTextBaseline);
-		FontUtils.drawXaxisText(titleText,   (int) xTitleLeft,       (int) yTitleBaseline);
-		FontUtils.drawXaxisText(readingText, (int) xReadingTextLeft, (int) yMinMaxTextBaseline);
+		// draw the title and reading if they can fit inside the dial		
+		if(drawTitleText)
+			FontUtils.drawXaxisText(titleText, (int) xTitleLeft, (int) yTitleBaseline);
+		if(drawReadingText)		
+			FontUtils.drawXaxisText(readingText, (int) xReadingTextLeft, (int) yBottomTextBaseline);
 		
-		// draw the statistics if enabled
+		// draw the min and max labels if they wouldn't hit other text
+		if(drawMinMaxText) {
+			FontUtils.drawTickText(minText, (int) xMinXtextLeft, (int) yBottomTextBaseline);
+			FontUtils.drawTickText(maxText, (int) xMaxXtextLeft, (int) yBottomTextBaseline);
+		}
+		
+		// draw the statistics if enabled and if they can fit
 		if(showStatistics) {
 			
 			double[] doubles = new double[samples.buffer.length];
@@ -259,6 +275,10 @@ public class OpenGLDialChart extends PositionedChart {
 			
 			String meanText    = "Mean: " +    ChartUtils.formattedNumber(stats.getMean(), 6);
 			String stdDevText  = "Std Dev: " + ChartUtils.formattedNumber(stats.getStandardDeviation(), 6);
+			
+			float statsTextWidth = FontUtils.tickTextWidth(meanText) + Theme.tickTextPadding + FontUtils.tickTextWidth(stdDevText);
+			if(statsTextWidth > plotWidth)
+				return;
 			
 			float xMeanTextLeft = xPlotLeft;
 			float xStdDevTextLeft = xPlotRight - FontUtils.tickTextWidth(stdDevText);

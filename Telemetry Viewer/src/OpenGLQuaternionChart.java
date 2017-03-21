@@ -99,24 +99,6 @@ public class OpenGLQuaternionChart extends PositionedChart {
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
-		// draw background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.backgroundColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
-		// draw perimeter outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.perimeterOutlineColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
 		// don't draw if there are no samples
 		if(lastSampleNumber < 1)
 			return;
@@ -187,7 +169,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, new float[] {plotWidth, 0, 0, 1}, 0);   // light1 at the right edge of the plot
 		gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_DIFFUSE,  new float[] {0, 0, plotWidth/2, 1}, 0); // light2 diffuse color (blue) and intensity
 		gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_POSITION, new float[] {0, 0, plotWidth, 1}, 0);   // light2 at the top edge of the plot
-		
+
 		// draw the 3D shape
 		gl.glEnable(GL2.GL_DEPTH_TEST);
 		gl.glClear(GL2.GL_DEPTH_BUFFER_BIT);
@@ -219,16 +201,18 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		gl.glDisable(GL2.GL_LIGHTING);
 		
 		gl.glPopMatrix();
-				
-		// draw the text, on top of a background quad, so the shape can't interfere with it
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.backgroundColor, 0);
-			gl.glVertex2f(xTitleLeft - Theme.tickTextPadding,  yTitleBaseline - Theme.tickTextPadding);
-			gl.glVertex2f(xTitleLeft - Theme.tickTextPadding,  yTitleTop + Theme.tickTextPadding);
-			gl.glVertex2f(xTitleRight + Theme.tickTextPadding, yTitleTop + Theme.tickTextPadding);
-			gl.glVertex2f(xTitleRight + Theme.tickTextPadding, yTitleBaseline - Theme.tickTextPadding);
-		gl.glEnd();
-		FontUtils.drawXaxisText(titleText, (int) xTitleLeft, (int) yTitleBaseline);
+
+		// draw the text, on top of a background quad, if there is room
+		if(FontUtils.xAxisTextWidth(titleText) < width - Theme.tilePadding * 4) {
+			gl.glBegin(GL2.GL_QUADS);
+			gl.glColor4fv(Theme.tileShadowColor, 0);
+				gl.glVertex2f(xTitleLeft - Theme.tickTextPadding,  yTitleBaseline - Theme.tickTextPadding);
+				gl.glVertex2f(xTitleLeft - Theme.tickTextPadding,  yTitleTop + Theme.tickTextPadding);
+				gl.glVertex2f(xTitleRight + Theme.tickTextPadding, yTitleTop + Theme.tickTextPadding);
+				gl.glVertex2f(xTitleRight + Theme.tickTextPadding, yTitleBaseline - Theme.tickTextPadding);
+			gl.glEnd();
+			FontUtils.drawXaxisText(titleText, (int) xTitleLeft, (int) yTitleBaseline);
+		}
 		
 	}
 

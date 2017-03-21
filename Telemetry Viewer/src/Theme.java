@@ -17,12 +17,10 @@ public class Theme {
 	// general
 	public static float lineWidth                 = 1.0f * Controller.getDisplayScalingFactor();
 	public static float pointSize                 = 3.0f * Controller.getDisplayScalingFactor();
-	public static float[] perimeterOutlineColor   = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static float[] backgroundColor         = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
 	
 	// plot
 	public static float[] plotOutlineColor        = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
-	public static float[] plotBackgroundColor     = new float[] {230.0f/255.0f, 230.0f/255.0f, 230.0f/255.0f, 1.0f};
+	public static float[] plotBackgroundColor     = neutralColor;
 	public static float[] divisionLinesColor      = new float[] {180.0f/255.0f, 180.0f/255.0f, 180.0f/255.0f, 1.0f};
 	public static float[] divisionLinesFadedColor = new float[] {180.0f/255.0f, 180.0f/255.0f, 180.0f/255.0f, 0.0f};
 	

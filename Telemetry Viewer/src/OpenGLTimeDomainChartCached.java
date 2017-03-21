@@ -134,25 +134,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
-		
-		// draw background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.backgroundColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
-		// draw perimeter outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.perimeterOutlineColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
-		
+
 		// calculate domain
 		int sampleCount = lastSampleNumber + 1;
 		int plotMaxX = lastSampleNumber;
@@ -263,6 +245,11 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 				slices[i] = new OpenGLTimeDomainSlice(gl);
 		}
 		
+		// clip to the plot region
+		int[] originalScissorArgs = new int[4];
+		gl.glGetIntegerv(GL2.GL_SCISSOR_BOX, originalScissorArgs, 0);
+		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
+		
 		// update textures if needed, and draw the slices
 		for(int i = firstSliceIndex; i <= lastSliceIndex; i++) {		
 			slices[i % slices.length].updateSliceTexture(i, sliceWidth, (int) plotHeight, (int) plotWidth, domain, plotMinY, plotMaxY, sampleCount, datasets, xDivisions.keySet(), yDivisions.keySet(), gl);
@@ -271,38 +258,8 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			slices[i % slices.length].renderSliceAt(x, y, gl);
 		}
 		
-		// draw over the plot overhang
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.backgroundColor, 0);
-			gl.glVertex2f(0,         0);
-			gl.glVertex2f(0,         height);
-			gl.glVertex2f(xPlotLeft, height);
-			gl.glVertex2f(xPlotLeft, 0);
-			
-			gl.glVertex2f(xPlotRight, 0);
-			gl.glVertex2f(xPlotRight, height);
-			gl.glVertex2f(width,      height);
-			gl.glVertex2f(width,      0);
-			
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     yPlotBottom);
-			gl.glVertex2f(width, yPlotBottom);
-			gl.glVertex2f(width, 0);
-			
-			gl.glVertex2f(0,     yPlotTop);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, yPlotTop);
-		gl.glEnd();
-		
-		// redraw perimeter outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.perimeterOutlineColor, 0);
-			gl.glVertex2f(0,     0);
-			gl.glVertex2f(0,     height);
-			gl.glVertex2f(width, height);
-			gl.glVertex2f(width, 0);
-		gl.glEnd();
+		// stop clipping to the plot region
+		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 		
 		// draw the vertical division line ticks
 		gl.glBegin(GL2.GL_LINES);
