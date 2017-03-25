@@ -4,11 +4,31 @@ import com.jogamp.opengl.math.Quaternion;
 
 /**
  * Renders a 3D object that is rotated based on a quaternion.
+ * 
+ * User settings:
+ *     Four quaternion datasets.
+ *     The quaternion (as text) can be displayed.
  */
 @SuppressWarnings("serial")
 public class OpenGLQuaternionChart extends PositionedChart {
 
 	float[] shape; // triangles: u,v,w,x1,y1,z1,x2,y2,z2,x3,y3,z3,...
+	
+	// plot region
+	float xPlotLeft;
+	float xPlotRight;
+	float plotWidth;
+	float yPlotTop;
+	float yPlotBottom;
+	float plotHeight;
+	
+	// text label
+	boolean showTextLabel;
+	String textLabel;
+	float yTextLabelBaseline;
+	float yTextLabelTop;
+	float xTextLabelLeft;
+	float xTextLabelRight;
 	
 	public static ChartFactory getFactory() {
 		
@@ -19,6 +39,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 			WidgetDataset q1Widget;
 			WidgetDataset q2Widget;
 			WidgetDataset q3Widget;
+			WidgetCheckbox showTextLabelWidget;
 			
 			@Override public String toString() { return "Quaternion Chart"; }
 			
@@ -28,13 +49,16 @@ public class OpenGLQuaternionChart extends PositionedChart {
 				q1Widget = new WidgetDataset("Q1");
 				q2Widget = new WidgetDataset("Q2");
 				q3Widget = new WidgetDataset("Q3");
+				showTextLabelWidget = new WidgetCheckbox("Show Text Label", true);
 				
-				JPanel[] widgets = new JPanel[4];
+				JPanel[] widgets = new JPanel[6];
 				
 				widgets[0] = q0Widget;
 				widgets[1] = q1Widget;
 				widgets[2] = q2Widget;
 				widgets[3] = q3Widget;
+				widgets[4] = null;
+				widgets[5] = showTextLabelWidget;
 
 				return widgets;
 				
@@ -48,14 +72,16 @@ public class OpenGLQuaternionChart extends PositionedChart {
 			
 			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
 
-				int sampleCount    = 1;
-				Dataset q0         = q0Widget.getDataset()[0];
-				Dataset q1         = q1Widget.getDataset()[0];
-				Dataset q2         = q2Widget.getDataset()[0];
-				Dataset q3         = q3Widget.getDataset()[0];
-				Dataset[] datasets = {q0, q1, q2, q3};
+				int sampleCount       = 1;
+				Dataset q0            = q0Widget.getDataset()[0];
+				Dataset q1            = q1Widget.getDataset()[0];
+				Dataset q2            = q2Widget.getDataset()[0];
+				Dataset q3            = q3Widget.getDataset()[0];
+				Dataset[] datasets    = {q0, q1, q2, q3};
+				boolean showTextLabel = showTextLabelWidget.isChecked();
 				
 				OpenGLQuaternionChart chart = new OpenGLQuaternionChart(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setTextLabelVisibility(showTextLabel);
 				
 				return chart;
 				
@@ -63,10 +89,13 @@ public class OpenGLQuaternionChart extends PositionedChart {
 			
 			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
 				
-				if(lines.length != 0)
+				if(lines.length != 1)
 					throw new AssertionError("Line " + firstLineNumber + ": Invalid Quaternion Chart configuration section.");
 				
+				boolean showTextLabel = (boolean) ChartUtils.parse(firstLineNumber + 0, lines[0], "show text label = %b");
+				
 				OpenGLQuaternionChart chart = new OpenGLQuaternionChart(x1, y1, x2, y2, sampleCount, datasets);
+				chart.setTextLabelVisibility(showTextLabel);
 				return chart;
 				
 			}
@@ -77,7 +106,10 @@ public class OpenGLQuaternionChart extends PositionedChart {
 	
 	@Override public String[] exportChartSettings() {
 		
-		String[] lines = new String[0];		
+		String[] lines = new String[1];
+		
+		lines[0] = "show text label = " + showTextLabel;
+		
 		return lines;
 		
 	}
@@ -87,7 +119,12 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		return "Quaternion Chart";
 		
 	}
-
+	
+	public void setTextLabelVisibility(boolean isVisible) {
+		
+		showTextLabel = isVisible;
+		
+	}
 	
 	public OpenGLQuaternionChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
 		
@@ -110,19 +147,24 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		float q3 = datasets[3].getSample(lastSampleNumber);
 		
 		// calculate x and y positions of everything
-		float xPlotLeft = Theme.tilePadding;
-		float xPlotRight = width - Theme.tilePadding;
-		float plotWidth = xPlotRight - xPlotLeft;
+		xPlotLeft = Theme.tilePadding;
+		xPlotRight = width - Theme.tilePadding;
+		plotWidth = xPlotRight - xPlotLeft;
+		yPlotBottom = Theme.tilePadding;
+		yPlotTop = height - Theme.tilePadding;
+		plotHeight = yPlotTop - yPlotBottom;
 
-		String titleText = String.format("Quaternion (%+1.3f,%+1.3f,%+1.3f,%+1.3f)", q0, q1, q2, q3);
-		float yTitleBaseline = Theme.tilePadding;
-		float yTitleTop = yTitleBaseline + FontUtils.xAxisTextHeight;
-		float xTitleLeft = (width / 2f) - (FontUtils.xAxisTextWidth(titleText) / 2f);
-		float xTitleRight = xTitleLeft + FontUtils.xAxisTextWidth(titleText);
+		if(showTextLabel) {
+			textLabel = String.format("Quaternion (%+1.3f,%+1.3f,%+1.3f,%+1.3f)", q0, q1, q2, q3);
+			yTextLabelBaseline = Theme.tilePadding;
+			yTextLabelTop = yTextLabelBaseline + FontUtils.xAxisTextHeight;
+			xTextLabelLeft = (width / 2f) - (FontUtils.xAxisTextWidth(textLabel) / 2f);
+			xTextLabelRight = xTextLabelLeft + FontUtils.xAxisTextWidth(textLabel);
 		
-		float yPlotBottom = yTitleTop + Theme.tickTextPadding;
-		float yPlotTop = height - Theme.tilePadding;
-		float plotHeight = yPlotTop - yPlotBottom;
+			yPlotBottom = yTextLabelTop + Theme.tickTextPadding;
+			yPlotTop = height - Theme.tilePadding;
+			plotHeight = yPlotTop - yPlotBottom;
+		}
 		
 		// make the plot square so it doesn't stretch the 3D shape
 		if(plotWidth > plotHeight) {
@@ -137,7 +179,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 			plotHeight = yPlotTop - yPlotBottom;
 		}
 		
-		// adjust the modelview matrix to map the verticies' local space (-1 to +1) into screen space
+		// adjust the modelview matrix to map the vertices' local space (-1 to +1) into screen space
 		// x = x * (plotWidth / 2) + (plotWidth / 2) + xPlotLeft
 		// y = y * (plotHeight / 2) + (plotHeight / 2) + yPlotBottom
 		// z = z * (plotHeight / 2) + (plotHeight / 2)
@@ -203,15 +245,15 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		gl.glPopMatrix();
 
 		// draw the text, on top of a background quad, if there is room
-		if(FontUtils.xAxisTextWidth(titleText) < width - Theme.tilePadding * 4) {
+		if(showTextLabel && FontUtils.xAxisTextWidth(textLabel) < width - Theme.tilePadding * 2) {
 			gl.glBegin(GL2.GL_QUADS);
 			gl.glColor4fv(Theme.tileShadowColor, 0);
-				gl.glVertex2f(xTitleLeft - Theme.tickTextPadding,  yTitleBaseline - Theme.tickTextPadding);
-				gl.glVertex2f(xTitleLeft - Theme.tickTextPadding,  yTitleTop + Theme.tickTextPadding);
-				gl.glVertex2f(xTitleRight + Theme.tickTextPadding, yTitleTop + Theme.tickTextPadding);
-				gl.glVertex2f(xTitleRight + Theme.tickTextPadding, yTitleBaseline - Theme.tickTextPadding);
+				gl.glVertex2f(xTextLabelLeft - Theme.tickTextPadding,  yTextLabelBaseline - Theme.tickTextPadding);
+				gl.glVertex2f(xTextLabelLeft - Theme.tickTextPadding,  yTextLabelTop + Theme.tickTextPadding);
+				gl.glVertex2f(xTextLabelRight + Theme.tickTextPadding, yTextLabelTop + Theme.tickTextPadding);
+				gl.glVertex2f(xTextLabelRight + Theme.tickTextPadding, yTextLabelBaseline - Theme.tickTextPadding);
 			gl.glEnd();
-			FontUtils.drawXaxisText(titleText, (int) xTitleLeft, (int) yTitleBaseline);
+			FontUtils.drawXaxisText(textLabel, (int) xTextLabelLeft, (int) yTextLabelBaseline);
 		}
 		
 	}

@@ -528,7 +528,7 @@ public class Controller {
 		try {
 			
 			PrintWriter outputFile = new PrintWriter(new File(outputFilePath), "UTF-8");
-			outputFile.println("Telemetry Viewer File Format v0.3");
+			outputFile.println("Telemetry Viewer File Format v0.4");
 			outputFile.println("");
 			
 			outputFile.println("Grid Settings:");
@@ -635,7 +635,7 @@ public class Controller {
 			List<String> lines = Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8);
 			int n = 0;
 			
-			ChartUtils.parse(n, lines.get(n++), "Telemetry Viewer File Format v0.3");
+			ChartUtils.parse(n, lines.get(n++), "Telemetry Viewer File Format v0.4");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
 			ChartUtils.parse(n, lines.get(n++), "Grid Settings:");

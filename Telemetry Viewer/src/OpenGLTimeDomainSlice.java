@@ -69,18 +69,20 @@ public class OpenGLTimeDomainSlice {
 	/**
 	 * Updates the slice texture if needed.
 	 * 
-	 * @param sliceNumber    Which slice this texture represents.
-	 * @param sliceWidth     Pixel width of this slice.
-	 * @param sliceHeight    Pixel height of this slice.
-	 * @param plotWidth      Pixel width of the entire plot region.
-	 * @param domain         Total number of samples shown on screen.
-	 * @param plotMinY       Y value at the bottom of this slice.
-	 * @param plotMaxY       Y value at the top of this slice.
-	 * @param datasetsSize   How many samples are in the datasets.
-	 * @param datasets       The datasets to be visualized.
-	 * @param xDivisions     Where the x division lines need to be drawn.
-	 * @param yDivisions     Where the y division lines need to be drawn.
-	 * @param gl             GL2 object for accessing OpenGL.
+	 * @param sliceNumber       Which slice this texture represents.
+	 * @param sliceWidth        Pixel width of this slice.
+	 * @param sliceHeight       Pixel height of this slice.
+	 * @param plotWidth         Pixel width of the entire plot region.
+	 * @param domain            Total number of samples shown on screen.
+	 * @param plotMinY          Y value at the bottom of this slice.
+	 * @param plotMaxY          Y value at the top of this slice.
+	 * @param datasetsSize      How many samples are in the datasets.
+	 * @param datasets          The datasets to be visualized.
+	 * @param xDivisions        Where the x division lines need to be drawn.
+	 * @param yDivisions        Where the y division lines need to be drawn.
+	 * @param showXaxisScale    If the x division lines need to be drawn.
+	 * @param showYaxisScale    If the y division lines need to be drawn.
+	 * @param gl                GL2 object for accessing OpenGL.
 	 */
 	
 	int _sliceNumber = 0;
@@ -94,8 +96,10 @@ public class OpenGLTimeDomainSlice {
 	int _xDivisionsSize = 0;
 	int _firstIndex = 0;
 	int _lastIndex = 0;
+	boolean _showXaxisScale = true;
+	boolean _showYaxisScale = true;
 	
-	public void updateSliceTexture(int sliceNumber, int sliceWidth, int sliceHeight, int plotWidth, float domain, float plotMinY, float plotMaxY, int datasetsSize, Dataset[] datasets, Set<Integer> xDivisions, Set<Float> yDivisions, GL2 gl) {
+	public void updateSliceTexture(int sliceNumber, int sliceWidth, int sliceHeight, int plotWidth, float domain, float plotMinY, float plotMaxY, int datasetsSize, Dataset[] datasets, Set<Integer> xDivisions, Set<Float> yDivisions, boolean showXaxisScale, boolean showYaxisScale, GL2 gl) {
 		
 		// determine which x values need to be plotted
 		int firstIndex = (int) Math.floor((double) (sliceNumber * sliceWidth)    * ((double) domain / (double) plotWidth));
@@ -156,6 +160,14 @@ public class OpenGLTimeDomainSlice {
 			_lastIndex = lastIndex;
 			redrawNeeded = true;
 		}
+		if(_showXaxisScale != showXaxisScale) {
+			_showXaxisScale = showXaxisScale;
+			redrawNeeded = true;
+		}
+		if(_showYaxisScale != showYaxisScale) {
+			_showYaxisScale = showYaxisScale;
+			redrawNeeded = true;
+		}
 		
 		if(!redrawNeeded) {
 			return;
@@ -203,7 +215,7 @@ public class OpenGLTimeDomainSlice {
 		gl.glEnd();
 		
 		// draw the vertical division lines
-		if(_xDivisionsSize > 0) {
+		if(_xDivisionsSize > 0 && _showXaxisScale) {
 			int firstXdiv = firstIndex - (firstIndex % _xDivisionsSize);
 			int lastXdiv = lastIndex - (lastIndex % _xDivisionsSize) + _xDivisionsSize;
 			gl.glBegin(GL2.GL_LINES);
@@ -217,14 +229,16 @@ public class OpenGLTimeDomainSlice {
 		}
 		
 		// draw the horizontal division lines
-		gl.glBegin(GL2.GL_LINES);
-		for(Float yValue : yDivisions) {
-			float y = (yValue - plotMinY) / (plotMaxY - plotMinY) * (float) sliceHeight;
-			gl.glColor3fv(Theme.divisionLinesColor, 0);
-			gl.glVertex2f(0,  y);
-			gl.glVertex2f(sliceWidth, y);
+		if(_showYaxisScale) {
+			gl.glBegin(GL2.GL_LINES);
+			for(Float yValue : yDivisions) {
+				float y = (yValue - plotMinY) / (plotMaxY - plotMinY) * (float) sliceHeight;
+				gl.glColor3fv(Theme.divisionLinesColor, 0);
+				gl.glVertex2f(0,  y);
+				gl.glVertex2f(sliceWidth, y);
+			}
+			gl.glEnd();
 		}
-		gl.glEnd();
 		
 		// draw each dataset
 		for(int i = 0; i < glDataset.length; i++) {
