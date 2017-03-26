@@ -9,8 +9,9 @@ import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.font.FontRenderContext;
-import java.util.Scanner;
-
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
@@ -225,32 +226,53 @@ public class CsvPacket implements Packet {
 		serialPortThread = new Thread(new Runnable() {
 			@Override public void run() {
 				
-				Scanner scanner = new Scanner(port.getInputStream());
+				BufferedReader reader = new BufferedReader(new InputStreamReader(port.getInputStream()));
 				
-				while(scanner.hasNextLine()) {
+				while(true) {
 					
 					try {
 						
-						String line = scanner.nextLine();
-						String[] tokens = line.split(",");
-						// ensure they can all be parsed as floats before populating the datasets
-						for(Dataset dataset : Controller.getAllDatasets())
-							Float.parseFloat(tokens[dataset.location]);
-						for(Dataset dataset : Controller.getAllDatasets())
-							dataset.add(Float.parseFloat(tokens[dataset.location]));
+						// wait for text to arrive
+						if(!reader.ready()) {
+							Thread.sleep(5);
+							continue;
+						}
 						
-					} catch(Exception e) {
+						// parse received text
+						try {
+							
+							String line = reader.readLine();
+							String[] tokens = line.split(",");
+							// ensure they can all be parsed as floats before populating the datasets
+							for(Dataset dataset : Controller.getAllDatasets())
+								Float.parseFloat(tokens[dataset.location]);
+							for(Dataset dataset : Controller.getAllDatasets())
+								dataset.add(Float.parseFloat(tokens[dataset.location]));
+							
+						} catch(NumberFormatException | NullPointerException e1) {
+							
+							System.err.println("A corrupt line was received from the serial port.");
+							
+						}
 						
-						System.err.println("Corrupt line.");
+					} catch(InterruptedException e) {
+						
+						// stop and end this thread if we get interrupted
+						try { reader.close(); } catch(IOException e2) { }
+						return;
+						
+					} catch(IOException e) {
+						
+						// stop and end this thread if an IO error has occurred
+						try { reader.close(); } catch(IOException e3) { }
+						port.closePort();
+						Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
+						System.err.println("An IO error occurred while reading from the serial port.");
+						return;
 						
 					}
 					
 				}
-				
-				// the above loop has ended so the connection has been lost
-				scanner.close();
-				port.closePort();
-				Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
 				
 			}
 		});
@@ -264,11 +286,12 @@ public class CsvPacket implements Packet {
 	/**
 	 * Stops the serial port thread.
 	 */
-	@SuppressWarnings("deprecation")
 	@Override public void stopReceivingData() {
 		
-		if(serialPortThread != null && serialPortThread.isAlive())
-			serialPortThread.stop();
+		if(serialPortThread != null && serialPortThread.isAlive()) {
+			serialPortThread.interrupt();
+			while(serialPortThread.isAlive()); // wait
+		}
 		
 	}
 	

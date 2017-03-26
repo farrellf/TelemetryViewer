@@ -521,7 +521,17 @@ public class BinaryPacket implements Packet {
 				
 				while(port.isOpen()) {
 					
-					// wait for sync word
+					// wait for data to arrive
+					while(port.bytesAvailable() < packetSize) {
+						try {
+							Thread.sleep(5);
+						} catch(InterruptedException e) {
+							// stop and end this thread if we get interrupted
+							return;
+						}
+					}
+					
+					// get the sync word
 					while(rx_buffer[0] != syncWord)
 						port.readBytes(rx_buffer, 1);
 					
@@ -569,11 +579,12 @@ public class BinaryPacket implements Packet {
 	/**
 	 * Stops the serial port thread.
 	 */
-	@SuppressWarnings("deprecation")
 	@Override public void stopReceivingData() {
 		
-		if(serialPortThread != null && serialPortThread.isAlive())
-			serialPortThread.stop();
+		if(serialPortThread != null && serialPortThread.isAlive()) {
+			serialPortThread.interrupt();
+			while(serialPortThread.isAlive()); // wait
+		}
 		
 	}
 	

@@ -301,11 +301,11 @@ public class Controller {
 	 */
 	public static void connectToSerialPort(int sampleRate, Packet packet, String portName, int baudRate, JFrame parentWindow) { // FIXME make this robust: give up after some time.
 
-		if(port != null)
+		if(port != null && port.isOpen())
 			port.closePort();
 		
 		if(portName.equals("Test")) {
-			
+
 			Tester.populateDataStructure();
 			Tester.startTransmission();
 			
@@ -358,18 +358,19 @@ public class Controller {
 		if(Model.portName.equals("Test")) {
 			
 			Tester.stopTransmission();
+			removeAllCharts();
+			removeAllDatasets();
 			notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
 			
 		} else {		
 			
 			Model.packet.stopReceivingData();
 			
-			if(port != null)
+			if(port != null && port.isOpen())
 				port.closePort();
+			port = null;
 			
 			notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
-			
-			port = null;
 			
 		}
 		
@@ -629,6 +630,8 @@ public class Controller {
 	static void openLayout(String inputFilePath) {
 		
 		Controller.disconnectFromSerialPort();
+		Controller.removeAllCharts();
+		Controller.removeAllDatasets();
 		
 		try {
 			
