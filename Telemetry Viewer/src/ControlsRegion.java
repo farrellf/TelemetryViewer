@@ -237,6 +237,10 @@ public class ControlsRegion extends JPanel {
 				// update UI state
 				connectButton.setText("Connect");
 				
+				// ensure a packet type is selected
+				if(packetTypeCombobox.getSelectedIndex() < 0)
+					packetTypeCombobox.setSelectedIndex(0);
+				
 			}
 
 			@Override public void connectionLost() {
