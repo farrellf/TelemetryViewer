@@ -18,7 +18,6 @@ import com.jogamp.opengl.GL2;
  *     Y-axis scale can be displayed.
  *     Legend can be displayed.
  */
-@SuppressWarnings("serial")
 public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	OpenGLTimeDomainSlice slice;
@@ -71,130 +70,30 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float xYaxisTickLeft;
 	float xYaxisTickRight;
 	AutoScale autoscale;
-	boolean autoscaleMin;
-	boolean autoscaleMax;
-	float manualMin;
-	float manualMax;
+	boolean autoscaleYmin;
+	boolean autoscaleYmax;
+	float manualYmin;
+	float manualYmax;
 	
-	public static ChartFactory getFactory() {
-		
-		return new ChartFactory() {
-			
-			WidgetDatasets datasetsWidget;
-			WidgetTextfieldInteger sampleCountWidget;
-			WidgetTextfieldsOptionalMinMax minMaxWidget;
-			WidgetCheckbox showXaxisTitleWidget;
-			WidgetCheckbox showXaxisScaleWidget;
-			WidgetCheckbox showYaxisTitleWidget;
-			WidgetCheckbox showYaxisScaleWidget;
-			WidgetCheckbox showLegendWidget;
-			
-			@Override public String toString() { return "Time Domain Chart"; }
-			
-			@Override public JPanel[] getWidgets() {
+	// constraints
+	static final int SampleCountDefault = 1000;
+	static final int SampleCountMinimum = 5;
+	static final int SampleCountMaximum = Integer.MAX_VALUE;
 
-				datasetsWidget       = new WidgetDatasets();
-				sampleCountWidget    = new WidgetTextfieldInteger("Sample Count", 1000, 5, Integer.MAX_VALUE);
-				minMaxWidget         = new WidgetTextfieldsOptionalMinMax("Y-Axis", -1.0f, 1.0f, -Float.MAX_VALUE, Float.MAX_VALUE);
-				showXaxisTitleWidget = new WidgetCheckbox("Show X-Axis Title", true);
-				showXaxisScaleWidget = new WidgetCheckbox("Show X-Axis Scale", true);
-				showYaxisTitleWidget = new WidgetCheckbox("Show Y-Axis Title", true);
-				showYaxisScaleWidget = new WidgetCheckbox("Show Y-Axis Scale", true);
-				showLegendWidget     = new WidgetCheckbox("Show Legend", true);
+	static final float yAxisMinimumDefault = -1.0f;
+	static final float yAxisMaximumDefault =  1.0f;
+	static final float yAxisLowerLimit     = -Float.MAX_VALUE;
+	static final float yAxisUpperLimit     =  Float.MAX_VALUE;
 	
-				JPanel[] widgets = new JPanel[13];
-				
-				widgets[0]  = datasetsWidget;
-				widgets[1]  = null;
-				widgets[2]  = sampleCountWidget;
-				widgets[3]  = null;
-				widgets[4]  = minMaxWidget;
-				widgets[5]  = null;
-				widgets[6]  = showXaxisTitleWidget;
-				widgets[7]  = showXaxisScaleWidget;
-				widgets[8]  = null;
-				widgets[9]  = showYaxisTitleWidget;
-				widgets[10] = showYaxisScaleWidget;
-				widgets[11] = null;
-				widgets[12] = showLegendWidget;
-
-				return widgets;
-				
-			}
-			
-			@Override public int getMinimumSampleCount() {
-				return 5;
-			}
-			
-			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
-
-				int sampleCount        = sampleCountWidget.getValue();
-				Dataset[] datasets     = datasetsWidget.getDatasets();
-				boolean autoscaleMin   = minMaxWidget.isMinimumAutomatic();
-				float manualMin        = minMaxWidget.getMinimumValue();
-				boolean autoscaleMax   = minMaxWidget.isMaximumAutomatic();
-				float manualMax        = minMaxWidget.getMaximumValue();
-				boolean showXaxisTitle = showXaxisTitleWidget.isChecked();
-				boolean showXaxisScale = showXaxisScaleWidget.isChecked();
-				boolean showYaxisTitle = showYaxisTitleWidget.isChecked();
-				boolean showYaxisScale = showYaxisScaleWidget.isChecked();
-				boolean showLegend     = showLegendWidget.isChecked();
-				
-				if(datasets.length == 0)
-					return null;
-				
-				OpenGLTimeDomainChart chart = new OpenGLTimeDomainChart(x1, y1, x2, y2, sampleCount, datasets);
-				chart.setYaxisRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
-				chart.setVisibleRegions(showXaxisTitle, showXaxisScale, showYaxisTitle, showYaxisScale, showLegend);
-				
-				return chart;
-				
-			}
-			
-			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
-				
-				if(lines.length != 9)
-					throw new AssertionError("Line " + firstLineNumber + ": Invalid Time Domain Chart configuration section.");
-				
-				boolean autoscaleMin   = (boolean) ChartUtils.parse(firstLineNumber + 0, lines[0], "autoscale minimum = %b");
-				float manualMin        =   (float) ChartUtils.parse(firstLineNumber + 1, lines[1], "manual minimum = %f");
-				boolean autoscaleMax   = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "autoscale maximum = %b");
-				float manualMax        =   (float) ChartUtils.parse(firstLineNumber + 3, lines[3], "manual maximum = %f");
-				boolean showXaxisTitle = (boolean) ChartUtils.parse(firstLineNumber + 4, lines[4], "show x-axis title = %b");
-				boolean showXaxisScale = (boolean) ChartUtils.parse(firstLineNumber + 5, lines[5], "show x-axis scale = %b");
-				boolean showYaxisTitle = (boolean) ChartUtils.parse(firstLineNumber + 6, lines[6], "show y-axis title = %b");
-				boolean showYaxisScale = (boolean) ChartUtils.parse(firstLineNumber + 7, lines[7], "show y-axis scale = %b");
-				boolean showLegend     = (boolean) ChartUtils.parse(firstLineNumber + 8, lines[8], "show legend = %b");
-				
-				OpenGLTimeDomainChart chart = new OpenGLTimeDomainChart(x1, y1, x2, y2, sampleCount, datasets);
-				chart.setYaxisRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
-				chart.setVisibleRegions(showXaxisTitle, showXaxisScale, showYaxisTitle, showYaxisScale, showLegend);
-				
-				return chart;
-				
-			}
-			
-		};
-		
-	}
-	
-	@Override public String[] exportChartSettings() {
-		
-		String[] lines = new String[9];
-		
-		lines[0] = "autoscale minimum = " + autoscaleMin;
-		lines[1] = "manual minimum = " + manualMin;
-		lines[2] = "autoscale maximum = " + autoscaleMax;
-		lines[3] = "manual maximum = " + manualMax;
-		lines[4] = "show x-axis title = " + showXaxisTitle;
-		lines[5] = "show x-axis scale = " + showXaxisScale;
-		lines[6] = "show y-axis title = " + showYaxisTitle;
-		lines[7] = "show y-axis scale = " + showYaxisScale;
-		lines[8] = "show legend = " + showLegend;
-		
-		return lines;
-		
-	}
+	// control widgets
+	WidgetDatasets datasetsWidget;
+	WidgetTextfieldInteger sampleCountWidget;
+	WidgetTextfieldsOptionalMinMax minMaxWidget;
+	WidgetCheckbox showXaxisTitleWidget;
+	WidgetCheckbox showXaxisScaleWidget;
+	WidgetCheckbox showYaxisTitleWidget;
+	WidgetCheckbox showYaxisScaleWidget;
+	WidgetCheckbox showLegendWidget;
 	
 	@Override public String toString() {
 		
@@ -202,71 +101,158 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 	}
 	
-	public OpenGLTimeDomainChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
+	@Override public String[] exportChart() {
 		
-		super(x1, y1, x2, y2, chartDuration, chartInputs);
+		String[] lines = new String[11];
+		
+		lines[0]  = "datasets = " + exportDatasets();
+		lines[1]  = "sample count = " + sampleCount;
+		lines[2]  = "autoscale y-axis minimum = " + autoscaleYmin;
+		lines[3]  = "manual y-axis minimum = " + manualYmin;
+		lines[4]  = "autoscale y-axis maximum = " + autoscaleYmax;
+		lines[5]  = "manual y-axis maximum = " + manualYmax;
+		lines[6]  = "show x-axis title = " + showXaxisTitle;
+		lines[7]  = "show x-axis scale = " + showXaxisScale;
+		lines[8]  = "show y-axis title = " + showYaxisTitle;
+		lines[9]  = "show y-axis scale = " + showYaxisScale;
+		lines[10] = "show legend = " + showLegend;
+		
+		return lines;
+		
+	}
+	
+	@Override public void importChart(String[] lines, int firstLineNumber) {
+	
+		if(lines.length != 11)
+			throw new AssertionError("Line " + firstLineNumber + ": Invalid Time Domain Chart configuration section.");
+
+		String datasets =  (String) ChartUtils.parse(firstLineNumber + 0,  lines[0],  "datasets = %s");
+		sampleCount     =     (int) ChartUtils.parse(firstLineNumber + 1,  lines[1],  "sample count = %d");
+		autoscaleYmin   = (boolean) ChartUtils.parse(firstLineNumber + 2,  lines[2],  "autoscale y-axis minimum = %b");
+		manualYmin      =   (float) ChartUtils.parse(firstLineNumber + 3,  lines[3],  "manual y-axis minimum = %f");
+		autoscaleYmax   = (boolean) ChartUtils.parse(firstLineNumber + 4,  lines[4],  "autoscale y-axis maximum = %b");
+		manualYmax      =   (float) ChartUtils.parse(firstLineNumber + 5,  lines[5],  "manual y-axis maximum = %f");
+		showXaxisTitle  = (boolean) ChartUtils.parse(firstLineNumber + 6,  lines[6],  "show x-axis title = %b");
+		showXaxisScale  = (boolean) ChartUtils.parse(firstLineNumber + 7,  lines[7],  "show x-axis scale = %b");
+		showYaxisTitle  = (boolean) ChartUtils.parse(firstLineNumber + 8,  lines[8],  "show y-axis title = %b");
+		showYaxisScale  = (boolean) ChartUtils.parse(firstLineNumber + 9,  lines[9],  "show y-axis scale = %b");
+		showLegend      = (boolean) ChartUtils.parse(firstLineNumber + 10, lines[10], "show legend = %b");
+		
+		importDatasets(firstLineNumber, datasets);
+		
+		// sync the widgets with the current chart state
+		datasetsWidget.setDatasets(this.datasets);
+		sampleCountWidget.setInteger(sampleCount);
+		minMaxWidget.setMin(autoscaleYmin, manualYmin);
+		minMaxWidget.setMax(autoscaleYmax, manualYmax);
+		showXaxisTitleWidget.setChecked(showXaxisTitle);
+		showXaxisScaleWidget.setChecked(showXaxisScale);
+		showYaxisTitleWidget.setChecked(showYaxisTitle);
+		showYaxisScaleWidget.setChecked(showYaxisScale);
+		showLegendWidget.setChecked(showLegend);
+		
+	}
+	
+	@Override public JPanel[] getWidgets() {
+		
+		JPanel[] widgets = new JPanel[13];
+		
+		widgets[0]  = datasetsWidget;
+		widgets[1]  = null;
+		widgets[2]  = sampleCountWidget;
+		widgets[3]  = null;
+		widgets[4]  = minMaxWidget;
+		widgets[5]  = null;
+		widgets[6]  = showXaxisTitleWidget;
+		widgets[7]  = showXaxisScaleWidget;
+		widgets[8]  = null;
+		widgets[9]  = showYaxisTitleWidget;
+		widgets[10] = showYaxisScaleWidget;
+		widgets[11] = null;
+		widgets[12] = showLegendWidget;
+
+		return widgets;
+		
+	}
+	
+	public OpenGLTimeDomainChart(int x1, int y1, int x2, int y2) {
+		
+		super(x1, y1, x2, y2);
 		
 		autoscale = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.10f);
-		autoscaleMin = true;
-		autoscaleMax = true;
 		
-		showXaxisTitle = true;
-		showXaxisScale = true;
-		showYaxisTitle = true;
-		showYaxisScale = true;
-		showLegend = true;
+		// create the control widgets and event handlers
+		datasetsWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets);
+		
+		sampleCountWidget = new WidgetTextfieldInteger("Sample Count",
+		                                               SampleCountDefault,
+		                                               SampleCountMinimum,
+		                                               SampleCountMaximum,
+		                                               newSampleCount -> sampleCount = newSampleCount);
+		
+		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
+		                                                  yAxisMinimumDefault,
+		                                                  yAxisMaximumDefault,
+		                                                  yAxisLowerLimit,
+		                                                  yAxisUpperLimit,
+		                                                  (newAutoscaleYmin, newManualYmin) -> { autoscaleYmin = newAutoscaleYmin; manualYmin = newManualYmin; },
+		                                                  (newAutoscaleYmax, newManualYmax) -> { autoscaleYmax = newAutoscaleYmax; manualYmax = newManualYmax; });
+		
+		showXaxisTitleWidget = new WidgetCheckbox("Show X-Axis Title",
+		                                          true,
+		                                          newShowXaxisTitle -> showXaxisTitle = newShowXaxisTitle);
+		
+		showXaxisScaleWidget = new WidgetCheckbox("Show X-Axis Scale",
+		                                          true,
+		                                          newShowXaxisScale -> showXaxisScale = newShowXaxisScale);
+		
+		showYaxisTitleWidget = new WidgetCheckbox("Show Y-Axis Title",
+		                                          true,
+		                                          newShowYaxisTitle -> showYaxisTitle = newShowYaxisTitle);
+		
+		showYaxisScaleWidget = new WidgetCheckbox("Show Y-Axis Scale",
+		                                          true,
+		                                          newShowYaxisScale -> showYaxisScale = newShowYaxisScale);
+		
+		showLegendWidget = new WidgetCheckbox("Show Legend",
+		                                      true,
+		                                      newShowLegend -> showLegend = newShowLegend);
 
-	}
-	
-	public void setYaxisRange(boolean autoscaleMinimum, float manualMinimum, boolean autoscaleMaximum, float manualMaximum) {
-		
-		autoscaleMin = autoscaleMinimum;
-		autoscaleMax = autoscaleMaximum;
-		manualMin = manualMinimum;
-		manualMax = manualMaximum;
-		
-	}
-	
-	public void setVisibleRegions(boolean showXaxisTitle, boolean showXaxisScale, boolean showYaxisTitle, boolean showYaxisScale, boolean showLegend) {
-		
-		this.showXaxisTitle = showXaxisTitle;
-		this.showXaxisScale = showXaxisScale;
-		this.showYaxisTitle = showYaxisTitle;
-		this.showYaxisScale = showYaxisScale;
-		this.showLegend     = showLegend;
-		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// calculate domain
 		int plotMaxX = lastSampleNumber;
-		int plotMinX = plotMaxX - (int) (duration * zoomLevel) + 1;
-		int minDomain = OpenGLTimeDomainChart.getFactory().getMinimumSampleCount() - 1;
+		int plotMinX = plotMaxX - (int) (sampleCount * zoomLevel) + 1;
+		int minDomain = SampleCountMinimum - 1;
 		if(plotMaxX - plotMinX < minDomain) plotMinX = plotMaxX - minDomain;
 		float domain = plotMaxX - plotMinX;
 		
 		if(plotMaxX < minDomain)
 			return;
 		
+		boolean haveDatasets = datasets != null && datasets.length > 0;
+		
 		// get the samples
 		if(slice == null) {
 			slice = new OpenGLTimeDomainSlice(gl);
 			slice.freeResources(gl);
 		}
-		slice.updateSamples(datasets, plotMinX > 0 ? plotMinX : 0, plotMaxX);
+		if(haveDatasets)
+			slice.updateSamples(datasets, plotMinX > 0 ? plotMinX : 0, plotMaxX);
 		
 		// ensure range is >0
-		float plotMaxY = slice.sliceMaxY;
-		float plotMinY = slice.sliceMinY;
+		float plotMaxY = haveDatasets ? slice.sliceMaxY :  1;
+		float plotMinY = haveDatasets ? slice.sliceMinY : -1;
 		if(plotMinY == plotMaxY) {
 			float value = plotMinY;
 			plotMinY = value - 0.001f;
 			plotMaxY = value + 0.001f;
 		}
 		autoscale.update(plotMinY, plotMaxY);
-		plotMaxY = autoscaleMax ? autoscale.getMax() : manualMax;
-		plotMinY = autoscaleMin ? autoscale.getMin() : manualMin;
+		plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
+		plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
 		float plotRange = plotMaxY - plotMinY;
 		
 		// calculate x and y positions of everything
@@ -290,7 +276,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			}
 		}
 		
-		if(showLegend) {
+		if(showLegend && haveDatasets) {
 			xLegendBorderLeft = Theme.tilePadding;
 			yLegendBorderBottom = Theme.tilePadding;
 			yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
@@ -344,7 +330,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showYaxisTitle) {
 			xYaxisTitleTextTop = xPlotLeft;
 			xYaxisTitleTextBaseline = xYaxisTitleTextTop + FontUtils.yAxisTextHeight;
-			yAxisTitle = datasets[0].unit;
+			yAxisTitle = haveDatasets ? datasets[0].unit : "";
 			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (FontUtils.yAxisTextWidth(yAxisTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
@@ -434,7 +420,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		}
 		
 		// draw the legend, if space is available
-		if(showLegend && xLegendBorderRight < width - Theme.tilePadding) {
+		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
 			gl.glBegin(GL2.GL_LINE_LOOP);
 			gl.glColor4fv(Theme.legendOutlineColor, 0);
 				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderBottom);
@@ -471,7 +457,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
 		
 		// draw each dataset
-		if(slice.glDataset[0].vertexCount >= 2) {
+		if(haveDatasets && slice.glDataset[0].vertexCount >= 2) {
 			for(int i = 0; i < slice.glDataset.length; i++) {
 				
 				gl.glMatrixMode(GL2.GL_MODELVIEW);

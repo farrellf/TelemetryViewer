@@ -249,7 +249,7 @@ public class CsvPacket implements Packet {
 							for(Dataset dataset : Controller.getAllDatasets())
 								dataset.add(Float.parseFloat(tokens[dataset.location]));
 							
-						} catch(NumberFormatException | NullPointerException e1) {
+						} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
 							
 							System.err.println("A corrupt line was received from the serial port.");
 							

@@ -1,8 +1,7 @@
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.util.function.BiConsumer;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -11,81 +10,64 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
-/**
- * A widget that lets the user make minimum and maximum values be automatic or specified. 
- */
 @SuppressWarnings("serial")
 public class WidgetTextfieldsOptionalMinMax extends JPanel {
 	
-	JLabel maxLabel;
-	JLabel minLabel;
 	JCheckBox maxCheckbox;
 	JCheckBox minCheckbox;
 	JTextField maxTextfield;
 	JTextField minTextfield;
 	float upperLimit;
 	float lowerLimit;
-	float defaultMaximum;
-	float defaultMinimum;
+	float defaultMax;
+	float defaultMin;
+	BiConsumer<Boolean, Float> minHandler;
+	BiConsumer<Boolean, Float> maxHandler;
 	
 	/**
-	 * @param labelPrefix       Text to show before "Maximum" or "Minimum"
-	 * @param defaultMinimum    Default value for minimum.
-	 * @param defaultMaximum    Default value for maximum.
-	 * @param lowerLimit        Minimum allowed value.
-	 * @param upperLimit        Maximum allowed value.
+	 * A widget that lets the user make minimum and maximum values be fixed or autoscaled.
+	 * 
+	 * @param labelPrefix        Text to show before the "Minimum" or "Maximum" label.
+	 * @param defaultMin         Default value for minimum.
+	 * @param defaultMax         Default value for maximum.
+	 * @param lowerLimit         Minimum allowed value.
+	 * @param upperLimit         Maximum allowed value.
+	 * @param minEventHandler    Will be notified when the minimum changes.
+	 * @param maxEventHandler    Will be notified when the maximum changes.
 	 */
-	public WidgetTextfieldsOptionalMinMax(String labelPrefix, float defaultMinimum, float defaultMaximum, float lowerLimit, float upperLimit) {
+	public WidgetTextfieldsOptionalMinMax(String labelPrefix, float defaultMin, float defaultMax, float lowerLimit, float upperLimit, BiConsumer<Boolean, Float> minEventHandler, BiConsumer<Boolean, Float> maxEventHandler) {
 		
 		super();
 		
-		maxLabel = new JLabel(labelPrefix + " Maximum: ");
-		minLabel = new JLabel(labelPrefix + " Minimum: ");
-		maxCheckbox = new JCheckBox("Automatic");
-		minCheckbox = new JCheckBox("Automatic");
-		maxCheckbox.setSelected(true);
-		minCheckbox.setSelected(true);
-		maxTextfield = new JTextField(Float.toString(defaultMaximum));
-		minTextfield = new JTextField(Float.toString(defaultMinimum));
-		maxTextfield.setEnabled(false);
-		minTextfield.setEnabled(false);
 		this.upperLimit = upperLimit;
 		this.lowerLimit = lowerLimit;
-		this.defaultMaximum = defaultMaximum;
-		this.defaultMinimum = defaultMinimum;
+		this.defaultMax = defaultMax;
+		this.defaultMin = defaultMin;
+		minHandler = minEventHandler;
+		maxHandler = maxEventHandler;
 		
-		maxCheckbox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				maxTextfield.setEnabled(!maxCheckbox.isSelected());
-			}
-		});
-		
-		minCheckbox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				minTextfield.setEnabled(!minCheckbox.isSelected());
-			}
-		});
-		
+		maxTextfield = new JTextField(Float.toString(defaultMax));
+		maxTextfield.setEnabled(false);
 		maxTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				sanityCheckMinMax();
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				maxTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
 		
+		maxCheckbox = new JCheckBox("Automatic");
+		maxCheckbox.setSelected(true);
+		maxCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		
+		minTextfield = new JTextField(Float.toString(defaultMin));
+		minTextfield.setEnabled(false);
 		minTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				sanityCheckMinMax();
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				minTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
+		minCheckbox = new JCheckBox("Automatic");
+		minCheckbox.setSelected(true);
+		minCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+
 		setLayout(new GridLayout(2, 2, 10, 10));
 		
 		JPanel maxPanel = new JPanel();
@@ -93,7 +75,8 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 		maxPanel.add(maxCheckbox);
 		maxPanel.add(Box.createHorizontalStrut(10));
 		maxPanel.add(maxTextfield);
-		add(maxLabel);
+		
+		add(new JLabel(labelPrefix + " Maximum: "));
 		add(maxPanel);
 		
 		JPanel minPanel = new JPanel();
@@ -101,29 +84,31 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 		minPanel.add(minCheckbox);
 		minPanel.add(Box.createHorizontalStrut(10));
 		minPanel.add(minTextfield);
-		add(minLabel);
+		
+		add(new JLabel(labelPrefix + " Minimum: "));
 		add(minPanel);
+		
+		checkAndNotifyHandlers();
 		
 	}
 	
 	/**
-	 * Ensures that minimum < maximum.
+	 * Ensures that both values are within the allowed range, and that minimum < maximum.
+	 * Disables min/max textfields if they are autoscaled.
+	 * Notifies all handlers.
 	 */
-	private void sanityCheckMinMax() {
+	private void checkAndNotifyHandlers() {
 		
 		try {
 			
-			maxTextfield.setText(maxTextfield.getText().trim());
-			minTextfield.setText(minTextfield.getText().trim());
-			
-			float max = Float.parseFloat(maxTextfield.getText());
-			float min = Float.parseFloat(minTextfield.getText());
+			float min = Float.parseFloat(minTextfield.getText().trim());
+			float max = Float.parseFloat(maxTextfield.getText().trim());
 			
 			// clip to limits
-			if(max > upperLimit) max = upperLimit;
-			if(max < lowerLimit) max = lowerLimit;
 			if(min > upperLimit) min = upperLimit;
 			if(min < lowerLimit) min = lowerLimit;
+			if(max > upperLimit) max = upperLimit;
+			if(max < lowerLimit) max = lowerLimit;
 			
 			// ensure min < max
 			if(min == max) {
@@ -138,52 +123,53 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 			}
 			
 			// update textfields
-			maxTextfield.setText(Float.toString(max));
 			minTextfield.setText(Float.toString(min));
+			maxTextfield.setText(Float.toString(max));
+			
+			minHandler.accept(minCheckbox.isSelected(), min);
+			maxHandler.accept(maxCheckbox.isSelected(), max);
 			
 		} catch(Exception e) {
 			
 			// one of the textfields doesn't contain a valid number, so reset both to defaults
-			maxTextfield.setText(Float.toString(defaultMaximum));
-			minTextfield.setText(Float.toString(defaultMinimum));
+			minTextfield.setText(Float.toString(defaultMin));
+			maxTextfield.setText(Float.toString(defaultMax));
+			
+			minHandler.accept(minCheckbox.isSelected(), defaultMin);
+			maxHandler.accept(maxCheckbox.isSelected(), defaultMax);
 			
 		}
 		
-	}
-	
-	/**
-	 * @return    True if the maximum should be automatic.
-	 */
-	public boolean isMaximumAutomatic() {
-		
-		return maxCheckbox.isSelected();
+		maxTextfield.setEnabled(!maxCheckbox.isSelected());
+		minTextfield.setEnabled(!minCheckbox.isSelected());
 		
 	}
 	
 	/**
-	 * @return    True if the minimum should be automatic.
+	 * Sets the minimum to be either autoscaled or manually scaled, and specifies the manual scale.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param autoscaleMin    True for autoscaled, false for manually scaled.
+	 * @param manualMin       Minimum to use if manually scaled.
 	 */
-	public boolean isMinimumAutomatic() {
+	public void setMin(boolean autoscaleMin, float manualMin) {
 		
-		return minCheckbox.isSelected();
+		minCheckbox.setSelected(autoscaleMin);
+		minTextfield.setText(Float.toString(manualMin));
 		
 	}
 	
-	 /** 
-	 * @return    The maximum value.
+	/**
+	 * Sets the maximum to be either autoscaled or manually scaled, and specifies the manual scale.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param autoscaleMax    True for autoscaled, false for manually scaled.
+	 * @param manualMax       Maximum to use if manually scaled.
 	 */
-	public float getMaximumValue() {
+	public void setMax(boolean autoscaleMax, float manualMax) {
 		
-		return Float.parseFloat(maxTextfield.getText());
-		
-	}
-	
-	 /** 
-	 * @return    The minimum value.
-	 */
-	public float getMinimumValue() {
-		
-		return Float.parseFloat(minTextfield.getText());
+		maxCheckbox.setSelected(autoscaleMax);
+		maxTextfield.setText(Float.toString(manualMax));
 		
 	}
 

@@ -123,16 +123,46 @@ public class Controller {
 	}
 	
 	/**
-	 * @return    An array of ChartFactory objects, one for each possible chart type.
+	 * @return    An array of Strings, one for each possible chart type.
 	 */
-	public static ChartFactory[] getChartFactories() {
+	public static String[] getChartTypes() {
 		
-		return new ChartFactory[] {OpenGLTimeDomainChart.getFactory(),
-		                           OpenGLTimeDomainChartCached.getFactory(),
-		                           OpenGLFrequencyDomainChart.getFactory(),
-		                           OpenGLHistogramChart.getFactory(),
-		                           OpenGLDialChart.getFactory(),
-		                           OpenGLQuaternionChart.getFactory()};
+		return new String[] {
+			"Time Domain Chart",
+			"Time Domain Chart (Cached)",
+			"Frequency Domain Chart",
+			"Histogram Chart",
+			"Dial Chart",
+			"Quaternion Chart"
+		};
+		
+	}
+	
+	/**
+	 * Creates a PositionedChart and adds it to the charts list.
+	 * 
+	 * @param chartType      One of the Strings from Controller.getChartTypes()
+	 * @param x1             The x-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param y1             The y-coordinate of a bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param x2             The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
+	 * @param y2             The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
+	 * @return               That chart, or null if chartType is invalid.
+	 */
+	public static PositionedChart createAndAddChart(String chartType, int x1, int y1, int x2, int y2) {
+		
+		PositionedChart chart = null;
+		
+		     if(chartType.equals("Time Domain Chart"))          chart = new OpenGLTimeDomainChart(x1, y1, x2, y2);
+		else if(chartType.equals("Time Domain Chart (Cached)")) chart = new OpenGLTimeDomainChartCached(x1, y1, x2, y2);
+		else if(chartType.equals("Frequency Domain Chart"))     chart = new OpenGLFrequencyDomainChart(x1, y1, x2, y2);
+		else if(chartType.equals("Histogram Chart"))            chart = new OpenGLHistogramChart(x1, y1, x2, y2);
+		else if(chartType.equals("Dial Chart"))                 chart = new OpenGLDialChart(x1, y1, x2, y2);
+		else if(chartType.equals("Quaternion Chart"))           chart = new OpenGLQuaternionChart(x1, y1, x2, y2);
+		
+		if(chart != null)
+			Controller.addChart(chart);
+		
+		return chart;
 		
 	}
 	
@@ -599,12 +629,8 @@ public class Controller {
 				outputFile.println("\ttop left y = " + chart.topLeftY);
 				outputFile.println("\tbottom right x = " + chart.bottomRightX);
 				outputFile.println("\tbottom right y = " + chart.bottomRightY);
-				outputFile.println("\tdatasets count = " + chart.datasets.length);
-				for(int i = 0; i < chart.datasets.length; i++)
-					outputFile.println("\t\tdataset location = " + chart.datasets[i].location);
-				outputFile.println("\tsample count = " + chart.duration);
 				
-				String[] additionalLines = chart.exportChartSettings();
+				String[] additionalLines = chart.exportChart();
 				if(additionalLines != null)
 					for(String line : additionalLines)
 						outputFile.println("\t" + line);
@@ -718,26 +744,13 @@ public class Controller {
 			for(int i = 0; i < chartsCount; i++) {
 				
 				String chartType = (String) ChartUtils.parse(n, lines.get(n++), "\tchart type = %s");
-				int topLeftX = (int) ChartUtils.parse(n, lines.get(n++), "\ttop left x = %d");
-				int topLeftY = (int) ChartUtils.parse(n, lines.get(n++), "\ttop left y = %d");
-				int bottomRightX = (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right x = %d");
-				int bottomRightY = (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right y = %d");
-				int datasetsCount = (int) ChartUtils.parse(n, lines.get(n++), "\tdatasets count = %d");
-				Dataset[] datasets = new Dataset[datasetsCount];
-				for(int j = 0; j < datasetsCount; j++) {
-					
-					int location = (int) ChartUtils.parse(n, lines.get(n++), "\t\tdataset location = %d");
-					datasets[j] = Controller.getDatasetByLocation(location);
-					
-					if(datasets[j] == null)
-						throw new AssertionError("Line " + n + ": Dataset does not exist.");
-					
-				}
-				
-				int duration = (int) ChartUtils.parse(n, lines.get(n++), "\tsample count = %d");
+				int topLeftX     =    (int) ChartUtils.parse(n, lines.get(n++), "\ttop left x = %d");
+				int topLeftY     =    (int) ChartUtils.parse(n, lines.get(n++), "\ttop left y = %d");
+				int bottomRightX =    (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right x = %d");
+				int bottomRightY =    (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right y = %d");
 				
 				List<String> list = new ArrayList<String>();
-				int firstLineNunber = n;
+				int firstLineNumber = n;
 				
 				while(true) {
 					
@@ -755,14 +768,10 @@ public class Controller {
 					
 				}
 				
-				String[] additionalLines = list.toArray(new String[0]);
+				String[] additionalLines = list.toArray(new String[list.size()]);
 				
-				for(ChartFactory factory : Controller.getChartFactories())
-					if(factory.toString().equals(chartType)) {
-						PositionedChart chart = factory.importChart(topLeftX, topLeftY, bottomRightX, bottomRightY, datasets, duration, additionalLines, firstLineNunber);
-						Controller.addChart(chart);
-						break;
-					}
+				PositionedChart chart = Controller.createAndAddChart(chartType, topLeftX, topLeftY, bottomRightX, bottomRightY);
+				chart.importChart(additionalLines, firstLineNumber);
 				
 			}
 			
@@ -772,6 +781,10 @@ public class Controller {
 			
 		} catch(AssertionError ae) {
 		
+			Controller.disconnectFromSerialPort();
+			Controller.removeAllCharts();
+			Controller.removeAllDatasets();
+			
 			JOptionPane.showMessageDialog(null, "Error while parsing the file:\n" + ae.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 		
 		}

@@ -16,7 +16,6 @@ import com.jogamp.opengl.GL2;
  *     Dial minimum and maximum labels can be displayed.
  *     Statistics (mean and standard deviation) can be displayed.
  */
-@SuppressWarnings("serial")
 public class OpenGLDialChart extends PositionedChart {
 	
 	final int   dialResolution = 400; // how many quads to draw
@@ -73,163 +72,147 @@ public class OpenGLDialChart extends PositionedChart {
 	float xDatasetLabelLeft;
 	float datasetLabelRadius;
 	
-	public static ChartFactory getFactory() {
-		
-		return new ChartFactory() {
-			
-			WidgetDataset datasetWidget;
-			WidgetTextfieldsOptionalMinMax minMaxWidget;
-			WidgetTextfieldInteger sampleCountWidget;
-			WidgetCheckbox showReadingLabelWidget;
-			WidgetCheckbox showDatasetLabelWidget;
-			WidgetCheckbox showMinMaxLabelsWidget;
-			WidgetCheckbox showStatisticsWidget;
-			
-			@Override public String toString() { return "Dial Chart"; }
-			
-			@Override public JPanel[] getWidgets() {
-
-				datasetWidget          = new WidgetDataset("Dataset");
-				minMaxWidget           = new WidgetTextfieldsOptionalMinMax("Dial", -1,  1, -Float.MAX_VALUE, Float.MAX_VALUE);
-				sampleCountWidget      = new WidgetTextfieldInteger("Sample Count", 1000, 1, Integer.MAX_VALUE);
-				showReadingLabelWidget = new WidgetCheckbox("Show Reading Label", true);
-				showDatasetLabelWidget = new WidgetCheckbox("Show Dataset Label", true);
-				showMinMaxLabelsWidget = new WidgetCheckbox("Show Min/Max Labels", true);
-				showStatisticsWidget   = new WidgetCheckbox("Show Statistics", true);
-				
-				JPanel[] widgets = new JPanel[10];
-				
-				widgets[0] = datasetWidget;
-				widgets[1] = null;
-				widgets[2] = minMaxWidget;
-				widgets[3] = null;
-				widgets[4] = sampleCountWidget;
-				widgets[5] = null;
-				widgets[6] = showReadingLabelWidget;
-				widgets[7] = showDatasetLabelWidget;
-				widgets[8] = showMinMaxLabelsWidget;
-				widgets[9] = showStatisticsWidget;
-
-				return widgets;
-				
-			}
-			
-			@Override public int getMinimumSampleCount() {
-				
-				return 1;
-				
-			}
-			
-			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
-
-				Dataset[] dataset        = datasetWidget.getDataset();
-				boolean autoscaleMin     = minMaxWidget.isMinimumAutomatic();
-				float manualMin          = minMaxWidget.getMinimumValue();
-				boolean autoscaleMax     = minMaxWidget.isMaximumAutomatic();
-				float manualMax          = minMaxWidget.getMaximumValue();
-				int sampleCount          = sampleCountWidget.getValue();
-				boolean showReadingLabel = showReadingLabelWidget.isChecked();
-				boolean showDatasetLabel = showDatasetLabelWidget.isChecked();
-				boolean showMinMaxLabels = showMinMaxLabelsWidget.isChecked();
-				boolean showStatistics   = showStatisticsWidget.isChecked();
-				
-				OpenGLDialChart chart = new OpenGLDialChart(x1, y1, x2, y2, sampleCount, dataset);
-				chart.setDialRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
-				chart.showVisibleRegions(showReadingLabel, showDatasetLabel, showMinMaxLabels, showStatistics);
-				
-				return chart;
-				
-			}
-			
-			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
-				
-				if(lines.length != 8)
-					throw new AssertionError("Line " + firstLineNumber + ": Invalid Dial Chart configuration section.");
-				
-				boolean autoscaleMin     = (boolean) ChartUtils.parse(firstLineNumber + 0, lines[0], "autoscale minimum = %b");
-				float manualMin          =   (float) ChartUtils.parse(firstLineNumber + 1, lines[1], "manual minimum = %f");
-				boolean autoscaleMax     = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "autoscale maximum = %b");
-				float manualMax          =   (float) ChartUtils.parse(firstLineNumber + 3, lines[3], "manual maximum = %f");
-				boolean showReadingLabel = (boolean) ChartUtils.parse(firstLineNumber + 4, lines[4], "show reading label = %b");
-				boolean showDatasetLabel = (boolean) ChartUtils.parse(firstLineNumber + 5, lines[5], "show dataset label = %b");
-				boolean showMinMaxLabels = (boolean) ChartUtils.parse(firstLineNumber + 6, lines[6], "show min max labels = %b");
-				boolean showStatistics   = (boolean) ChartUtils.parse(firstLineNumber + 7, lines[7], "show statistics = %b");
-				
-				OpenGLDialChart chart = new OpenGLDialChart(x1, y1, x2, y2, sampleCount, datasets);
-				chart.setDialRange(autoscaleMin, manualMin, autoscaleMax, manualMax);
-				chart.showVisibleRegions(showReadingLabel, showDatasetLabel, showMinMaxLabels, showStatistics);
-				
-				return chart;
-				
-			}
-
-		};
-		
-	}
+	// constraints
+	static final float DialMinimumDefault = -1;
+	static final float DialMaximumDefault =  1;
+	static final float DialLowerLimit     = -Float.MAX_VALUE;
+	static final float DialUpperLimit     =  Float.MAX_VALUE;
 	
-	@Override public String[] exportChartSettings() {
-		
-		String[] lines = new String[5];
-		
-		lines[0] = "autoscale minimum = " + autoscaleMin;
-		lines[1] = "manual minimum = " + manualMin;
-		lines[2] = "autoscale maximum = " + autoscaleMax;
-		lines[3] = "manual maximum = " + manualMax;
-		lines[4] = "show reading label = " + showReadingLabel;
-		lines[5] = "show dataset label = " + showDatasetLabel;
-		lines[6] = "show min max labels = " + showMinMaxLabels;
-		lines[7] = "show statistics = " + showStatistics;
-		
-		return lines;
-		
-	}
+	static final int SampleCountDefault    = 1000;
+	static final int SampleCountLowerLimit = 1;
+	static final int SampleCountUpperLimit = Integer.MAX_VALUE;
+	
+	// control widgets
+	WidgetDataset datasetWidget;
+	WidgetTextfieldsOptionalMinMax minMaxWidget;
+	WidgetTextfieldInteger sampleCountWidget;
+	WidgetCheckbox showReadingLabelWidget;
+	WidgetCheckbox showDatasetLabelWidget;
+	WidgetCheckbox showMinMaxLabelsWidget;
+	WidgetCheckbox showStatisticsWidget;
 	
 	@Override public String toString() {
 		
 		return "Dial Chart";
 		
 	}
+	
+	@Override public String[] exportChart() {
+		
+		String[] lines = new String[10];
+		
+		lines[0] = "datasets = " + exportDatasets();
+		lines[1] = "sample count = " + sampleCount;
+		lines[2] = "autoscale minimum = " + autoscaleMin;
+		lines[3] = "manual minimum = " + manualMin;
+		lines[4] = "autoscale maximum = " + autoscaleMax;
+		lines[5] = "manual maximum = " + manualMax;
+		lines[6] = "show reading label = " + showReadingLabel;
+		lines[7] = "show dataset label = " + showDatasetLabel;
+		lines[8] = "show min max labels = " + showMinMaxLabels;
+		lines[9] = "show statistics = " + showStatistics;
+		
+		return lines;
+		
+	}
+	
+	@Override public void importChart(String[] lines, int firstLineNumber) {
+		
+		if(lines.length != 10)
+			throw new AssertionError("Line " + firstLineNumber + ": Invalid Dial Chart configuration section.");
+		
+		String datasets  =  (String) ChartUtils.parse(firstLineNumber + 0, lines[0], "datasets = %s");
+		sampleCount      =     (int) ChartUtils.parse(firstLineNumber + 1, lines[1], "sample count = %d");
+		autoscaleMin     = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "autoscale minimum = %b");
+		manualMin        =   (float) ChartUtils.parse(firstLineNumber + 3, lines[3], "manual minimum = %f");
+		autoscaleMax     = (boolean) ChartUtils.parse(firstLineNumber + 4, lines[4], "autoscale maximum = %b");
+		manualMax        =   (float) ChartUtils.parse(firstLineNumber + 5, lines[5], "manual maximum = %f");
+		showReadingLabel = (boolean) ChartUtils.parse(firstLineNumber + 6, lines[6], "show reading label = %b");
+		showDatasetLabel = (boolean) ChartUtils.parse(firstLineNumber + 7, lines[7], "show dataset label = %b");
+		showMinMaxLabels = (boolean) ChartUtils.parse(firstLineNumber + 8, lines[8], "show min max labels = %b");
+		showStatistics   = (boolean) ChartUtils.parse(firstLineNumber + 9, lines[9], "show statistics = %b");
+		
+		importDatasets(firstLineNumber, datasets);
+		
+		// sync the widgets with the current chart state
+		datasetWidget.setDataset(this.datasets[0]);
+		sampleCountWidget.setInteger(sampleCount);
+		minMaxWidget.setMin(autoscaleMin, manualMin);
+		minMaxWidget.setMax(autoscaleMax, manualMax);
+		showReadingLabelWidget.setChecked(showReadingLabel);
+		showDatasetLabelWidget.setChecked(showDatasetLabel);
+		showMinMaxLabelsWidget.setChecked(showMinMaxLabels);
+		showStatisticsWidget.setChecked(showStatistics);
+		
+	}
+	
+	@Override public JPanel[] getWidgets() {
+		
+		JPanel[] widgets = new JPanel[10];
+		
+		widgets[0] = datasetWidget;
+		widgets[1] = null;
+		widgets[2] = minMaxWidget;
+		widgets[3] = null;
+		widgets[4] = sampleCountWidget;
+		widgets[5] = null;
+		widgets[6] = showDatasetLabelWidget;
+		widgets[7] = showReadingLabelWidget;
+		widgets[8] = showMinMaxLabelsWidget;
+		widgets[9] = showStatisticsWidget;
+
+		return widgets;
+		
+	}
 
 	
-	public OpenGLDialChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
+	public OpenGLDialChart(int x1, int y1, int x2, int y2) {
 		
-		super(x1, y1, x2, y2, chartDuration, chartInputs);
+		super(x1, y1, x2, y2);
 		
 		samples = new Samples();
 		
-		showStatistics = true;
+		datasetWidget = new WidgetDataset("Dataset",
+		                                  newDataset -> datasets = newDataset);
 		
-		autoscaleMin = true;
-		autoscaleMax = true;
-		manualMin = -1.0f;
-		manualMax =  1.0f;
+		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Dial",
+		                                                  DialMinimumDefault,
+		                                                  DialMaximumDefault,
+		                                                  DialLowerLimit,
+		                                                  DialUpperLimit,
+		                                                  (newAutoscaleMin, newManualMin) -> { autoscaleMin = newAutoscaleMin; manualMin = newManualMin; },
+		                                                  (newAutoscaleMax, newManualMax) -> { autoscaleMax = newAutoscaleMax; manualMax = newManualMax; });
+		
+		sampleCountWidget = new WidgetTextfieldInteger("Sample Count",
+		                                               SampleCountDefault,
+		                                               SampleCountLowerLimit,
+		                                               SampleCountUpperLimit,
+		                                               newSampleCount -> sampleCount = newSampleCount);
+		
+		showReadingLabelWidget = new WidgetCheckbox("Show Reading Label",
+		                                            true,
+		                                            newShowReadingLabel -> showReadingLabel = newShowReadingLabel);
+		
+		showDatasetLabelWidget = new WidgetCheckbox("Show Dataset Label",
+		                                            true,
+		                                            newShowDatasetLabel -> showDatasetLabel = newShowDatasetLabel);
+		
+		showMinMaxLabelsWidget = new WidgetCheckbox("Show Min/Max Labels",
+		                                            true,
+		                                            newShowMinMaxLabels -> showMinMaxLabels = newShowMinMaxLabels);
+		
+		showStatisticsWidget = new WidgetCheckbox("Show Statistics",
+		                                          true,
+		                                          newShowStatistics -> showStatistics = newShowStatistics);
 
-	}
-	
-	public void showVisibleRegions(boolean showReadingLabel, boolean showDatasetLabel, boolean showMinMaxLabels, boolean showStatistics) {
-		
-		this.showReadingLabel = showReadingLabel;
-		this.showDatasetLabel = showDatasetLabel;
-		this.showMinMaxLabels = showMinMaxLabels;
-		this.showStatistics = showStatistics;
-		
-	}
-	
-	public void setDialRange(boolean autoscaleMinimum, float manualMinimum, boolean autoscaleMaximum, float manualMaximum) {
-		
-		autoscaleMin = autoscaleMinimum;
-		autoscaleMax = autoscaleMaximum;
-		manualMin = manualMinimum;
-		manualMax = manualMaximum;
-		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
-		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
-		int minDomain = OpenGLDialChart.getFactory().getMinimumSampleCount() - 1;
+		int startIndex = endIndex - (int) (sampleCount * zoomLevel) + 1;
+		int minDomain = SampleCountLowerLimit - 1;
 		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
 		if(startIndex < 0) startIndex = 0;
 		

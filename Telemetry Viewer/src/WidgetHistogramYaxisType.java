@@ -1,8 +1,7 @@
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.util.function.BiConsumer;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -12,14 +11,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
-/**
- * A widget that lets the user specify the y-axis type for a histogram.
- * 
- * The axis can show relative frequency, frequency, or both.
- * If both are shown, the left axis will be relative frequency and the right axis will be frequency.
- * 
- * The minimum/maximum values can either be automatic or specified.
- */
 @SuppressWarnings("serial")
 public class WidgetHistogramYaxisType extends JPanel {
 	
@@ -42,7 +33,18 @@ public class WidgetHistogramYaxisType extends JPanel {
 	float frequencyDefaultMaximum;
 	float frequencyDefaultMinimum;
 	
+	BiConsumer<Boolean, Boolean> axisTypeHandler;
+	BiConsumer<Boolean, Float> minHandler;
+	BiConsumer<Boolean, Float> maxHandler;
+	
 	/**
+	 * A widget that lets the user specify the y-axis type for a histogram.
+	 * 
+	 * The axis can show relative frequency, frequency, or both.
+	 * If both are shown, the left axis will be relative frequency and the right axis will be frequency.
+	 * 
+	 * The minimum/maximum values can either be autoscaled or specified.
+	 * 
 	 * @param relativeFrequencyDefaultMinimum     Default value for axis minimum.
 	 * @param relativeFrequencyDefaultMaximum     Default value for axis maximum.
 	 * @param relativeFrequencyLowerLimit         Minimum allowed value.
@@ -51,8 +53,11 @@ public class WidgetHistogramYaxisType extends JPanel {
 	 * @param frequencyDefaultMaximum             Default value for axis maximum.
 	 * @param frequencyLowerLimit                 Minimum allowed value.
 	 * @param frequencyUpperLimit                 Maximum allowed value.
+	 * @param axisTypeEventHandler                Will be notified when the axis type (relative frequency, frequency, or both) changes.
+	 * @param minEventHandler                     Will be notified when the minimum changes.
+	 * @param maxEventHandler                     Will be notified when the maximum changes.
 	 */
-	public WidgetHistogramYaxisType(float relativeFrequencyDefaultMinimum, float relativeFrequencyDefaultMaximum, float relativeFrequencyLowerLimit, float relativeFrequencyUpperLimit, float frequencyDefaultMinimum, float frequencyDefaultMaximum, float frequencyLowerLimit, float frequencyUpperLimit) {
+	public WidgetHistogramYaxisType(float relativeFrequencyDefaultMinimum, float relativeFrequencyDefaultMaximum, float relativeFrequencyLowerLimit, float relativeFrequencyUpperLimit, float frequencyDefaultMinimum, float frequencyDefaultMaximum, float frequencyLowerLimit, float frequencyUpperLimit, BiConsumer<Boolean, Boolean> axisTypeEventHandler, BiConsumer<Boolean, Float> minEventHandler, BiConsumer<Boolean, Float> maxEventHandler) {
 		
 		super();
 		
@@ -68,6 +73,7 @@ public class WidgetHistogramYaxisType extends JPanel {
 		minTextfield = new JTextField(Float.toString(relativeFrequencyDefaultMinimum));
 		maxTextfield.setEnabled(false);
 		minTextfield.setEnabled(false);
+		
 		this.relativeFrequencyUpperLimit = relativeFrequencyUpperLimit;
 		this.relativeFrequencyLowerLimit = relativeFrequencyLowerLimit;
 		this.relativeFrequencyDefaultMaximum = relativeFrequencyDefaultMaximum;
@@ -76,49 +82,24 @@ public class WidgetHistogramYaxisType extends JPanel {
 		this.frequencyLowerLimit = frequencyLowerLimit;
 		this.frequencyDefaultMaximum = frequencyDefaultMaximum;
 		this.frequencyDefaultMinimum = frequencyDefaultMinimum;
+		this.axisTypeHandler = axisTypeEventHandler;
+		this.minHandler = minEventHandler;
+		this.maxHandler = maxEventHandler;
 		
-		axisTypeCombobox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				if(axisTypeCombobox.getSelectedItem().toString().equals("Relative Frequency") || axisTypeCombobox.getSelectedItem().toString().equals("Both")) {
-					maxLabel.setText("Relative Frequency Maximum: ");
-					minLabel.setText("Relative Frequency Minimum: ");
-				} else if(axisTypeCombobox.getSelectedItem().toString().equals("Frequency")) {
-					maxLabel.setText("Frequency Maximum: ");
-					minLabel.setText("Frequency Minimum: ");
-				}
-			}
-		});
+		axisTypeCombobox.addActionListener(event -> checkAndNotifyHandlers());
 		
-		maxCheckbox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				maxTextfield.setEnabled(!maxCheckbox.isSelected());
-			}
-		});
+		maxCheckbox.addActionListener(event -> checkAndNotifyHandlers());
 		
-		minCheckbox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				minTextfield.setEnabled(!minCheckbox.isSelected());
-			}
-		});
+		minCheckbox.addActionListener(event -> checkAndNotifyHandlers());
 		
 		maxTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				sanityCheckMinMax();
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				maxTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
 		
 		minTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				sanityCheckMinMax();
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				minTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
 		setLayout(new GridLayout(3, 2, 10, 10));
@@ -142,20 +123,35 @@ public class WidgetHistogramYaxisType extends JPanel {
 		add(minLabel);
 		add(minPanel);
 		
+		checkAndNotifyHandlers();
+		
 	}
 	
 	/**
-	 * Ensures that minimum < maximum and that they are within limits.
+	 * Ensures the min and max values are within the allowed range, and that minimum < maximum.
+	 * Renames/disables the min and max textboxes depending on the axis type and autoscaling.
+	 * Notifies all handlers.
 	 */
-	private void sanityCheckMinMax() {
+	private void checkAndNotifyHandlers() {
 		
+		String axisType = axisTypeCombobox.getSelectedItem().toString();
+		
+		// rename labels depending on axis type
+		if(axisType.equals("Relative Frequency") || axisType.equals("Both")) {
+			maxLabel.setText("Relative Frequency Maximum: ");
+			minLabel.setText("Relative Frequency Minimum: ");
+		} else if(axisType.equals("Frequency")) {
+			maxLabel.setText("Frequency Maximum: ");
+			minLabel.setText("Frequency Minimum: ");
+		}
+		
+		axisTypeHandler.accept(axisType.equals("Relative Frequency") || axisType.equals("Both"), axisType.equals("Frequency") || axisType.equals("Both"));
+		
+		// sanity check the min and max
 		try {
 			
-			maxTextfield.setText(maxTextfield.getText().trim());
-			minTextfield.setText(minTextfield.getText().trim());
-			
-			float max = Float.parseFloat(maxTextfield.getText());
-			float min = Float.parseFloat(minTextfield.getText());
+			float max = Float.parseFloat(maxTextfield.getText().trim());
+			float min = Float.parseFloat(minTextfield.getText().trim());
 			
 			if(maxLabel.getText().equals("Frequency Maximum: ")) {
 				max = (float) Math.floor(max);
@@ -203,68 +199,80 @@ public class WidgetHistogramYaxisType extends JPanel {
 			// update textfields
 			maxTextfield.setText(Float.toString(max));
 			minTextfield.setText(Float.toString(min));
+			maxHandler.accept(maxCheckbox.isSelected(), max);
+			minHandler.accept(minCheckbox.isSelected(), min);
 			
 		} catch(Exception e) {
 			
 			// one of the textfields doesn't contain a valid number, so reset both to defaults
-			maxTextfield.setText(Float.toString(relativeFrequencyDefaultMaximum));
-			minTextfield.setText(Float.toString(relativeFrequencyDefaultMinimum));
+			if(axisType.equals("Relative Frequency") || axisType.equals("Both")) {
+				maxTextfield.setText(Float.toString(relativeFrequencyDefaultMaximum));
+				minTextfield.setText(Float.toString(relativeFrequencyDefaultMinimum));
+				maxHandler.accept(maxCheckbox.isSelected(), relativeFrequencyDefaultMaximum);
+				minHandler.accept(minCheckbox.isSelected(), relativeFrequencyDefaultMinimum);
+			} else {
+				maxTextfield.setText(Float.toString(frequencyDefaultMaximum));
+				minTextfield.setText(Float.toString(frequencyDefaultMinimum));
+				maxHandler.accept(maxCheckbox.isSelected(), frequencyDefaultMaximum);
+				minHandler.accept(minCheckbox.isSelected(), frequencyDefaultMinimum);
+			}
 			
 		}
 		
-	}
-	
-	/**
-	 * @return    True if relative frequency should be shown.
-	 */
-	public boolean isRelativeFrequencyShown() {
-		
-		return axisTypeCombobox.getSelectedItem().toString().equals("Relative Frequency") || axisTypeCombobox.getSelectedItem().toString().equals("Both");
+		// disable textboxes for autoscaled values
+		maxTextfield.setEnabled(!maxCheckbox.isSelected());
+		minTextfield.setEnabled(!minCheckbox.isSelected());
 		
 	}
 	
 	/**
-	 * @return    True if frequency should be shown.
+	 * Sets the axis type.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param relativeFrequency    True if the axis shows Relative Frequency.
+	 * @param frequency            True if the axis show Frequency.
 	 */
-	public boolean isFrequencyShown() {
+	public void setAxisType(boolean relativeFrequency, boolean frequency) {
 		
-		return axisTypeCombobox.getSelectedItem().toString().equals("Frequency") || axisTypeCombobox.getSelectedItem().toString().equals("Both");
+		String s;
+		if(relativeFrequency && frequency)
+			s = "Both";
+		else if(relativeFrequency)
+			s = "Relative Frequency";
+		else
+			s = "Frequency";
+		
+		for(int i = 0; i < axisTypeCombobox.getItemCount(); i++)
+			if(axisTypeCombobox.equals(s))
+				axisTypeCombobox.setSelectedIndex(i);
 		
 	}
 	
 	/**
-	 * @return    True if the maximum should be automatic.
+	 * Sets the axis minimum to be either zero or manually scaled, and specifies the manual scale.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param minIsZero    True for the minimum is zero, false for manually scaled.
+	 * @param manualMin    Minimum to use if manually scaled.
 	 */
-	public boolean isMaximumAutomatic() {
+	public void setAxisMin(boolean minIsZero, float manualMin) {
 		
-		return maxCheckbox.isSelected();
+		minCheckbox.setSelected(minIsZero);
+		minTextfield.setText(Float.toString(manualMin));
 		
 	}
 	
 	/**
-	 * @return    True if the minimum should be zero.
+	 * Sets the axis maximum to be either autoscaled or manually scaled, and specifies the manual scale.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param autoscaleMax    True for autoscaled, false for manually scaled.
+	 * @param manualMax       Maximum to use if manually scaled.
 	 */
-	public boolean isMinimumZero() {
+	public void setAxisMax(boolean autoscaleMax, float manualMax) {
 		
-		return minCheckbox.isSelected();
-		
-	}
-	
-	 /** 
-	 * @return    The maximum value for this axis.
-	 */
-	public float getMaximumValue() {
-		
-		return Float.parseFloat(maxTextfield.getText());
-		
-	}
-	
-	 /** 
-	 * @return    The minimum value for this axis.
-	 */
-	public float getMinimumValue() {
-		
-		return Float.parseFloat(minTextfield.getText());
+		maxCheckbox.setSelected(autoscaleMax);
+		maxTextfield.setText(Float.toString(manualMax));
 		
 	}
 

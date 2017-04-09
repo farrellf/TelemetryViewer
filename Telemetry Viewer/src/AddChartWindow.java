@@ -1,7 +1,4 @@
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -13,11 +10,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
-/**
- * A dialog box where the user can create a chart by picking its type and configuring various options.
- */
 @SuppressWarnings("serial")
 public class AddChartWindow extends JDialog {
+	
+	PositionedChart chart;
 	
 	/**
 	 * Shows a dialog box where the user can create a chart by picking its type and configuring various options.
@@ -39,83 +35,57 @@ public class AddChartWindow extends JDialog {
 		setTitle("Add Chart");
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		
-		JPanel panel = new JPanel();
-		panel.setBorder(new EmptyBorder(10, 10, 10, 10));
-		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-		add(panel);
+		JPanel windowContents = new JPanel();
+		windowContents.setBorder(new EmptyBorder(10, 10, 10, 10));
+		windowContents.setLayout(new BoxLayout(windowContents, BoxLayout.Y_AXIS));
+		add(windowContents);
 		
-		JComboBox<ChartFactory> chartTypeCombobox = new JComboBox<ChartFactory>();	
-		for(ChartFactory factory : Controller.getChartFactories())
-			chartTypeCombobox.addItem(factory);
+		JComboBox<String> chartTypeCombobox = new JComboBox<String>(Controller.getChartTypes());
 		
 		JPanel chartTypePanel = new JPanel();
 		chartTypePanel.setLayout(new GridLayout(1, 2, 10, 10));
 		chartTypePanel.add(new JLabel("Chart Type: "));
 		chartTypePanel.add(chartTypeCombobox);
 		
-		setResizable(false);
+		JPanel doneAndCancelPanel = new JPanel();
+		JButton cancelButton = new JButton("Cancel");
+		cancelButton.addActionListener(event -> { if(chart != null) Controller.removeChart(chart); dispose(); });
+		JButton doneButton = new JButton("Done");
+		doneButton.addActionListener(event -> dispose());
+		doneAndCancelPanel.setLayout(new GridLayout(1, 3, 10, 10));
+		doneAndCancelPanel.add(cancelButton);
+		doneAndCancelPanel.add(new JLabel(""));
+		doneAndCancelPanel.add(doneButton);
 		
-		chartTypeCombobox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
+		chartTypeCombobox.addActionListener(event -> {
 				
-				ChartFactory factory = (ChartFactory) chartTypeCombobox.getSelectedItem();
-				
-				// remove existing widgets, then show the chart type combobox
-				panel.removeAll();
-				panel.add(chartTypePanel);
-				panel.add(Box.createVerticalStrut(40));
-				
-				// show the chart-specific widgets
-				for(JPanel widget : factory.getWidgets()) {
-					panel.add(widget != null ? widget : Box.createVerticalStrut(10));
-					panel.add(Box.createVerticalStrut(10));
-				}
-				
-				// leave some room after
-				panel.add(Box.createVerticalStrut(40));
-				
-				// show the add chart and cancel buttons
-				JPanel addAndCancelButtons = new JPanel();
-				JButton cancelButton = new JButton("Cancel");
-				JButton addChartButton = new JButton("Add Chart");
-				
-				addAndCancelButtons.setLayout(new GridLayout(1, 3, 10, 10));
-				addAndCancelButtons.add(cancelButton);
-				addAndCancelButtons.add(new JLabel(""));
-				addAndCancelButtons.add(addChartButton);
-				
-				cancelButton.addActionListener(new ActionListener() {
-					@Override public void actionPerformed(ActionEvent e) {
-						dispose();
-					}
-				});
-				
-				addChartButton.addActionListener(new ActionListener() {
-					@Override public void actionPerformed(ActionEvent e) {
-						
-						PositionedChart chart = factory.createChart(x1, y1, x2, y2);
-						
-						if(chart == null) {
-							JOptionPane.showMessageDialog(AddChartWindow.this, "Error: No dataset selected.", "Error", JOptionPane.ERROR_MESSAGE);
-							return;
-						}
-						
-						Controller.addChart(chart);
-						dispose();
-						
-					}
-				});
-				
-				panel.add(addAndCancelButtons);
-				
-				// resize the window
-				panel.revalidate();
-				panel.repaint();
-				setSize(getPreferredSize());
+			// remove existing chart and widgets, then show the chart type combobox
+			if(chart != null)
+				Controller.removeChart(chart);
+			windowContents.removeAll();
+			windowContents.add(chartTypePanel);
+			windowContents.add(Box.createVerticalStrut(40));
+			
+			// create the chart and show it's widgets
+			chart = Controller.createAndAddChart(chartTypeCombobox.getSelectedItem().toString(), x1, y1, x2, y2);
+			for(JPanel widget : chart.getWidgets()) {
+				windowContents.add(widget != null ? widget : Box.createVerticalStrut(10));
+				windowContents.add(Box.createVerticalStrut(10));
 			}
+			
+			// leave some room, then show the done and cancel buttons
+			windowContents.add(Box.createVerticalStrut(40));
+			windowContents.add(doneAndCancelPanel);
+			
+			// redraw and resize the window
+			windowContents.revalidate();
+			windowContents.repaint();
+			pack();
+			setSize(getPreferredSize());
+				
 		});
 
-		pack();
+		setResizable(false);
 		chartTypeCombobox.getActionListeners()[0].actionPerformed(null);
 		
 		setLocationRelativeTo(parentWindow);

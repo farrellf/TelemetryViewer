@@ -1,8 +1,7 @@
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.util.function.BiConsumer;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -12,13 +11,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
-/**
- * A widget that lets the user specify the x-axis type for a histogram.
- * 
- * The axis can be "normal" where the minimum/maximum values can either be automatic or specified.
- * Or the axis can be "locked center" where the user specifies the center value.
- * In the locked-center mode, the minimum/maximum will autoscale as needed, but in a way that keeps the center of the axis at the specified value.
- */
 @SuppressWarnings("serial")
 public class WidgetHistogramXaxisType extends JPanel {
 	
@@ -34,18 +26,30 @@ public class WidgetHistogramXaxisType extends JPanel {
 	JTextField centerTextfield;
 	float upperLimit;
 	float lowerLimit;
-	float defaultMaximum;
-	float defaultMinimum;
-	float defaultCentered;
+	float defaultMax;
+	float defaultMin;
+	float defaultCenter;
+	BiConsumer<Boolean, Float> minHandler;
+	BiConsumer<Boolean, Float> maxHandler;
+	BiConsumer<Boolean, Float> centerHandler;
 	
 	/**
-	 * @param defaultMinimum     Default value for "normal" axis minimum.
-	 * @param defaultMaximum     Default value for "normal" axis maximum.
-	 * @param defaultCentered    Default value for "locked center" axis center.
-	 * @param lowerLimit         Minimum allowed value.
-	 * @param upperLimit         Maximum allowed value.
+	 * A widget that lets the user specify the x-axis type for a histogram.
+	 * 
+	 * The axis can be "normal" where the minimum/maximum values can either be autoscaled or specified.
+	 * Or the axis can be "locked center" where the user specifies the center value.
+	 * In the locked-center mode, the minimum/maximum will autoscale as needed, but in a way that keeps the center of the axis at the specified value.
+	 * 
+	 * @param defaultMin            Default value for "normal" axis minimum.
+	 * @param defaultMax            Default value for "normal" axis maximum.
+	 * @param defaultCenter         Default value for "locked center" axis center.
+	 * @param lowerLimit            Minimum allowed value.
+	 * @param upperLimit            Maximum allowed value.
+	 * @param minEventHandler       Will be notified when the minimum changes.
+	 * @param maxEventHandler       Will be notified when the maximum changes.
+	 * @param centerEventHandler    Will be notified when the center changes.
 	 */
-	public WidgetHistogramXaxisType(float defaultMinimum, float defaultMaximum, float defaultCentered, float lowerLimit, float upperLimit) {
+	public WidgetHistogramXaxisType(float defaultMin, float defaultMax, float defaultCenter, float lowerLimit, float upperLimit, BiConsumer<Boolean, Float> minEventHandler, BiConsumer<Boolean, Float> maxEventHandler, BiConsumer<Boolean, Float> centerEventHandler) {
 		
 		super();
 		
@@ -58,149 +62,62 @@ public class WidgetHistogramXaxisType extends JPanel {
 		minCheckbox = new JCheckBox("Automatic");
 		maxCheckbox.setSelected(true);
 		minCheckbox.setSelected(true);
-		maxTextfield = new JTextField(Float.toString(defaultMaximum));
-		minTextfield = new JTextField(Float.toString(defaultMinimum));
+		maxTextfield = new JTextField(Float.toString(defaultMax));
+		minTextfield = new JTextField(Float.toString(defaultMin));
 		maxTextfield.setEnabled(false);
 		minTextfield.setEnabled(false);
-		centerTextfield = new JTextField(Float.toString(defaultCentered));
+		centerTextfield = new JTextField(Float.toString(defaultCenter));
+		
 		this.upperLimit = upperLimit;
 		this.lowerLimit = lowerLimit;
-		this.defaultMaximum = defaultMaximum;
-		this.defaultMinimum = defaultMinimum;
-		this.defaultCentered = defaultCentered;
+		this.defaultMax = defaultMax;
+		this.defaultMin = defaultMin;
+		this.defaultCenter = defaultCenter;
+		this.minHandler = minEventHandler;
+		this.maxHandler = maxEventHandler;
+		this.centerHandler = centerEventHandler;
 		
-		maxCheckbox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				maxTextfield.setEnabled(!maxCheckbox.isSelected());
-			}
-		});
+		maxCheckbox.addActionListener(event -> checkAndNotifyHandlers());
 		
-		minCheckbox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent ae) {
-				minTextfield.setEnabled(!minCheckbox.isSelected());
-			}
-		});
+		minCheckbox.addActionListener(event -> checkAndNotifyHandlers());
 		
 		maxTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				sanityCheckMinMax();
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				maxTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
 		
 		minTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				sanityCheckMinMax();
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				minTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
 		centerTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				try {
-					
-					// clip to limits
-					centerTextfield.setText(centerTextfield.getText().trim());
-					float center = Float.parseFloat(centerTextfield.getText());
-					if(center > upperLimit) center = upperLimit;
-					if(center < lowerLimit) center = lowerLimit;
-					centerTextfield.setText(Float.toString(center));
-					
-				} catch(Exception e) {
-					
-					// not a valid number, so reset to default
-					centerTextfield.setText(Float.toString(defaultCentered));
-					
-				}
-			}
-			
-			@Override public void focusGained(FocusEvent e) {
-				centerTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusGained(FocusEvent fe) { centerTextfield.selectAll(); }
 		});
 		
 		setLayout(new GridLayout(3, 2, 10, 10));
 		
-		axisTypeCombobox.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent e) {
-
-				if(axisTypeCombobox.getSelectedItem().toString().equals("Normal")) {
-					
-					removeAll();
-					
-					add(axisTypeLabel);
-					add(axisTypeCombobox);
-					
-					JPanel maxPanel = new JPanel();
-					maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
-					maxPanel.add(maxCheckbox);
-					maxPanel.add(Box.createHorizontalStrut(10));
-					maxPanel.add(maxTextfield);
-					add(maxLabel);
-					add(maxPanel);
-					
-					JPanel minPanel = new JPanel();
-					minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
-					minPanel.add(minCheckbox);
-					minPanel.add(Box.createHorizontalStrut(10));
-					minPanel.add(minTextfield);
-					add(minLabel);
-					add(minPanel);
-					
-					revalidate();
-					repaint();
-					
-				} else if(axisTypeCombobox.getSelectedItem().toString().equals("Locked Center")) {
-					
-					removeAll();
-					
-					add(axisTypeLabel);
-					add(axisTypeCombobox);
-					
-					add(centerLabel);
-					add(centerTextfield);
-
-					// adding invisible stuff to ensure size does not change
-					JLabel dummyLabel = new JLabel(" ");
-					JPanel dummyPanel = new JPanel();
-					dummyPanel.setLayout(new BoxLayout(dummyPanel, BoxLayout.X_AXIS));
-					dummyPanel.add(new JCheckBox(" "));
-					dummyPanel.add(Box.createHorizontalStrut(10));
-					dummyPanel.add(new JTextField());
-					dummyPanel.setVisible(false);
-					add(dummyLabel);
-					add(dummyPanel);
-					
-					revalidate();
-					repaint();
-					
-				}
-				
-			}
-		});
+		axisTypeCombobox.addActionListener(event -> checkAndNotifyHandlers());
 		
-		axisTypeCombobox.getActionListeners()[0].actionPerformed(null);
+		checkAndNotifyHandlers();
 		
 	}
 	
 	/**
-	 * Ensures that minimum < maximum.
+	 * Ensures the min and max values are within the allowed range, and that minimum < maximum.
+	 * Ensures the center value is within the allowed range.
+	 * Shows/hides/disables widgets based on the selected axis type and autoscale selections.
+	 * Notifies all handlers.
 	 */
-	private void sanityCheckMinMax() {
+	private void checkAndNotifyHandlers() {
 		
+		// sanity check the min and max
 		try {
 			
 			// clip to limits
-			maxTextfield.setText(maxTextfield.getText().trim());
-			minTextfield.setText(minTextfield.getText().trim());
-			float max = Float.parseFloat(maxTextfield.getText());
-			float min = Float.parseFloat(minTextfield.getText());
+			float max = Float.parseFloat(maxTextfield.getText().trim());
+			float min = Float.parseFloat(minTextfield.getText().trim());
 			if(max > upperLimit) max = upperLimit;
 			if(max < lowerLimit) max = lowerLimit;
 			if(min > upperLimit) min = upperLimit;
@@ -221,80 +138,135 @@ public class WidgetHistogramXaxisType extends JPanel {
 			// update textfields
 			maxTextfield.setText(Float.toString(max));
 			minTextfield.setText(Float.toString(min));
+			maxHandler.accept(maxCheckbox.isSelected(), max);
+			minHandler.accept(minCheckbox.isSelected(), min);
 			
 		} catch(Exception e) {
 			
 			// one of the textfields doesn't contain a valid number, so reset both to defaults
-			maxTextfield.setText(Float.toString(defaultMaximum));
-			minTextfield.setText(Float.toString(defaultMinimum));
+			maxTextfield.setText(Float.toString(defaultMax));
+			minTextfield.setText(Float.toString(defaultMin));
+			maxHandler.accept(maxCheckbox.isSelected(), defaultMax);
+			minHandler.accept(minCheckbox.isSelected(), defaultMin);
+			
+		}
+		
+		// sanity check the center value
+		try {
+			
+			// clip to limits
+			float center = Float.parseFloat(centerTextfield.getText().trim());
+			if(center > upperLimit) center = upperLimit;
+			if(center < lowerLimit) center = lowerLimit;
+			centerTextfield.setText(Float.toString(center));
+			centerHandler.accept(axisTypeCombobox.getSelectedItem().toString().equals("Locked Center"), center);
+			
+		} catch(Exception e) {
+			
+			// not a valid number, so reset to default
+			centerTextfield.setText(Float.toString(defaultCenter));
+			centerHandler.accept(axisTypeCombobox.getSelectedItem().toString().equals("Locked Center"), defaultCenter);
+			
+		}
+		
+		// disable textboxes for autoscaled values
+		minTextfield.setEnabled(!minCheckbox.isSelected());
+		maxTextfield.setEnabled(!maxCheckbox.isSelected());
+		
+		// redraw depending on the axis type
+		if(axisTypeCombobox.getSelectedItem().toString().equals("Normal")) {
+			
+			removeAll();
+			
+			add(axisTypeLabel);
+			add(axisTypeCombobox);
+			
+			JPanel maxPanel = new JPanel();
+			maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
+			maxPanel.add(maxCheckbox);
+			maxPanel.add(Box.createHorizontalStrut(10));
+			maxPanel.add(maxTextfield);
+			add(maxLabel);
+			add(maxPanel);
+			
+			JPanel minPanel = new JPanel();
+			minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
+			minPanel.add(minCheckbox);
+			minPanel.add(Box.createHorizontalStrut(10));
+			minPanel.add(minTextfield);
+			add(minLabel);
+			add(minPanel);
+			
+			revalidate();
+			repaint();
+			
+		} else if(axisTypeCombobox.getSelectedItem().toString().equals("Locked Center")) {
+			
+			removeAll();
+			
+			add(axisTypeLabel);
+			add(axisTypeCombobox);
+			
+			add(centerLabel);
+			add(centerTextfield);
+
+			// adding invisible stuff to ensure size does not change
+			JLabel dummyLabel = new JLabel(" ");
+			JPanel dummyPanel = new JPanel();
+			dummyPanel.setLayout(new BoxLayout(dummyPanel, BoxLayout.X_AXIS));
+			dummyPanel.add(new JCheckBox(" "));
+			dummyPanel.add(Box.createHorizontalStrut(10));
+			dummyPanel.add(new JTextField());
+			dummyPanel.setVisible(false);
+			add(dummyLabel);
+			add(dummyPanel);
+			
+			revalidate();
+			repaint();
 			
 		}
 		
 	}
 	
 	/**
-	 * Checks if the axis mode is "normal" or "locked center"
+	 * Sets the axis minimum to be either autoscaled or manually scaled, and specifies the manual scale.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
 	 * 
-	 * @return    True if the axis mode is "locked center"
+	 * @param autoscaleMin    True for autoscaled, false for manually scaled.
+	 * @param manualMin       Minimum to use if manually scaled.
 	 */
-	public boolean isAxisCentered() {
+	public void setAxisMin(boolean autoscaleMin, float manualMin) {
 		
-		return axisTypeCombobox.getSelectedItem().toString().equals("Locked Center");
+		minCheckbox.setSelected(autoscaleMin);
+		minTextfield.setText(Float.toString(manualMin));
 		
 	}
 	
 	/**
-	 * Gets the axis center value. This should only be called if isAxisCentered() returns true.
+	 * Sets the axis maximum to be either autoscaled or manually scaled, and specifies the manual scale.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
 	 * 
-	 * @return    The center value for this axis.
+	 * @param autoscaleMax    True for autoscaled, false for manually scaled.
+	 * @param manualMax       Maximum to use if manually scaled.
 	 */
-	public float getCenterValue() {
+	public void setAxisMax(boolean autoscaleMax, float manualMax) {
 		
-		return Float.parseFloat(centerTextfield.getText());
+		maxCheckbox.setSelected(autoscaleMax);
+		maxTextfield.setText(Float.toString(manualMax));
 		
 	}
 	
 	/**
-	 * Checks if the axis maximum should be automatic. This should only be called if isAxisCentered() returns false.
+	 * Sets the axis type.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
 	 * 
-	 * @return    True if the maximum should be automatic.
+	 * @param centered    True if "Locked Center" or false if "Normal".
+	 * @param center    Center value if the axis type is Locked Center.
 	 */
-	public boolean isMaximumAutomatic() {
+	public void setAxisType(boolean centered, float center) {
 		
-		return maxCheckbox.isSelected();
-		
-	}
-	
-	/**
-	 * Checks if the axis minimum should be automatic. This should only be called if isAxisCentered() returns false.
-	 * 
-	 * @return    True if the minimum should be automatic.
-	 */
-	public boolean isMinimumAutomatic() {
-		
-		return minCheckbox.isSelected();
-		
-	}
-	
-	/**
-	 * Gets the axis maximum value. This should only be called if isAxisCentered() returns false and isMaximumAutomatic() returns false.
-	 * 
-	 * @return    The maximum value for this axis.
-	 */
-	public float getMaximumValue() {
-		
-		return Float.parseFloat(maxTextfield.getText());
-		
-	}
-	
-	/**
-	 * Gets the axis minimum value. This should only be called if isAxisCentered() returns false and isMinimumAutomatic() returns false.
-	 * 
-	 * @return    The minimum value for this axis.
-	 */
-	public float getMinimumValue() {
-		
-		return Float.parseFloat(minTextfield.getText());
+		axisTypeCombobox.setSelectedItem(centered ? "Locked Center" : "Normal");
+		centerTextfield.setText(Float.toString(center));
 		
 	}
 

@@ -1,37 +1,48 @@
 import java.awt.GridLayout;
+import java.util.function.Consumer;
+
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-/**
- * A widget that lets the user pick one dataset from a drop-down list.
- */
 @SuppressWarnings("serial")
 public class WidgetDataset extends JPanel {
 	
-	JLabel label;
 	JComboBox<Dataset> combobox;
-
-	public WidgetDataset(String labelText) {
+	Consumer<Dataset[]> handler;
+	
+	
+	/**
+	 * A widget that lets the user pick one dataset from a drop-down list.
+	 * 
+	 * @param eventHandler    Will be notified when the chosen dataset changes.
+	 */
+	public WidgetDataset(String labelText, Consumer<Dataset[]> eventHandler) {
 		
 		super();
 		
-		setLayout(new GridLayout(1, 2, 10, 10));
-		
-		label = new JLabel(labelText + ": ");
-		add(label);
+		handler = eventHandler;
 		
 		combobox = new JComboBox<Dataset>(Controller.getAllDatasets());
+		combobox.addActionListener(event -> handler.accept(new Dataset[] {(Dataset) combobox.getSelectedItem()}));
+		
+		setLayout(new GridLayout(1, 2, 10, 10));
+		add(new JLabel(labelText + ": "));
 		add(combobox);
+		
+		eventHandler.accept(new Dataset[] {(Dataset) combobox.getSelectedItem()});
 		
 	}
 	
 	/**
-	 * @return    The selected dataset, as a one-element array because the charts use arrays.
+	 * Sets the combobox to a specific dataset.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param dataset    The dataset.
 	 */
-	public Dataset[] getDataset() {
+	public void setDataset(Dataset dataset) {
 		
-		return new Dataset[] {(Dataset) combobox.getSelectedItem()};
+		combobox.setSelectedItem(dataset);
 		
 	}
 

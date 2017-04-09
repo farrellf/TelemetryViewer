@@ -35,7 +35,7 @@ public class OpenGLTimeDomainSlice {
 		
 		// check for errors
 		if(gl.glCheckFramebufferStatus(GL2.GL_FRAMEBUFFER) != GL2.GL_FRAMEBUFFER_COMPLETE)
-			System.err.println("error!");
+			System.err.println("Error while creating a time domain slice's framebuffer or texture.");
 		
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
@@ -47,7 +47,7 @@ public class OpenGLTimeDomainSlice {
 		sliceMinX = minX;
 		sliceMaxX = maxX;
 		
-		if(glDataset == null)
+		if(glDataset == null || glDataset.length != dataset.length)
 			glDataset = new SamplesGL[dataset.length];
 		
 		if(glDataset[0] == null)
@@ -66,6 +66,20 @@ public class OpenGLTimeDomainSlice {
 		
 	}
 	
+	int _sliceNumber = 0;
+	int _sliceWidth = 0;
+	int _sliceHeight = 0;
+	int _plotWidth = 0;
+	float _domain = 0;
+	float _plotMinY = Float.MAX_VALUE;
+	float _plotMaxY = Float.MIN_VALUE;
+	Dataset[] _datasets = null;
+	int _xDivisionsSize = 0;
+	int _firstIndex = 0;
+	int _lastIndex = 0;
+	boolean _showXaxisScale = true;
+	boolean _showYaxisScale = true;
+	
 	/**
 	 * Updates the slice texture if needed.
 	 * 
@@ -82,23 +96,8 @@ public class OpenGLTimeDomainSlice {
 	 * @param yDivisions        Where the y division lines need to be drawn.
 	 * @param showXaxisScale    If the x division lines need to be drawn.
 	 * @param showYaxisScale    If the y division lines need to be drawn.
-	 * @param gl                GL2 object for accessing OpenGL.
+	 * @param gl                The OpenGL context.
 	 */
-	
-	int _sliceNumber = 0;
-	int _sliceWidth = 0;
-	int _sliceHeight = 0;
-	int _plotWidth = 0;
-	float _domain = 0;
-	float _plotMinY = Float.MAX_VALUE;
-	float _plotMaxY = Float.MIN_VALUE;
-	Dataset[] _datasets = null;
-	int _xDivisionsSize = 0;
-	int _firstIndex = 0;
-	int _lastIndex = 0;
-	boolean _showXaxisScale = true;
-	boolean _showYaxisScale = true;
-	
 	public void updateSliceTexture(int sliceNumber, int sliceWidth, int sliceHeight, int plotWidth, float domain, float plotMinY, float plotMaxY, int datasetsSize, Dataset[] datasets, Set<Integer> xDivisions, Set<Float> yDivisions, boolean showXaxisScale, boolean showYaxisScale, GL2 gl) {
 		
 		// determine which x values need to be plotted
@@ -205,7 +204,7 @@ public class OpenGLTimeDomainSlice {
 		gl.glMatrixMode(GL2.GL_MODELVIEW);
 		gl.glLoadIdentity();
 		
-		// draw gray background
+		// draw the plot background
 		gl.glBegin(GL2.GL_QUADS);
 		gl.glColor3fv(Theme.plotBackgroundColor, 0);
 			gl.glVertex2f(0,          0);

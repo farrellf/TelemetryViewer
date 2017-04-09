@@ -2,64 +2,88 @@ import java.awt.GridLayout;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-/**
- * A widget that lets the user pick one or more datasets from a list of checkboxes.
- */
 @SuppressWarnings("serial")
 public class WidgetDatasets extends JPanel {
 	
-	JLabel label;
-	Map<JCheckBox, Dataset> datasetsMap;
-	JCheckBox[] checkboxes;
-	
-	public WidgetDatasets() {
+	Map<Dataset, JCheckBox> datasetsMap;
+	Consumer<Dataset[]> handler;
+		
+	/**
+	 * A widget that lets the user pick zero or more datasets from a list of checkboxes.
+	 * 
+	 * @param eventHandler    Will be notified when the chosen datasets change.
+	 */
+	public WidgetDatasets(Consumer<Dataset[]> eventHandler) {
 		
 		super();
 		
 		Dataset[] datasets = Controller.getAllDatasets();
+		datasetsMap = new LinkedHashMap<Dataset, JCheckBox>();
 		
 		setLayout(new GridLayout(datasets.length, 2, 10, 10));
+		add(new JLabel("Datasets: "));
 		
-		label = new JLabel("Datasets: ");
-		add(label);
-
-		datasetsMap = new LinkedHashMap<JCheckBox, Dataset>();
-		for(Dataset dataset : datasets)
-			datasetsMap.put(new JCheckBox(dataset.name), dataset);
-		
-		checkboxes = datasetsMap.keySet().toArray(new JCheckBox[datasets.length]);
-		add(checkboxes[0]);
-		for(int i = 1; i < checkboxes.length; i++) {
-			add(new JLabel(""));
-			add(checkboxes[i]);
+		for(int i = 0; i < datasets.length; i++) {
+			
+			JCheckBox checkbox = new JCheckBox(datasets[i].name);
+			checkbox.addActionListener(event -> notifyHandler());
+			
+			datasetsMap.put(datasets[i], checkbox);
+			
+			if(i != 0)
+				add(new JLabel(""));
+			add(checkbox);
+			
 		}
+		
+		handler = eventHandler;
+		notifyHandler();
 		
 	}
 	
 	/**
-	 * @return    An array of the selected datasets.
+	 * Determines which datasets have been selected, and notifies the handler.
 	 */
-	public Dataset[] getDatasets() {
+	private void notifyHandler() {
 		
-		// determine how many were chosen
+		// determine how many datasets were chosen
 		int datasetsCount = 0;
-		for(JCheckBox checkbox : datasetsMap.keySet())
+		for(JCheckBox checkbox : datasetsMap.values())
 			if(checkbox.isSelected())
 				datasetsCount++;
 		
-		// create array of them
+		// create an array of them
 		Dataset[] datasets = new Dataset[datasetsCount];
 		int i = 0;
-		for(Entry<JCheckBox, Dataset> entry : datasetsMap.entrySet())
-			if(entry.getKey().isSelected())
-				datasets[i++] = entry.getValue();
+		for(Entry<Dataset, JCheckBox> entry : datasetsMap.entrySet())
+			if(entry.getValue().isSelected())
+				datasets[i++] = entry.getKey();
 		
-		return datasets;
+		handler.accept(datasets);
+		
+	}
+	
+	/**
+	 * Sets the checkboxes to specific datasets.
+	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * 
+	 * @param datasets    The datasets.
+	 */
+	public void setDatasets(Dataset[] datasets) {
+		
+		// uncheck all
+		for(JCheckBox checkbox : datasetsMap.values())
+			checkbox.setSelected(false);
+	
+		// check the specific datasets
+		for(Dataset dataset : datasets)
+			datasetsMap.get(dataset).setSelected(true);
 		
 	}
 

@@ -49,8 +49,11 @@ public class OpenGLChartsRegion extends JPanel {
 	int mouseX;
 	int mouseY;
 	PositionedChart chartToRemoveOnClick;
+	PositionedChart chartToConfigureOnClick;
 	
 	boolean serialPortConnected;
+	
+	JFrame parentWindow;
 	
 	public OpenGLChartsRegion(ControlsRegion controlsRegion) {
 		
@@ -73,6 +76,8 @@ public class OpenGLChartsRegion extends JPanel {
 		chartToRemoveOnClick = null;
 		
 		serialPortConnected = false;
+		
+		parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
 		
 		GLCanvas glCanvas = new GLCanvas(new GLCapabilities(GLProfile.get(GLProfile.GL2)));
 		glCanvas.addGLEventListener(new GLEventListener() {
@@ -302,6 +307,7 @@ public class OpenGLChartsRegion extends JPanel {
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
 				PositionedChart chartToClose = null;
+				PositionedChart chartToConfigure = null;
 				for(PositionedChart chart : charts) {
 					
 					// draw the tile
@@ -330,15 +336,18 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glPopMatrix();
 					gl.glDisable(GL2.GL_SCISSOR_TEST);
 					
-					// draw the chart close button
+					// draw the chart configure and close buttons
 					width += (int) Theme.tileShadowOffset;
 					boolean mouseOverCloseButton = drawChartCloseButton(gl, xOffset, yOffset, width, height);
 					if(mouseOverCloseButton)
 						chartToClose = chart;
+					boolean mouseOverConfigureButton = drawChartSettingsButton(gl, xOffset, yOffset, width, height);
+					if(mouseOverConfigureButton)
+						chartToConfigure = chart;
 					
 				}
-				
 				chartToRemoveOnClick = chartToClose;
+				chartToConfigureOnClick = chartToConfigure;
 				
 //				System.out.println(String.format("%2.2fFPS, %2dms", animator.getLastFPS(), animator.getLastFPSPeriod()));
 				
@@ -359,7 +368,7 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		glCanvas.addMouseListener(new MouseListener() {
 			
-			// the mouse was pressed, attempting to start a new chart region, or remove an existing chart
+			// the mouse was pressed, attempting to start a new chart region, or to configure/remove an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
 				if(!serialPortConnected && Controller.getCharts().size() == 0)
@@ -367,6 +376,11 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				if(chartToRemoveOnClick != null) {
 					Controller.removeChart(chartToRemoveOnClick);
+					return;
+				}
+				
+				if(chartToConfigureOnClick != null) {
+					new ConfigureChartWindow(parentWindow, chartToConfigureOnClick);
 					return;
 				}
 				
@@ -397,11 +411,15 @@ public class OpenGLChartsRegion extends JPanel {
 					endY = proposedEndY;
 				}
 				
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(OpenGLChartsRegion.this);
-				new AddChartWindow(parentWindow, startX, startY, endX, endY);
+				int x1 = startX;
+				int y1 = startY;
+				int x2 = endX;
+				int y2 = endY;
 				
 				startX = startY = -1;
 				endX   = endY   = -1;
+				
+				new AddChartWindow(parentWindow, x1, y1, x2, y2);
 				
 			}
 
@@ -628,6 +646,83 @@ public class OpenGLChartsRegion extends JPanel {
 			gl.glVertex2f(buttonXright - inset, buttonYbottom + inset);
 			gl.glVertex2f(buttonXleft  + inset, buttonYbottom + inset);
 			gl.glVertex2f(buttonXright - inset, buttonYtop    - inset);
+		gl.glEnd();
+		
+		return mouseOverButton;
+		
+	}
+	
+	/**
+	 * Draws a chart settings button (gear icon) for the user to click on if the mouse is over this chart.
+	 * 
+	 * @param gl         The OpenGL context.
+	 * @param xOffset    Chart region lower-left x location.
+	 * @param yOffset    Chart region lower-left y location.
+	 * @param width      Chart region width.
+	 * @param height     Chart region height.
+	 * @return           True if the mouse cursor is over this button, false if not.
+	 */
+	private boolean drawChartSettingsButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
+		
+		// only draw if necessary
+		boolean mouseOverChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
+		if(!mouseOverChart)
+			return false;
+		
+		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
+		float offset = buttonWidth + 1;
+		float buttonXleft = xOffset + width - buttonWidth - offset;
+		float buttonXright = xOffset + width - offset;
+		float buttonYtop = yOffset + height;
+		float buttonYbottom = yOffset + height - buttonWidth;
+		boolean mouseOverButton = mouseX >= buttonXleft && mouseX <= buttonXright && mouseY >= buttonYbottom && mouseY <= buttonYtop;
+		float[] white = new float[] {1, 1, 1, 1};
+		float[] black = new float[] {0, 0, 0, 1};
+		
+		int teethCount = 7;
+		int vertexCount = teethCount * 4;
+		float gearCenterX = buttonXright - (buttonWidth / 2);
+		float gearCenterY = buttonYtop - (buttonWidth / 2);
+		float outerRadius = buttonWidth * 0.35f;
+		float innerRadius = buttonWidth * 0.25f;
+		float holeRadius  = buttonWidth * 0.10f;
+		
+		// draw button background
+		gl.glBegin(GL2.GL_QUADS);
+			gl.glColor4fv(mouseOverButton ? black : white, 0);
+			gl.glVertex2f(buttonXleft, buttonYbottom);
+			gl.glVertex2f(buttonXleft, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYbottom);
+		gl.glEnd();
+		
+		// draw button outline
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glColor4fv(mouseOverButton ? white : black, 0);
+			gl.glVertex2f(buttonXleft, buttonYbottom);
+			gl.glVertex2f(buttonXleft, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYbottom);
+		gl.glEnd();
+		
+		// draw the gear teeth
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glColor4fv(mouseOverButton ? white : black, 0);
+			for(int vertex = 0; vertex < vertexCount; vertex++) {
+				float x = gearCenterX + (float) Math.cos((double) vertex / (double)vertexCount * 2 * Math.PI) * (vertex % 4 < 2 ? outerRadius : innerRadius);
+				float y = gearCenterY + (float) Math.sin((double) vertex / (double)vertexCount * 2 * Math.PI) * (vertex % 4 < 2 ? outerRadius : innerRadius);
+				gl.glVertex2f(x, y);
+			}
+		gl.glEnd();
+		
+		// draw the hole
+		gl.glBegin(GL2.GL_LINE_LOOP);
+		gl.glColor4fv(mouseOverButton ? white : black, 0);
+		for(int vertex = 0; vertex < vertexCount; vertex++) {
+			float x = gearCenterX + (float) Math.cos((double) vertex / (double)vertexCount * 2 * Math.PI) * holeRadius;
+			float y = gearCenterY + (float) Math.sin((double) vertex / (double)vertexCount * 2 * Math.PI) * holeRadius;
+			gl.glVertex2f(x, y);
+		}
 		gl.glEnd();
 		
 		return mouseOverButton;

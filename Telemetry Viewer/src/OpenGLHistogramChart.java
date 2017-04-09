@@ -24,7 +24,6 @@ import com.jogamp.opengl.GL2;
  *     Y-axis scale can be displayed.
  *     Legend can be displayed.
  */
-@SuppressWarnings("serial")
 public class OpenGLHistogramChart extends PositionedChart {
 	
 	Samples[] samples;
@@ -102,163 +101,42 @@ public class OpenGLHistogramChart extends PositionedChart {
 	float manualMinY; // relative frequency unless only frequency is shown
 	float manualMaxY; // relative frequency unless only frequency is shown
 	
-	public static ChartFactory getFactory() {
-		
-		return new ChartFactory() {
-			
-			WidgetDatasets datasetsWidget;
-			WidgetTextfieldInteger sampleCountWidget;
-			WidgetTextfieldInteger binCountWidget;
-			WidgetHistogramXaxisType xAxisTypeWidget;
-			WidgetHistogramYaxisType yAxisTypeWidget;
-			WidgetCheckbox showXaxisTitleWidget;
-			WidgetCheckbox showXaxisScaleWidget;
-			WidgetCheckbox showYaxisTitleWidget;
-			WidgetCheckbox showYaxisScaleWidget;
-			WidgetCheckbox showLegendWidget;
-			
-			@Override public String toString() { return "Histogram Chart"; }
-			
-			@Override public JPanel[] getWidgets() {
+	// constraints
+	static final int SampleCountDefault = 1000;
+	static final int SampleCountMinimum = 5;
+	static final int SampleCountMaximum = Integer.MAX_VALUE;
 
-				datasetsWidget       = new WidgetDatasets();
-				sampleCountWidget    = new WidgetTextfieldInteger("Sample Count", 1000, 5, Integer.MAX_VALUE);
-				binCountWidget       = new WidgetTextfieldInteger("Bin Count", 60, 2, Integer.MAX_VALUE);
-				xAxisTypeWidget      = new WidgetHistogramXaxisType(-1.0f, 1.0f, 0.0f, -Float.MAX_VALUE, Float.MAX_VALUE);
-				yAxisTypeWidget      = new WidgetHistogramYaxisType(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1000.0f, 0.0f, Integer.MAX_VALUE);
-				showXaxisTitleWidget = new WidgetCheckbox("Show X-Axis Title", true);
-				showXaxisScaleWidget = new WidgetCheckbox("Show X-Axis Scale", true);
-				showYaxisTitleWidget = new WidgetCheckbox("Show Y-Axis Title", true);
-				showYaxisScaleWidget = new WidgetCheckbox("Show Y-Axis Scale", true);
-				showLegendWidget     = new WidgetCheckbox("Show Legend", true);
-				
-				JPanel[] widgets = new JPanel[16];
-				
-				widgets[0]  = datasetsWidget;
-				widgets[1]  = null;
-				widgets[2]  = sampleCountWidget;
-				widgets[3]  = binCountWidget;
-				widgets[4]  = null;
-				widgets[5]  = xAxisTypeWidget;
-				widgets[6]  = null;
-				widgets[7]  = yAxisTypeWidget;
-				widgets[8]  = null;
-				widgets[9]  = showXaxisTitleWidget;
-				widgets[10] = showXaxisScaleWidget;
-				widgets[11] = null;
-				widgets[12] = showYaxisTitleWidget;
-				widgets[13] = showYaxisScaleWidget;
-				widgets[14] = null;
-				widgets[15] = showLegendWidget;
-
-				return widgets;
-				
-			}
-			
-			@Override public int getMinimumSampleCount() {
-				return 5;
-			}
-			
-			@Override public PositionedChart createChart(int x1, int y1, int x2, int y2) {
-
-				int sampleCount                 = sampleCountWidget.getValue();
-				Dataset[] datasets              = datasetsWidget.getDatasets();
-				int binCount                    = binCountWidget.getValue();
-				boolean xAxisIsCentered         = xAxisTypeWidget.isAxisCentered();
-				float xCenterValue              = xAxisTypeWidget.getCenterValue();
-				boolean xAutoscaleMin           = xAxisTypeWidget.isMinimumAutomatic();
-				float xManualMin                = xAxisTypeWidget.getMinimumValue();
-				boolean xAutoscaleMax           = xAxisTypeWidget.isMaximumAutomatic();
-				float xManualMax                = xAxisTypeWidget.getMaximumValue();
-				boolean yShowsRelativeFrequency = yAxisTypeWidget.isRelativeFrequencyShown();
-				boolean yShowsFreqency          = yAxisTypeWidget.isFrequencyShown();
-				boolean yMinIsZero              = yAxisTypeWidget.isMinimumZero();
-				boolean yMaxIsAutomatic         = yAxisTypeWidget.isMaximumAutomatic();
-				float yMinimum                  = yAxisTypeWidget.getMinimumValue();
-				float yMaximum                  = yAxisTypeWidget.getMaximumValue();
-				boolean showXaxisTitle          = showXaxisTitleWidget.isChecked();
-				boolean showXaxisScale          = showXaxisScaleWidget.isChecked();
-				boolean showYaxisTitle          = showYaxisTitleWidget.isChecked();
-				boolean showYaxisScale          = showYaxisScaleWidget.isChecked();
-				boolean showLegend              = showLegendWidget.isChecked();
-				
-				if(datasets.length == 0)
-					return null;
-				
-				OpenGLHistogramChart chart = new OpenGLHistogramChart(x1, y1, x2, y2, sampleCount, datasets);
-				chart.setBinCount(binCount);
-				chart.setXaxisType(xAxisIsCentered, xCenterValue, xAutoscaleMin, xManualMin, xAutoscaleMax, xManualMax);
-				chart.setYaxisType(yShowsRelativeFrequency, yShowsFreqency, yMinIsZero, yMaxIsAutomatic, yMinimum, yMaximum);
-				chart.setVisibleRegions(showXaxisTitle, showXaxisScale, showYaxisTitle, showYaxisScale, showLegend);
-				
-				return chart;
-				
-			}
-			
-			@Override public PositionedChart importChart(int x1, int y1, int x2, int y2, Dataset[] datasets, int sampleCount, String[] lines, int firstLineNumber) {
-				
-				if(lines.length != 18)
-					throw new AssertionError("Line " + firstLineNumber + ": Invalid Histogram Chart configuration section.");
-				
-				int binCount                    =     (int) ChartUtils.parse(firstLineNumber +  0, lines[0],  "bin count = %d");
-				boolean xAxisIsCentered         = (boolean) ChartUtils.parse(firstLineNumber +  1, lines[1],  "x-axis is centered = %b");
-				float xCenterValue              =   (float) ChartUtils.parse(firstLineNumber +  2, lines[2],  "x-axis center value = %f");
-				boolean xAutoscaleMin           = (boolean) ChartUtils.parse(firstLineNumber +  3, lines[3],  "x-axis autoscale minimum = %b");
-				float xManualMin                =   (float) ChartUtils.parse(firstLineNumber +  4, lines[4],  "x-axis manual minimum = %f");
-				boolean xAutoscaleMax           = (boolean) ChartUtils.parse(firstLineNumber +  5, lines[5],  "x-axis autoscale maximum = %b");
-				float xManualMax                =   (float) ChartUtils.parse(firstLineNumber +  6, lines[6],  "x-axis manual maximum = %f");
-				boolean yShowsRelativeFrequency = (boolean) ChartUtils.parse(firstLineNumber +  7, lines[7],  "y-axis shows relative frequency = %b");
-				boolean yShowsFrequency         = (boolean) ChartUtils.parse(firstLineNumber +  8, lines[8],  "y-axis shows frequency = %b");
-				boolean yMinIsZero              = (boolean) ChartUtils.parse(firstLineNumber +  9, lines[9],  "y-axis minimum is zero = %b");
-				boolean yMaxIsAutomatic         = (boolean) ChartUtils.parse(firstLineNumber + 10, lines[10], "y-axis autoscale maximum = %b");
-				float yMinimum                  =   (float) ChartUtils.parse(firstLineNumber + 11, lines[11], "y-axis manual minimum = %f");
-				float yMaximum                  =   (float) ChartUtils.parse(firstLineNumber + 12, lines[12], "y-axis manual maximum = %f");
-				boolean showXaxisTitle          = (boolean) ChartUtils.parse(firstLineNumber + 13, lines[13], "show x-axis title = %b");
-				boolean showXaxisScale          = (boolean) ChartUtils.parse(firstLineNumber + 14, lines[14], "show x-axis scale = %b");
-				boolean showYaxisTitle          = (boolean) ChartUtils.parse(firstLineNumber + 15, lines[15], "show y-axis title = %b");
-				boolean showYaxisScale          = (boolean) ChartUtils.parse(firstLineNumber + 16, lines[16], "show y-axis scale = %b");
-				boolean showLegend              = (boolean) ChartUtils.parse(firstLineNumber + 17, lines[17], "show legend = %b");
-				
-				OpenGLHistogramChart chart = new OpenGLHistogramChart(x1, y1, x2, y2, sampleCount, datasets);
-				chart.setBinCount(binCount);
-				chart.setXaxisType(xAxisIsCentered, xCenterValue, xAutoscaleMin, xManualMin, xAutoscaleMax, xManualMax);
-				chart.setYaxisType(yShowsRelativeFrequency, yShowsFrequency, yMinIsZero, yMaxIsAutomatic, yMinimum, yMaximum);
-				chart.setVisibleRegions(showXaxisTitle, showXaxisScale, showYaxisTitle, showYaxisScale, showLegend);
-				
-				return chart;
-				
-			}
-			
-		};
-		
-	}
+	static final int BinCountDefault = 60;
+	static final int BinCountMinimum = 2;
+	static final int BinCountMaximum = Integer.MAX_VALUE;
 	
-	@Override public String[] exportChartSettings() {
-		
-		String[] lines = new String[18];
-		
-		lines[0]  = "bin count = " + binCount;
-		lines[1]  = "x-axis is centered = " + xAxisIsCentered;
-		lines[2]  = "x-axis center value = " + xCenterValue;
-		lines[3]  = "x-axis autoscale minimum = " + xAutoscaleMin;
-		lines[4]  = "x-axis manual minimum = " + manualMinX;
-		lines[5]  = "x-axis autoscale maximum = " + xAutoscaleMax;
-		lines[6]  = "x-axis manual maximum = " + manualMaxX;
-		lines[7]  = "y-axis shows relative frequency = " + yAxisShowsRelativeFrequency;
-		lines[8]  = "y-axis shows frequency = " + yAxisShowsFrequency;
-		lines[9]  = "y-axis minimum is zero = " + yMinimumIsZero;
-		lines[10] = "y-axis autoscale maximum = " + yAutoscaleMax;
-		lines[11] = "y-axis manual minimum = " + manualMinY;
-		lines[12] = "y-axis manual maximum = " + manualMaxY;
-		lines[13] = "show x-axis title = " + showXaxisTitle;
-		lines[14] = "show x-axis scale = " + showXaxisScale;
-		lines[15] = "show y-axis title = " + showYaxisTitle;
-		lines[16] = "show y-axis scale = " + showYaxisScale;
-		lines[17] = "show legend = " + showLegend;
-		
-		return lines;
-		
-	}
+	static final float xAxisMinimumDefault = -1;
+	static final float xAxisMaximumDefault =  1;
+	static final float xAxisCenterDefault  =  0;
+	static final float xAxisLowerLimit     = -Float.MAX_VALUE;
+	static final float xAxisUpperLimit     =  Float.MAX_VALUE;
+	
+	static final float yAxisRelativeFrequencyMinimumDefault = 0;
+	static final float yAxisRelativeFrequencyMaximumDefault = 1;
+	static final float yAxisRelativeFrequencyLowerLimit     = 0;
+	static final float yAxisRelativeFrequencyUpperLimit     = 1;
+	
+	static final int yAxisFrequencyMinimumDefault = 0;
+	static final int yAxisFrequencyMaximumDefault = 1000;
+	static final int yAxisFrequencyLowerLimit     = 0;
+	static final int yAxisFrequencyUpperLimit     = Integer.MAX_VALUE;
+	
+	// control widgets
+	WidgetDatasets datasetsWidget;
+	WidgetTextfieldInteger sampleCountWidget;
+	WidgetTextfieldInteger binCountWidget;
+	WidgetHistogramXaxisType xAxisTypeWidget;
+	WidgetHistogramYaxisType yAxisTypeWidget;
+	WidgetCheckbox showXaxisTitleWidget;
+	WidgetCheckbox showXaxisScaleWidget;
+	WidgetCheckbox showYaxisTitleWidget;
+	WidgetCheckbox showYaxisScaleWidget;
+	WidgetCheckbox showLegendWidget;
 	
 	@Override public String toString() {
 		
@@ -266,86 +144,192 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 	}
 	
-	public OpenGLHistogramChart(int x1, int y1, int x2, int y2, int chartDuration, Dataset[] chartInputs) {
+	@Override public String[] exportChart() {
 		
-		super(x1, y1, x2, y2, chartDuration, chartInputs);
-			
-		binCount = 60;
-		bins = new int[datasets.length][binCount];
+		String[] lines = new String[20];
 		
-		samples = new Samples[datasets.length];
-		for(int i = 0; i < samples.length; i++)
-			samples[i] = new Samples();
+		lines[0]  = "datasets = " + exportDatasets();
+		lines[1]  = "sample count = " + sampleCount;
+		lines[2]  = "bin count = " + binCount;
+		lines[3]  = "x-axis is centered = " + xAxisIsCentered;
+		lines[4]  = "x-axis center value = " + xCenterValue;
+		lines[5]  = "x-axis autoscale minimum = " + xAutoscaleMin;
+		lines[6]  = "x-axis manual minimum = " + manualMinX;
+		lines[7]  = "x-axis autoscale maximum = " + xAutoscaleMax;
+		lines[8]  = "x-axis manual maximum = " + manualMaxX;
+		lines[9]  = "y-axis shows relative frequency = " + yAxisShowsRelativeFrequency;
+		lines[10] = "y-axis shows frequency = " + yAxisShowsFrequency;
+		lines[11] = "y-axis minimum is zero = " + yMinimumIsZero;
+		lines[12] = "y-axis autoscale maximum = " + yAutoscaleMax;
+		lines[13] = "y-axis manual minimum = " + manualMinY;
+		lines[14] = "y-axis manual maximum = " + manualMaxY;
+		lines[15] = "show x-axis title = " + showXaxisTitle;
+		lines[16] = "show x-axis scale = " + showXaxisScale;
+		lines[17] = "show y-axis title = " + showYaxisTitle;
+		lines[18] = "show y-axis scale = " + showYaxisScale;
+		lines[19] = "show legend = " + showLegend;
 		
-		xAxisIsCentered = false;
-		xCenterValue = 0.0f;
-		xAutoscaleMin = true;
-		xAutoscaleMax = true;
-		manualMinX = -1.0f;
-		manualMaxX = 1.0f;
+		return lines;
 		
-		yAxisShowsRelativeFrequency = true;
-		yAxisShowsFrequency = true;
+	}
+	
+	@Override public void importChart(String[] lines, int firstLineNumber) {
+		
+		if(lines.length != 20)
+			throw new AssertionError("Line " + firstLineNumber + ": Invalid Histogram Chart configuration section.");
+
+		String datasets             =  (String) ChartUtils.parse(firstLineNumber +  0, lines[0],  "datasets = %s");
+		sampleCount                 =     (int) ChartUtils.parse(firstLineNumber +  1, lines[1],  "sample count = %d");
+		binCount                    =     (int) ChartUtils.parse(firstLineNumber +  2, lines[2],  "bin count = %d");
+		xAxisIsCentered             = (boolean) ChartUtils.parse(firstLineNumber +  3, lines[3],  "x-axis is centered = %b");
+		xCenterValue                =   (float) ChartUtils.parse(firstLineNumber +  4, lines[4],  "x-axis center value = %f");
+		xAutoscaleMin               = (boolean) ChartUtils.parse(firstLineNumber +  5, lines[5],  "x-axis autoscale minimum = %b");
+		manualMinX                  =   (float) ChartUtils.parse(firstLineNumber +  6, lines[6],  "x-axis manual minimum = %f");
+		xAutoscaleMax               = (boolean) ChartUtils.parse(firstLineNumber +  7, lines[7],  "x-axis autoscale maximum = %b");
+		manualMaxX                  =   (float) ChartUtils.parse(firstLineNumber +  8, lines[8],  "x-axis manual maximum = %f");
+		yAxisShowsRelativeFrequency = (boolean) ChartUtils.parse(firstLineNumber +  9, lines[9],  "y-axis shows relative frequency = %b");
+		yAxisShowsFrequency         = (boolean) ChartUtils.parse(firstLineNumber + 10, lines[10], "y-axis shows frequency = %b");
+		yMinimumIsZero              = (boolean) ChartUtils.parse(firstLineNumber + 11, lines[11], "y-axis minimum is zero = %b");
+		yAutoscaleMax               = (boolean) ChartUtils.parse(firstLineNumber + 12, lines[12], "y-axis autoscale maximum = %b");
+		manualMinY                  =   (float) ChartUtils.parse(firstLineNumber + 13, lines[13], "y-axis manual minimum = %f");
+		manualMaxY                  =   (float) ChartUtils.parse(firstLineNumber + 14, lines[14], "y-axis manual maximum = %f");
+		showXaxisTitle              = (boolean) ChartUtils.parse(firstLineNumber + 15, lines[15], "show x-axis title = %b");
+		showXaxisScale              = (boolean) ChartUtils.parse(firstLineNumber + 16, lines[16], "show x-axis scale = %b");
+		showYaxisTitle              = (boolean) ChartUtils.parse(firstLineNumber + 17, lines[17], "show y-axis title = %b");
+		showYaxisScale              = (boolean) ChartUtils.parse(firstLineNumber + 18, lines[18], "show y-axis scale = %b");
+		showLegend                  = (boolean) ChartUtils.parse(firstLineNumber + 19, lines[19], "show legend = %b");
+		
+		importDatasets(firstLineNumber, datasets);
+		
+		// also need to update bins[][] and samples[] after setting the datasets
+		int datasetCount = this.datasets.length;
+		bins = new int[datasetCount][binCount];
+        samples = new Samples[datasetCount];
+        for(int i = 0; i < samples.length; i++)
+        	samples[i] = new Samples();
+        
+		// sync the widgets with the current chart state
+		datasetsWidget.setDatasets(this.datasets);
+		sampleCountWidget.setInteger(sampleCount);
+		binCountWidget.setInteger(binCount);
+		xAxisTypeWidget.setAxisType(xAxisIsCentered, xCenterValue);
+		xAxisTypeWidget.setAxisMin(xAutoscaleMin, manualMinX);
+		xAxisTypeWidget.setAxisMax(xAutoscaleMax, manualMaxX);
+		yAxisTypeWidget.setAxisType(yAxisShowsRelativeFrequency, yAxisShowsFrequency);
+		yAxisTypeWidget.setAxisMin(yMinimumIsZero, manualMinY);
+		yAxisTypeWidget.setAxisMax(yAutoscaleMax, manualMaxY);
+		showXaxisTitleWidget.setChecked(showXaxisTitle);
+		showXaxisScaleWidget.setChecked(showXaxisScale);
+		showYaxisTitleWidget.setChecked(showYaxisTitle);
+		showYaxisScaleWidget.setChecked(showYaxisScale);
+		showLegendWidget.setChecked(showLegend);
+		
+	}
+	
+	@Override public JPanel[] getWidgets() {
+		
+		JPanel[] widgets = new JPanel[16];
+		
+		widgets[0]  = datasetsWidget;
+		widgets[1]  = null;
+		widgets[2]  = sampleCountWidget;
+		widgets[3]  = binCountWidget;
+		widgets[4]  = null;
+		widgets[5]  = xAxisTypeWidget;
+		widgets[6]  = null;
+		widgets[7]  = yAxisTypeWidget;
+		widgets[8]  = null;
+		widgets[9]  = showXaxisTitleWidget;
+		widgets[10] = showXaxisScaleWidget;
+		widgets[11] = null;
+		widgets[12] = showYaxisTitleWidget;
+		widgets[13] = showYaxisScaleWidget;
+		widgets[14] = null;
+		widgets[15] = showLegendWidget;
+
+		return widgets;
+		
+	}
+	
+	public OpenGLHistogramChart(int x1, int y1, int x2, int y2) {
+		
+		super(x1, y1, x2, y2);
+
 		yAutoscaleRelativeFrequency = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.20f);
 		yAutoscaleFrequency = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.20f);
-		yMinimumIsZero = true;
-		yAutoscaleMax = true;
-		manualMinY = 0.0f; // relative frequency unless only frequency is shown
-		manualMaxY = 1.0f; // relative frequency unless only frequency is shown
+		
+		// create the control widgets and event handlers
+		datasetsWidget = new WidgetDatasets(newDatasets -> {datasets = newDatasets;
+		                                                    bins = new int[datasets.length][binCount];
+		                                                    samples = new Samples[datasets.length];
+		                                                    for(int i = 0; i < samples.length; i++)
+		                                                    	samples[i] = new Samples();
+		                                                    });
+		
+		sampleCountWidget = new WidgetTextfieldInteger("Sample Count",
+		                                               SampleCountDefault,
+		                                               SampleCountMinimum,
+		                                               SampleCountMaximum,
+		                                               newSampleCount -> sampleCount = newSampleCount);
+		
+		binCountWidget = new WidgetTextfieldInteger("Bin Count",
+		                                            BinCountDefault,
+		                                            BinCountMinimum,
+		                                            BinCountMaximum,
+		                                            newBinCount -> {binCount = newBinCount;
+		                                                            if(datasets != null)
+		                                                            	bins = new int[datasets.length][binCount];
+		                                                            });
+		
+		xAxisTypeWidget = new WidgetHistogramXaxisType(xAxisMinimumDefault,
+		                                               xAxisMaximumDefault,
+		                                               xAxisCenterDefault,
+		                                               xAxisLowerLimit,
+		                                               xAxisUpperLimit,
+		                                               (newXautoscaleMin, newManualMinX) ->     { xAutoscaleMin = newXautoscaleMin; manualMinX = newManualMinX; },
+		                                               (newXautoscaleMax, newManualMaxX) ->     { xAutoscaleMax = newXautoscaleMax; manualMaxX = newManualMaxX; },
+		                                               (newXaxisIsCentered, newXcenterValue) -> { xAxisIsCentered = newXaxisIsCentered; xCenterValue = newXcenterValue; });
+		
+		yAxisTypeWidget = new WidgetHistogramYaxisType(yAxisRelativeFrequencyMinimumDefault,
+		                                               yAxisRelativeFrequencyMaximumDefault,
+		                                               yAxisRelativeFrequencyLowerLimit,
+		                                               yAxisRelativeFrequencyUpperLimit,
+		                                               yAxisFrequencyMinimumDefault,
+		                                               yAxisFrequencyMaximumDefault,
+		                                               yAxisFrequencyLowerLimit,
+		                                               yAxisFrequencyUpperLimit,
+		                                               (newYaxisShowsRelativeFrequency, newYaxisShowsFrequency) -> { yAxisShowsRelativeFrequency = newYaxisShowsRelativeFrequency; yAxisShowsFrequency = newYaxisShowsFrequency; },
+		                                               (newYminimumIsZero, newManualMinY) ->                       { yMinimumIsZero = newYminimumIsZero; manualMinY = newManualMinY; },
+		                                               (newYautoscaleMax, newManualMaxY) ->                        { yAutoscaleMax = newYautoscaleMax; manualMaxY = newManualMaxY; });
+		
+		showXaxisTitleWidget = new WidgetCheckbox("Show X-Axis Title",
+		                                          true,
+		                                          newShowXaxisTitle -> showXaxisTitle = newShowXaxisTitle);
+		
+		showXaxisScaleWidget = new WidgetCheckbox("Show X-Axis Scale",
+		                                          true,
+		                                          newShowXaxisScale -> showXaxisScale = newShowXaxisScale);
+		
+		showYaxisTitleWidget = new WidgetCheckbox("Show Y-Axis Title",
+		                                          true,
+		                                          newShowYaxisTitle -> showYaxisTitle = newShowYaxisTitle);
+		
+		showYaxisScaleWidget = new WidgetCheckbox("Show Y-Axis Scale",
+		                                          true,
+		                                          newShowYaxisScale -> showYaxisScale = newShowYaxisScale);
+		
+		showLegendWidget = new WidgetCheckbox("Show Legend",
+		                                      true,
+		                                      newShowLegend -> showLegend = newShowLegend);
 
-		showXaxisTitle = true;
-		showXaxisScale = true;
-		showYaxisTitle = true;
-		showYaxisScale = true;
-		showLegend = true;
-
-	}
-	
-	public void setBinCount(int count) {
-		
-		binCount = count;
-		bins = new int[datasets.length][binCount];
-		
-	}
-	
-	public void setXaxisType(boolean axisIsCentered, float centerValue, boolean autoscaleMinimum, float manualMinimum, boolean autoscaleMaximum, float manualMaximum) {
-		
-		xAxisIsCentered = axisIsCentered;
-		xCenterValue = centerValue;
-		xAutoscaleMin = autoscaleMinimum;
-		xAutoscaleMax = autoscaleMaximum;
-		manualMinX = manualMinimum;
-		manualMaxX = manualMaximum;
-		
-	}
-
-	public void setYaxisType(boolean axisShowsRelativeFrequency, boolean axisShowsFrequency, boolean minimumIsZero, boolean maximumIsAutomatic, float minimum, float maximum) {
-		
-		yAxisShowsRelativeFrequency = axisShowsRelativeFrequency;
-		yAxisShowsFrequency = axisShowsFrequency;
-		yMinimumIsZero = minimumIsZero;
-		yAutoscaleMax = maximumIsAutomatic;
-		manualMinY = minimum;
-		manualMaxY = maximum;
-		
-	}
-	
-	public void setVisibleRegions(boolean showXaxisTitle, boolean showXaxisScale, boolean showYaxisTitle, boolean showYaxisScale, boolean showLegend) {
-		
-		this.showXaxisTitle = showXaxisTitle;
-		this.showXaxisScale = showXaxisScale;
-		this.showYaxisTitle = showYaxisTitle;
-		this.showYaxisScale = showYaxisScale;
-		this.showLegend     = showLegend;
-		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
-		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
-		int minDomain = OpenGLHistogramChart.getFactory().getMinimumSampleCount() - 1;
+		int startIndex = endIndex - (int) (sampleCount * zoomLevel) + 1;
+		int minDomain = SampleCountMinimum - 1;
 		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
 		if(startIndex < 0) startIndex = 0;
 		int sampleCount = endIndex - startIndex + 1;
@@ -353,19 +337,24 @@ public class OpenGLHistogramChart extends PositionedChart {
 		if(sampleCount - 1 < minDomain)
 			return;
 		
-		for(int datasetN = 0; datasetN < samples.length; datasetN++)
-			datasets[datasetN].getSamples(startIndex, endIndex, samples[datasetN]);
+		boolean haveDatasets = datasets != null && datasets.length > 0;
+		
+		if(haveDatasets)
+			for(int datasetN = 0; datasetN < samples.length; datasetN++)
+				datasets[datasetN].getSamples(startIndex, endIndex, samples[datasetN]);
 
 		// determine the true x-axis scale
-		float trueMinX = 0;
-		float trueMaxX = 0;
-		trueMinX = samples[0].min;
-		trueMaxX = samples[0].max;
-		for(int datasetN = 1; datasetN < samples.length; datasetN++) {
-			float min = samples[datasetN].min;
-			float max = samples[datasetN].max;
-			if(min < trueMinX) trueMinX = min;
-			if(max > trueMaxX) trueMaxX = max;
+		float trueMinX = xAxisMinimumDefault;
+		float trueMaxX = xAxisMaximumDefault;
+		if(haveDatasets) {
+			trueMinX = samples[0].min;
+			trueMaxX = samples[0].max;
+			for(int datasetN = 1; datasetN < samples.length; datasetN++) {
+				float min = samples[datasetN].min;
+				float max = samples[datasetN].max;
+				if(min < trueMinX) trueMinX = min;
+				if(max > trueMaxX) trueMaxX = max;
+			}
 		}
 		
 		// determine the plotted x-axis scale
@@ -393,30 +382,35 @@ public class OpenGLHistogramChart extends PositionedChart {
 //		System.out.println("");
 
 		// empty the bins
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++)
-			for(int binN = 0; binN < binCount; binN++)
-				bins[datasetN][binN] = 0;
+		if(haveDatasets)
+			for(int datasetN = 0; datasetN < datasets.length; datasetN++)
+				for(int binN = 0; binN < binCount; binN++)
+					bins[datasetN][binN] = 0;
 		
 		// fill the bins
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
-			for(int sampleN = 0; sampleN < samples[datasetN].buffer.length; sampleN++) {
-				float sample = samples[datasetN].buffer[sampleN]; 
-				if(sample >= minX && sample < maxX) {
-					int binN = (int) Math.floor((sample - minX) / range * binCount);
-					if(binN == binCount) binN--; // needed because of float math imperfection
-					bins[datasetN][binN]++;
+		if(haveDatasets) {
+			for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
+				for(int sampleN = 0; sampleN < samples[datasetN].buffer.length; sampleN++) {
+					float sample = samples[datasetN].buffer[sampleN]; 
+					if(sample >= minX && sample < maxX) {
+						int binN = (int) Math.floor((sample - minX) / range * binCount);
+						if(binN == binCount) binN--; // needed because of float math imperfection
+						bins[datasetN][binN]++;
+					}
 				}
 			}
 		}
 
 		int maxBinSize = 0;
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
-			for(int binN = 0; binN < binCount; binN++)
-				if(bins[datasetN][binN] > maxBinSize)
-					maxBinSize = bins[datasetN][binN];
+		if(haveDatasets) {
+			for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
+				for(int binN = 0; binN < binCount; binN++)
+					if(bins[datasetN][binN] > maxBinSize)
+						maxBinSize = bins[datasetN][binN];
+			}
 		}
 		
-		float trueMaxYfreq = maxBinSize;
+		float trueMaxYfreq = haveDatasets ? maxBinSize : sampleCount;
 		float trueMaxYrelFreq = trueMaxYfreq / (float) sampleCount;
 		
 		// determine the y-axis min and max
@@ -459,7 +453,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
 			yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
-			xAxisTitle = datasets[0].unit + " (" + sampleCount + " Samples)";
+			xAxisTitle = haveDatasets ? datasets[0].unit + " (" + sampleCount + " Samples)" : "";
 			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
@@ -469,7 +463,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			}
 		}
 		
-		if(showLegend) {
+		if(showLegend && haveDatasets) {
 			xLegendBorderLeft = Theme.tilePadding;
 			yLegendBorderBottom = Theme.tilePadding;
 			yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
@@ -705,7 +699,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		}
 		
 		// draw the legend, if space is available
-		if(showLegend && xLegendBorderRight < width - Theme.tilePadding) {
+		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
 			gl.glBegin(GL2.GL_LINE_LOOP);
 			gl.glColor4fv(Theme.legendOutlineColor, 0);
 				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderBottom);
@@ -727,7 +721,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			}
 		}
 					
-		// draw the x-axis title, if spcae is available
+		// draw the x-axis title, if space is available
 		if(showXaxisTitle)
 			if((!showLegend && xXaxisTitleTextLeft > xPlotLeft) || (showLegend && xXaxisTitleTextLeft > xLegendBorderRight + Theme.legendTextPadding))
 				FontUtils.drawXaxisText(xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline);
@@ -746,28 +740,30 @@ public class OpenGLHistogramChart extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
 		
 		// draw the bins
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
+		if(haveDatasets) {
+			for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
+				
+				for(int binN = 0; binN < binCount; binN++) {
+					
+					float min = minX + (binSize *  binN);      // inclusive
+					float max = minX + (binSize * (binN + 1)); // exclusive
+					float center = (max + min) / 2f;
+					
+					float xBarCenter = ((center - minX) / range * plotWidth) + xPlotLeft;
+					float yBarTop = ((float) bins[datasetN][binN] - minYfreq) / yFreqRange * plotHeight + yPlotBottom;
+					float halfBarWidth = plotWidth / binCount / 2f;
+					
+					gl.glBegin(GL2.GL_QUADS);
+					gl.glColor3f(datasets[datasetN].color.getRed()/255.0f, datasets[datasetN].color.getGreen()/255.0f, datasets[datasetN].color.getBlue()/255.0f);
+						gl.glVertex2f(xBarCenter - halfBarWidth, yPlotBottom);
+						gl.glVertex2f(xBarCenter - halfBarWidth, yBarTop);
+						gl.glVertex2f(xBarCenter + halfBarWidth, yBarTop);
+						gl.glVertex2f(xBarCenter + halfBarWidth, yPlotBottom);
+					gl.glEnd();
+					
+				}
 			
-			for(int binN = 0; binN < binCount; binN++) {
-				
-				float min = minX + (binSize *  binN);      // inclusive
-				float max = minX + (binSize * (binN + 1)); // exclusive
-				float center = (max + min) / 2f;
-				
-				float xBarCenter = ((center - minX) / range * plotWidth) + xPlotLeft;
-				float yBarTop = ((float) bins[datasetN][binN] - minYfreq) / yFreqRange * plotHeight + yPlotBottom;
-				float halfBarWidth = plotWidth / binCount / 2f;
-				
-				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor3f(datasets[datasetN].color.getRed()/255.0f, datasets[datasetN].color.getGreen()/255.0f, datasets[datasetN].color.getBlue()/255.0f);
-					gl.glVertex2f(xBarCenter - halfBarWidth, yPlotBottom);
-					gl.glVertex2f(xBarCenter - halfBarWidth, yBarTop);
-					gl.glVertex2f(xBarCenter + halfBarWidth, yBarTop);
-					gl.glVertex2f(xBarCenter + halfBarWidth, yPlotBottom);
-				gl.glEnd();
-				
 			}
-		
 		}
 
 		// stop clipping to the plot region

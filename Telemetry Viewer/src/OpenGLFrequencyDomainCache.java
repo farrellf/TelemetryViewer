@@ -10,7 +10,9 @@ public class OpenGLFrequencyDomainCache {
 	float[][][] dfts;               // [datasetN][dftN][binN]
 	int[][] firstSampleNumberOfDft; // [datasetN][dftN]
 	int previousDftWindowLength;
+	int previousTotalSampleCount;
 	Dataset[] previousDatasets;
+	String previousChartType;
 	
 	float minHz;
 	float maxHz;
@@ -33,6 +35,7 @@ public class OpenGLFrequencyDomainCache {
 		dfts = new float[0][][];
 		firstSampleNumberOfDft = new int[0][];
 		previousDftWindowLength = 0;
+		previousTotalSampleCount = 0;
 		previousDatasets = new Dataset[0];
 		
 		minHz = 0;
@@ -76,15 +79,15 @@ public class OpenGLFrequencyDomainCache {
 	 * @param dftWindowLength     How many samples make up each DFT.
 	 * @param totalSampleCount    Total number of samples. Must be >= dftWindowLength.
 	 * @param datasets            The datasets to visualize.
-	 * @param type                "Live View" or "Waveform View" or "Waterfall View"
+	 * @param chartType           "Live View" or "Waveform View" or "Waterfall View"
 	 */
-	public void calculateDfts(int lastSampleNumber, int dftWindowLength, int totalSampleCount, Dataset[] datasets, String type) {
+	public void calculateDfts(int lastSampleNumber, int dftWindowLength, int totalSampleCount, Dataset[] datasets, String chartType) {
 		
 		int datasetsCount = datasets.length;
 		int dftsCount = totalSampleCount / dftWindowLength;
 		
-		// flush the cache if the DFT window length has changed or the datasets have changed
-		if(previousDftWindowLength != dftWindowLength || previousDatasets != datasets) {
+		// flush the cache if the DFT window length has changed, or the datasets have changed, or the chart type has changed
+		if(previousDftWindowLength != dftWindowLength || previousDatasets != datasets || previousTotalSampleCount != totalSampleCount || !previousChartType.equals(chartType)) {
 			
 			dfts = new float[datasetsCount][dftsCount][];
 			firstSampleNumberOfDft = new int[datasetsCount][dftsCount];
@@ -92,7 +95,9 @@ public class OpenGLFrequencyDomainCache {
 				for(int dft = 0; dft < dftsCount; dft++)
 					firstSampleNumberOfDft[dataset][dft] = -1;
 			previousDftWindowLength = dftWindowLength;
+			previousTotalSampleCount = totalSampleCount;
 			previousDatasets = datasets;
+			previousChartType = chartType;
 			
 		}
 		
@@ -106,7 +111,7 @@ public class OpenGLFrequencyDomainCache {
 			return;
 			
 		// calculate the DFTs as needed
-		if(type.equals("Live View")) {
+		if(chartType.equals("Live View")) {
 			
 			int endX = lastSampleNumber;
 			int startX = endX - dftWindowLength + 1;
@@ -607,6 +612,7 @@ public class OpenGLFrequencyDomainCache {
 		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {
 			sinLUT = new double[binCount][sampleCount];
 			cosLUT = new double[binCount][sampleCount];
+			System.gc();
 			for(int bin = 0; bin < binCount; bin++) {
 				double frequencyHz  = (double) bin * binSizeHz;
 				for(int sample = 0; sample < sampleCount; sample++) {
@@ -673,6 +679,7 @@ public class OpenGLFrequencyDomainCache {
 		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {
 			sinLUT = new double[binCount][sampleCount];
 			cosLUT = new double[binCount][sampleCount];
+			System.gc();
 			for(int bin = 0; bin < binCount; bin++) {
 				double frequencyHz  = (double) bin * binSizeHz;
 				for(int sample = 0; sample < sampleCount; sample++) {

@@ -5,8 +5,9 @@ public class Tester {
 	private static Thread transmitter;
 	
 	/**
-	 * Simulates the transmission of 3 numbers every 1ms.
-	 * The numbers are pseudo random, and scaled to form a sort of sawtooth waveform.
+	 * Simulates the transmission of 4 numbers every 100us.
+	 * The first three numbers are pseudo random, and scaled to form a sort of sawtooth waveform.
+	 * The fourth number is a 1kHz sine wave.
 	 * This is used to check for proper autoscaling of charts, etc.
 	 */
 	public static void startTransmission() {
