@@ -579,8 +579,8 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		// draw the legend, if space is available
 		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
-			gl.glBegin(GL2.GL_LINE_LOOP);
-			gl.glColor4fv(Theme.legendOutlineColor, 0);
+			gl.glBegin(GL2.GL_QUADS);
+			gl.glColor4fv(Theme.legendBackgroundColor, 0);
 				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderBottom);
 				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderTop);
 				gl.glVertex2f(xLegendBorderRight, yLegendBorderTop);
@@ -644,7 +644,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				}
 				
 				gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glColor4fv(Theme.legendOutlineColor, 0);
+				gl.glColor4fv(Theme.legendBackgroundColor, 0);
 					gl.glVertex2f(xPowerScaleLeft,  yPowerTextBaseline);
 					gl.glVertex2f(xPowerScaleLeft,  yPowerTextTop);
 					gl.glVertex2f(xPowerScaleRight, yPowerTextTop);

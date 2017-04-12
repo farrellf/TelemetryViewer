@@ -32,7 +32,7 @@ public class Theme {
 	public static Color   tickFontColor           = Color.BLACK;
 	
 	// legend
-	public static float[] legendOutlineColor      = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float[] legendBackgroundColor   = tileShadowColor;
 	public static float   legendTextPadding       = 5.0f * Controller.getDisplayScalingFactor();
 	public static float   legendNamesPadding      = 25.0f * Controller.getDisplayScalingFactor();
 	public static Font    legendFont              = new Font("Geneva", Font.BOLD, (int) (14.0 * Controller.getDisplayScalingFactor()));
