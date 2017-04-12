@@ -1,3 +1,5 @@
+import java.nio.FloatBuffer;
+
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2;
 
@@ -21,6 +23,9 @@ public class OpenGLFrequencyDomainCache {
 	
 	int firstDft;
 	int lastDft;
+
+	FloatBuffer waterfallPixels;
+	FloatBuffer waveformPixels;
 	
 	int[] fbHandle;
 	int[] texHandle;
@@ -409,21 +414,40 @@ public class OpenGLFrequencyDomainCache {
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
 		gl.glPointSize(1);
 		gl.glDisable(GL2.GL_POINT_SMOOTH);
-		gl.glBegin(GL2.GL_POINTS);
+		
+		int pixelCount = xBinCount * rowCount;
 		float dftCount = lastDft - firstDft + 1;
+		
+		if(waveformPixels == null || waveformPixels.capacity() != pixelCount * 6)
+			waveformPixels = Buffers.newDirectFloatBuffer(pixelCount * 6);
+		
 		for(int dataset = 0; dataset < datasetsCount; dataset++) {
+
+			waveformPixels.position(0);
+			
 			float r = datasets[dataset].color.getRed()   / 255.0f;
 			float g = datasets[dataset].color.getGreen() / 255.0f;
 			float b = datasets[dataset].color.getBlue()  / 255.0f;
+			
 			for(int x = 0; x < xBinCount; x++) {
 				for(int y = 0; y < rowCount; y++) {
 					float a = (float) histogram[dataset][x][y] / dftCount;
-					gl.glColor4f(r, g, b, a);
-					gl.glVertex2f(x + 0.5f, y + 0.5f); // +0.5 because of the diamond-exit-rule
+					waveformPixels.put(x + 0.5f); // +0.5 because of the diamond-exit-rule
+					waveformPixels.put(y + 0.5f);
+					waveformPixels.put(r);
+					waveformPixels.put(g);
+					waveformPixels.put(b);
+					waveformPixels.put(a);
 				}
 			}
+			
+			gl.glEnableClientState(GL2.GL_COLOR_ARRAY);
+			gl.glVertexPointer(2, GL2.GL_FLOAT, 6, waveformPixels.position(0));
+			gl.glColorPointer(4, GL2.GL_FLOAT, 6, waveformPixels.position(2));
+			gl.glDrawArrays(GL2.GL_POINTS, 0, pixelCount*4);
+			gl.glDisableClientState(GL2.GL_COLOR_ARRAY);
+			
 		}
-		gl.glEnd();
 		
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
@@ -518,22 +542,51 @@ public class OpenGLFrequencyDomainCache {
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
 		gl.glPointSize(1);
 		gl.glDisable(GL2.GL_POINT_SMOOTH);
-		gl.glBegin(GL2.GL_POINTS);
+		
+		int pixelCount = binCount * dftsCount;
+		
+		if(waterfallPixels == null || waterfallPixels.capacity() != pixelCount * 6)
+			waterfallPixels = Buffers.newDirectFloatBuffer(pixelCount * 6);
+		
 		for(int dataset = 0; dataset < datasetsCount; dataset++) {
+
+			waterfallPixels.position(0);
+			
 			float r = datasets[dataset].color.getRed()   / 255.0f;
 			float g = datasets[dataset].color.getGreen() / 255.0f;
 			float b = datasets[dataset].color.getBlue()  / 255.0f;
-			for(int bin = 0; bin < binCount; bin++) {
-				for(int dft = firstDft; dft <= lastDft; dft++) {
-					float a = (dfts[dataset][dft % dftsCount][bin] - minPower) / (maxPower - minPower);
-					if(a < 0) a = 0;
-					if(a > 1) a = 1;
-					gl.glColor4f(r, g, b, a);
-					gl.glVertex2f(bin + 0.5f, (lastDft - dft) + 0.5f); // +0.5 because of the diamond-exit-rule
+			
+			for(int y = 0; y < dftsCount; y++) {
+				int dft = lastDft - y;
+				for(int x = 0; x < binCount; x++) {
+					if(dft < 0) {						
+						waterfallPixels.put(x + 0.5f); // +0.5 because of the diamond-exit-rule
+						waterfallPixels.put(y + 0.5f);
+						waterfallPixels.put(0);
+						waterfallPixels.put(0);
+						waterfallPixels.put(0);
+						waterfallPixels.put(0);
+					} else {
+						float a = (dfts[dataset][dft % dftsCount][x] - minPower) / (maxPower - minPower);
+						if(a < 0) a = 0;
+						if(a > 1) a = 1;
+						waterfallPixels.put(x + 0.5f);
+						waterfallPixels.put(y + 0.5f);
+						waterfallPixels.put(r);
+						waterfallPixels.put(g);
+						waterfallPixels.put(b);
+						waterfallPixels.put(a);
+					}
 				}
 			}
+			
+			gl.glEnableClientState(GL2.GL_COLOR_ARRAY);
+			gl.glVertexPointer(2, GL2.GL_FLOAT, 6, waterfallPixels.position(0));
+			gl.glColorPointer(4, GL2.GL_FLOAT, 6, waterfallPixels.position(2));
+			gl.glDrawArrays(GL2.GL_POINTS, 0, pixelCount*4);
+			gl.glDisableClientState(GL2.GL_COLOR_ARRAY);
+			
 		}
-		gl.glEnd();
 		
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
