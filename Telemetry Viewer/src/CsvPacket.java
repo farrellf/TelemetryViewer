@@ -1,7 +1,9 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -12,6 +14,9 @@ import java.awt.font.FontRenderContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
@@ -21,7 +26,9 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.AbstractTableModel;
@@ -327,6 +334,9 @@ public class CsvPacket implements Packet {
 		JTable dataStructureTable;
 		JScrollPane scrollableDataStructureTable;
 		
+		JTabbedPane exampleCodePane;
+		JTextArea arduinoCode;
+		
 		/**
 		 * Creates a new window where the user can define the ASCII CSV data structure.
 		 * 
@@ -469,8 +479,8 @@ public class CsvPacket implements Packet {
 					}
 					
 					String errorMessage = packet.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
-					dataStructureTable.revalidate();
-					dataStructureTable.repaint();
+					updateDataStructureTable();
+					updateExampleCode();
 					
 					if(errorMessage != null) {
 						JOptionPane.showMessageDialog(CsvDataStructureWindow.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
@@ -490,8 +500,8 @@ public class CsvPacket implements Packet {
 			resetButton.addActionListener(new ActionListener() {
 				@Override public void actionPerformed(ActionEvent arg0) {
 					packet.clear();
-					dataStructureTable.revalidate();
-					dataStructureTable.repaint();
+					updateDataStructureTable();
+					updateExampleCode();
 
 					int newColumn = packet.getFirstAvailableColumn();
 					columnTextfield.setText(Integer.toString(newColumn));
@@ -566,12 +576,21 @@ public class CsvPacket implements Packet {
 			tablePanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 			tablePanel.add(scrollableDataStructureTable, BorderLayout.CENTER);
 			dataStructureTable.setRowHeight((int) tablePanel.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight()); // fixes display scaling issue
-			
+
+			arduinoCode = new JTextArea();
+			arduinoCode.setEditable(false);
+			arduinoCode.setTabSize(4);
+			arduinoCode.setFont(new Font("Consolas", Font.PLAIN, 12 * (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0)));
+			exampleCodePane = new JTabbedPane();
+			exampleCodePane.add("Arduino Code", new JScrollPane(arduinoCode));
+			exampleCodePane.setPreferredSize(new Dimension(exampleCodePane.getPreferredSize().width, 16 * (int) (getFontMetrics(arduinoCode.getFont())).getHeight()));
+
 			add(dataEntryPanel, BorderLayout.NORTH);
 			add(tablePanel, BorderLayout.CENTER);
+			add(exampleCodePane, BorderLayout.SOUTH);
 			
 			pack();
-			setMinimumSize(new Dimension(getPreferredSize().width, 500));
+			setMinimumSize(new Dimension(getPreferredSize().width, 32 * (int) (getFontMetrics(arduinoCode.getFont())).getHeight()));
 			setLocationRelativeTo(parentWindow);
 			
 			nameTextfield.requestFocus();
@@ -588,8 +607,98 @@ public class CsvPacket implements Packet {
 				doneButton.setEnabled(true);
 			}
 			
+			updateDataStructureTable();
+			updateExampleCode();
+			
 			setModal(true);
 			setVisible(true);
+			
+		}
+		
+		private void updateDataStructureTable() {
+			
+			dataStructureTable.revalidate();
+			dataStructureTable.repaint();
+			
+		}
+		
+		private void updateExampleCode() {
+			
+			int baudRate = Model.baudRate;
+			int datasetsCount = Controller.getDatasetsCount();
+			Dataset[] datasets = Controller.getAllDatasets();
+			
+			if(datasetsCount == 0) {
+				arduinoCode.setText("[...waiting for at least one CSV column...]");
+				return;
+			}
+			
+			List<String> datasetNames = new ArrayList<String>(datasetsCount);
+			String intPrintfVariables = new String();
+			String floatPrintfVariables = new String();
+			for(Dataset dataset : datasets) {
+				String name = dataset.name.replace(' ', '_').toLowerCase();
+				datasetNames.add(name);
+				intPrintfVariables += name + ", ";
+				floatPrintfVariables += name + "_text, ";
+			}
+			intPrintfVariables = intPrintfVariables.substring(0, intPrintfVariables.length() - 2);
+			floatPrintfVariables = floatPrintfVariables.substring(0, floatPrintfVariables.length() - 2);
+			
+			String printfFormatString = new String();
+			int intPrintfLength = 0;
+			int floatPrintfLength = 0;
+			int i = 0;
+			for(Dataset dataset : datasets) {
+				while(i < dataset.location) {
+					printfFormatString += "0,";
+					intPrintfLength += 2;
+					floatPrintfLength += 2;
+					i++;
+				}
+				printfFormatString += "%d,";
+				intPrintfLength += 7;
+				floatPrintfLength += 31;
+				i++;
+			}
+			printfFormatString = printfFormatString.substring(0, printfFormatString.length() - 1);
+			
+			arduinoCode.setText("// this code is a crude template\n");
+			arduinoCode.append("// you will need to edit this\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("void setup() {\n");
+			arduinoCode.append("\tSerial.begin(" + baudRate + ");\n");
+			arduinoCode.append("}\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("// use this loop if sending integers\n");
+			arduinoCode.append("void loop() {\n");
+			for(String name : datasetNames)
+				arduinoCode.append("\tint " + name + " = ...;\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("\tchar text[" + intPrintfLength + "];\n");
+			arduinoCode.append("\tsnprintf(text, " + intPrintfLength + ", \"" + printfFormatString + "\", " + intPrintfVariables + ");\n");
+			arduinoCode.append("\tSerial.println(text);\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("\tdelay(...);\n");
+			arduinoCode.append("}\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("// or use this loop if sending floats\n");
+			arduinoCode.append("void loop() {\n");
+			for(String name : datasetNames)
+				arduinoCode.append("\tfloat " + name + " = ...;\n");
+			arduinoCode.append("\n");
+			for(String name : datasetNames)
+				arduinoCode.append("\tchar " + name + "_text[30];\n");
+			arduinoCode.append("\n");
+			for(String name : datasetNames)
+				arduinoCode.append("\tdtostrf(" + name + ", 10, 10, " + name + "_text);\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("\tchar text[" + floatPrintfLength + "];\n");
+			arduinoCode.append("\tsnprintf(text, " + floatPrintfLength + ", \"" + printfFormatString.replace('d', 's') + "\", " + floatPrintfVariables + ");\n");
+			arduinoCode.append("\tSerial.println(text);\n");
+			arduinoCode.append("\n");
+			arduinoCode.append("\tdelay(...);\n");
+			arduinoCode.append("}\n");
 			
 		}
 
