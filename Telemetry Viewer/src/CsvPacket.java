@@ -13,6 +13,7 @@ import java.awt.event.KeyListener;
 import java.awt.font.FontRenderContext;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,8 +33,6 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.AbstractTableModel;
-
-import com.fazecast.jSerialComm.SerialPort;
 
 /**
  * A class for describing and processing ASCII CSV packets.
@@ -72,7 +71,7 @@ import com.fazecast.jSerialComm.SerialPort;
  */
 public class CsvPacket implements Packet {
 
-	private Thread serialPortThread;
+	private Thread thread;
 	
 	/**
 	 * Creates an object with no fields.
@@ -81,7 +80,7 @@ public class CsvPacket implements Packet {
 
 		Controller.removeAllDatasets();
 		
-		serialPortThread = null;
+		thread = null;
 		
 	}
 	
@@ -223,81 +222,77 @@ public class CsvPacket implements Packet {
 	}
 
 	/**
-	 * Spawns a new thread that listens to the serial port for incoming data, processes it, and populates the datasets.
-	 * This method should only be called after the data structure has been defined and a connection has been made with the serial port.
+	 * Spawns a new thread that listens for incoming data, processes it, and populates the datasets.
+	 * This method should only be called after the data structure has been defined and a connection has been made.
 	 * 
-	 * @param port    Serial port that has already been configured and connected to.
+	 * @param stream    The data to process.
 	 */
-	@Override public void startReceivingData(SerialPort port) {
+	@Override public void startReceivingData(InputStream stream) {
 		
-		serialPortThread = new Thread(new Runnable() {
-			@Override public void run() {
+		thread = new Thread(() -> {
 				
-				BufferedReader reader = new BufferedReader(new InputStreamReader(port.getInputStream()));
+			BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+			
+			while(true) {
 				
-				while(true) {
+				try {
 					
+					// wait for text to arrive
+					while(!reader.ready())
+						Thread.sleep(1);
+					
+					// parse received text
 					try {
 						
-						// wait for text to arrive
-						if(!reader.ready()) {
-							Thread.sleep(5);
-							continue;
-						}
+						String line = reader.readLine();
+						String[] tokens = line.split(",");
+						// ensure they can all be parsed as floats before populating the datasets
+						for(Dataset dataset : Controller.getAllDatasets())
+							Float.parseFloat(tokens[dataset.location]);
+						for(Dataset dataset : Controller.getAllDatasets())
+							dataset.add(Float.parseFloat(tokens[dataset.location]));
 						
-						// parse received text
-						try {
-							
-							String line = reader.readLine();
-							String[] tokens = line.split(",");
-							// ensure they can all be parsed as floats before populating the datasets
-							for(Dataset dataset : Controller.getAllDatasets())
-								Float.parseFloat(tokens[dataset.location]);
-							for(Dataset dataset : Controller.getAllDatasets())
-								dataset.add(Float.parseFloat(tokens[dataset.location]));
-							
-						} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
-							
-							System.err.println("A corrupt line was received from the serial port.");
-							
-						}
+					} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
 						
-					} catch(InterruptedException e) {
-						
-						// stop and end this thread if we get interrupted
-						try { reader.close(); } catch(IOException e2) { }
-						return;
-						
-					} catch(IOException e) {
-						
-						// stop and end this thread if an IO error has occurred
-						try { reader.close(); } catch(IOException e3) { }
-						port.closePort();
-						Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
-						System.err.println("An IO error occurred while reading from the serial port.");
-						return;
+						System.err.println("A corrupt line was received.");
 						
 					}
+					
+				} catch(InterruptedException e2) {
+					
+					// stop and end this thread if we get interrupted
+					try { reader.close(); } catch(IOException e3) { }
+					System.err.println("The CSV Packet Processor thread is stopping.");
+					return;
+					
+				} catch(IOException e4) {
+					
+					// stop and end this thread if an IO error has occurred
+					try { reader.close(); } catch(IOException e5) { }
+					Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
+					System.err.println("An IO error occurred.");
+					return;
 					
 				}
 				
 			}
+		
 		});
 		
-		serialPortThread.setPriority(Thread.MAX_PRIORITY);
-		serialPortThread.setName("Serial Port CSV Packet Receiver");
-		serialPortThread.start();
+		thread.setPriority(Thread.MAX_PRIORITY);
+		thread.setName("CSV Packet Processor");
+		thread.start();
 		
 	}
 	
 	/**
-	 * Stops the serial port thread.
+	 * Stops the CSV Packet Processor thread.
 	 */
 	@Override public void stopReceivingData() {
 		
-		if(serialPortThread != null && serialPortThread.isAlive()) {
-			serialPortThread.interrupt();
-			while(serialPortThread.isAlive()); // wait
+		if(thread != null && thread.isAlive()) {
+			thread.interrupt();
+			while(thread.isAlive()); // wait
 		}
 		
 	}

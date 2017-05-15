@@ -9,6 +9,9 @@ import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.font.FontRenderContext;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -24,8 +27,6 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.AbstractTableModel;
-
-import com.fazecast.jSerialComm.SerialPort;
 
 /**
  * A class for describing and processing binary packets.
@@ -74,7 +75,7 @@ public class BinaryPacket implements Packet {
 	public BinaryChecksumProcessor checksumProcessor;
 	public int checksumProcessorOffset;
 	private int packetSize; // total byte count: includes sync word, fields, and checksum field
-	private Thread serialPortThread;
+	private Thread thread;
 	
 	/**
 	 * Creates an object with a default sync word, but no fields, and no checksum processor.
@@ -87,7 +88,7 @@ public class BinaryPacket implements Packet {
 		checksumProcessorOffset = -1;
 		packetSize = 1; // the syncWord
 		
-		serialPortThread = null;
+		thread = null;
 		
 	}
 	
@@ -507,36 +508,33 @@ public class BinaryPacket implements Packet {
 	}
 	
 	/**
-	 * Spawns a new thread that listens to the serial port for incoming data, processes it, and populates the datasets.
-	 * This method should only be called after the data structure has been defined and a connection has been made with the serial port.
+	 * Spawns a new thread that listens for incoming data, processes it, and populates the datasets.
+	 * This method should only be called after the data structure has been defined and a connection has been made.
 	 * 
-	 * @param port    Serial port that has already been configured and connected to.
+	 * @param stream    The data to process.
 	 */
-	@Override public void startReceivingData(SerialPort port) {
+	@Override public void startReceivingData(InputStream stream) {
 		
-		serialPortThread = new Thread(new Runnable() {
-			@Override public void run() {
+		thread = new Thread(() -> {
 				
-				byte[] rx_buffer = new byte[packetSize];
+			byte[] rx_buffer = new byte[packetSize];
+			BufferedInputStream bStream = new BufferedInputStream(stream, 2 * packetSize);
+			
+			while(true) {
 				
-				while(port.isOpen()) {
-					
+				try {
+				
 					// wait for data to arrive
-					while(port.bytesAvailable() < packetSize) {
-						try {
-							Thread.sleep(5);
-						} catch(InterruptedException e) {
-							// stop and end this thread if we get interrupted
-							return;
-						}
-					}
+					while(bStream.available() < packetSize)
+						Thread.sleep(1);
 					
-					// get the sync word
+					// wait for the sync word
+					bStream.read(rx_buffer, 0, 1);
 					while(rx_buffer[0] != syncWord)
-						port.readBytes(rx_buffer, 1);
+						bStream.read(rx_buffer, 0, 1);
 					
 					// get rest of packet after the sync word
-					port.readBytes(rx_buffer, packetSize - 1); // -1 for syncWord
+					bStream.read(rx_buffer, 0, packetSize - 1); // -1 for syncWord
 					
 					// test checksum if enabled
 					boolean checksumPassed = true;
@@ -560,30 +558,42 @@ public class BinaryPacket implements Packet {
 						float rawNumber = processor.extractValue(buffer);
 						dataset.add(rawNumber);
 					}
+				
+				} catch(InterruptedException e) {
+					
+					// stop and end this thread if we get interrupted
+					try { bStream.close(); } catch(IOException e2) { }
+					System.err.println("The Binary Packet Processor thread is stopping.");
+					return;
+					
+				} catch(IOException e) {
+					
+					// stop and end this thread if an IO error has occurred
+					try { bStream.close(); } catch(IOException e3) { }
+					Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
+					System.err.println("An IO error occurred.");
+					return;
 					
 				}
 				
-				// the above loop ended so the connection has been lost
-				port.closePort();
-				Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
-				
 			}
+			
 		});
 		
-		serialPortThread.setPriority(Thread.MAX_PRIORITY);
-		serialPortThread.setName("Serial Port Binary Packet Receiver");
-		serialPortThread.start();
+		thread.setPriority(Thread.MAX_PRIORITY);
+		thread.setName("Binary Packet Processor");
+		thread.start();
 		
 	}
 	
 	/**
-	 * Stops the serial port thread.
+	 * Stops the Binary Packet Processor thread.
 	 */
 	@Override public void stopReceivingData() {
 		
-		if(serialPortThread != null && serialPortThread.isAlive()) {
-			serialPortThread.interrupt();
-			while(serialPortThread.isAlive()); // wait
+		if(thread != null && thread.isAlive()) {
+			thread.interrupt();
+			while(thread.isAlive()); // wait
 		}
 		
 	}

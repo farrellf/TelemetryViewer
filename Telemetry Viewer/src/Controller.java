@@ -343,7 +343,11 @@ public class Controller {
 			Model.packet = null;
 			Model.portName = portName;
 			Model.baudRate = 9600;
+			
 			notifySerialPortListeners(SERIAL_CONNECTION_OPENED);
+			
+			if(parentWindow != null)
+				packet.showDataStructureWindow(parentWindow, true);
 			
 			return;
 			
@@ -351,10 +355,7 @@ public class Controller {
 			
 		port = SerialPort.getCommPort(portName);
 		port.setBaudRate(baudRate);
-		if(packet instanceof CsvPacket)
-			port.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
-		else if(packet instanceof BinaryPacket)
-			port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
+		port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
 		
 		// try 3 times before giving up
 		if(!port.openPort()) {
@@ -376,7 +377,7 @@ public class Controller {
 		if(parentWindow != null)
 			packet.showDataStructureWindow(parentWindow, false);
 		
-		packet.startReceivingData(port);
+		packet.startReceivingData(port.getInputStream());
 		
 	}
 	
@@ -390,6 +391,7 @@ public class Controller {
 			Tester.stopTransmission();
 			removeAllCharts();
 			removeAllDatasets();
+			
 			notifySerialPortListeners(SERIAL_CONNECTION_CLOSED);
 			
 		} else {		

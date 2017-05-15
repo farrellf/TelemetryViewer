@@ -1,13 +1,13 @@
-import javax.swing.JFrame;
+import java.io.InputStream;
 
-import com.fazecast.jSerialComm.SerialPort;
+import javax.swing.JFrame;
 
 public interface Packet {
 	
 	public void clear();
 	public void showDataStructureWindow(JFrame parentWindow, boolean testMode);
 	public String toString();
-	public void startReceivingData(SerialPort port);
+	public void startReceivingData(InputStream stream);
 	public void stopReceivingData();
 
 }
