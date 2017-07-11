@@ -1,6 +1,4 @@
 import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import javax.swing.Box;
@@ -47,76 +45,72 @@ public class ControlsRegion extends JPanel {
 		setBorder(new EmptyBorder(5, 5, 5, 5));
 		
 		openLayoutButton = new JButton("Open Layout");
-		openLayoutButton.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent e) {
-				JFileChooser inputFile = new JFileChooser();
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				if(inputFile.showOpenDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
-					String filePath = inputFile.getSelectedFile().getAbsolutePath();
-					Controller.openLayout(filePath);
-				}
+		openLayoutButton.addActionListener(event -> {
+			
+			JFileChooser inputFile = new JFileChooser();
+			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+			if(inputFile.showOpenDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
+				String filePath = inputFile.getSelectedFile().getAbsolutePath();
+				Controller.openLayout(filePath);
 			}
+			
 		});
 		
 		saveLayoutButton = new JButton("Save Layout");
 		saveLayoutButton.setEnabled(false);
-		saveLayoutButton.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent e) {
-				JFileChooser saveFile = new JFileChooser();
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				if(saveFile.showSaveDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
-					String filePath = saveFile.getSelectedFile().getAbsolutePath();
-					if(!filePath.endsWith(".txt"))
-						filePath += ".txt";
-					Controller.saveLayout(filePath);
-				}
+		saveLayoutButton.addActionListener(event -> {
+			
+			JFileChooser saveFile = new JFileChooser();
+			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+			if(saveFile.showSaveDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
+				String filePath = saveFile.getSelectedFile().getAbsolutePath();
+				if(!filePath.endsWith(".txt"))
+					filePath += ".txt";
+				Controller.saveLayout(filePath);
 			}
+
 		});
 		
 		exportCsvLogButton = new JButton("Export CSV Log");
-		exportCsvLogButton.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent e) {
-				JFileChooser saveFile = new JFileChooser();
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				if(saveFile.showSaveDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
-					String filePath = saveFile.getSelectedFile().getAbsolutePath();
-					if(!filePath.endsWith(".csv"))
-						filePath += ".csv";
-					Controller.exportCsvLogFile(filePath);
-				}
+		exportCsvLogButton.addActionListener(event -> {
+			
+			JFileChooser saveFile = new JFileChooser();
+			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+			if(saveFile.showSaveDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
+				String filePath = saveFile.getSelectedFile().getAbsolutePath();
+				if(!filePath.endsWith(".csv"))
+					filePath += ".csv";
+				Controller.exportCsvLogFile(filePath);
 			}
+
 		});
 		
 		resetButton = new JButton("Reset");
-		resetButton.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent arg0) {
-				Controller.removeAllCharts();
-			}
-		});
+		resetButton.addActionListener(event -> Controller.removeAllCharts());
 		
 		helpButton = new JButton("Help");
-		helpButton.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent e) {
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				String helpText = "<html><b>Telemetry Viewer v0.3 (2017-02-11)</b><br>" +
-				                  "A fast and simple tool for visualizing data received over a UART.<br><br>" +
-				                  "Step 1: Use the controls at the lower-right corner of the main window to connect to a serial port.<br>" +
-				                  "Step 2: A \"Data Structure\" window will pop up, use it to specify how your data is laid out, then click \"Done\"<br>" +
-				                  "Step 3: Click-and-drag in the grid region to place a chart.<br>" +
-				                  "Step 4: A \"New Chart\" window will pop up, use it to specify the type of chart and its settings.<br>" +
-				                  "Repeat steps 3 and 4 to create more charts.<br><br>" +
-				                  "Use your scroll wheel to rewind or fast forward.<br>" +
-				                  "Use your scroll wheel while holding down Ctrl to zoom in or out.<br>" +
-				                  "Use your scroll wheel while holding down Shift to adjust display scaling.<br><br>" +
-				                  "Click the \"X\" icon at the top-right corner of any chart to remove it, or click the \"Reset\" button to remove all charts.<br>" +
-				                  "Click the \"Save Layout\" button to save your current configuration (port settings, data structure, and chart settings) to a file.<br>" +
-				                  "Click the \"Open Layout\" button to open a layout file.<br><br>" +
-				                  "Click the \"Export CSV Log\" button to save all of your acquired samples to a CSV file.<br><br>" +
-				                  "This software is free and open source.<br>" +
-				                  "Author: Farrell Farahbod <a href=\"http://www.farrellf.com/TelemetryViewer/\">http://www.farrellf.com/TelemetryViewer/</a></html>";
-				JLabel helpLabel = new JLabel(helpText);
-				JOptionPane.showMessageDialog(parentWindow, helpLabel, "Help", JOptionPane.PLAIN_MESSAGE);
-			}
+		helpButton.addActionListener(event -> {
+			
+			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+			String helpText = "<html><b>Telemetry Viewer v0.3 (2017-02-11)</b><br>" +
+			                  "A fast and simple tool for visualizing data received over a UART.<br><br>" +
+			                  "Step 1: Use the controls at the lower-right corner of the main window to connect to a serial port.<br>" +
+			                  "Step 2: A \"Data Structure\" window will pop up, use it to specify how your data is laid out, then click \"Done\"<br>" +
+			                  "Step 3: Click-and-drag in the grid region to place a chart.<br>" +
+			                  "Step 4: A \"New Chart\" window will pop up, use it to specify the type of chart and its settings.<br>" +
+			                  "Repeat steps 3 and 4 to create more charts.<br><br>" +
+			                  "Use your scroll wheel to rewind or fast forward.<br>" +
+			                  "Use your scroll wheel while holding down Ctrl to zoom in or out.<br>" +
+			                  "Use your scroll wheel while holding down Shift to adjust display scaling.<br><br>" +
+			                  "Click the \"X\" icon at the top-right corner of any chart to remove it, or click the \"Reset\" button to remove all charts.<br>" +
+			                  "Click the \"Save Layout\" button to save your current configuration (port settings, data structure, and chart settings) to a file.<br>" +
+			                  "Click the \"Open Layout\" button to open a layout file.<br><br>" +
+			                  "Click the \"Export CSV Log\" button to save all of your acquired samples to a CSV file.<br><br>" +
+			                  "This software is free and open source.<br>" +
+			                  "Author: Farrell Farahbod <a href=\"http://www.farrellf.com/TelemetryViewer/\">http://www.farrellf.com/TelemetryViewer/</a></html>";
+			JLabel helpLabel = new JLabel(helpText);
+			JOptionPane.showMessageDialog(parentWindow, helpLabel, "Help", JOptionPane.PLAIN_MESSAGE);
+
 		});
 		
 		columnsTextfield = new JTextField(Integer.toString(Controller.getGridColumns()), 3);
@@ -181,6 +175,12 @@ public class ControlsRegion extends JPanel {
 		for(Packet packet : Controller.getPacketTypes())
 			packetTypeCombobox.addItem(packet);
 		packetTypeCombobox.setMaximumSize(packetTypeCombobox.getPreferredSize());
+		packetTypeCombobox.addActionListener(event -> {
+		
+			if(packetTypeCombobox.getSelectedItem() != Model.packet)
+				Controller.removeAllDatasets();
+			
+		});
 		
 		portNamesCombobox = new JComboBox<String>();
 		for(String portName : Controller.getSerialPortNames())
@@ -255,46 +255,45 @@ public class ControlsRegion extends JPanel {
 		});
 		
 		connectButton = new JButton("Connect");
-		connectButton.addActionListener(new ActionListener() {
-			@Override public void actionPerformed(ActionEvent arg0) {
-				if(connectButton.getText().equals("Connect")) {
-					
-					if(portNamesCombobox.getSelectedItem() == null) {
-						JOptionPane.showMessageDialog(null, "Error: No port name specified.", "Error", JOptionPane.ERROR_MESSAGE);
-						return;
-					}
-					
-					int sampleRate = Integer.parseInt(sampleRateTextfield.getText());
-					Packet packet = (Packet) packetTypeCombobox.getSelectedItem();
-					String portName = portNamesCombobox.getSelectedItem().toString();
-					int baudRate = (int) baudRatesCombobox.getSelectedItem();
-					
-					openLayoutButton.setEnabled(false);
-					saveLayoutButton.setEnabled(false);
-					sampleRateTextfield.setEnabled(false);
-					packetTypeCombobox.setEnabled(false);
-					portNamesCombobox.setEnabled(false);
-					baudRatesCombobox.setEnabled(false);
-					connectButton.setEnabled(false);
-					
-					JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-					Controller.connectToSerialPort(sampleRate, packet, portName, baudRate, parentWindow);
-					
-				} else if(connectButton.getText().equals("Disconnect")) {
-					
-					openLayoutButton.setEnabled(false);
-					saveLayoutButton.setEnabled(false);
-					sampleRateTextfield.setEnabled(false);
-					packetTypeCombobox.setEnabled(false);
-					portNamesCombobox.setEnabled(false);
-					baudRatesCombobox.setEnabled(false);
-					connectButton.setEnabled(false);
-					
-					Controller.disconnectFromSerialPort();
-					
+		connectButton.addActionListener(event -> {
+			
+			if(connectButton.getText().equals("Connect")) {
+				
+				if(portNamesCombobox.getSelectedItem() == null) {
+					JOptionPane.showMessageDialog(null, "Error: No port name specified.", "Error", JOptionPane.ERROR_MESSAGE);
+					return;
 				}
-					
+				
+				int sampleRate = Integer.parseInt(sampleRateTextfield.getText());
+				Packet packet = (Packet) packetTypeCombobox.getSelectedItem();
+				String portName = portNamesCombobox.getSelectedItem().toString();
+				int baudRate = (int) baudRatesCombobox.getSelectedItem();
+				
+				openLayoutButton.setEnabled(false);
+				saveLayoutButton.setEnabled(false);
+				sampleRateTextfield.setEnabled(false);
+				packetTypeCombobox.setEnabled(false);
+				portNamesCombobox.setEnabled(false);
+				baudRatesCombobox.setEnabled(false);
+				connectButton.setEnabled(false);
+				
+				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+				Controller.connectToSerialPort(sampleRate, packet, portName, baudRate, parentWindow);
+				
+			} else if(connectButton.getText().equals("Disconnect")) {
+				
+				openLayoutButton.setEnabled(false);
+				saveLayoutButton.setEnabled(false);
+				sampleRateTextfield.setEnabled(false);
+				packetTypeCombobox.setEnabled(false);
+				portNamesCombobox.setEnabled(false);
+				baudRatesCombobox.setEnabled(false);
+				connectButton.setEnabled(false);
+				
+				Controller.disconnectFromSerialPort();
+				
 			}
+
 		});
 		
 		// show the components
