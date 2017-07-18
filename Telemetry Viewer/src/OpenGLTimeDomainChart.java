@@ -142,14 +142,22 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// sync the widgets with the current chart state
 		datasetsWidget.setDatasets(this.datasets);
+		datasetsWidget.sanityCheck();
 		sampleCountWidget.setInteger(sampleCount);
+		sampleCountWidget.sanityCheck();
 		minMaxWidget.setMin(autoscaleYmin, manualYmin);
 		minMaxWidget.setMax(autoscaleYmax, manualYmax);
+		minMaxWidget.sanityCheck();
 		showXaxisTitleWidget.setChecked(showXaxisTitle);
+		showXaxisTitleWidget.sanityCheck();
 		showXaxisScaleWidget.setChecked(showXaxisScale);
+		showXaxisScaleWidget.sanityCheck();
 		showYaxisTitleWidget.setChecked(showYaxisTitle);
+		showYaxisTitleWidget.sanityCheck();
 		showYaxisScaleWidget.setChecked(showYaxisScale);
+		showYaxisScaleWidget.sanityCheck();
 		showLegendWidget.setChecked(showLegend);
+		showLegendWidget.sanityCheck();
 		
 	}
 	

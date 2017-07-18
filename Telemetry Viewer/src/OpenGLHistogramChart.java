@@ -210,19 +210,29 @@ public class OpenGLHistogramChart extends PositionedChart {
         
 		// sync the widgets with the current chart state
 		datasetsWidget.setDatasets(this.datasets);
+		datasetsWidget.sanityCheck();
 		sampleCountWidget.setInteger(sampleCount);
+		sampleCountWidget.sanityCheck();
 		binCountWidget.setInteger(binCount);
+		binCountWidget.sanityCheck();
 		xAxisTypeWidget.setAxisType(xAxisIsCentered, xCenterValue);
 		xAxisTypeWidget.setAxisMin(xAutoscaleMin, manualMinX);
 		xAxisTypeWidget.setAxisMax(xAutoscaleMax, manualMaxX);
+		xAxisTypeWidget.sanityCheck();
 		yAxisTypeWidget.setAxisType(yAxisShowsRelativeFrequency, yAxisShowsFrequency);
 		yAxisTypeWidget.setAxisMin(yMinimumIsZero, manualMinY);
 		yAxisTypeWidget.setAxisMax(yAutoscaleMax, manualMaxY);
+		yAxisTypeWidget.sanityCheck();
 		showXaxisTitleWidget.setChecked(showXaxisTitle);
+		showXaxisTitleWidget.sanityCheck();
 		showXaxisScaleWidget.setChecked(showXaxisScale);
+		showXaxisScaleWidget.sanityCheck();
 		showYaxisTitleWidget.setChecked(showYaxisTitle);
+		showYaxisTitleWidget.sanityCheck();
 		showYaxisScaleWidget.setChecked(showYaxisScale);
+		showYaxisScaleWidget.sanityCheck();
 		showLegendWidget.setChecked(showLegend);
+		showLegendWidget.sanityCheck();
 		
 	}
 	

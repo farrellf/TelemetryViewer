@@ -49,24 +49,24 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 		maxTextfield = new JTextField(Float.toString(defaultMax));
 		maxTextfield.setEnabled(false);
 		maxTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
 		
 		maxCheckbox = new JCheckBox("Automatic");
 		maxCheckbox.setSelected(true);
-		maxCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		maxCheckbox.addActionListener(event -> sanityCheck());
 		
 		minTextfield = new JTextField(Float.toString(defaultMin));
 		minTextfield.setEnabled(false);
 		minTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
 		minCheckbox = new JCheckBox("Automatic");
 		minCheckbox.setSelected(true);
-		minCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		minCheckbox.addActionListener(event -> sanityCheck());
 
 		setLayout(new GridLayout(2, 2, 10, 10));
 		
@@ -88,16 +88,17 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 		add(new JLabel(labelPrefix + " Minimum: "));
 		add(minPanel);
 		
-		checkAndNotifyHandlers();
+		sanityCheck();
 		
 	}
 	
 	/**
 	 * Ensures that both values are within the allowed range, and that minimum < maximum.
 	 * Disables min/max textfields if they are autoscaled.
+	 * 
 	 * Notifies all handlers.
 	 */
-	private void checkAndNotifyHandlers() {
+	public void sanityCheck() {
 		
 		try {
 			

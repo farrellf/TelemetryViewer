@@ -86,19 +86,19 @@ public class WidgetHistogramYaxisType extends JPanel {
 		this.minHandler = minEventHandler;
 		this.maxHandler = maxEventHandler;
 		
-		axisTypeCombobox.addActionListener(event -> checkAndNotifyHandlers());
+		axisTypeCombobox.addActionListener(event -> sanityCheck());
 		
-		maxCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		maxCheckbox.addActionListener(event -> sanityCheck());
 		
-		minCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		minCheckbox.addActionListener(event -> sanityCheck());
 		
 		maxTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
 		
 		minTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
@@ -123,16 +123,17 @@ public class WidgetHistogramYaxisType extends JPanel {
 		add(minLabel);
 		add(minPanel);
 		
-		checkAndNotifyHandlers();
+		sanityCheck();
 		
 	}
 	
 	/**
 	 * Ensures the min and max values are within the allowed range, and that minimum < maximum.
 	 * Renames/disables the min and max textboxes depending on the axis type and autoscaling.
+	 * 
 	 * Notifies all handlers.
 	 */
-	private void checkAndNotifyHandlers() {
+	public void sanityCheck() {
 		
 		String axisType = axisTypeCombobox.getSelectedItem().toString();
 		

@@ -39,20 +39,20 @@ public class WidgetTextfieldInteger extends JPanel {
 		
 		textfield = new JTextField(Integer.toString(defaultValue));
 		textfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandler(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { textfield.selectAll(); }
 		});
 		
 		add(textfield);
 
-		checkAndNotifyHandler();
+		sanityCheck();
 		
 	}
 	
 	/**
 	 * Ensures the number is within the allowed range, then notifies the handlers.
 	 */
-	private void checkAndNotifyHandler() {
+	public void sanityCheck() {
 		
 		try {
 			

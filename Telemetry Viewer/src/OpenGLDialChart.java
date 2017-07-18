@@ -136,13 +136,20 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		// sync the widgets with the current chart state
 		datasetWidget.setDataset(this.datasets[0]);
+		datasetWidget.sanityCheck();
 		sampleCountWidget.setInteger(sampleCount);
+		sampleCountWidget.sanityCheck();
 		minMaxWidget.setMin(autoscaleMin, manualMin);
 		minMaxWidget.setMax(autoscaleMax, manualMax);
+		minMaxWidget.sanityCheck();
 		showReadingLabelWidget.setChecked(showReadingLabel);
+		showReadingLabelWidget.sanityCheck();
 		showDatasetLabelWidget.setChecked(showDatasetLabel);
+		showDatasetLabelWidget.sanityCheck();
 		showMinMaxLabelsWidget.setChecked(showMinMaxLabels);
+		showMinMaxLabelsWidget.sanityCheck();
 		showStatisticsWidget.setChecked(showStatistics);
+		showStatisticsWidget.sanityCheck();
 		
 	}
 	

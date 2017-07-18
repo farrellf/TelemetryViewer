@@ -46,5 +46,15 @@ public class WidgetEnumeration extends JPanel {
 				combobox.setSelectedIndex(i);
 		
 	}
+	
+	/**
+	 * Ensures the widget is in a consistent state, then calls the event handler.
+	 */
+	public void sanityCheck() {
+		
+		// nothing to check, just call the event handler
+		handler.accept((String) combobox.getSelectedItem());
+		
+	}
 
 }

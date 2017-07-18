@@ -30,7 +30,7 @@ public class WidgetDataset extends JPanel {
 		add(new JLabel(labelText + ": "));
 		add(combobox);
 		
-		eventHandler.accept(new Dataset[] {(Dataset) combobox.getSelectedItem()});
+		handler.accept(new Dataset[] {(Dataset) combobox.getSelectedItem()});
 		
 	}
 	
@@ -43,6 +43,18 @@ public class WidgetDataset extends JPanel {
 	public void setDataset(Dataset dataset) {
 		
 		combobox.setSelectedItem(dataset);
+		
+	}
+	
+	/**
+	 * Ensures the widget is in a consistent state, then calls the event handler.
+	 */
+	public void sanityCheck() {
+		
+		if(combobox.getSelectedIndex() < 0)
+			combobox.setSelectedIndex(0);
+		
+		handler.accept(new Dataset[] {(Dataset) combobox.getSelectedItem()});
 		
 	}
 

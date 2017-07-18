@@ -86,5 +86,15 @@ public class WidgetDatasets extends JPanel {
 			datasetsMap.get(dataset).setSelected(true);
 		
 	}
+	
+	/**
+	 * Ensures the widget is in a consistent state, then calls the event handler.
+	 */
+	public void sanityCheck() {
+		
+		// nothing to check, just call the event handler
+		notifyHandler();
+		
+	}
 
 }

@@ -67,10 +67,15 @@ public class OpenGLQuaternionChart extends PositionedChart {
         
 		// sync the widgets with the current chart state
 		q0Widget.setDataset(this.datasets[0]);
+		q0Widget.sanityCheck();
 		q1Widget.setDataset(this.datasets[1]);
+		q1Widget.sanityCheck();
 		q2Widget.setDataset(this.datasets[2]);
+		q2Widget.sanityCheck();
 		q3Widget.setDataset(this.datasets[3]);
+		q3Widget.sanityCheck();
 		showTextLabelWidget.setChecked(showTextLabel);
+		showTextLabelWidget.sanityCheck();
 		
 	}
 	

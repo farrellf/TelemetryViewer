@@ -186,18 +186,27 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		// sync the widgets with the current chart state
 		datasetsWidget.setDatasets(this.datasets);
+		datasetsWidget.sanityCheck();
 		typeWidget.setSampleCount(sampleCount);
 		typeWidget.setTotalSampleCount(totalSampleCount);
 		typeWidget.setRowCount(waveformRowCount);
 		typeWidget.setType(chartType);
+		typeWidget.sanityCheck();
 		minMaxWidget.setMin(autoscaleMinPower, manualMinPower);
 		minMaxWidget.setMax(autoscaleMaxPower, manualMaxPower);
+		minMaxWidget.sanityCheck();
 		showXaxisTitleWidget.setChecked(showXaxisTitle);
+		showXaxisTitleWidget.sanityCheck();
 		showXaxisScaleWidget.setChecked(showXaxisScale);
+		showXaxisScaleWidget.sanityCheck();
 		showYaxisTitleWidget.setChecked(showYaxisTitle);
+		showYaxisTitleWidget.sanityCheck();
 		showYaxisScaleWidget.setChecked(showYaxisScale);
+		showYaxisScaleWidget.sanityCheck();
 		showLegendWidget.setChecked(showLegend);
+		showLegendWidget.sanityCheck();
 		showDftInfoWidget.setChecked(showDftInfo);
+		showDftInfoWidget.sanityCheck();
 		
 	}
 	

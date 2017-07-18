@@ -77,30 +77,30 @@ public class WidgetHistogramXaxisType extends JPanel {
 		this.maxHandler = maxEventHandler;
 		this.centerHandler = centerEventHandler;
 		
-		maxCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		maxCheckbox.addActionListener(event -> sanityCheck());
 		
-		minCheckbox.addActionListener(event -> checkAndNotifyHandlers());
+		minCheckbox.addActionListener(event -> sanityCheck());
 		
 		maxTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
 		
 		minTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
 		centerTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { centerTextfield.selectAll(); }
 		});
 		
 		setLayout(new GridLayout(3, 2, 10, 10));
 		
-		axisTypeCombobox.addActionListener(event -> checkAndNotifyHandlers());
+		axisTypeCombobox.addActionListener(event -> sanityCheck());
 		
-		checkAndNotifyHandlers();
+		sanityCheck();
 		
 	}
 	
@@ -108,9 +108,10 @@ public class WidgetHistogramXaxisType extends JPanel {
 	 * Ensures the min and max values are within the allowed range, and that minimum < maximum.
 	 * Ensures the center value is within the allowed range.
 	 * Shows/hides/disables widgets based on the selected axis type and autoscale selections.
+	 * 
 	 * Notifies all handlers.
 	 */
-	private void checkAndNotifyHandlers() {
+	public void sanityCheck() {
 		
 		// sanity check the min and max
 		try {

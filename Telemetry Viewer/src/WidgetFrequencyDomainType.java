@@ -85,23 +85,23 @@ public class WidgetFrequencyDomainType extends JPanel {
 		add(rowCountTextfield);
 		
 		sampleCountTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { sampleCountTextfield.selectAll(); }
 		});
 		
 		totalSampleCountTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { totalSampleCountTextfield.selectAll(); }
 		});
 		
 		rowCountTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { checkAndNotifyHandlers(); }
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { rowCountTextfield.selectAll(); }
 		});
 		
-		typeCombobox.addActionListener(event -> checkAndNotifyHandlers());
+		typeCombobox.addActionListener(event -> sanityCheck());
 		
-		checkAndNotifyHandlers();
+		sanityCheck();
 		
 	}
 	
@@ -117,7 +117,7 @@ public class WidgetFrequencyDomainType extends JPanel {
 	 * 
 	 * Notifies all handlers.
 	 */
-	private void checkAndNotifyHandlers() {
+	public void sanityCheck() {
 		
 		// sanity check the sample count and total sample count
 		try {
