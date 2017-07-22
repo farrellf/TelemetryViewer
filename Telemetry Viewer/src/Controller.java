@@ -355,7 +355,10 @@ public class Controller {
 			
 		port = SerialPort.getCommPort(portName);
 		port.setBaudRate(baudRate);
-		port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
+		if(packet instanceof CsvPacket)
+			port.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
+		else if(packet instanceof BinaryPacket)
+			port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
 		
 		// try 3 times before giving up
 		if(!port.openPort()) {
