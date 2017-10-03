@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -231,7 +232,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 
 		// calculate domain
 		int totalSampleCount = lastSampleNumber + 1;
@@ -498,6 +499,34 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		
 		// stop clipping to the plot region
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
+		
+		// draw the tooltip if the mouse is in the plot region
+		if(datasets.length > 0 && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+			int sampleNumber = Math.round(((float) mouseX - xPlotLeft) / plotWidth * domain + plotMinX);
+			if(sampleNumber >= 0) {
+				String[] text = new String[datasets.length + 1];
+				Color[] colors = new Color[datasets.length + 1];
+				text[0] = "Sample " + sampleNumber;
+				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+				for(int i = 0; i < datasets.length; i++) {
+					float y = datasets[i].getSample(sampleNumber);
+					text[i + 1] = ChartUtils.formattedNumber(y, 5) + " " + datasets[i].unit;
+					colors[i + 1] = datasets[i].color;
+				}
+				float anchorX = ((float) sampleNumber - plotMinX) / domain * plotWidth + xPlotLeft;
+				if(datasets.length > 1) {
+					gl.glBegin(GL2.GL_LINES);
+					gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
+						gl.glVertex2f(anchorX, yPlotTop);
+						gl.glVertex2f(anchorX, yPlotBottom);
+					gl.glEnd();
+					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+				} else {
+					int anchorY = (int) ((datasets[0].getSample(sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom);
+					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+				}
+			}
+		}
 		
 		// draw the plot border
 		gl.glBegin(GL2.GL_LINE_LOOP);

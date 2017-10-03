@@ -10,6 +10,7 @@ import com.jogamp.opengl.GL2;
 public class OpenGLFrequencyDomainCache {
 
 	float[][][] dfts;               // [datasetN][dftN][binN]
+	int[][][] histogram;            // used by waveform view, [datasetN][binN][powerBinN]
 	int[][] firstSampleNumberOfDft; // [datasetN][dftN]
 	int previousDftWindowLength;
 	int previousTotalSampleCount;
@@ -20,6 +21,9 @@ public class OpenGLFrequencyDomainCache {
 	float maxHz;
 	float minPower;
 	float maxPower;
+	
+	double binSizeHz;
+	int binCount;	
 	
 	int firstDft;
 	int lastDft;
@@ -232,6 +236,81 @@ public class OpenGLFrequencyDomainCache {
 	}
 	
 	/**
+	 * This should only be called after calculateDfts().
+	 * 
+	 * @return    The bin size, in Hertz.
+	 */
+	public double getBinSizeHz() {
+		
+		return binSizeHz;
+		
+	}
+	
+	/**
+	 * This should only be called after calculateDfts().
+	 * 
+	 * @return    The number of bins.
+	 */
+	public int getBinCount() {
+		
+		return binCount;
+		
+	}
+	
+	/**
+	 * This should only be called after calculateDfts().
+	 * 
+	 * @param binN    The bin number.
+	 * @return        A float[] containing the bin values (one value per dataset) for that bin number.
+	 */
+	public float[] getBinValuesForLiveView(int binN) {
+		
+		float[] binValues = new float[dfts.length];
+		for(int datasetN = 0; datasetN < binValues.length; datasetN++)
+			binValues[datasetN] = dfts[datasetN][0][(2 * binN) + 1];
+		
+		return binValues;
+		
+	}
+	
+	/**
+	 * This should only be called after calculateDfts() and renderWaveformView().
+	 * 
+	 * @param binN         The frequency bin number.
+	 * @param powerBinN    The power bin number.
+	 * @return             An int[] containing the number of DFTs that occupy that bin (one number per dataset.)
+	 */
+	public int[] getBinValuesForWaveformView(int binN, int powerBinN) {
+		
+		int[] binCounts = new int[dfts.length];
+		for(int datasetN = 0; datasetN < binCounts.length; datasetN++)
+			binCounts[datasetN] = histogram[datasetN][binN][powerBinN];
+		
+		return binCounts;
+		
+	}
+	
+	/**
+	 * This should only be called after calculateDfts().
+	 * 
+	 * @param binN    The bin number.
+	 * @param rowN    The waterfall row (DFT number) to query.
+	 * @return        A float[] containing the bin values (one value per dataset) for that bin number / row number combination.
+	 */
+	public float[] getBinValuesForWaterfallView(int binN, int rowN) {
+		
+		// map rowN to a row in the dfts[][][] array because it is a ringbuffer
+		int row = (lastDft - rowN) % dfts[0].length;
+		
+		float[] binValues = new float[dfts.length];
+		for(int datasetN = 0; datasetN < binValues.length; datasetN++)
+			binValues[datasetN] = dfts[datasetN][row][binN];
+		
+		return binValues;
+		
+	}
+	
+	/**
 	 * Draws a Live View on screen. "Live View" is a line chart of a single DFT.
 	 * The x-axis is frequency, the y-axis is power.
 	 * 
@@ -368,7 +447,7 @@ public class OpenGLFrequencyDomainCache {
 		// calculate a 2D histogram for each dataset
 		int datasetsCount = datasets.length;
 		int xBinCount = dfts[0][0].length;
-		int[][][] histogram = new int[datasetsCount][xBinCount][rowCount];
+		histogram = new int[datasetsCount][xBinCount][rowCount];
 		for(int dataset = 0; dataset < datasetsCount; dataset++) {
 			for(int dft = firstDft; dft <= lastDft; dft++) {
 				for(int xBin = 0; xBin < xBinCount; xBin++) {
@@ -654,12 +733,12 @@ public class OpenGLFrequencyDomainCache {
 		// example: 500ms window -> 1/0.5 = 2 Hz bin size
 		double samplesPerSecond = sampleRate;
 		int sampleCount = samples.length;
-		double binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
+		binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
 		
 		// maximum frequency range (in Hertz) is from 0 to the sample rate (in Hertz), divided by 2
 		// example: sampling at 1kHz -> 0 Hz to 1000/2 = 500 Hz
 		double maxFrequencyHz = samplesPerSecond / 2.0;
-		int binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
+		binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
 		
 		// generate the sine and cosine LUTs
 		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {
@@ -721,12 +800,12 @@ public class OpenGLFrequencyDomainCache {
 		// example: 500ms window -> 1/0.5 = 2 Hz bin size
 		double samplesPerSecond = sampleRate;
 		int sampleCount = samples.length;
-		double binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
+		binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
 		
 		// maximum frequency range (in Hertz) is from 0 to the sample rate (in Hertz), divided by 2
 		// example: sampling at 1kHz -> 0 Hz to 1000/2 = 500 Hz
 		double maxFrequencyHz = samplesPerSecond / 2.0;
-		int binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
+		binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
 		
 		// generate the sine and cosine LUTs
 		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {

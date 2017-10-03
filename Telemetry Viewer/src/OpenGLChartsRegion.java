@@ -330,7 +330,7 @@ public class OpenGLChartsRegion extends JPanel {
 					
 					FontUtils.setOffsets(xOffset, yOffset);
 					int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
-					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel);
+					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
 					
 					gl.glPopMatrix();

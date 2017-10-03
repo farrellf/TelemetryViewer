@@ -114,7 +114,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// don't draw if there are no samples
 		if(lastSampleNumber < 1)

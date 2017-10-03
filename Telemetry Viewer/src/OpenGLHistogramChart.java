@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.util.Map;
 
 import javax.swing.JPanel;
@@ -334,7 +335,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
@@ -778,6 +779,35 @@ public class OpenGLHistogramChart extends PositionedChart {
 
 		// stop clipping to the plot region
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
+		
+		// draw the tooltip if the mouse is in the plot region
+		if(haveDatasets && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+			int binN = Math.round(((float) mouseX - xPlotLeft) / plotWidth * binCount);
+			if(binN > binCount - 1)
+				binN = binCount - 1;
+			float min = minX + (binSize *  binN);      // inclusive
+			float max = minX + (binSize * (binN + 1)); // exclusive
+			String[] text = new String[datasets.length + 1];
+			Color[] colors = new Color[datasets.length + 1];
+			text[0] = ChartUtils.formattedNumber(min, 5) + " to " + ChartUtils.formattedNumber(max, 5) + " " + datasets[0].unit;
+			colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+			for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
+				text[datasetN + 1] = bins[datasetN][binN] + " samples (" + ChartUtils.formattedNumber((double) bins[datasetN][binN] / (double) sampleCount * 100f, 4) + "%)";
+				colors[datasetN + 1] = datasets[datasetN].color;
+			}
+			float xBarCenter = ((binSize *  binN) + (binSize * (binN + 1))) / 2f / range * plotWidth + xPlotLeft;
+			if(datasets.length > 1) {
+				gl.glBegin(GL2.GL_LINES);
+				gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
+					gl.glVertex2f(xBarCenter, yPlotTop);
+					gl.glVertex2f(xBarCenter, yPlotBottom);
+				gl.glEnd();
+				ChartUtils.drawTooltip(gl, text, colors, (int) xBarCenter, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+			} else {
+				int anchorY = (int) (((float) bins[0][binN] - minYfreq) / yFreqRange * plotHeight + yPlotBottom);
+				ChartUtils.drawTooltip(gl, text, colors, (int) xBarCenter, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);				
+			}
+		}
 		
 		// draw the plot border
 		gl.glBegin(GL2.GL_LINE_LOOP);

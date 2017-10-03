@@ -1,9 +1,12 @@
+import java.awt.Color;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+
+import com.jogamp.opengl.GL2;
 
 public class ChartUtils {
 
@@ -453,6 +456,393 @@ public class ChartUtils {
 			
 			e.printStackTrace();
 			return null;
+			
+		}
+		
+	}
+	
+	/**
+	 * Draws a tooltip. An anchor point specifies where the tooltip should point to.
+	 * 
+	 * @param gl              The OpenGL context.
+	 * @param text            Array of text to show.
+	 * @param color           Corresponding array of colors to show at the left of each line of text.
+	 * @param anchorX         X location to point to.
+	 * @param anchorY         Y location to point to.
+	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
+	 * @param topLeftY        Allowed bounding box's top-left y coordinate.
+	 * @param bottomRightX    Allowed bounding box's bottom-right x coordinate.
+	 * @param bottomRightY    Allowed bounding box's bottom-right y coordinate.
+	 */
+	public static void drawTooltip(GL2 gl, String[] text, Color[] colors, int anchorX, int anchorY, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
+			
+		final int NORTH      = 0;
+		final int SOUTH      = 1;
+		final int WEST       = 2;
+		final int EAST       = 3;
+		final int NORTH_WEST = 4;
+		final int NORTH_EAST = 5;
+		final int SOUTH_WEST = 6;
+		final int SOUTH_EAST = 7;
+		
+		float padding = 6f * Controller.getDisplayScalingFactor();
+		
+		float maxTextWidth = FontUtils.tickTextWidth(text[0]);
+		for(int i = 1; i < text.length; i++)
+			if(FontUtils.tickTextWidth(text[i]) > maxTextWidth)
+				maxTextWidth = FontUtils.tickTextWidth(text[i]);
+		float textHeight = FontUtils.tickTextHeight;
+		
+		float boxWidth = textHeight + Theme.tooltipTextPadding + maxTextWidth + (2 * padding);
+		float boxHeight = text.length * (textHeight + padding) + padding;
+		
+		// decide which orientation to draw the tooltip in, or return if there is not enough space
+		int orientation = NORTH;
+		if(anchorY + padding + boxHeight < topLeftY) {
+			// there is space above the anchor, so use NORTH or NORTH_WEST or NORTH_EAST if there is enough horizontal space
+			if(anchorX - (boxWidth / 2f) > topLeftX && anchorX + (boxWidth / 2f) < bottomRightX)
+				orientation = NORTH;
+			else if(anchorX - boxWidth > topLeftX && anchorX < bottomRightX)
+				orientation = NORTH_WEST;
+			else if(anchorX > topLeftX && anchorX + boxWidth < bottomRightX)
+				orientation = NORTH_EAST;
+			else
+				return;
+		} else if(anchorY + (boxHeight / 2f) < topLeftY && anchorY - (boxHeight / 2f) > bottomRightY) {
+			// there is some space above and below the anchor, so use WEST or EAST if there is enough horizontal space
+			if(anchorX - padding - boxWidth > topLeftX)
+				orientation = WEST;
+			else if(anchorX + padding + boxWidth < bottomRightX)
+				orientation = EAST;
+			else
+				return;
+		} else if(anchorY - padding - boxHeight > bottomRightY) {
+			// there is space below the anchor, so use SOUTH or SOUTH_WEST or SOUTH_EAST if there is enough horizontal space
+			if(anchorX - (boxWidth / 2f) > topLeftX && anchorX + (boxWidth / 2f) < bottomRightX)
+				orientation = SOUTH;
+			else if(anchorX - boxWidth > topLeftX && anchorX < bottomRightX)
+				orientation = SOUTH_WEST;
+			else if(anchorX > topLeftX && anchorX + boxWidth < bottomRightX)
+				orientation = SOUTH_EAST;
+			else
+				return;
+		} else {
+			// there is not enough space anywhere
+			return;
+		}
+		
+		// draw the tooltip
+		if(orientation == NORTH) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == SOUTH) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX - (padding / 2f), anchorY - padding);
+				gl.glVertex2f(anchorX + (padding / 2f), anchorY - padding);
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding);
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding);
+				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding);
+				gl.glVertex2f(anchorX + (padding / 2f), anchorY - padding);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX - (padding / 2f), anchorY - padding);
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == WEST) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX - padding, anchorY + (padding / 2f));
+				gl.glVertex2f(anchorX - padding, anchorY - (padding / 2f));
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX - padding - boxWidth, anchorY + (boxHeight / 2f));
+				gl.glVertex2f(anchorX - padding - boxWidth, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX - padding, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX - padding, anchorY + (boxHeight / 2f));
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX - padding - boxWidth, anchorY + (boxHeight / 2f));
+				gl.glVertex2f(anchorX - padding - boxWidth, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX - padding, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX - padding, anchorY - (padding / 2f));
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX - padding, anchorY + (padding / 2f));
+				gl.glVertex2f(anchorX - padding, anchorY + (boxHeight / 2f));
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX - boxWidth + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == EAST) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX + padding, anchorY - (padding / 2f));
+				gl.glVertex2f(anchorX + padding, anchorY + (padding / 2f));
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX + padding, anchorY + (boxHeight / 2f));
+				gl.glVertex2f(anchorX + padding, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX + padding + boxWidth, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX + padding + boxWidth, anchorY + (boxHeight / 2f));
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX + padding, anchorY + (boxHeight / 2f));
+				gl.glVertex2f(anchorX + padding, anchorY + (padding / 2f));
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX + padding, anchorY - (padding / 2f));
+				gl.glVertex2f(anchorX + padding, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX + padding + boxWidth, anchorY - (boxHeight / 2f));
+				gl.glVertex2f(anchorX + padding + boxWidth, anchorY + (boxHeight / 2f));
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX + (2f * padding) + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == NORTH_WEST) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX, anchorY + padding);
+				gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
+				gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
+				gl.glVertex2f(anchorX, anchorY + padding);
+				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
+				gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
+				gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == NORTH_EAST) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY + padding);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+				gl.glVertex2f(anchorX, anchorY + padding);
+				gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
+				gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
+				gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
+				gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == SOUTH_WEST) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX - (0.85f * padding), anchorY - padding);
+				gl.glVertex2f(anchorX, anchorY - padding);
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX - boxWidth, anchorY - padding);
+				gl.glVertex2f(anchorX - boxWidth, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX, anchorY - padding);
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX - boxWidth, anchorY - padding);
+				gl.glVertex2f(anchorX - boxWidth, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX - (0.85f * padding), anchorY - padding);
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
+			
+		} else if(orientation == SOUTH_EAST) {
+			
+			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+			gl.glBegin(GL2.GL_TRIANGLES);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX, anchorY - padding);
+				gl.glVertex2f(anchorX + (0.85f * padding), anchorY - padding);
+			gl.glEnd();
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glVertex2f(anchorX, anchorY - padding);
+				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + boxWidth, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + boxWidth, anchorY - padding);
+			gl.glEnd();
+			
+			gl.glColor4fv(Theme.tooltipBorderColor, 0);
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex2f(anchorX, anchorY);
+				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + boxWidth, anchorY - padding - boxHeight);
+				gl.glVertex2f(anchorX + boxWidth, anchorY - padding);
+				gl.glVertex2f(anchorX + (0.85f * padding), anchorY - padding);
+			gl.glEnd();
+			
+			// draw the text and color boxes
+			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
+			for(int i = 0; i < text.length; i++) {
+				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
+				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+				gl.glEnd();
+			}
 			
 		}
 		

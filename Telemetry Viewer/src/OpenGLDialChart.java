@@ -214,7 +214,7 @@ public class OpenGLDialChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;

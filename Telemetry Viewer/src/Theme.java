@@ -46,6 +46,12 @@ public class Theme {
 	public static Font  yAxisFont                 = new Font("Geneva", Font.BOLD, (int) (18.0 * Controller.getDisplayScalingFactor()));
 	public static Color yAxisFontColor            = Color.BLACK;
 	
+	// tooltips for the plot region
+	public static float[] tooltipBackgroundColor  = new float[] {1, 1, 1, 1};
+	public static float[] tooltipBorderColor      = new float[] {0, 0, 0, 1};
+	public static float[] tooltipVerticalBarColor = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float   tooltipTextPadding      = 5.0f * Controller.getDisplayScalingFactor();
+	
 	/**
 	 * Called by the Controller when the display scaling factor changes.
 	 * 
@@ -65,6 +71,7 @@ public class Theme {
 		legendFont         = new Font("Geneva", Font.BOLD, (int) (14.0 * newFactor));
 		xAxisFont          = new Font("Geneva", Font.BOLD, (int) (18.0 * newFactor));
 		yAxisFont          = new Font("Geneva", Font.BOLD, (int) (18.0 * newFactor));
+		tooltipTextPadding = 5.0f * newFactor;
 		
 	}
 

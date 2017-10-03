@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.util.Map;
 
 import javax.swing.JPanel;
@@ -289,7 +290,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel) {
+	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// scale the DFT window size by the current zoom level
 		int dftWindowLength = (int) (sampleCount * zoomLevel);
@@ -681,6 +682,93 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				cache.renderWaveformView((int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets, waveformRowCount);
 			else if(chartType.equals("Waterfall View"))
 				cache.renderWaterfallView((int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
+		}
+		
+		// draw the tooltip if the mouse is in the plot region
+		if(datasets.length > 0 && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+			// map mouseX to a frequency
+			double binSizeHz = cache.getBinSizeHz();
+			int binCount = cache.getBinCount();
+			int binN = (int) (((float) mouseX - xPlotLeft) / plotWidth * (binCount - 1) + 0.5f);
+			if(binN > binCount - 1)
+				binN = binCount - 1;
+			float frequency = (float) (binN * binSizeHz);
+			float anchorX = (frequency - plotMinX) / domain * plotWidth + xPlotLeft;
+			
+			String[] text = null;
+			Color[] colors = null;
+			int anchorY = 0;
+			
+			if(chartType.equals("Live View")) {
+				// for live view, get the power levels (one per dataset) for the mouseX frequency
+				float[] binValues = cache.getBinValuesForLiveView(binN);
+				text = new String[datasets.length + 1];
+				colors = new Color[datasets.length + 1];
+				text[0] = (int) frequency + " Hz";
+				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+				for(int i = 0; i < datasets.length; i++) {
+					text[i + 1] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
+					colors[i + 1] = datasets[i].color;
+				}
+				anchorY = (int) ((binValues[0] - plotMinY) / plotRange * plotHeight + yPlotBottom);
+			} else if(chartType.equals("Waveform View")) {
+				// map mouseY to a power bin
+				int powerBinN = Math.round(((float) mouseY - yPlotBottom) / plotHeight * waveformRowCount - 0.5f);
+				if(powerBinN > waveformRowCount - 1)
+					powerBinN = waveformRowCount - 1;
+				float minPower = (float) powerBinN / (float) waveformRowCount * (plotMaxPower - plotMinPower) + plotMinPower;
+				float maxPower = (float) (powerBinN + 1) / (float) waveformRowCount * (plotMaxPower - plotMinPower) + plotMinPower;
+				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);
+				// for waveform view, get the percentages (one per dataset) for the mouseX frequency and mouseY power range
+				int[] binCounts = cache.getBinValuesForWaveformView(binN, powerBinN);
+				text = new String[datasets.length + 1];
+				colors = new Color[datasets.length + 1];
+				text[0] = (int) frequency + " Hz, 1e" + ChartUtils.formattedNumber(minPower, 4) + " to 1e" + ChartUtils.formattedNumber(maxPower, 4) + " Watts";
+				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+				for(int i = 0; i < datasets.length; i++) {
+					text[i + 1] = binCounts[i] + " of " + windowCount + " DFTs (" + ChartUtils.formattedNumber((double) binCounts[i] / (double) windowCount * 100.0, 4) + "%)";
+					colors[i + 1] = datasets[i].color;
+				}
+				anchorY = (int) (((float) powerBinN + 0.5f) / (float) waveformRowCount * plotHeight + yPlotBottom);
+			} else if(chartType.equals("Waterfall View")) {
+				// map mouseY to a time
+				int waterfallRowCount = totalSampleCount / dftWindowLength;
+				int waterfallRowN = Math.round(((float) mouseY - yPlotBottom) / plotHeight * waterfallRowCount - 0.5f);
+				if(waterfallRowN > waterfallRowCount - 1)
+					waterfallRowN = waterfallRowCount - 1;
+				int trueLastSampleNumber = lastSampleNumber - (lastSampleNumber % dftWindowLength);
+				int rowLastSampleNumber = trueLastSampleNumber - (waterfallRowN * dftWindowLength) - 1;
+				int rowFirstSampleNumber = rowLastSampleNumber - dftWindowLength + 1;
+				if(rowFirstSampleNumber >= 0) {
+					text = new String[datasets.length + 2];
+					colors = new Color[datasets.length + 2];
+					// for waterfall view, get the power levels (one per dataset) for the mouseX frequency and mouseY time
+					float[] binValues = cache.getBinValuesForWaterfallView(binN, waterfallRowN);
+					float secondsElapsed = ((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotMaxTime;
+					text[0] = (int) frequency + " Hz, " + ChartUtils.formattedNumber(secondsElapsed, 4) + " Seconds Ago";
+					colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+					text[1] = "(Samples " + rowFirstSampleNumber + " to " + rowLastSampleNumber + ")";
+					colors[1] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+					for(int i = 0; i < datasets.length; i++) {
+						text[i + 2] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
+						colors[i + 2] = datasets[i].color;
+					}
+					anchorY = (int) (((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotHeight + yPlotBottom);
+				}
+			}
+
+			if(text != null && colors != null) {
+				if(datasets.length > 1 && chartType.equals("Live View")) {
+					gl.glBegin(GL2.GL_LINES);
+					gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
+						gl.glVertex2f(anchorX, yPlotTop);
+						gl.glVertex2f(anchorX, yPlotBottom);
+					gl.glEnd();
+					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+				} else {
+					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+				}
+			}
 		}
 
 		// draw the plot border
