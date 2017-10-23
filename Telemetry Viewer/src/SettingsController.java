@@ -248,7 +248,7 @@ public class SettingsController {
 	 */
 	public static void setFpsVisibility(boolean value) {
 		
-		Settings.antialiasing = value;
+		Settings.fpsVisibility = value;
 		notifyFpsVisibilityListeners();
 		
 	}

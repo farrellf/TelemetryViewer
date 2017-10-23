@@ -349,7 +349,24 @@ public class OpenGLChartsRegion extends JPanel {
 				chartToRemoveOnClick = chartToClose;
 				chartToConfigureOnClick = chartToConfigure;
 				
-//				System.out.println(String.format("%2.2fFPS, %2dms", animator.getLastFPS(), animator.getLastFPSPeriod()));
+				// show the FPS/period in the lower-left corner if enabled
+				if(SettingsController.getFpsVisibility()) {
+					String text = String.format("%2.1fFPS, %dms", animator.getLastFPS(), animator.getLastFPSPeriod());
+					int padding = 10;
+					float textHeight = FontUtils.xAxisTextHeight;
+					float textWidth = FontUtils.xAxisTextWidth(text);
+					gl.glColor4fv(Theme.neutralColor, 0);
+					gl.glBegin(GL2.GL_QUADS);
+						gl.glVertex2f(0, 0);
+						gl.glVertex2f(0, textHeight + padding * 2);
+						gl.glVertex2f(textWidth + padding * 2, textHeight + padding * 2);
+						gl.glVertex2f(textWidth + padding * 2, 0);
+					gl.glEnd();
+					FontUtils.setOffsets(0, 0);
+					FontUtils.drawXaxisText(text, padding, padding);
+					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+					System.out.println(text);
+				}
 				
 			}
 			

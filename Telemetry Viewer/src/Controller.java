@@ -491,8 +491,9 @@ public class Controller {
 			
 			outputFile.println("GUI Settings:");
 			outputFile.println("");
-			outputFile.println("\ttile column count = " + Settings.tileColumns);
-			outputFile.println("\ttile row count = " + Settings.tileRows);
+			outputFile.println("\ttile column count = " + SettingsController.getTileColumns());
+			outputFile.println("\ttile row count = " + SettingsController.getTileRows());
+			outputFile.println("\tshow fps and period = " + SettingsController.getFpsVisibility());
 			outputFile.println("");
 			
 			outputFile.println("Serial Port Settings:");
@@ -599,10 +600,12 @@ public class Controller {
 			
 			int tileColumns = (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
 			int tileRows = (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
+			boolean fpsVisibility = (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow fps and period = %b");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
 			SettingsController.setTileColumns(tileColumns);
 			SettingsController.setTileRows(tileRows);
+			SettingsController.setFpsVisibility(fpsVisibility);
 
 			ChartUtils.parse(n, lines.get(n++), "Serial Port Settings:");
 			ChartUtils.parse(n, lines.get(n++), "");

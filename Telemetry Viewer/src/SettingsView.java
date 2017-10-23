@@ -106,6 +106,7 @@ public class SettingsView extends JPanel {
 		// FPS
 		JCheckBox showFpsCheckbox = new JCheckBox("Show FPS and Period", SettingsController.getFpsVisibility());
 		showFpsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		showFpsCheckbox.addActionListener(event -> SettingsController.setFpsVisibility(showFpsCheckbox.isSelected()));
 		
 		SettingsController.addFpsVisibilityListener(newState -> showFpsCheckbox.setSelected(newState));
 		
