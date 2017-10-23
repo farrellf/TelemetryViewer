@@ -55,12 +55,12 @@ public class OpenGLChartsRegion extends JPanel {
 	
 	JFrame parentWindow;
 	
-	public OpenGLChartsRegion(ControlsRegion controlsRegion) {
+	public OpenGLChartsRegion(SettingsView settingsRegion, ControlsRegion controlsRegion) {
 		
 		super();
 		
-		columnCount = Controller.getGridColumns();
-		rowCount    = Controller.getGridRows();
+		columnCount = SettingsController.getTileColumns();
+		rowCount    = SettingsController.getTileRows();
 		
 		startX  = -1;
 		startY  = -1;
@@ -171,7 +171,7 @@ public class OpenGLChartsRegion extends JPanel {
 					float arrowTransparency = even ? transparency : 1 - transparency;
 					
 					// draw an arrow above the "Open Layout" button
-					float xCenterOfOpenLayoutButton = controlsRegion.getOpenLayoutButtonLocation();
+					float xCenterOfOpenLayoutButton = controlsRegion.getOpenLayoutButtonLocation() - settingsRegion.getWidth();
 					float xOpenLayoutArrowLeft = xCenterOfOpenLayoutButton - (arrowWidth / 2);
 					float xOpenLayoutArrowRight = xCenterOfOpenLayoutButton + (arrowWidth / 2);
 					float yOpenLayoutArrowBottom = arrowYoffset;
@@ -195,7 +195,7 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glEnd();
 					
 					// draw an arrow above the "Connect" button
-					float xCenterOfConnectButton = controlsRegion.getConnectButtonLocation();
+					float xCenterOfConnectButton = controlsRegion.getConnectButtonLocation() - settingsRegion.getWidth();
 					float xConnectArrowLeft = xCenterOfConnectButton - (arrowWidth / 2);
 					float xConnectArrowRight = xCenterOfConnectButton + (arrowWidth / 2);
 					float yConnectArrowBottom = arrowYoffset;
@@ -530,11 +530,9 @@ public class OpenGLChartsRegion extends JPanel {
 		});
 		
 		// update the column and row counts when they change
-		Controller.addGridChangedListener(new GridChangedListener() {
-			@Override public void gridChanged(int columns, int rows) {
-				columnCount = columns;
-				rowCount = rows;
-			}
+		SettingsController.addTileCountListener((columns, rows) -> {
+			columnCount = columns;
+			rowCount = rows;
 		});
 		
 		// track if a serial port is connected

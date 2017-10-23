@@ -8,17 +8,6 @@ import java.util.TreeMap;
 
 public class Model {
 	
-	// the grid is the area in the ChartsRegion where users can position and size the charts
-	final static int gridColumnsDefault = 8;
-	final static int gridColumnsMinimum = 1;
-	final static int gridColumnsMaximum = 20;
-	static int gridColumns = gridColumnsDefault;
-	
-	final static int gridRowsDefault = 8;
-	final static int gridRowsMinimum = 1;
-	final static int gridRowsMaximum = 20;
-	static int gridRows = gridRowsDefault;
-	
 	static Map<Integer, Dataset> datasets = Collections.synchronizedMap(new TreeMap<Integer, Dataset>());
 	static List<PositionedChart> charts = Collections.synchronizedList(new ArrayList<PositionedChart>());
 	static CsvPacket csvPacket = new CsvPacket();

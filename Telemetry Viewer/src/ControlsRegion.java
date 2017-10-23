@@ -5,7 +5,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.net.URI;
-
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -16,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
@@ -25,14 +25,12 @@ import javax.swing.border.EmptyBorder;
 @SuppressWarnings("serial")
 public class ControlsRegion extends JPanel {
 	
+	JToggleButton settingsButton;
 	JButton openLayoutButton;
 	JButton saveLayoutButton;
 	JButton exportCsvLogButton;
 	JButton resetButton;
 	JButton helpButton;
-	
-	JTextField columnsTextfield;
-	JTextField rowsTextfield;
 	
 	JTextField sampleRateTextfield;
 	JComboBox<Packet> packetTypeCombobox;
@@ -40,14 +38,21 @@ public class ControlsRegion extends JPanel {
 	JComboBox<Integer> baudRatesCombobox;
 	JButton connectButton;
 	
+	SettingsView settings;
+	
 	/**
 	 * Creates the panel of controls and registers their event handlers.
 	 */
-	public ControlsRegion() {
+	public ControlsRegion(SettingsView settingsView) {
 		
 		super();
+		settings = settingsView;
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		setBorder(new EmptyBorder(5, 5, 5, 5));
+		
+		settingsButton = new JToggleButton("Settings");
+		settingsButton.setSelected(settingsView.isVisible());
+		settingsButton.addActionListener(event -> settingsView.setVisible(settingsButton.isSelected()));
 		
 		openLayoutButton = new JButton("Open Layout");
 		openLayoutButton.addActionListener(event -> {
@@ -131,46 +136,6 @@ public class ControlsRegion extends JPanel {
 
 		});
 		
-		columnsTextfield = new JTextField(Integer.toString(Controller.getGridColumns()), 3);
-		columnsTextfield.setMinimumSize(columnsTextfield.getPreferredSize());
-		columnsTextfield.setMaximumSize(columnsTextfield.getPreferredSize());
-		columnsTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				try {
-					Controller.setGridColumns(Integer.parseInt(columnsTextfield.getText().trim()));
-				} catch(Exception e) {
-					columnsTextfield.setText(Integer.toString(Controller.getGridColumns()));
-				}
-			}
-			
-			@Override public void focusGained(FocusEvent fe) {
-				columnsTextfield.selectAll();
-			}
-		});
-		
-		rowsTextfield = new JTextField(Integer.toString(Controller.getGridRows()), 3);
-		rowsTextfield.setMinimumSize(rowsTextfield.getPreferredSize());
-		rowsTextfield.setMaximumSize(rowsTextfield.getPreferredSize());
-		rowsTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				try {
-					Controller.setGridRows(Integer.parseInt(rowsTextfield.getText().trim()));
-				} catch(Exception e) {
-					rowsTextfield.setText(Integer.toString(Controller.getGridRows()));
-				}
-			}
-			
-			@Override public void focusGained(FocusEvent fe) {
-				rowsTextfield.selectAll();
-			}
-		});
-		
-		Controller.addGridChangedListener(new GridChangedListener() {
-			@Override public void gridChanged(int columns, int rows) {
-				columnsTextfield.setText(Integer.toString(columns));
-				rowsTextfield.setText(Integer.toString(rows));
-			}
-		});
 		
 		sampleRateTextfield = new JTextField(Integer.toString(Controller.getSampleRate()), 4);
 		sampleRateTextfield.setMinimumSize(sampleRateTextfield.getPreferredSize());
@@ -315,6 +280,8 @@ public class ControlsRegion extends JPanel {
 		});
 		
 		// show the components
+		add(settingsButton);
+		add(Box.createHorizontalStrut(5));
 		add(openLayoutButton);
 		add(Box.createHorizontalStrut(5));
 		add(saveLayoutButton);
@@ -325,14 +292,6 @@ public class ControlsRegion extends JPanel {
 		add(Box.createHorizontalStrut(5));
 		add(helpButton);
 		add(Box.createHorizontalStrut(5));
-		add(Box.createHorizontalGlue());
-		add(new JLabel("Grid size:"));
-		add(Box.createHorizontalStrut(5));
-		add(columnsTextfield);
-		add(Box.createHorizontalStrut(5));
-		add(new JLabel("x"));
-		add(Box.createHorizontalStrut(5));
-		add(rowsTextfield);
 		add(Box.createHorizontalGlue());
 		add(Box.createHorizontalStrut(5));
 		add(new JLabel("Sample Rate (Hz)"));

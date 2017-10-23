@@ -16,8 +16,7 @@ import com.fazecast.jSerialComm.SerialPort;
  * Handles all non-GUI logic and manages access to the Model (the data).
  */
 public class Controller {
-	
-	static List<GridChangedListener> gridChangedListeners = new ArrayList<GridChangedListener>();
+
 	static List<SerialPortListener>   serialPortListeners = new ArrayList<SerialPortListener>();
 	static volatile SerialPort port;
 	
@@ -42,83 +41,6 @@ public class Controller {
 		
 		Theme.displayingScalingFactorChanged(newFactor);
 		FontUtils.displayingScalingFactorChanged(newFactor);
-		
-	}
-	
-	/**
-	 * Registers a listener that will be notified when the ChartsRegion grid size (column or row count) changes.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addGridChangedListener(GridChangedListener listener) {
-		
-		gridChangedListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new ChartsRegion grid size.
-	 */
-	private static void notifyGridChangedListeners() {
-		
-		for(GridChangedListener listener : gridChangedListeners)
-			listener.gridChanged(Model.gridColumns, Model.gridRows);
-		
-	}
-	
-	/**
-	 * Changes the ChartsRegion grid column count if it is within the allowed range and would not obscure part of an existing chart.
-	 * 
-	 * @param value    The new column count.
-	 */
-	public static void setGridColumns(int value) {
-		
-		boolean chartsObscured = false;
-		for(PositionedChart chart : Model.charts)
-			if(chart.regionOccupied(value, 0, Model.gridColumns, Model.gridRows))
-				chartsObscured = true;
-		
-		if(value >= Model.gridColumnsMinimum && value <= Model.gridColumnsMaximum && !chartsObscured)
-			Model.gridColumns = value;
-
-		notifyGridChangedListeners();
-		
-	}
-	
-	/**
-	 * @return    The current ChartsRegion grid column count.
-	 */
-	public static int getGridColumns() {
-		
-		return Model.gridColumns;
-		
-	}
-	
-	/**
-	 * Changes the ChartsRegion grid row count if it is within the allowed range and would not obscure part of an existing chart.
-	 * 
-	 * @param value    The new row count.
-	 */
-	public static void setGridRows(int value) {
-		
-		boolean chartsObscured = false;
-		for(PositionedChart chart : Model.charts)
-			if(chart.regionOccupied(0, value, Model.gridColumns, Model.gridRows))
-				chartsObscured = true;
-		
-		if(value >= Model.gridRowsMinimum && value <= Model.gridRowsMaximum && !chartsObscured)
-			Model.gridRows = value;
-
-		notifyGridChangedListeners();
-		
-	}
-	
-	/**
-	 * @return    The current ChartsRegion grid row count.
-	 */
-	public static int getGridRows() {
-		
-		return Model.gridRows;
 		
 	}
 	
@@ -564,13 +486,13 @@ public class Controller {
 		try {
 			
 			PrintWriter outputFile = new PrintWriter(new File(outputFilePath), "UTF-8");
-			outputFile.println("Telemetry Viewer File Format v0.4");
+			outputFile.println("Telemetry Viewer File Format v0.5");
 			outputFile.println("");
 			
-			outputFile.println("Grid Settings:");
+			outputFile.println("GUI Settings:");
 			outputFile.println("");
-			outputFile.println("\tcolumn count = " + Model.gridColumns);
-			outputFile.println("\trow count = " + Model.gridRows);
+			outputFile.println("\ttile column count = " + Settings.tileColumns);
+			outputFile.println("\ttile row count = " + Settings.tileRows);
 			outputFile.println("");
 			
 			outputFile.println("Serial Port Settings:");
@@ -669,18 +591,18 @@ public class Controller {
 			List<String> lines = Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8);
 			int n = 0;
 			
-			ChartUtils.parse(n, lines.get(n++), "Telemetry Viewer File Format v0.4");
+			ChartUtils.parse(n, lines.get(n++), "Telemetry Viewer File Format v0.5");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
-			ChartUtils.parse(n, lines.get(n++), "Grid Settings:");
+			ChartUtils.parse(n, lines.get(n++), "GUI Settings:");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
-			int gridColumns = (int) ChartUtils.parse(n, lines.get(n++), "\tcolumn count = %d");
-			int gridRows = (int) ChartUtils.parse(n, lines.get(n++), "\trow count = %d");
+			int tileColumns = (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
+			int tileRows = (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
-			Controller.setGridColumns(gridColumns);
-			Controller.setGridRows(gridRows);
+			SettingsController.setTileColumns(tileColumns);
+			SettingsController.setTileRows(tileRows);
 
 			ChartUtils.parse(n, lines.get(n++), "Serial Port Settings:");
 			ChartUtils.parse(n, lines.get(n++), "");
