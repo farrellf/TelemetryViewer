@@ -349,6 +349,8 @@ public class Controller {
 	 */
 	public static void removeChart(PositionedChart chart) {
 
+		if(SettingsController.getBenchmarkedChart() == chart)
+			SettingsController.setBenchmarkedChart(null);
 		Model.charts.remove(chart);
 		
 	}
@@ -358,7 +360,11 @@ public class Controller {
 	 */
 	public static void removeAllCharts() {
 		
-		Model.charts.clear();
+		// many a temporary copy of the list because you can't remove from a list that you are iterating over
+		List<PositionedChart> list = new ArrayList<PositionedChart>(Model.charts);
+		
+		for(PositionedChart chart : list)
+			removeChart(chart);
 		
 	}
 	
@@ -494,6 +500,7 @@ public class Controller {
 			outputFile.println("\ttile column count = " + SettingsController.getTileColumns());
 			outputFile.println("\ttile row count = " + SettingsController.getTileRows());
 			outputFile.println("\tshow fps and period = " + SettingsController.getFpsVisibility());
+			outputFile.println("\tchart index for benchmarks = " + SettingsController.getBenchmarkedChartIndex());
 			outputFile.println("");
 			
 			outputFile.println("Serial Port Settings:");
@@ -601,6 +608,7 @@ public class Controller {
 			int tileColumns = (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
 			int tileRows = (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
 			boolean fpsVisibility = (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow fps and period = %b");
+			int chartIndex = (int) ChartUtils.parse(n, lines.get(n++), "\tchart index for benchmarks = %d");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
 			SettingsController.setTileColumns(tileColumns);
@@ -704,6 +712,8 @@ public class Controller {
 				chart.importChart(additionalLines, firstLineNumber);
 				
 			}
+			
+			SettingsController.setBenchmarkedChartByIndex(chartIndex);
 			
 		} catch (IOException ioe) {
 			

@@ -8,8 +8,10 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 /**
@@ -116,8 +118,17 @@ public class SettingsView extends JPanel {
 		// CPU and GPU times
 		JCheckBox showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
 		showBenchmarksCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		showBenchmarksCheckbox.addActionListener(event -> {
+			if(Controller.getCharts().isEmpty() || !showBenchmarksCheckbox.isSelected()) {
+				SettingsController.setBenchmarkedChart(null);
+			} else {
+				SettingsController.awaitBenchmarkedChart();
+				showBenchmarksCheckbox.setEnabled(false);
+				JOptionPane.showMessageDialog(SwingUtilities.windowForComponent(this), "Click on a chart to benchmark.");
+			}
+		});
 		
-		SettingsController.addBenchmarkedChartListener(newChart -> showBenchmarksCheckbox.setSelected(newChart != null));
+		SettingsController.addBenchmarkedChartListener(newChart -> { showBenchmarksCheckbox.setSelected(newChart != null); showBenchmarksCheckbox.setEnabled(true); });
 		
 		add(showBenchmarksCheckbox);
 		add(Box.createVerticalStrut(padding));

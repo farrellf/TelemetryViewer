@@ -284,6 +284,24 @@ public class SettingsController {
 	}
 	
 	/**
+	 * Call this function to indicate that the a chart needs to be selected for benchmarking.
+	 */
+	public static void awaitBenchmarkedChart() {
+		
+		Settings.awaitingChartForBenchmark = true;
+		
+	}
+	
+	/**
+	 * @return    True if the user is supposed to click on a chart they want to benchmark.
+	 */
+	public static boolean awaitingBenchmarkedChart() {
+		
+		return Settings.awaitingChartForBenchmark;
+		
+	}
+	
+	/**
 	 * Changes the chart to be benchmarked.
 	 * 
 	 * @param chart    The chart to benchmark, or null to disable benchmarking.
@@ -291,7 +309,19 @@ public class SettingsController {
 	public static void setBenchmarkedChart(PositionedChart chart) {
 		
 		Settings.chartForBenchmarks = chart;
+		Settings.awaitingChartForBenchmark = false;
 		notifyBenchmarkedChartListeners();
+		
+	}
+	
+	/**
+	 * Changes the chart to be benchmarked.
+	 * 
+	 * @param index    The index of the chart to benchmark, or -1 to disable benchmarking.
+	 */
+	public static void setBenchmarkedChartByIndex(int index) {
+
+		setBenchmarkedChart(index >= 0 ? Controller.getCharts().get(index) : null);
 		
 	}
 	
@@ -301,6 +331,20 @@ public class SettingsController {
 	public static PositionedChart getBenchmarkedChart() {
 		
 		return Settings.chartForBenchmarks;
+		
+	}
+	
+	/**
+	 * @return    The index of the chart that is being benchmarked, or -1 if benchmarking is disabled.
+	 */
+	public static int getBenchmarkedChartIndex() {
+
+		List<PositionedChart> charts = Controller.getCharts();
+		for(int i = 0; i < charts.size(); i++)
+			if(charts.get(i) == Settings.chartForBenchmarks)
+				return i;
+		
+		return -1;
 		
 	}
 	

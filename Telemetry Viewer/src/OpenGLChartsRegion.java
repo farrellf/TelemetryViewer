@@ -50,6 +50,22 @@ public class OpenGLChartsRegion extends JPanel {
 	int mouseY;
 	PositionedChart chartToRemoveOnClick;
 	PositionedChart chartToConfigureOnClick;
+	PositionedChart chartUnderMouse;
+	
+	// chart benchmarking
+	long cpuStartNanoseconds;
+	long cpuStopNanoseconds;
+	double previousCpuMilliseconds;
+	double previousGpuMilliseconds;
+	double cpuMillisecondsAccumulator;
+	double gpuMillisecondsAccumulator;
+	int count;
+	final int SAMPLE_COUNT = 60;
+	double averageCpuMilliseconds;
+	double averageGpuMilliseconds;
+	int[] gpuQueryHandles = new int[2];
+	long[] gpuTimes = new long[2];
+	
 	
 	boolean serialPortConnected;
 	
@@ -101,6 +117,8 @@ public class OpenGLChartsRegion extends JPanel {
 				gl.glPointSize(Theme.pointSize);
 				
 				gl.setSwapInterval(1);
+				
+				gl.glGenQueries(2, gpuQueryHandles, 0);
 				
 			}
 						
@@ -306,9 +324,31 @@ public class OpenGLChartsRegion extends JPanel {
 				// the scissor test is used to clip rendering to the region allocated for each chart.
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
-				PositionedChart chartToClose = null;
-				PositionedChart chartToConfigure = null;
+				chartToRemoveOnClick = null;
+				chartToConfigureOnClick = null;
+				chartUnderMouse = null;
 				for(PositionedChart chart : charts) {
+					
+					// calculate cpu/gpu benchmarks for this chart if benchmarking
+					if(chart == SettingsController.getBenchmarkedChart()) {
+						previousCpuMilliseconds = (cpuStopNanoseconds - cpuStartNanoseconds) / 1000000.0;
+						gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL2.GL_QUERY_RESULT, gpuTimes, 0);
+						gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL2.GL_QUERY_RESULT, gpuTimes, 1);
+						previousGpuMilliseconds = (gpuTimes[1] - gpuTimes[0]) / 1000000.0;
+						if(count < SAMPLE_COUNT) {
+							cpuMillisecondsAccumulator += previousCpuMilliseconds;
+							gpuMillisecondsAccumulator += previousGpuMilliseconds;
+							count++;
+						} else {
+							averageCpuMilliseconds = cpuMillisecondsAccumulator / 60.0;
+							averageGpuMilliseconds = gpuMillisecondsAccumulator / 60.0;
+							cpuMillisecondsAccumulator = 0;
+							gpuMillisecondsAccumulator = 0;
+							count = 0;
+						}
+						cpuStartNanoseconds = System.nanoTime();
+						gl.glQueryCounter(gpuQueryHandles[0], GL2.GL_TIMESTAMP);
+					}
 					
 					// draw the tile
 					int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
@@ -333,6 +373,29 @@ public class OpenGLChartsRegion extends JPanel {
 					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
 					
+					// draw the cpu/gpu benchmarks for this chart if benchmarking
+					if(chart == SettingsController.getBenchmarkedChart()) {
+						cpuStopNanoseconds = System.nanoTime();
+						gl.glQueryCounter(gpuQueryHandles[1], GL2.GL_TIMESTAMP);
+						gl.glScissor((int) (xOffset - Theme.tilePadding), (int) (yOffset - Theme.tilePadding), (int) (width + 2 * Theme.tilePadding), (int) (height + 2 * Theme.tilePadding));
+						gl.glTranslatef(0, -Theme.tilePadding, 0);
+						String line1 = String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
+						String line2 = String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds);
+						float textHeight = 2 * FontUtils.tickTextHeight + Theme.tickTextPadding;
+						float textWidth = Float.max(FontUtils.tickTextWidth(line1), FontUtils.tickTextWidth(line2));
+						gl.glColor4fv(Theme.neutralColor, 0);
+						gl.glBegin(GL2.GL_QUADS);
+							gl.glVertex2f(0, 0);
+							gl.glVertex2f(0, textHeight + Theme.tickTextPadding * 2);
+							gl.glVertex2f(textWidth + Theme.tickTextPadding * 2, textHeight + Theme.tickTextPadding * 2);
+							gl.glVertex2f(textWidth + Theme.tickTextPadding * 2, 0);
+						gl.glEnd();
+						FontUtils.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + FontUtils.tickTextHeight));
+						FontUtils.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
+						FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+						System.out.println(line1 + ", " + line2);
+					}
+					
 					gl.glPopMatrix();
 					gl.glDisable(GL2.GL_SCISSOR_TEST);
 					
@@ -340,14 +403,15 @@ public class OpenGLChartsRegion extends JPanel {
 					width += (int) Theme.tileShadowOffset;
 					boolean mouseOverCloseButton = drawChartCloseButton(gl, xOffset, yOffset, width, height);
 					if(mouseOverCloseButton)
-						chartToClose = chart;
+						chartToRemoveOnClick = chart;
 					boolean mouseOverConfigureButton = drawChartSettingsButton(gl, xOffset, yOffset, width, height);
 					if(mouseOverConfigureButton)
-						chartToConfigure = chart;
+						chartToConfigureOnClick = chart;
+					
+					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height)
+						chartUnderMouse = chart;
 					
 				}
-				chartToRemoveOnClick = chartToClose;
-				chartToConfigureOnClick = chartToConfigure;
 				
 				// show the FPS/period in the lower-left corner if enabled
 				if(SettingsController.getFpsVisibility()) {
@@ -390,6 +454,11 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				if(!serialPortConnected && Controller.getCharts().size() == 0)
 					return;
+				
+				if(SettingsController.awaitingBenchmarkedChart()) {
+					SettingsController.setBenchmarkedChart(chartUnderMouse);
+					return;
+				}
 				
 				if(chartToRemoveOnClick != null) {
 					Controller.removeChart(chartToRemoveOnClick);

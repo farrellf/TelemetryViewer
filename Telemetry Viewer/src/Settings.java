@@ -31,5 +31,6 @@ public class Settings {
 	
 	// which chart to measure for CPU/GPU times, or null to not measure
 	static PositionedChart chartForBenchmarks = null;
+	static boolean awaitingChartForBenchmark = false;
 
 }
