@@ -66,10 +66,13 @@ public class LogitechSmoothScrolling {
 			e.printStackTrace();
 
 		}
+		
+		SettingsController.addSmoothScrollingListener(event -> updateScrolling());
+		
 	}
 
 	/**
-	 * After a successful connection, this method will automatically be called. Smooth scrolling is enabled here.
+	 * After a successful connection, this method will automatically be called. Smooth scrolling is enabled or disabled here.
 	 * 
 	 * @param session    The WebSocket session.
 	 */
@@ -78,7 +81,10 @@ public class LogitechSmoothScrolling {
 		try {
 
 			this.session = session;
-			session.getRemote().sendStringByFuture("{\"hiRes\":true,\"reason\":\"content looks good for scrolling\"}");
+			if(SettingsController.getSmoothScrolling())
+				session.getRemote().sendStringByFuture("{\"hiRes\":true,\"reason\":\"content looks good for scrolling\"}");
+			else
+				session.getRemote().sendStringByFuture("{\"hiRes\":false,\"reason\":\"content looks bad for scrolling\"}"); // made this up but it seems to work
 
 		} catch (Exception e) {
 
@@ -89,17 +95,17 @@ public class LogitechSmoothScrolling {
 	}
 
 	/**
-	 * Re-enables smooth scrolling.
-	 * This method should be called every time a JFrame gets focus.
+	 * Re-enables or re-disables smooth scrolling.
+	 * This method should be called every time a JFrame gets focus, or whenever the smooth scrolling setting is changed.
 	 * 
 	 * If the WebSocket connection has been lost, it will be reestablished.
 	 */
-	public void enableSmoothScrolling() {
+	public void updateScrolling() {
 
 		try {
 
-			if(session.isOpen())
-				session.getRemote().sendStringByFuture("{\"hiRes\":true,\"reason\":\"content looks good for scrolling\"}");
+			if(session != null && session.isOpen())
+				onConnect(session);
 			else
 				client.connect(this, new URI("ws://127.0.0.1:59243"), new ClientUpgradeRequest());
 

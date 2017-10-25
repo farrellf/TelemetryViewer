@@ -34,7 +34,7 @@ public class Main {
 		
 		window.addWindowFocusListener(new WindowFocusListener() {
 			@Override public void windowGainedFocus(WindowEvent we) {
-				mouse.enableSmoothScrolling();
+				mouse.updateScrolling();
 			}
 			@Override public void windowLostFocus(WindowEvent we) { }
 		});

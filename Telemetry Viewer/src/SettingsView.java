@@ -91,6 +91,7 @@ public class SettingsView extends JPanel {
 		// logitech smooth scrolling
 		JCheckBox enableSmoothScrollingCheckbox = new JCheckBox("Enable Logitech Smooth Scrolling", SettingsController.getSmoothScrolling());
 		enableSmoothScrollingCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		enableSmoothScrollingCheckbox.addActionListener(event -> SettingsController.setSmoothScrolling(enableSmoothScrollingCheckbox.isSelected()));
 		
 		SettingsController.addSmoothScrollingListener(newState -> enableSmoothScrollingCheckbox.setSelected(newState));
 		
