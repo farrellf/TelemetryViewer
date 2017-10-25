@@ -483,7 +483,7 @@ public class Controller {
 	}
 	
 	/**
-	 * Saves the current state to a file. The state consists of: grid row and column counts, serial port settings, data structure definition, and details for each chart.
+	 * Saves the current state to a file. The state consists of: GUI settings, serial port settings, data structure definition, and details for each chart.
 	 * 
 	 * @param outputFilePath    An absolute path to a .txt file.
 	 */
@@ -497,9 +497,10 @@ public class Controller {
 			
 			outputFile.println("GUI Settings:");
 			outputFile.println("");
-			outputFile.println("\ttile column count = " + SettingsController.getTileColumns());
-			outputFile.println("\ttile row count = " + SettingsController.getTileRows());
-			outputFile.println("\tshow fps and period = " + SettingsController.getFpsVisibility());
+			outputFile.println("\ttile column count = " +          SettingsController.getTileColumns());
+			outputFile.println("\ttile row count = " +             SettingsController.getTileRows());
+			outputFile.println("\topengl antialiasing = " +        SettingsController.getAntialiasing());
+			outputFile.println("\tshow fps and period = " +        SettingsController.getFpsVisibility());
 			outputFile.println("\tchart index for benchmarks = " + SettingsController.getBenchmarkedChartIndex());
 			outputFile.println("");
 			
@@ -605,14 +606,16 @@ public class Controller {
 			ChartUtils.parse(n, lines.get(n++), "GUI Settings:");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
-			int tileColumns = (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
-			int tileRows = (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
+			int tileColumns =           (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
+			int tileRows =              (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
+			boolean antialiasing =  (boolean) ChartUtils.parse(n, lines.get(n++), "\topengl antialiasing = %b");
 			boolean fpsVisibility = (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow fps and period = %b");
-			int chartIndex = (int) ChartUtils.parse(n, lines.get(n++), "\tchart index for benchmarks = %d");
+			int chartIndex =            (int) ChartUtils.parse(n, lines.get(n++), "\tchart index for benchmarks = %d");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
 			SettingsController.setTileColumns(tileColumns);
 			SettingsController.setTileRows(tileRows);
+			SettingsController.setAntialiasing(antialiasing);
 			SettingsController.setFpsVisibility(fpsVisibility);
 
 			ChartUtils.parse(n, lines.get(n++), "Serial Port Settings:");

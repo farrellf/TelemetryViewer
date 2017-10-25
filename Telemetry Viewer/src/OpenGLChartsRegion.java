@@ -66,8 +66,8 @@ public class OpenGLChartsRegion extends JPanel {
 	int[] gpuQueryHandles = new int[2];
 	long[] gpuTimes = new long[2];
 	
-	
 	boolean serialPortConnected;
+	boolean antialiasing;
 	
 	JFrame parentWindow;
 	
@@ -92,6 +92,7 @@ public class OpenGLChartsRegion extends JPanel {
 		chartToRemoveOnClick = null;
 		
 		serialPortConnected = false;
+		antialiasing = false;
 		
 		parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
 		
@@ -101,15 +102,17 @@ public class OpenGLChartsRegion extends JPanel {
 			@Override public void init(GLAutoDrawable drawable) {
 				
 				GL2 gl = drawable.getGL().getGL2();
-				
+			
 				gl.glEnable(GL2.GL_BLEND);
 				gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
-				gl.glEnable(GL2.GL_POINT_SMOOTH);
-			    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
-				gl.glEnable(GL2.GL_LINE_SMOOTH);
-			    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
-//				gl.glEnable(GL2.GL_POLYGON_SMOOTH);
-//			    gl.glHint(GL2.GL_POLYGON_SMOOTH_HINT, GL2.GL_FASTEST);
+				
+				if(SettingsController.getAntialiasing()) {
+					gl.glEnable(GL2.GL_POINT_SMOOTH);
+				    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
+					gl.glEnable(GL2.GL_LINE_SMOOTH);
+				    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
+				    antialiasing = true;
+				}
 			    
 				gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
 			    
@@ -152,6 +155,20 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				gl.glLineWidth(Theme.lineWidth);
 				gl.glPointSize(Theme.pointSize);
+				
+				// enable or disable antialiasing as needed
+				if(antialiasing != SettingsController.getAntialiasing()) {
+					antialiasing = SettingsController.getAntialiasing();
+					if(antialiasing) {
+						gl.glEnable(GL2.GL_POINT_SMOOTH);
+					    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
+						gl.glEnable(GL2.GL_LINE_SMOOTH);
+					    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
+					} else {
+						gl.glDisable(GL2.GL_POINT_SMOOTH);
+						gl.glDisable(GL2.GL_LINE_SMOOTH);
+					}
+				}
 				
 				// if there are no charts and no serial port connection, tell the user to connect or open a layout
 				if(!serialPortConnected && Controller.getCharts().size() == 0) {

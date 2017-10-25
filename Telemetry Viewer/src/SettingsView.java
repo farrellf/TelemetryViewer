@@ -99,6 +99,7 @@ public class SettingsView extends JPanel {
 		// antialiasing
 		JCheckBox enableAntialiasingCheckbox = new JCheckBox("Enable OpenGL Antialiasing", SettingsController.getAntialiasing());
 		enableAntialiasingCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		enableAntialiasingCheckbox.addActionListener(event -> SettingsController.setAntialiasing(enableAntialiasingCheckbox.isSelected()));
 		
 		SettingsController.addAntialiasingListener(newState -> enableAntialiasingCheckbox.setSelected(newState));
 		
