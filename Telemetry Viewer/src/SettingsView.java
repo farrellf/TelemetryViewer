@@ -81,6 +81,7 @@ public class SettingsView extends JPanel {
 		// tooltips
 		JCheckBox showTooltipsCheckbox = new JCheckBox("Show Plot Tooltips", SettingsController.getTooltipVisibility());
 		showTooltipsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		showTooltipsCheckbox.addActionListener(event -> SettingsController.setTooltipVisibility(showTooltipsCheckbox.isSelected()));
 		
 		SettingsController.addTooltipVisibilityListener(newVisibility -> showTooltipsCheckbox.setSelected(newVisibility));
 		

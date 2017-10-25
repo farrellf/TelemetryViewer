@@ -499,6 +499,7 @@ public class Controller {
 			outputFile.println("");
 			outputFile.println("\ttile column count = " +          SettingsController.getTileColumns());
 			outputFile.println("\ttile row count = " +             SettingsController.getTileRows());
+			outputFile.println("\tshow plot tooltips = " +         SettingsController.getTooltipVisibility());
 			outputFile.println("\topengl antialiasing = " +        SettingsController.getAntialiasing());
 			outputFile.println("\tshow fps and period = " +        SettingsController.getFpsVisibility());
 			outputFile.println("\tchart index for benchmarks = " + SettingsController.getBenchmarkedChartIndex());
@@ -606,15 +607,17 @@ public class Controller {
 			ChartUtils.parse(n, lines.get(n++), "GUI Settings:");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
-			int tileColumns =           (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
-			int tileRows =              (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
-			boolean antialiasing =  (boolean) ChartUtils.parse(n, lines.get(n++), "\topengl antialiasing = %b");
-			boolean fpsVisibility = (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow fps and period = %b");
-			int chartIndex =            (int) ChartUtils.parse(n, lines.get(n++), "\tchart index for benchmarks = %d");
+			int tileColumns =               (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
+			int tileRows =                  (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
+			boolean tooltipVisibility = (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow plot tooltips = %b");
+			boolean antialiasing =      (boolean) ChartUtils.parse(n, lines.get(n++), "\topengl antialiasing = %b");
+			boolean fpsVisibility =     (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow fps and period = %b");
+			int chartIndex =                (int) ChartUtils.parse(n, lines.get(n++), "\tchart index for benchmarks = %d");
 			ChartUtils.parse(n, lines.get(n++), "");
 			
 			SettingsController.setTileColumns(tileColumns);
 			SettingsController.setTileRows(tileRows);
+			SettingsController.setTooltipVisibility(tooltipVisibility);
 			SettingsController.setAntialiasing(antialiasing);
 			SettingsController.setFpsVisibility(fpsVisibility);
 

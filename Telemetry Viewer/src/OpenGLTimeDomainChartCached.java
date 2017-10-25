@@ -501,7 +501,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 		
 		// draw the tooltip if the mouse is in the plot region
-		if(datasets.length > 0 && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			int sampleNumber = Math.round(((float) mouseX - xPlotLeft) / plotWidth * domain + plotMinX);
 			if(sampleNumber >= 0) {
 				String[] text = new String[datasets.length + 1];

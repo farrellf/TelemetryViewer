@@ -781,7 +781,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 		
 		// draw the tooltip if the mouse is in the plot region
-		if(haveDatasets && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		if(haveDatasets && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			int binN = Math.round(((float) mouseX - xPlotLeft) / plotWidth * binCount);
 			if(binN > binCount - 1)
 				binN = binCount - 1;

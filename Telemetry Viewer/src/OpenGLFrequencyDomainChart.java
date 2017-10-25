@@ -685,7 +685,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 		
 		// draw the tooltip if the mouse is in the plot region
-		if(datasets.length > 0 && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			// map mouseX to a frequency
 			double binSizeHz = cache.getBinSizeHz();
 			int binCount = cache.getBinCount();
