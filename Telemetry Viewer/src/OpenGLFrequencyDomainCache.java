@@ -127,7 +127,7 @@ public class OpenGLFrequencyDomainCache {
 			
 			for(int dataset = 0; dataset < datasets.length; dataset++) {
 				float[] samples = datasets[dataset].getSamplesArray(startX, endX);
-				dfts[dataset][0] = calculateDFTxy(samples, Controller.getSampleRate());
+				dfts[dataset][0] = calculateDFTxy(samples, CommunicationController.getSampleRate());
 			}
 			
 			// calculate the DFT domain
@@ -160,7 +160,7 @@ public class OpenGLFrequencyDomainCache {
 						int startX = firstSampleNumber;
 						int endX = startX + dftWindowLength - 1;
 						float[] samples = datasets[dataset].getSamplesArray(startX, endX);
-						dfts[dataset][rbIndex] = calculateDFT(samples, Controller.getSampleRate());
+						dfts[dataset][rbIndex] = calculateDFT(samples, CommunicationController.getSampleRate());
 						firstSampleNumberOfDft[dataset][rbIndex] = startX;
 						
 					}
@@ -172,7 +172,7 @@ public class OpenGLFrequencyDomainCache {
 			// the DFTs are currently calculated from DC to Nyquist
 			// but the user can specify an arbitrary window length, so the max frequency may actually be a little below Nyquist
 			minHz = 0;
-			maxHz = (float) ((double) (dfts[0][0].length - 1) * (double) Controller.getSampleRate() / (double) dftWindowLength);
+			maxHz = (float) ((double) (dfts[0][0].length - 1) * (double) CommunicationController.getSampleRate() / (double) dftWindowLength);
 			
 			// calculate the DFT range
 			minPower = dfts[0][firstDft % dftsCount][0];

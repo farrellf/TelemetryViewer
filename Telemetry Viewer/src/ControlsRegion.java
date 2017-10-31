@@ -2,19 +2,15 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.FocusEvent;
-import java.awt.event.FocusListener;
 import java.net.URI;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
@@ -25,20 +21,8 @@ import javax.swing.border.EmptyBorder;
 @SuppressWarnings("serial")
 public class ControlsRegion extends JPanel {
 	
-	JToggleButton settingsButton;
-	JButton openLayoutButton;
-	JButton saveLayoutButton;
-	JButton exportCsvLogButton;
-	JButton resetButton;
-	JButton helpButton;
-	
-	JTextField sampleRateTextfield;
-	JComboBox<Packet> packetTypeCombobox;
-	JComboBox<String> portNamesCombobox;
-	JComboBox<Integer> baudRatesCombobox;
-	JButton connectButton;
-	
-	SettingsView settings;
+	JButton openLayoutButton;	
+	CommunicationView communicationView;
 	
 	/**
 	 * Creates the panel of controls and registers their event handlers.
@@ -46,11 +30,11 @@ public class ControlsRegion extends JPanel {
 	public ControlsRegion(SettingsView settingsView) {
 		
 		super();
-		settings = settingsView;
+		communicationView = new CommunicationView();
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		setBorder(new EmptyBorder(5, 5, 5, 5));
 		
-		settingsButton = new JToggleButton("Settings");
+		JToggleButton settingsButton = new JToggleButton("Settings");
 		settingsButton.setSelected(settingsView.isVisible());
 		settingsButton.addActionListener(event -> settingsView.setVisible(settingsButton.isSelected()));
 		
@@ -66,7 +50,7 @@ public class ControlsRegion extends JPanel {
 			
 		});
 		
-		saveLayoutButton = new JButton("Save Layout");
+		JButton saveLayoutButton = new JButton("Save Layout");
 		saveLayoutButton.setEnabled(false);
 		saveLayoutButton.addActionListener(event -> {
 			
@@ -80,8 +64,9 @@ public class ControlsRegion extends JPanel {
 			}
 
 		});
+		CommunicationController.addConnectionListener(newConnectionState -> saveLayoutButton.setEnabled(newConnectionState));
 		
-		exportCsvLogButton = new JButton("Export CSV Log");
+		JButton exportCsvLogButton = new JButton("Export CSV Log");
 		exportCsvLogButton.addActionListener(event -> {
 			
 			JFileChooser saveFile = new JFileChooser();
@@ -95,10 +80,10 @@ public class ControlsRegion extends JPanel {
 
 		});
 		
-		resetButton = new JButton("Reset");
+		JButton resetButton = new JButton("Reset");
 		resetButton.addActionListener(event -> Controller.removeAllCharts());
 		
-		helpButton = new JButton("Help");
+		JButton helpButton = new JButton("Help");
 		helpButton.addActionListener(event -> {
 			
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
@@ -136,149 +121,6 @@ public class ControlsRegion extends JPanel {
 
 		});
 		
-		
-		sampleRateTextfield = new JTextField(Integer.toString(Controller.getSampleRate()), 4);
-		sampleRateTextfield.setMinimumSize(sampleRateTextfield.getPreferredSize());
-		sampleRateTextfield.setMaximumSize(sampleRateTextfield.getPreferredSize());
-		sampleRateTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				try {
-					Controller.setSampleRate(Integer.parseInt(sampleRateTextfield.getText().trim()));
-				} catch(Exception e) {
-					sampleRateTextfield.setText(Integer.toString(Controller.getSampleRate()));
-				}
-			}
-			
-			@Override public void focusGained(FocusEvent fe) {
-				sampleRateTextfield.selectAll();
-			}
-		});
-		
-		packetTypeCombobox = new JComboBox<Packet>();
-		for(Packet packet : Controller.getPacketTypes())
-			packetTypeCombobox.addItem(packet);
-		packetTypeCombobox.setMaximumSize(packetTypeCombobox.getPreferredSize());
-		packetTypeCombobox.addActionListener(event -> {
-		
-			if(packetTypeCombobox.getSelectedItem() != Model.packet)
-				Controller.removeAllDatasets();
-			
-		});
-		
-		portNamesCombobox = new JComboBox<String>();
-		for(String portName : Controller.getSerialPortNames())
-			portNamesCombobox.addItem(portName);
-		portNamesCombobox.setMaximumSize(portNamesCombobox.getPreferredSize());
-		
-		baudRatesCombobox = new JComboBox<Integer>();
-		for(int baudRate : Controller.getBaudRates())
-			baudRatesCombobox.addItem(baudRate);
-		baudRatesCombobox.setMaximumRowCount(baudRatesCombobox.getItemCount());
-		baudRatesCombobox.setMaximumSize(baudRatesCombobox.getPreferredSize());
-		
-		Controller.addSerialPortListener(new SerialPortListener() {
-			
-			@Override public void connectionOpened(int sampleRate, Packet packet, String portName, int baudRate) {
-				
-				// enable or disable UI elements
-				openLayoutButton.setEnabled(true);
-				saveLayoutButton.setEnabled(true);
-				sampleRateTextfield.setEnabled(false);
-				packetTypeCombobox.setEnabled(false);
-				portNamesCombobox.setEnabled(false);
-				baudRatesCombobox.setEnabled(false);
-				connectButton.setEnabled(true);
-				
-				// update UI state
-				sampleRateTextfield.setText(Integer.toString(sampleRate));
-				packetTypeCombobox.setSelectedItem(packet);
-				for(int i = 0; i < portNamesCombobox.getItemCount(); i++)
-					if(portNamesCombobox.getItemAt(i).equals(portName)) {
-						portNamesCombobox.setSelectedIndex(i);
-						break;
-					}
-				for(int i = 0; i < baudRatesCombobox.getItemCount(); i++)
-					if(baudRatesCombobox.getItemAt(i).equals(baudRate)) {
-						baudRatesCombobox.setSelectedIndex(i);
-						break;
-					}
-				connectButton.setText("Disconnect");
-				
-			}
-			
-			@Override public void connectionClosed() {
-				
-				// enable or disable UI elements
-				openLayoutButton.setEnabled(true);
-				saveLayoutButton.setEnabled(true);
-				sampleRateTextfield.setEnabled(true);
-				packetTypeCombobox.setEnabled(true);
-				portNamesCombobox.setEnabled(true);
-				baudRatesCombobox.setEnabled(true);
-				connectButton.setEnabled(true);
-
-				// update UI state
-				connectButton.setText("Connect");
-				
-				// ensure a packet type is selected
-				if(packetTypeCombobox.getSelectedIndex() < 0)
-					packetTypeCombobox.setSelectedIndex(0);
-				
-			}
-
-			@Override public void connectionLost() {
-
-				connectionClosed();
-
-				// notify the user because they did not initiate the disconnection
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				JOptionPane.showMessageDialog(parentWindow, "Warning: Serial connection lost.", "Warning", JOptionPane.WARNING_MESSAGE);
-				
-			}
-		});
-		
-		connectButton = new JButton("Connect");
-		connectButton.addActionListener(event -> {
-			
-			if(connectButton.getText().equals("Connect")) {
-				
-				if(portNamesCombobox.getSelectedItem() == null) {
-					JOptionPane.showMessageDialog(null, "Error: No port name specified.", "Error", JOptionPane.ERROR_MESSAGE);
-					return;
-				}
-				
-				int sampleRate = Integer.parseInt(sampleRateTextfield.getText());
-				Packet packet = (Packet) packetTypeCombobox.getSelectedItem();
-				String portName = portNamesCombobox.getSelectedItem().toString();
-				int baudRate = (int) baudRatesCombobox.getSelectedItem();
-				
-				openLayoutButton.setEnabled(false);
-				saveLayoutButton.setEnabled(false);
-				sampleRateTextfield.setEnabled(false);
-				packetTypeCombobox.setEnabled(false);
-				portNamesCombobox.setEnabled(false);
-				baudRatesCombobox.setEnabled(false);
-				connectButton.setEnabled(false);
-				
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-				Controller.connectToSerialPort(sampleRate, packet, portName, baudRate, parentWindow);
-				
-			} else if(connectButton.getText().equals("Disconnect")) {
-				
-				openLayoutButton.setEnabled(false);
-				saveLayoutButton.setEnabled(false);
-				sampleRateTextfield.setEnabled(false);
-				packetTypeCombobox.setEnabled(false);
-				portNamesCombobox.setEnabled(false);
-				baudRatesCombobox.setEnabled(false);
-				connectButton.setEnabled(false);
-				
-				Controller.disconnectFromSerialPort();
-				
-			}
-
-		});
-		
 		// show the components
 		add(settingsButton);
 		add(Box.createHorizontalStrut(5));
@@ -293,18 +135,7 @@ public class ControlsRegion extends JPanel {
 		add(helpButton);
 		add(Box.createHorizontalStrut(5));
 		add(Box.createHorizontalGlue());
-		add(Box.createHorizontalStrut(5));
-		add(new JLabel("Sample Rate (Hz)"));
-		add(Box.createHorizontalStrut(5));
-		add(sampleRateTextfield);
-		add(Box.createHorizontalStrut(5));
-		add(packetTypeCombobox);
-		add(Box.createHorizontalStrut(5));
-		add(portNamesCombobox);
-		add(Box.createHorizontalStrut(5));
-		add(baudRatesCombobox);
-		add(Box.createHorizontalStrut(5));
-		add(connectButton);
+		add(communicationView);
 		
 		// set minimum panel width to 120% of the "preferred" width
 		Dimension size = getPreferredSize();
@@ -328,7 +159,7 @@ public class ControlsRegion extends JPanel {
 	 */
 	public int getConnectButtonLocation() {
 		
-		return connectButton.getLocation().x + (connectButton.getWidth() / 2);
+		return communicationView.getLocation().x + communicationView.getConnectButtonLocation();
 		
 	}
 

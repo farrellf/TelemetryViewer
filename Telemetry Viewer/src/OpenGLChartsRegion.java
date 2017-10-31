@@ -580,7 +580,7 @@ public class OpenGLChartsRegion extends JPanel {
 			@Override public void mouseWheelMoved(MouseWheelEvent mwe) {
 
 				double scrollAmount = mwe.getPreciseWheelRotation();
-				double samplesPerScroll = Controller.getSampleRate() / 4;
+				double samplesPerScroll = CommunicationController.getSampleRate() / 4;
 				double zoomPerScroll = 0.1;
 				float  displayScalingPerScroll = 0.1f;
 				
@@ -639,19 +639,7 @@ public class OpenGLChartsRegion extends JPanel {
 		});
 		
 		// track if a serial port is connected
-		Controller.addSerialPortListener(new SerialPortListener() {
-			@Override public void connectionOpened(int sampleRate, Packet packet, String portName, int baudRate) {
-				serialPortConnected = true;
-			}
-			
-			@Override public void connectionLost() {
-				serialPortConnected = false;
-			}
-			
-			@Override public void connectionClosed() {
-				serialPortConnected = false;
-			}
-		});
+		CommunicationController.addConnectionListener(newConnectionStatus -> serialPortConnected = newConnectionStatus);
 		
 	}
 	

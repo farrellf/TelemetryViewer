@@ -97,7 +97,7 @@ public class BinaryPacket implements Packet {
 	 */
 	@Override public String toString() {
 		
-		return "Binary";
+		return Communication.PACKET_TYPE_BINARY;
 		
 	}
 	
@@ -570,7 +570,8 @@ public class BinaryPacket implements Packet {
 					
 					// stop and end this thread if an IO error has occurred
 					try { bStream.close(); } catch(IOException e3) { }
-					Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
+					CommunicationController.disconnect();
+					CommunicationController.notifyConnectionLostListeners();
 					System.err.println("An IO error occurred.");
 					return;
 					

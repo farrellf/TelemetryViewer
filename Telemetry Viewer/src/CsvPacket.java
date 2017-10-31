@@ -89,7 +89,7 @@ public class CsvPacket implements Packet {
 	 */
 	@Override public String toString() {
 		
-		return "ASCII CSVs";
+		return Communication.PACKET_TYPE_CSV;
 		
 	}
 	
@@ -269,7 +269,8 @@ public class CsvPacket implements Packet {
 					
 					// stop and end this thread if an IO error has occurred
 					try { reader.close(); } catch(IOException e5) { }
-					Controller.notifySerialPortListeners(Controller.SERIAL_CONNECTION_LOST);
+					CommunicationController.disconnect();
+					CommunicationController.notifyConnectionLostListeners();
 					System.err.println("An IO error occurred.");
 					return;
 					
@@ -619,7 +620,7 @@ public class CsvPacket implements Packet {
 		
 		private void updateExampleCode() {
 			
-			int baudRate = Model.baudRate;
+			int baudRate = CommunicationController.getBaudRate();
 			int datasetsCount = Controller.getDatasetsCount();
 			Dataset[] datasets = Controller.getAllDatasets();
 			

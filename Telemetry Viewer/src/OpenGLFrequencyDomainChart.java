@@ -318,7 +318,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// for "Waterfall View" the y-axis is time
 		// for "Live View" and "Waveform View" the y-axis is power
 		float plotMinTime = 0;
-		float plotMaxTime = (float) totalSampleCount / (float) Controller.getSampleRate();
+		float plotMaxTime = (float) totalSampleCount / (float) CommunicationController.getSampleRate();
 
 		float plotMinPower = haveDatasets ? cache.getMinPower() : -12;
 		float plotMaxPower = haveDatasets ? cache.getMaxPower() : 1;
