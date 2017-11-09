@@ -1,8 +1,4 @@
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.UnknownHostException;
 
 public class Communication {
@@ -30,14 +26,10 @@ public class Communication {
 	final static int PORT_NUMBER_MAX = 65535;
 	
 	static int tcpUdpPort = 8080;
-	static ServerSocket tcpServer = null;
-	static Socket tcpSocket = null;
 	static boolean tcpConnected = false;
-	
-	static DatagramSocket udpClient = null;
-	static DatagramPacket udpPacket = null;
-	final static int MAX_UDP_PACKET_SIZE = 65507; // 65535 - (8byte UDP header) - (20byte IP header)
 	static boolean udpConnected = false;
+	final static int MAX_TCP_IDLE_MILLISECONDS = 10000; // if connected but no new samples after than much time, disconnect and wait for a new connection
+	final static int MAX_UDP_PACKET_SIZE = 65507; // 65535 - (8byte UDP header) - (20byte IP header)
 	
 	static boolean testConnected = false;
 	

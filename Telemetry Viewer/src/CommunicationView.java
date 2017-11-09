@@ -147,7 +147,7 @@ public class CommunicationView extends JPanel {
 			if(connectionLost) {
 				// notify the user because they did not initiate the disconnection
 				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(CommunicationView.this);
-				JOptionPane.showMessageDialog(parentWindow, "Warning: Connection lost.", "Warning", JOptionPane.WARNING_MESSAGE);
+				SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(parentWindow, "Warning: Connection lost.", "Warning", JOptionPane.WARNING_MESSAGE));
 			}
 		});
 		

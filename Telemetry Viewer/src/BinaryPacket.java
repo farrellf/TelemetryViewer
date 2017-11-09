@@ -559,20 +559,11 @@ public class BinaryPacket implements Packet {
 						dataset.add(rawNumber);
 					}
 				
-				} catch(InterruptedException e) {
+				} catch(IOException | InterruptedException e) {
 					
-					// stop and end this thread if we get interrupted
+					// stop and end this thread
 					try { bStream.close(); } catch(IOException e2) { }
 					System.err.println("The Binary Packet Processor thread is stopping.");
-					return;
-					
-				} catch(IOException e) {
-					
-					// stop and end this thread if an IO error has occurred
-					try { bStream.close(); } catch(IOException e3) { }
-					CommunicationController.disconnect();
-					CommunicationController.notifyConnectionLostListeners();
-					System.err.println("An IO error occurred.");
 					return;
 					
 				}

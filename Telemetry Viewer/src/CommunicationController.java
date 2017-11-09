@@ -1,8 +1,18 @@
+import java.io.IOException;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
 import com.fazecast.jSerialComm.SerialPort;
 
@@ -327,7 +337,7 @@ public class CommunicationController {
 	/**
 	 * Notifies all registered listeners about the an unexpected loss of connection.
 	 */
-	public static void notifyConnectionLostListeners() {
+	private static void notifyConnectionLostListeners() {
 		
 		for(Consumer<Boolean> listener : connectionLostListeners)
 			listener.accept(true);
@@ -357,9 +367,9 @@ public class CommunicationController {
 		if(Communication.port.startsWith(Communication.PORT_UART + ": "))
 			connectToUart(parentWindow);
 		else if(Communication.port.equals(Communication.PORT_TCP))
-			;//startTcpServer();
+			startTcpServer(parentWindow);
 		else if(Communication.port.equals(Communication.PORT_UDP))
-			;//startUdpListener();
+			startUdpServer(parentWindow);
 		else if(Communication.port.equals(Communication.PORT_TEST))
 			startTester(parentWindow);
 		
@@ -375,9 +385,9 @@ public class CommunicationController {
 		if(Communication.port.startsWith(Communication.PORT_UART + ": "))
 			disconnectFromUart();
 		else if(Communication.port.equals(Communication.PORT_TCP))
-			;//stopTcpServer();
+			stopTcpServer();
 		else if(Communication.port.equals(Communication.PORT_UDP))
-			;//stopUdpListener();
+			stopUdpServer();
 		else if(Communication.port.equals(Communication.PORT_TEST))
 			stopTester();
 		
@@ -436,6 +446,235 @@ public class CommunicationController {
 		uartPort = null;
 		
 		Communication.uartConnected = false;
+		notifyConnectionListeners();
+		
+	}
+	
+	static Thread tcpServerThread;
+	
+	/**
+	 * Spawns a TCP server and shows a DataStructureWindow if necessary.
+	 * 
+	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 */
+	private static void startTcpServer(JFrame parentWindow) {
+		
+		tcpServerThread = new Thread(() -> {
+			
+			ServerSocket tcpServer = null;
+			Socket tcpSocket = null;
+			
+			// start the TCP server
+			try {
+				tcpServer = new ServerSocket(Communication.tcpUdpPort);
+				tcpServer.setSoTimeout(250);
+			} catch (Exception e) {
+				System.err.println("Unable to start the TCP server. Maybe another program is already using port " + Communication.tcpUdpPort + "?");
+				try { tcpServer.close(); } catch(Exception e2) {}
+				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+				notifyConnectionLostListeners();
+				return;
+			}
+			
+			Communication.tcpConnected = true;
+			notifyConnectionListeners();
+			
+			if(parentWindow != null) {
+				Communication.packet.showDataStructureWindow(parentWindow, false);
+				JOptionPane.showMessageDialog(parentWindow, "The TCP server is running. Send telemetry to " + Communication.localIp + " :" + Communication.tcpUdpPort);
+			}
+			
+			// wait for a connection
+			while(true) {
+
+				try {
+					
+					if(Thread.interrupted())
+						throw new InterruptedException();
+					
+					tcpSocket = tcpServer.accept();
+					tcpSocket.setSoTimeout(5000); // each valid packet of data must take <5 seconds to arrive
+					Communication.packet.startReceivingData(tcpSocket.getInputStream());
+					
+					System.out.println("TCP connection established with a client at " + tcpSocket.getRemoteSocketAddress() + ".");
+//					while(true) {
+//						if(Thread.interrupted())
+//							throw new InterruptedException(); // never return without first closing the socket and server!
+//					}
+					// enter an infinite loop that checks for inactivity. if the tcp port is idle for >10 seconds, abandon it so another device can try to connect.
+					long previousTimestamp = System.currentTimeMillis();
+					int previousSampleNumber = Controller.getSamplesCount();
+					while(true) {
+						Thread.sleep(1000);
+						int sampleNumber = Controller.getSamplesCount();
+						long timestamp = System.currentTimeMillis();
+						if(sampleNumber > previousSampleNumber) {
+							previousSampleNumber = sampleNumber;
+							previousTimestamp = timestamp;
+						} else if(previousTimestamp < timestamp - Communication.MAX_TCP_IDLE_MILLISECONDS){
+							tcpSocket.close();
+							Communication.packet.stopReceivingData();
+							notifyConnectionLostListeners();
+							break;
+						}						
+					}
+					
+				} catch(SocketTimeoutException ste) {
+					
+					// a client never connected, so do nothing and let the loop try again.
+					System.out.println("TCP socket timed out while waiting for a connection.");
+					
+				} catch(IOException ioe) {
+					
+					// problem while accepting the socket connection, or getting the input stream
+					System.err.println("TCP connection failed.");
+					try { tcpSocket.close(); } catch(Exception e2) {}
+					try { tcpServer.close(); } catch(Exception e2) {}
+					SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+					notifyConnectionLostListeners();
+					return;
+					
+				}  catch(InterruptedException ie) {
+					
+					// thread got interrupted, so exit.
+					System.err.println("The TCP Server thread is stopping.");
+					try { tcpSocket.close(); } catch(Exception e2) {}
+					try { tcpServer.close(); } catch(Exception e2) {}
+					return;
+					
+				}
+			
+			}
+			
+		});
+		
+		tcpServerThread.setPriority(Thread.MAX_PRIORITY);
+		tcpServerThread.setName("TCP Server");
+		tcpServerThread.start();
+		
+	}
+	
+	/**
+	 * Stops the TCP server thread, frees its resources, and notifies any listeners that the connection has been closed.
+	 */
+	private static void stopTcpServer() {
+			
+		if(tcpServerThread != null && tcpServerThread.isAlive()) {
+			tcpServerThread.interrupt();
+			while(tcpServerThread.isAlive()); // wait
+		}
+		
+		Communication.packet.stopReceivingData();
+
+		Communication.tcpConnected = false;
+		notifyConnectionListeners();
+		
+	}
+	
+	static Thread udpServerThread;
+	
+	/**
+	 * Spawns a UDP server and shows a DataStructureWindow if necessary.
+	 * 
+	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 */
+	private static void startUdpServer(JFrame parentWindow) {
+		
+		udpServerThread = new Thread(() -> {
+			
+			DatagramSocket udpServer = null;
+			PipedOutputStream stream = null;
+			PipedInputStream inputStream = null;
+			
+			// start the UDP server
+			try {
+				udpServer = new DatagramSocket(Communication.tcpUdpPort);
+				udpServer.setSoTimeout(250);
+				stream = new PipedOutputStream();
+				inputStream = new PipedInputStream(stream);
+			} catch (Exception e) {
+				System.err.println("Unable to start the UDP server.");
+				udpServer.close();
+				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+				notifyConnectionLostListeners();
+				return;
+			}
+			
+			Communication.udpConnected = true;
+			notifyConnectionListeners();
+			
+			if(parentWindow != null) {
+				Communication.packet.showDataStructureWindow(parentWindow, false);
+				JOptionPane.showMessageDialog(parentWindow, "The UDP server is running. Send telemetry to " + Communication.localIp + " :" + Communication.tcpUdpPort);
+			}
+			
+			Communication.packet.startReceivingData(inputStream);
+			
+			// listen for packets
+			byte[] rx_buffer = new byte[Communication.MAX_UDP_PACKET_SIZE];
+			DatagramPacket udpPacket = new DatagramPacket(rx_buffer, rx_buffer.length);
+			while(true) {
+
+				try {
+					
+					if(Thread.interrupted())
+						throw new InterruptedException();
+					
+					udpServer.receive(udpPacket);
+					stream.write(rx_buffer, 0, udpPacket.getLength());
+					
+					System.out.println("UDP packet received from a client at " + udpPacket.getAddress().getHostAddress() + ".");
+					
+				} catch(SocketTimeoutException ste) {
+					
+					// a client never sent a packet, so do nothing and let the loop try again.
+					System.out.println("UDP socket timed out while waiting for a packet.");
+					
+				} catch(IOException ioe) {
+					
+					// problem while reading from the socket, or while putting data into the stream
+					System.err.println("UDP packet error.");
+					try { inputStream.close(); } catch(Exception e) {}
+					try { stream.close(); }      catch(Exception e) {}
+					try { udpServer.close(); }   catch(Exception e) {}
+					SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+					notifyConnectionLostListeners();
+					return;
+					
+				}  catch(InterruptedException ie) {
+					
+					// thread got interrupted while waiting for a connection, so exit.
+					System.err.println("The UDP Server thread is stopping.");
+					try { inputStream.close(); } catch(Exception e) {}
+					try { stream.close(); }      catch(Exception e) {}
+					try { udpServer.close(); }   catch(Exception e) {}
+					return;
+					
+				}
+			
+			}
+			
+		});
+		
+		udpServerThread.setPriority(Thread.MAX_PRIORITY);
+		udpServerThread.setName("UDP Server");
+		udpServerThread.start();
+		
+	}
+	
+	/**
+	 * Stops the UDP server thread.
+	 */
+	private static void stopUdpServer() {
+		
+		if(udpServerThread != null && udpServerThread.isAlive()) {
+			udpServerThread.interrupt();
+			while(udpServerThread.isAlive()); // wait
+		}
+		
+		Communication.packet.stopReceivingData();
+		
+		Communication.udpConnected = false;
 		notifyConnectionListeners();
 		
 	}

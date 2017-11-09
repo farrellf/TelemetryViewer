@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -242,36 +243,23 @@ public class CsvPacket implements Packet {
 						Thread.sleep(1);
 					
 					// parse received text
-					try {
-						
-						String line = reader.readLine();
-						String[] tokens = line.split(",");
-						// ensure they can all be parsed as floats before populating the datasets
-						for(Dataset dataset : Controller.getAllDatasets())
-							Float.parseFloat(tokens[dataset.location]);
-						for(Dataset dataset : Controller.getAllDatasets())
-							dataset.add(Float.parseFloat(tokens[dataset.location]));
-						
-					} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
-						
-						System.err.println("A corrupt line was received.");
-						
-					}
+					String line = reader.readLine();
+					String[] tokens = line.split(",");
+					// ensure they can all be parsed as floats before populating the datasets
+					for(Dataset dataset : Controller.getAllDatasets())
+						Float.parseFloat(tokens[dataset.location]);
+					for(Dataset dataset : Controller.getAllDatasets())
+						dataset.add(Float.parseFloat(tokens[dataset.location]));
 					
-				} catch(InterruptedException e2) {
+				} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException | SocketTimeoutException e1) {
 					
-					// stop and end this thread if we get interrupted
-					try { reader.close(); } catch(IOException e3) { }
+					System.err.println("A corrupt or incomplete line was received.");
+					
+				} catch(IOException | InterruptedException e2) {
+					
+					// stop and end this thread
 					System.err.println("The CSV Packet Processor thread is stopping.");
-					return;
-					
-				} catch(IOException e4) {
-					
-					// stop and end this thread if an IO error has occurred
-					try { reader.close(); } catch(IOException e5) { }
-					CommunicationController.disconnect();
-					CommunicationController.notifyConnectionLostListeners();
-					System.err.println("An IO error occurred.");
+					try { reader.close(); } catch(Exception e) { }
 					return;
 					
 				}
