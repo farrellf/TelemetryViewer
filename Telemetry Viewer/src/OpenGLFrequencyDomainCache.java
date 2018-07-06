@@ -72,7 +72,7 @@ public class OpenGLFrequencyDomainCache {
 		
 		// check for errors
 		if(gl.glCheckFramebufferStatus(GL2.GL_FRAMEBUFFER) != GL2.GL_FRAMEBUFFER_COMPLETE)
-			System.err.println("Error while creating the frequency domain cache's framebuffer or texture.");
+			NotificationsController.showFailureForSeconds("Error while creating the frequency domain cache's framebuffer or texture.", 10, false);
 		
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);

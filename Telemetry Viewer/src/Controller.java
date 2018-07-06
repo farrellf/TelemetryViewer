@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import javax.swing.JOptionPane;
 
 /**
  * Handles all non-GUI logic and manages access to the Model (the data).
@@ -399,7 +398,7 @@ public class Controller {
 			
 		} catch (IOException e) {
 			
-			JOptionPane.showMessageDialog(null, "Unable to save the file.", "Error: Unable to Save the File", JOptionPane.ERROR_MESSAGE);
+			NotificationsController.showFailureForSeconds("Unable to save the layout file.", 5, false);
 			
 		}
 		
@@ -543,7 +542,7 @@ public class Controller {
 			
 		} catch (IOException ioe) {
 			
-			JOptionPane.showMessageDialog(null, "Unable to open the file.", "Error", JOptionPane.ERROR_MESSAGE);
+			NotificationsController.showFailureForSeconds("Unable to open the layout file.", 5, false);
 			
 		} catch(AssertionError ae) {
 		
@@ -551,7 +550,7 @@ public class Controller {
 			Controller.removeAllCharts();
 			Controller.removeAllDatasets();
 			
-			JOptionPane.showMessageDialog(null, "Error while parsing the file:\n" + ae.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+			NotificationsController.showFailureForSeconds("<html>Error while parsing the layout file.<br>" + ae.getMessage() + "</html>", 5, false);
 		
 		}
 		

@@ -410,7 +410,7 @@ public class OpenGLChartsRegion extends JPanel {
 						FontUtils.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + FontUtils.tickTextHeight));
 						FontUtils.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
 						FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
-						System.out.println(line1 + ", " + line2);
+						NotificationsController.showVerboseForSeconds(line1 + ", " + line2, 1, false);
 					}
 					
 					gl.glPopMatrix();
@@ -446,7 +446,7 @@ public class OpenGLChartsRegion extends JPanel {
 					FontUtils.setOffsets(0, 0);
 					FontUtils.drawXaxisText(text, padding, padding);
 					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
-					System.out.println(text);
+					NotificationsController.showVerboseForSeconds(text, 1, false);
 				}
 				
 			}

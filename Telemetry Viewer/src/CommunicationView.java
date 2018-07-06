@@ -7,7 +7,6 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
@@ -141,13 +140,6 @@ public class CommunicationView extends JPanel {
 				portNumberCombobox.setEnabled(true);
 				connectButton.setEnabled(true);
 				connectButton.setText("Connect");
-			}
-		});
-		CommunicationController.addConnectionLostListener(connectionLost -> {
-			if(connectionLost) {
-				// notify the user because they did not initiate the disconnection
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(CommunicationView.this);
-				SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(parentWindow, "Warning: Connection lost.", "Warning", JOptionPane.WARNING_MESSAGE));
 			}
 		});
 		

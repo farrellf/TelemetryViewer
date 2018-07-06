@@ -541,7 +541,7 @@ public class BinaryPacket implements Packet {
 					if(checksumProcessor != null)
 						checksumPassed = checksumProcessor.testChecksum(rx_buffer, packetSize - 1); // -1 for syncWord
 					if(!checksumPassed) {
-						System.err.println("Checksum failed.");
+						NotificationsController.showVerboseForSeconds("Checksum failed.", 1, false);
 						continue;
 					}
 					
@@ -563,7 +563,7 @@ public class BinaryPacket implements Packet {
 					
 					// stop and end this thread
 					try { bStream.close(); } catch(IOException e2) { }
-					System.err.println("The Binary Packet Processor thread is stopping.");
+					NotificationsController.showVerboseForSeconds("The Binary Packet Processor thread is stopping.", 5, false);
 					return;
 					
 				}

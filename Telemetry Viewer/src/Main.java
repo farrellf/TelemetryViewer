@@ -13,11 +13,13 @@ public class Main {
 		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
 		
 		JFrame window = new JFrame("Telemetry Viewer v0.4");
+		NotificationsView notificationsRegion = new NotificationsView();
 		SettingsView settingsRegion = new SettingsView();
 		ControlsRegion controlsRegion = new ControlsRegion(settingsRegion);
 		OpenGLChartsRegion chartsRegion = new OpenGLChartsRegion(settingsRegion, controlsRegion);
 		
 		window.setLayout(new BorderLayout());
+		window.add(notificationsRegion, BorderLayout.NORTH);
 		window.add(chartsRegion, BorderLayout.CENTER);
 		window.add(settingsRegion, BorderLayout.WEST);
 		window.add(controlsRegion, BorderLayout.SOUTH);

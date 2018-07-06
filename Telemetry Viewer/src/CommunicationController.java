@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import com.fazecast.jSerialComm.SerialPort;
@@ -24,7 +23,6 @@ public class CommunicationController {
 	static List<Consumer<Integer>> baudRateListeners =       new ArrayList<Consumer<Integer>>();
 	static List<Consumer<Integer>> portNumberListeners =     new ArrayList<Consumer<Integer>>(); // TCP/UDP port
 	static List<Consumer<Boolean>> connectionListeners =     new ArrayList<Consumer<Boolean>>(); // true = connected or listening
-	static List<Consumer<Boolean>> connectionLostListeners = new ArrayList<Consumer<Boolean>>(); // true = lost,  false = reserved for future use
 	
 	/**
 	 * Registers a listener that will be notified when the port changes, and triggers an event to ensure the GUI is in sync.
@@ -324,27 +322,6 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when a connection is unexpectedly lost.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addConnectionLostListener(Consumer<Boolean> listener) {
-		
-		connectionLostListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about the an unexpected loss of connection.
-	 */
-	private static void notifyConnectionLostListeners() {
-		
-		for(Consumer<Boolean> listener : connectionLostListeners)
-			listener.accept(true);
-		
-	}
-	
-	/**
 	 * @return    True if a connection exists.
 	 */
 	public static boolean isConnected() {
@@ -358,7 +335,7 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Connects to the DUT.
+	 * Connects to the device.
 	 * 
 	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
 	 */
@@ -376,9 +353,7 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Disconnects from the DUT.
-	 * 
-	 * @param connectionLost    True if the connection was unexpectly lost.
+	 * Disconnects from the device and removes any visible Notifications.
 	 */
 	public static void disconnect() {
 		
@@ -390,6 +365,8 @@ public class CommunicationController {
 			stopUdpServer();
 		else if(Communication.port.equals(Communication.PORT_TEST))
 			stopTester();
+		
+		NotificationsController.removeAll();
 		
 	}
 	
@@ -416,8 +393,8 @@ public class CommunicationController {
 		if(!uartPort.openPort()) {
 			if(!uartPort.openPort()) {
 				if(!uartPort.openPort()) {
+					NotificationsController.showFailureForSeconds("Unable to connect to " + Communication.port + ".", 5, false);
 					disconnect();
-					notifyConnectionLostListeners();
 					return;
 				}
 			}
@@ -425,9 +402,12 @@ public class CommunicationController {
 		
 		Communication.uartConnected = true;
 		notifyConnectionListeners();
-		
+
 		if(parentWindow != null)
 			Communication.packet.showDataStructureWindow(parentWindow, false);
+		
+		int oldSampleCount = Controller.getSamplesCount();
+		NotificationsController.showSuccessUntil(Communication.port.substring(6) + " is connected. Send telemetry.", () -> Controller.getSamplesCount() > oldSampleCount, true); // trim the leading "UART: "
 		
 		Communication.packet.startReceivingData(uartPort.getInputStream());
 		
@@ -467,22 +447,22 @@ public class CommunicationController {
 			// start the TCP server
 			try {
 				tcpServer = new ServerSocket(Communication.tcpUdpPort);
-				tcpServer.setSoTimeout(250);
+				tcpServer.setSoTimeout(1000);
 			} catch (Exception e) {
-				System.err.println("Unable to start the TCP server. Maybe another program is already using port " + Communication.tcpUdpPort + "?");
+				NotificationsController.showFailureForSeconds("Unable to start the TCP server. Make sure another program is not already using port " + Communication.tcpUdpPort + ".", 5, false);
 				try { tcpServer.close(); } catch(Exception e2) {}
 				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
-				notifyConnectionLostListeners();
 				return;
 			}
 			
 			Communication.tcpConnected = true;
 			notifyConnectionListeners();
 			
-			if(parentWindow != null) {
+			if(parentWindow != null)
 				Communication.packet.showDataStructureWindow(parentWindow, false);
-				JOptionPane.showMessageDialog(parentWindow, "The TCP server is running. Send telemetry to " + Communication.localIp + " :" + Communication.tcpUdpPort);
-			}
+			
+			int oldSampleCount = Controller.getSamplesCount();
+			NotificationsController.showSuccessUntil("The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
 			
 			// wait for a connection
 			while(true) {
@@ -495,13 +475,10 @@ public class CommunicationController {
 					tcpSocket = tcpServer.accept();
 					tcpSocket.setSoTimeout(5000); // each valid packet of data must take <5 seconds to arrive
 					Communication.packet.startReceivingData(tcpSocket.getInputStream());
+
+					NotificationsController.showSuccessForSeconds("TCP connection established with a client at " + tcpSocket.getRemoteSocketAddress().toString().substring(1) + ".", 5, true); // trim leading "/" from the IP address
 					
-					System.out.println("TCP connection established with a client at " + tcpSocket.getRemoteSocketAddress() + ".");
-//					while(true) {
-//						if(Thread.interrupted())
-//							throw new InterruptedException(); // never return without first closing the socket and server!
-//					}
-					// enter an infinite loop that checks for inactivity. if the tcp port is idle for >10 seconds, abandon it so another device can try to connect.
+					// enter an infinite loop that checks for inactivity. if the TCP port is idle for >10 seconds, abandon it so another device can try to connect.
 					long previousTimestamp = System.currentTimeMillis();
 					int previousSampleNumber = Controller.getSamplesCount();
 					while(true) {
@@ -511,33 +488,32 @@ public class CommunicationController {
 						if(sampleNumber > previousSampleNumber) {
 							previousSampleNumber = sampleNumber;
 							previousTimestamp = timestamp;
-						} else if(previousTimestamp < timestamp - Communication.MAX_TCP_IDLE_MILLISECONDS){
+						} else if(previousTimestamp < timestamp - Communication.MAX_TCP_IDLE_MILLISECONDS) {
+							NotificationsController.showFailureForSeconds("The TCP connection was idle for too long. It has been closed so another device can connect.", 5, true);
 							tcpSocket.close();
 							Communication.packet.stopReceivingData();
-							notifyConnectionLostListeners();
 							break;
-						}						
+						}
 					}
 					
 				} catch(SocketTimeoutException ste) {
 					
 					// a client never connected, so do nothing and let the loop try again.
-					System.out.println("TCP socket timed out while waiting for a connection.");
+					NotificationsController.showVerboseForSeconds("TCP socket timed out while waiting for a connection.", 5, true);
 					
 				} catch(IOException ioe) {
 					
 					// problem while accepting the socket connection, or getting the input stream
-					System.err.println("TCP connection failed.");
+					NotificationsController.showFailureForSeconds("TCP connection failed.", 5, false);
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
 					SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
-					notifyConnectionLostListeners();
 					return;
 					
 				}  catch(InterruptedException ie) {
 					
 					// thread got interrupted, so exit.
-					System.err.println("The TCP Server thread is stopping.");
+					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
 					return;
@@ -589,14 +565,13 @@ public class CommunicationController {
 			// start the UDP server
 			try {
 				udpServer = new DatagramSocket(Communication.tcpUdpPort);
-				udpServer.setSoTimeout(250);
+				udpServer.setSoTimeout(1000);
 				stream = new PipedOutputStream();
 				inputStream = new PipedInputStream(stream);
 			} catch (Exception e) {
-				System.err.println("Unable to start the UDP server.");
+				NotificationsController.showFailureForSeconds("Unable to start the UDP server. Make sure another program is not already using port " + Communication.tcpUdpPort + ".", 5, false);
 				udpServer.close();
 				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
-				notifyConnectionLostListeners();
 				return;
 			}
 			
@@ -605,7 +580,8 @@ public class CommunicationController {
 			
 			if(parentWindow != null) {
 				Communication.packet.showDataStructureWindow(parentWindow, false);
-				JOptionPane.showMessageDialog(parentWindow, "The UDP server is running. Send telemetry to " + Communication.localIp + " :" + Communication.tcpUdpPort);
+				int oldSampleCount = Controller.getSamplesCount();
+				NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
 			}
 			
 			Communication.packet.startReceivingData(inputStream);
@@ -623,28 +599,27 @@ public class CommunicationController {
 					udpServer.receive(udpPacket);
 					stream.write(rx_buffer, 0, udpPacket.getLength());
 					
-					System.out.println("UDP packet received from a client at " + udpPacket.getAddress().getHostAddress() + ".");
+//					NotificationsController.showVerbose("UDP packet received from a client at " + udpPacket.getAddress().getHostAddress() + ":" + udpPacket.getPort() + ".");
 					
 				} catch(SocketTimeoutException ste) {
 					
 					// a client never sent a packet, so do nothing and let the loop try again.
-					System.out.println("UDP socket timed out while waiting for a packet.");
+					NotificationsController.showVerboseForSeconds("UDP socket timed out while waiting for a packet.", 5, true);
 					
 				} catch(IOException ioe) {
 					
 					// problem while reading from the socket, or while putting data into the stream
-					System.err.println("UDP packet error.");
+					NotificationsController.showFailureForSeconds("UDP packet error.", 5, false);
 					try { inputStream.close(); } catch(Exception e) {}
 					try { stream.close(); }      catch(Exception e) {}
 					try { udpServer.close(); }   catch(Exception e) {}
 					SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
-					notifyConnectionLostListeners();
 					return;
 					
 				}  catch(InterruptedException ie) {
 					
 					// thread got interrupted while waiting for a connection, so exit.
-					System.err.println("The UDP Server thread is stopping.");
+					NotificationsController.showVerboseForSeconds("The UDP Server thread is stopping.", 5, false);
 					try { inputStream.close(); } catch(Exception e) {}
 					try { stream.close(); }      catch(Exception e) {}
 					try { udpServer.close(); }   catch(Exception e) {}

@@ -253,12 +253,12 @@ public class CsvPacket implements Packet {
 					
 				} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException | SocketTimeoutException e1) {
 					
-					System.err.println("A corrupt or incomplete line was received.");
+					NotificationsController.showVerboseForSeconds("A corrupt or incomplete line was received.", 5, false);
 					
 				} catch(IOException | InterruptedException e2) {
 					
 					// stop and end this thread
-					System.err.println("The CSV Packet Processor thread is stopping.");
+					NotificationsController.showVerboseForSeconds("The CSV Packet Processor thread is stopping.", 5, false);
 					try { reader.close(); } catch(Exception e) { }
 					return;
 					

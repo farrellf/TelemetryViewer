@@ -8,10 +8,8 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 /**
@@ -122,12 +120,15 @@ public class SettingsView extends JPanel {
 		JCheckBox showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
 		showBenchmarksCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showBenchmarksCheckbox.addActionListener(event -> {
-			if(Controller.getCharts().isEmpty() || !showBenchmarksCheckbox.isSelected()) {
+			if(Controller.getCharts().isEmpty()) {
+				NotificationsController.showFailureForSeconds("There are no charts to benchmark. Add a chart first.", 5, true);
+				SettingsController.setBenchmarkedChart(null);
+			} else if(!showBenchmarksCheckbox.isSelected()) {
 				SettingsController.setBenchmarkedChart(null);
 			} else {
 				SettingsController.awaitBenchmarkedChart();
 				showBenchmarksCheckbox.setEnabled(false);
-				JOptionPane.showMessageDialog(SwingUtilities.windowForComponent(this), "Click on a chart to benchmark.");
+				NotificationsController.showHintUntil("Click on a chart to benchmark.", () -> !SettingsController.awaitingBenchmarkedChart(), true);
 			}
 		});
 		
