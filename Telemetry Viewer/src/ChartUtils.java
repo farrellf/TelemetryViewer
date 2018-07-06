@@ -137,8 +137,8 @@ public class ChartUtils {
 		// calculate the best horizontal division size
 		int textWidth = (int) Float.max(FontUtils.tickTextWidth(Integer.toString(maxX)), FontUtils.tickTextWidth(Integer.toString(minX)));
 		int minSpacingBetweenText = textWidth;
-		int maxDivisionsCount = (int) plotWidth / (textWidth + minSpacingBetweenText) + 1;
-		int divisionSize = (maxX - minX) / maxDivisionsCount;
+		float maxDivisionsCount = plotWidth / (textWidth + minSpacingBetweenText);
+		int divisionSize = (int) Math.ceil((maxX - minX) / maxDivisionsCount);
 		if(divisionSize == 0) divisionSize = 1;
 		int closestDivSize1 = (int) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/1.0))) * 1; // closest (10^n)*1 that is >= divisionSize, such as 1,10,100,1000
 		int closestDivSize2 = (int) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/2.0))) * 2; // closest (10^n)*2 that is >= divisionSize, such as 2,20,200,2000
