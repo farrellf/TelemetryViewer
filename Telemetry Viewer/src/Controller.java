@@ -363,9 +363,10 @@ public class Controller {
 				
 				int checksumProcessorIndex = -1;
 				BinaryChecksumProcessor[] processors = BinaryPacket.getBinaryChecksumProcessors();
-				for(int i = 0; i < processors.length; i++)
-					if(packet.checksumProcessor.toString().equals(processors[i].toString()))
-						checksumProcessorIndex = i;
+				if(packet.checksumProcessor != null)
+					for(int i = 0; i < processors.length; i++)
+						if(packet.checksumProcessor.toString().equals(processors[i].toString()))
+							checksumProcessorIndex = i;
 				
 				outputFile.println("");
 				outputFile.println("Checksum:");
@@ -479,7 +480,10 @@ public class Controller {
 				Color color = new Color(colorNumber);
 				
 				BinaryFieldProcessor processor = (processorIndex >= 0) ? BinaryPacket.getBinaryFieldProcessors()[processorIndex] : null;
-				insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				if(Communication.packet == Communication.csvPacket)
+					Communication.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
+				else
+					Communication.binaryPacket.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
 			}
 			
@@ -491,7 +495,7 @@ public class Controller {
 				int checksumOffset = (int) ChartUtils.parse(n, lines.get(n++), "\tlocation = %d");
 				int checksumIndex = (int) ChartUtils.parse(n, lines.get(n++), "\tchecksum processor index = %d");
 				
-				if(checksumOffset >= 1) {
+				if(checksumOffset >= 1 && checksumIndex >= 0) {
 					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
 					Communication.binaryPacket.insertChecksum(checksumOffset, processor);
 				}
