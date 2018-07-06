@@ -502,6 +502,8 @@ public class Controller {
 
 			ChartUtils.parse(n, lines.get(n++), "");
 			int chartsCount = (int) ChartUtils.parse(n, lines.get(n++), "%d Charts:");
+			if(chartsCount == 0)
+				return;
 			ChartUtils.parse(n, lines.get(n++), "");
 
 			for(int i = 0; i < chartsCount; i++) {
