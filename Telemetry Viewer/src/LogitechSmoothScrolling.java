@@ -59,11 +59,12 @@ public class LogitechSmoothScrolling {
 
 			client = new WebSocketClient();
 			client.start();
+			client.setConnectTimeout(100); // milliseconds
 			client.connect(this, new URI("ws://127.0.0.1:59243"), new ClientUpgradeRequest());
 
 		} catch(Exception e) {
 
-			e.printStackTrace();
+//			e.printStackTrace();
 
 		}
 		
@@ -88,7 +89,7 @@ public class LogitechSmoothScrolling {
 
 		} catch (Exception e) {
 
-			e.printStackTrace();
+//			e.printStackTrace();
 
 		}
 
@@ -111,7 +112,7 @@ public class LogitechSmoothScrolling {
 
 		} catch(Exception e) {
 
-			e.printStackTrace();
+//			e.printStackTrace();
 
 		}
 
