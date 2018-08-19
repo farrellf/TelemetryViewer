@@ -1,5 +1,6 @@
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 
 public class Communication {
 
@@ -21,7 +22,23 @@ public class Communication {
 	static boolean uartConnected = false;
 	
 	static String localIp = "[Local IP Address Unknown]";
-	static { try { localIp = InetAddress.getLocalHost().getHostAddress(); } catch(UnknownHostException e) {} }
+	static {
+		try { 
+			String ips = "";
+			Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+			while(interfaces.hasMoreElements()) {
+				Enumeration<InetAddress> addresses = interfaces.nextElement().getInetAddresses();
+				while(addresses.hasMoreElements()) {
+					InetAddress address = addresses.nextElement();
+					if(address.isSiteLocalAddress())
+						ips += address.getHostAddress() + " or ";
+				}
+			}
+			ips = ips.substring(0, ips.length() - 4);
+			if(ips.length() > 0)
+				localIp = ips;
+		} catch(Exception e) {}
+	}
 	final static int PORT_NUMBER_MIN = 0;
 	final static int PORT_NUMBER_MAX = 65535;
 	

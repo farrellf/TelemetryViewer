@@ -578,11 +578,11 @@ public class CommunicationController {
 			Communication.udpConnected = true;
 			notifyConnectionListeners();
 			
-			if(parentWindow != null) {
+			if(parentWindow != null)
 				Communication.packet.showDataStructureWindow(parentWindow, false);
-				int oldSampleCount = Controller.getSamplesCount();
-				NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
-			}
+				
+			int oldSampleCount = Controller.getSamplesCount();
+			NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
 			
 			Communication.packet.startReceivingData(inputStream);
 			
