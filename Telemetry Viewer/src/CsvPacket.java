@@ -566,7 +566,11 @@ public class CsvPacket implements Packet {
 			arduinoCode.setTabSize(4);
 			arduinoCode.setFont(new Font("Consolas", Font.PLAIN, 12 * (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0)));
 			exampleCodePane = new JTabbedPane();
-			exampleCodePane.add("Arduino Code", new JScrollPane(arduinoCode));
+			
+			if(CommunicationController.getPort().startsWith("UART") || CommunicationController.getPort().startsWith("Test"))
+				exampleCodePane.add("Arduino Code", new JScrollPane(arduinoCode));
+			else if(CommunicationController.getPort().startsWith("UDP"))
+				exampleCodePane.add("Arduino + ESP8266 Code", new JScrollPane(arduinoCode));
 			exampleCodePane.setPreferredSize(new Dimension(exampleCodePane.getPreferredSize().width, 16 * (int) (getFontMetrics(arduinoCode.getFont())).getHeight()));
 
 			add(dataEntryPanel, BorderLayout.NORTH);
@@ -630,8 +634,8 @@ public class CsvPacket implements Packet {
 			floatPrintfVariables = floatPrintfVariables.substring(0, floatPrintfVariables.length() - 2);
 			
 			String printfFormatString = new String();
-			int intPrintfLength = 0;
-			int floatPrintfLength = 0;
+			int intPrintfLength = 1;
+			int floatPrintfLength = 1;
 			int i = 0;
 			for(Dataset dataset : datasets) {
 				while(i < dataset.location) {
@@ -647,42 +651,215 @@ public class CsvPacket implements Packet {
 			}
 			printfFormatString = printfFormatString.substring(0, printfFormatString.length() - 1);
 			
-			arduinoCode.setText("// this code is a crude template\n");
-			arduinoCode.append("// you will need to edit this\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("void setup() {\n");
-			arduinoCode.append("\tSerial.begin(" + baudRate + ");\n");
-			arduinoCode.append("}\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("// use this loop if sending integers\n");
-			arduinoCode.append("void loop() {\n");
-			for(String name : datasetNames)
-				arduinoCode.append("\tint " + name + " = ...;\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("\tchar text[" + intPrintfLength + "];\n");
-			arduinoCode.append("\tsnprintf(text, " + intPrintfLength + ", \"" + printfFormatString + "\", " + intPrintfVariables + ");\n");
-			arduinoCode.append("\tSerial.println(text);\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("\tdelay(...);\n");
-			arduinoCode.append("}\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("// or use this loop if sending floats\n");
-			arduinoCode.append("void loop() {\n");
-			for(String name : datasetNames)
-				arduinoCode.append("\tfloat " + name + " = ...;\n");
-			arduinoCode.append("\n");
-			for(String name : datasetNames)
-				arduinoCode.append("\tchar " + name + "_text[30];\n");
-			arduinoCode.append("\n");
-			for(String name : datasetNames)
-				arduinoCode.append("\tdtostrf(" + name + ", 10, 10, " + name + "_text);\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("\tchar text[" + floatPrintfLength + "];\n");
-			arduinoCode.append("\tsnprintf(text, " + floatPrintfLength + ", \"" + printfFormatString.replace('d', 's') + "\", " + floatPrintfVariables + ");\n");
-			arduinoCode.append("\tSerial.println(text);\n");
-			arduinoCode.append("\n");
-			arduinoCode.append("\tdelay(...);\n");
-			arduinoCode.append("}\n");
+			if(CommunicationController.getPort().startsWith("UART") || CommunicationController.getPort().startsWith("Test")) {
+				
+				arduinoCode.setText("// this code is a crude template\n");
+				arduinoCode.append("// you will need to edit this\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("void setup() {\n");
+				arduinoCode.append("\tSerial.begin(" + baudRate + ");\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+				
+				arduinoCode.append("// use this loop if sending integers\n");
+				arduinoCode.append("void loop() {\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tint " + name + " = ...;\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tchar text[" + intPrintfLength + "];\n");
+				arduinoCode.append("\tsnprintf(text, " + intPrintfLength + ", \"" + printfFormatString + "\", " + intPrintfVariables + ");\n");
+				arduinoCode.append("\tSerial.println(text);\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tdelay(...);\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+				
+				arduinoCode.append("// or use this loop if sending floats\n");
+				arduinoCode.append("void loop() {\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tfloat " + name + " = ...;\n");
+				arduinoCode.append("\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tchar " + name + "_text[30];\n");
+				arduinoCode.append("\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tdtostrf(" + name + ", 10, 10, " + name + "_text);\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tchar text[" + floatPrintfLength + "];\n");
+				arduinoCode.append("\tsnprintf(text, " + floatPrintfLength + ", \"" + printfFormatString.replace('d', 's') + "\", " + floatPrintfVariables + ");\n");
+				arduinoCode.append("\tSerial.println(text);\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tdelay(...);\n");
+				arduinoCode.append("}\n");
+			
+			} else if(CommunicationController.getPort().startsWith("UDP")) {
+				
+				arduinoCode.setText("// this code is a crude template\n");
+				arduinoCode.append("// you will need to edit this\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("void setup() {\n");
+				arduinoCode.append("\tpinMode(LED_BUILTIN, OUTPUT);\n");
+				arduinoCode.append("\tSerial.begin(" + baudRate + ");\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tif(esp8266_test_communication() &&\n");
+				arduinoCode.append("\t   esp8266_reset() &&\n");
+				arduinoCode.append("\t   esp8266_client_mode() &&\n");
+				arduinoCode.append("\t   esp8266_join_ap(\"your_wifi_network_name_here\", \"your_wifi_password_here\") && // EDIT THIS LINE\n");
+				arduinoCode.append("\t   esp8266_start_udp(\"" + Communication.localIp + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\t\t// success, turn on LED\n");
+				arduinoCode.append("\t\tdigitalWrite(LED_BUILTIN, HIGH);\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\t} else {\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\t\t// failure, blink LED\n");
+				arduinoCode.append("\t\twhile(true) {\n");
+				arduinoCode.append("\t\t\tdigitalWrite(LED_BUILTIN, HIGH);\n");
+				arduinoCode.append("\t\t\tdelay(1000);\n");
+				arduinoCode.append("\t\t\tdigitalWrite(LED_BUILTIN, LOW);\n");
+				arduinoCode.append("\t\t\tdelay(1000);\n");
+				arduinoCode.append("\t\t}\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+				
+				arduinoCode.append("// use this loop if sending integers\n");
+				arduinoCode.append("void loop() {\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tint " + name + " = ...; // EDIT THIS LINE\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tchar text[" + intPrintfLength + "];\n");
+				arduinoCode.append("\tsnprintf(text, " + intPrintfLength + ", \"" + printfFormatString + "\\n\", " + intPrintfVariables + ");\n");
+				arduinoCode.append("\tesp8266_transmit_udp(text);\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+				
+				arduinoCode.append("// or use this loop if sending floats\n");
+				arduinoCode.append("void loop() {\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tfloat " + name + " = ...; // EDIT THIS LINE\n");
+				arduinoCode.append("\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tchar " + name + "_text[30];\n");
+				arduinoCode.append("\n");
+				for(String name : datasetNames)
+					arduinoCode.append("\tdtostrf(" + name + ", 10, 10, " + name + "_text);\n");
+				arduinoCode.append("\n");
+				arduinoCode.append("\tchar text[" + floatPrintfLength + "];\n");
+				arduinoCode.append("\tsnprintf(text, " + floatPrintfLength + ", \"" + printfFormatString.replace('d', 's') + "\\n\", " + floatPrintfVariables + ");\n");
+				arduinoCode.append("\tesp8266_transmit_udp(text);\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+				
+				arduinoCode.append("#define MAX_COMMAND_TIME  10000 // milliseconds\n");
+				arduinoCode.append("\n");
+
+				arduinoCode.append("bool esp8266_test_communication(void) {\n");
+				arduinoCode.append("\tdelay(500); // wait for module to boot up\n");
+				arduinoCode.append("\tSerial.print(\"AT\\r\\n\");\n");
+				arduinoCode.append("\tunsigned long startTime = millis();\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"OK\"))\n");
+				arduinoCode.append("\t\t\treturn true;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+
+				arduinoCode.append("bool esp8266_reset(void) {\n");
+				arduinoCode.append("\tSerial.print(\"AT+RST\\r\\n\");\n");
+				arduinoCode.append("\tunsigned long startTime = millis();\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"ready\"))\n");
+				arduinoCode.append("\t\t\treturn true;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+
+				arduinoCode.append("bool esp8266_client_mode(void) {\n");
+				arduinoCode.append("\tSerial.print(\"AT+CWMODE=1\\r\\n\");\n");
+				arduinoCode.append("\tunsigned long startTime = millis();\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"OK\"))\n");
+				arduinoCode.append("\t\t\treturn true;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+
+				arduinoCode.append("bool esp8266_join_ap(String ssid, String password) {\n");
+				arduinoCode.append("\tSerial.print(\"AT+CWJAP=\\\"\" + ssid + \"\\\",\\\"\" + password + \"\\\"\\r\\n\");\n");
+				arduinoCode.append("\tunsigned long startTime = millis();\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"WIFI CONNECTED\"))\n");
+				arduinoCode.append("\t\t\tbreak;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"WIFI GOT IP\"))\n");
+				arduinoCode.append("\t\t\tbreak;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"OK\"))\n");
+				arduinoCode.append("\t\t\treturn true;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+
+				arduinoCode.append("bool esp8266_start_udp(String ip_address, int port_number) {\n");
+				arduinoCode.append("\tSerial.print(\"AT+CIPSTART=\\\"UDP\\\",\\\"\" + ip_address + \"\\\",\" + port_number + \"\\r\\n\");\n");
+				arduinoCode.append("\tunsigned long startTime = millis();\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"CONNECT\"))\n");
+				arduinoCode.append("\t\t\tbreak;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"OK\"))\n");
+				arduinoCode.append("\t\t\treturn true;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("}\n");
+				arduinoCode.append("\n");
+
+				arduinoCode.append("bool esp8266_transmit_udp(String text) {\n");
+				arduinoCode.append("\tSerial.print(\"AT+CIPSEND=\" + String(text.length()) + \"\\r\\n\");\n");
+				arduinoCode.append("\tunsigned long startTime = millis();\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"OK\"))\n");
+				arduinoCode.append("\t\t\tbreak;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\">\"))\n");
+				arduinoCode.append("\t\t\tbreak;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("\tSerial.print(text);\n");
+				arduinoCode.append("\twhile(true) {\n");
+				arduinoCode.append("\t\tif(Serial.find(\"SEND OK\"))\n");
+				arduinoCode.append("\t\t\treturn true;\n");
+				arduinoCode.append("\t\tif(millis() > startTime + MAX_COMMAND_TIME)\n");
+				arduinoCode.append("\t\t\treturn false;\n");
+				arduinoCode.append("\t}\n");
+				arduinoCode.append("}\n");
+				
+			}
 			
 		}
 
