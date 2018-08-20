@@ -570,7 +570,7 @@ public class CommunicationController {
 				inputStream = new PipedInputStream(stream);
 			} catch (Exception e) {
 				NotificationsController.showFailureForSeconds("Unable to start the UDP server. Make sure another program is not already using port " + Communication.tcpUdpPort + ".", 5, false);
-				udpServer.close();
+				try { udpServer.close(); stream.close(); inputStream.close(); } catch(Exception e2) {}
 				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
 				return;
 			}
