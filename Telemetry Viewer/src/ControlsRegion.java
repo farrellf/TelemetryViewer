@@ -87,9 +87,9 @@ public class ControlsRegion extends JPanel {
 		helpButton.addActionListener(event -> {
 			
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-			String helpText = "<html><b>Telemetry Viewer v0.4 (2017-07-21)</b><br>" +
-			                  "A fast and easy tool for visualizing data received over a UART.<br><br>" +
-			                  "Step 1: Use the controls at the lower-right corner of the main window to connect to a serial port.<br>" +
+			String helpText = "<html><b>Telemetry Viewer v0.5 (2018-08-20)</b><br>" +
+			                  "A fast and easy tool for visualizing data received over a UART/TCP/UDP connection.<br><br>" +
+			                  "Step 1: Use the controls at the lower-right corner of the main window to connect to a serial port or to start a TCP/UDP server.<br>" +
 			                  "Step 2: A \"Data Structure\" window will pop up, use it to specify how your data is laid out, then click \"Done\"<br>" +
 			                  "Step 3: Click-and-drag in the tiles region to place a chart.<br>" +
 			                  "Step 4: A \"New Chart\" window will pop up, use it to specify the type of chart and its settings.<br>" +
@@ -99,8 +99,9 @@ public class ControlsRegion extends JPanel {
 			                  "Use your scroll wheel while holding down Shift to adjust display scaling.<br><br>" +
 			                  "Click the x icon at the top-right corner of any chart to remove it.<br>" +
 			                  "Click the gear icon at the top-right corner of any chart to change its settings.<br><br>" +
+			                  "Click the \"Settings\" button to adjust options related to the GUI.<br>" +
 			                  "Click the \"Open Layout\" button to open a layout file.<br>" +
-			                  "Click the \"Save Layout\" button to save your current configuration (port settings, data structure, and chart settings) to a file.<br>" +
+			                  "Click the \"Save Layout\" button to save your current configuration (connection settings, data structure, and chart settings) to a file.<br>" +
 			                  "Click the \"Export CSV Log\" button to save all of your acquired samples to a CSV file.<br>" +
 			                  "Click the \"Reset\" button to remove all charts.<br><br>" +
 			                  "This software is free and open source.<br>" +

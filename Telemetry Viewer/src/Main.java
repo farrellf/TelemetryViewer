@@ -2,7 +2,6 @@ import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowFocusListener;
-
 import javax.swing.JFrame;
 import javax.swing.UIManager;
 
@@ -12,7 +11,7 @@ public class Main {
 		
 		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
 		
-		JFrame window = new JFrame("Telemetry Viewer v0.4");
+		JFrame window = new JFrame("Telemetry Viewer v0.5");
 		NotificationsView notificationsRegion = new NotificationsView();
 		SettingsView settingsRegion = new SettingsView();
 		ControlsRegion controlsRegion = new ControlsRegion(settingsRegion);

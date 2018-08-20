@@ -183,7 +183,7 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glEnd();
 					
 					// draw the text
-					String message = "Start by connecting to a serial port or opening a layout file.";
+					String message = "Start by connecting to a device or opening a layout file.";
 					float messageWidth = FontUtils.xAxisTextWidth(message);
 					float messageHeight = FontUtils.xAxisTextHeight;
 					float xMessageLeft = (canvasWidth / 2.0f) - (messageWidth / 2.0f);
