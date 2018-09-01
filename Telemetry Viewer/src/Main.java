@@ -22,6 +22,7 @@ public class Main {
 		window.add(chartsRegion, BorderLayout.CENTER);
 		window.add(settingsRegion, BorderLayout.WEST);
 		window.add(controlsRegion, BorderLayout.SOUTH);
+		window.add(ConfigureView.instance, BorderLayout.EAST);
 		
 		window.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		window.setSize( (int) (GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().width * 0.6), (int) (GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().height * 0.6) );

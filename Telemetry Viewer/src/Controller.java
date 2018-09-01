@@ -187,6 +187,7 @@ public class Controller {
 
 		if(SettingsController.getBenchmarkedChart() == chart)
 			SettingsController.setBenchmarkedChart(null);
+		ConfigureView.closeIfUsedFor(chart);
 		Model.charts.remove(chart);
 		
 	}

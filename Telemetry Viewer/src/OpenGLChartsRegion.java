@@ -483,7 +483,7 @@ public class OpenGLChartsRegion extends JPanel {
 				}
 				
 				if(chartToConfigureOnClick != null) {
-					new ConfigureChartWindow(parentWindow, chartToConfigureOnClick);
+					ConfigureView.existingChart(chartToConfigureOnClick);
 					return;
 				}
 				
@@ -522,7 +522,7 @@ public class OpenGLChartsRegion extends JPanel {
 				startX = startY = -1;
 				endX   = endY   = -1;
 				
-				new AddChartWindow(parentWindow, x1, y1, x2, y2);
+				ConfigureView.newChart(x1, y1, x2, y2);
 				
 			}
 
