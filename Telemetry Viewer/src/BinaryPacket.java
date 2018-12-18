@@ -413,7 +413,7 @@ public class BinaryPacket implements Packet {
 	 */
 	static public BinaryFieldProcessor[] getBinaryFieldProcessors() {
 		
-		BinaryFieldProcessor[] processors = new BinaryFieldProcessor[4];
+		BinaryFieldProcessor[] processors = new BinaryFieldProcessor[8];
 		
 		processors[0] = new BinaryFieldProcessor() {
 			
@@ -455,8 +455,39 @@ public class BinaryPacket implements Packet {
 			
 		};
 		
-		return processors;
+		processors[4] = new BinaryFieldProcessor() {
+			@Override public String toString()                   { return "uint32 LSB First"; }
+			@Override public int getByteCount()                  { return 4; }
+			@Override public float extractValue(byte[] rawBytes) { return (float) (((0xFF & rawBytes[0]) <<  0) |
+												((0xFF & rawBytes[1]) <<  8) |
+												((0xFF & rawBytes[2]) << 16) |
+												((0xFF & rawBytes[3]) << 24));}
+		};
 		
+		processors[5] = new BinaryFieldProcessor() {
+			@Override public String toString()                   { return "uint32 MSB First"; }
+			@Override public int getByteCount()                  { return 4; }
+			@Override public float extractValue(byte[] rawBytes) { return (float) (((0xFF & rawBytes[3]) <<  0) |
+												((0xFF & rawBytes[2]) <<  8) |
+												((0xFF & rawBytes[1]) << 16) |
+												((0xFF & rawBytes[0]) << 24));}
+		};
+
+		processors[6] = new BinaryFieldProcessor() {
+			@Override public String toString()                   { return "int16 LSB First"; }
+			@Override public int getByteCount()                  { return 2; }
+			@Override public float extractValue(byte[] rawBytes) { return (float) ((rawBytes[0] << 0) |
+												(rawBytes[1] << 8));}
+		};
+		
+		processors[7] = new BinaryFieldProcessor() {
+			@Override public String toString()                   { return "int16 MSB First"; }
+			@Override public int getByteCount()                  { return 2; }
+			@Override public float extractValue(byte[] rawBytes) { return (float) ((rawBytes[1] << 0) |
+			                                                                       (rawBytes[0] << 8));}
+		};
+		
+		return processors;
 	}
 	
 	/**
