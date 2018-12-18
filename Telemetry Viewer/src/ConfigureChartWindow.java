@@ -25,7 +25,8 @@ public class ConfigureChartWindow extends JDialog {
 		JPanel windowContents = new JPanel();
 		windowContents.setBorder(new EmptyBorder(10, 10, 10, 10));
 		windowContents.setLayout(new BoxLayout(windowContents, BoxLayout.Y_AXIS));
-		add(windowContents);
+		JScrollPane scrollPane = new JScrollPane(windowContents, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);  //Let all scrollPanel has scroll bars
+		add(scrollPane);
 		
 		JPanel doneButtonPanel = new JPanel();
 		JButton doneButton = new JButton("Done");
@@ -46,9 +47,9 @@ public class ConfigureChartWindow extends JDialog {
 		windowContents.add(doneButtonPanel);
 				
 		// size and position the window
-		setResizable(false);
+		setResizable(true);
 		pack();
-		setSize((int) (getWidth() * 1.3), getHeight());
+		setSize((int) (getWidth() * 1.3), (int) (getWidth() * 1.3));
 		setLocationRelativeTo(parentWindow);
 		
 		setModal(true);
