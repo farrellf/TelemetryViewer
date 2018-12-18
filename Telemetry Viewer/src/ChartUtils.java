@@ -270,8 +270,11 @@ public class ChartUtils {
 		String text = String.format("%.9f", number);
 		int pointLocation = text.indexOf('.');
 		int stringLength = text.charAt(0) == '-' ? digitCount + 2 : digitCount + 1;
-		return text.substring(0, pointLocation < stringLength ? stringLength : pointLocation);
-		
+		if(text.length() > (pointLocation < stringLength ? stringLength : pointLocation)){
+		      return text.substring(0, pointLocation < stringLength ? stringLength : pointLocation);
+		} else {
+		      return text.substring(1, text.length());
+		}
 	}
 	
 	/**
