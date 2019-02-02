@@ -350,12 +350,19 @@ public class CommunicationController {
 		else if(Communication.port.equals(Communication.PORT_TEST))
 			startTester(parentWindow);
 		
+		SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
+			if(Controller.getCharts().isEmpty())
+				NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
+		});
+		
 	}
 	
 	/**
 	 * Disconnects from the device and removes any visible Notifications.
 	 */
 	public static void disconnect() {
+		
+		boolean wasConnected = isConnected();
 		
 		if(Communication.port.startsWith(Communication.PORT_UART + ": "))
 			disconnectFromUart();
@@ -367,6 +374,13 @@ public class CommunicationController {
 			stopTester();
 		
 		NotificationsController.removeAll();
+
+		if(wasConnected) {
+			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
+				if(Controller.getCharts().isEmpty() && !CommunicationController.isConnected())
+					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), false);
+			});
+		}
 		
 	}
 	

@@ -32,6 +32,8 @@ public class Main {
 		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		window.setVisible(true);
 		
+		NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), false);
+		
 		LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
 		
 		window.addWindowFocusListener(new WindowFocusListener() {

@@ -66,7 +66,6 @@ public class OpenGLChartsRegion extends JPanel {
 	int[] gpuQueryHandles = new int[2];
 	long[] gpuTimes = new long[2];
 	
-	boolean serialPortConnected;
 	boolean antialiasing;
 	
 	JFrame parentWindow;
@@ -91,7 +90,6 @@ public class OpenGLChartsRegion extends JPanel {
 		mouseY = -1;
 		chartToRemoveOnClick = null;
 		
-		serialPortConnected = false;
 		antialiasing = false;
 		
 		parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
@@ -170,95 +168,6 @@ public class OpenGLChartsRegion extends JPanel {
 					}
 				}
 				
-				// if there are no charts and no serial port connection, tell the user to connect or open a layout
-				if(!serialPortConnected && Controller.getCharts().size() == 0) {
-					
-					// draw the background
-					gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(Theme.neutralColor, 0);
-						gl.glVertex2f(0,           0);
-						gl.glVertex2f(0,           canvasHeight);
-						gl.glVertex2f(canvasWidth, canvasHeight);
-						gl.glVertex2f(canvasWidth, 0);
-					gl.glEnd();
-					
-					// draw the text
-					String message = "Start by connecting to a device or opening a layout file.";
-					float messageWidth = FontUtils.xAxisTextWidth(message);
-					float messageHeight = FontUtils.xAxisTextHeight;
-					float xMessageLeft = (canvasWidth / 2.0f) - (messageWidth / 2.0f);
-					float yMessageBottom = (canvasHeight / 2.0f) - (messageHeight / 2.0f);
-					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
-					FontUtils.drawXaxisText(message, (int) xMessageLeft, (int) yMessageBottom);
-					FontUtils.drawQueuedText(gl);
-					
-					// arrow settings
-					float arrowHeight = 50 * Controller.getDisplayScalingFactor();
-					float arrowWidth = arrowHeight * 0.6f;
-					float arrowStemWidth = arrowWidth / 3;
-					float arrowStemHeight = arrowHeight * 0.65f;
-					float arrowYoffset = arrowHeight / 6;
-					
-					// arrow transparency fades in and out once per 2 seconds
-					long time = System.currentTimeMillis();
-					boolean even = (time / 2000) % 2 == 0;
-					float transparency = (time % 2000) / 2000.0f;
-					float arrowTransparency = even ? transparency : 1 - transparency;
-					
-					// draw an arrow above the "Open Layout" button
-					float xCenterOfOpenLayoutButton = controlsRegion.getOpenLayoutButtonLocation() - settingsRegion.getWidth();
-					float xOpenLayoutArrowLeft = xCenterOfOpenLayoutButton - (arrowWidth / 2);
-					float xOpenLayoutArrowRight = xCenterOfOpenLayoutButton + (arrowWidth / 2);
-					float yOpenLayoutArrowBottom = arrowYoffset;
-					float yOpenLayoutArrowTop = yOpenLayoutArrowBottom + arrowHeight;
-					float yOpenLayoutArrowMiddle = yOpenLayoutArrowTop - arrowStemHeight;
-					float xOpenLayoutArrowMiddle = xOpenLayoutArrowLeft + (arrowWidth / 2);
-					float xOpenLayoutArrowStemLeft = xOpenLayoutArrowMiddle - (arrowStemWidth / 2);
-					float xOpenLayoutArrowStemRight = xOpenLayoutArrowMiddle + (arrowStemWidth / 2);
-					
-					gl.glColor4f(1, 0, 0, arrowTransparency);
-					gl.glBegin(GL2.GL_TRIANGLES);
-						gl.glVertex2f(xOpenLayoutArrowMiddle, yOpenLayoutArrowBottom);
-						gl.glVertex2f(xOpenLayoutArrowLeft,   yOpenLayoutArrowMiddle);
-						gl.glVertex2f(xOpenLayoutArrowRight,  yOpenLayoutArrowMiddle);
-					gl.glEnd();
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glVertex2f(xOpenLayoutArrowStemLeft,  yOpenLayoutArrowMiddle);
-						gl.glVertex2f(xOpenLayoutArrowStemLeft,  yOpenLayoutArrowTop);
-						gl.glVertex2f(xOpenLayoutArrowStemRight, yOpenLayoutArrowTop);
-						gl.glVertex2f(xOpenLayoutArrowStemRight, yOpenLayoutArrowMiddle);
-					gl.glEnd();
-					
-					// draw an arrow above the "Connect" button
-					float xCenterOfConnectButton = controlsRegion.getConnectButtonLocation() - settingsRegion.getWidth();
-					float xConnectArrowLeft = xCenterOfConnectButton - (arrowWidth / 2);
-					float xConnectArrowRight = xCenterOfConnectButton + (arrowWidth / 2);
-					float yConnectArrowBottom = arrowYoffset;
-					float yConnectArrowTop = yConnectArrowBottom + arrowHeight;
-					float yConnectArrowMiddle = yConnectArrowTop - arrowStemHeight;
-					float xConnectArrowMiddle = xConnectArrowLeft + (arrowWidth / 2);
-					float xConnectArrowStemLeft = xConnectArrowMiddle - (arrowStemWidth / 2);
-					float xConnectArrowStemRight = xConnectArrowMiddle + (arrowStemWidth / 2);
-					
-					gl.glColor4f(1, 0, 0, arrowTransparency);
-					gl.glBegin(GL2.GL_TRIANGLES);
-						gl.glVertex2f(xConnectArrowMiddle, yConnectArrowBottom);
-						gl.glVertex2f(xConnectArrowLeft,   yConnectArrowMiddle);
-						gl.glVertex2f(xConnectArrowRight,  yConnectArrowMiddle);
-					gl.glEnd();
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glVertex2f(xConnectArrowStemLeft,  yConnectArrowMiddle);
-						gl.glVertex2f(xConnectArrowStemLeft,  yConnectArrowTop);
-						gl.glVertex2f(xConnectArrowStemRight, yConnectArrowTop);
-						gl.glVertex2f(xConnectArrowStemRight, yConnectArrowMiddle);
-					gl.glEnd();
-					
-					return;
-					
-				}
-				
-				// a serial port connection exists, or charts exist, so draw the tiles and any charts
-
 				// draw a neutral background
 				gl.glBegin(GL2.GL_QUADS);
 				gl.glColor4fv(Theme.neutralColor, 0);
@@ -267,6 +176,10 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glVertex2f(canvasWidth, canvasHeight);
 					gl.glVertex2f(canvasWidth, 0);
 				gl.glEnd();
+				
+				// if there is no connection and no charts, we're done, do not draw any tiles
+				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+					return;
 				
 				// draw every tile
 				for(int column = 0; column < columnCount; column++) {
@@ -291,35 +204,6 @@ public class OpenGLChartsRegion extends JPanel {
 					}
 				}
 				
-				// if there are no charts, tell the user how to add one
-				List<PositionedChart> charts = Controller.getCharts();
-				if(charts.size() == 0) {
-				
-					liveView = true;
-					
-					// draw the text
-					String message = "Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.";
-					float messageWidth = FontUtils.xAxisTextWidth(message);
-					float messageHeight = FontUtils.xAxisTextHeight;
-					float xMessageLeft = (canvasWidth / 2.0f) - (messageWidth / 2.0f);
-					float xMessageRight = xMessageLeft + messageWidth;
-					float yMessageBottom = (canvasHeight / 2.0f) - (messageHeight / 2.0f);
-					float yMessageTop = yMessageBottom + messageHeight;
-					
-					gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(Theme.transparentNeutralColor, 0);
-						gl.glVertex2f(xMessageLeft  - Theme.legendTextPadding, yMessageBottom - Theme.legendTextPadding);
-						gl.glVertex2f(xMessageLeft  - Theme.legendTextPadding, yMessageTop    + Theme.legendTextPadding);
-						gl.glVertex2f(xMessageRight + Theme.legendTextPadding, yMessageTop    + Theme.legendTextPadding);
-						gl.glVertex2f(xMessageRight + Theme.legendTextPadding, yMessageBottom - Theme.legendTextPadding);
-					gl.glEnd();
-					
-					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
-					FontUtils.drawXaxisText(message, (int) xMessageLeft, (int) yMessageBottom);
-					FontUtils.drawQueuedText(gl);
-					
-				}
-				
 				// draw a bounding box where the user is actively clicking-and-dragging to place a new chart
 				gl.glBegin(GL2.GL_QUADS);
 				gl.glColor4fv(Theme.tileSelectedColor, 0);
@@ -333,7 +217,12 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glVertex2f(x1, y2);
 					gl.glVertex2f(x2, y2);
 					gl.glVertex2f(x2, y1);
-				gl.glEnd();		
+				gl.glEnd();	
+				
+				// if there are no charts, ensure we switch back to live view
+				List<PositionedChart> charts = Controller.getCharts();
+				if(charts.size() == 0)
+					liveView = true;	
 				
 				// draw the charts
 				//
@@ -469,7 +358,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// the mouse was pressed, attempting to start a new chart region, or to configure/remove an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
-				if(!serialPortConnected && Controller.getCharts().size() == 0)
+				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 				
 				if(SettingsController.awaitingBenchmarkedChart()) {
@@ -500,7 +389,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// the mouse was released, attempting to create a new chart
 			@Override public void mouseReleased(MouseEvent me) {
 				
-				if(!serialPortConnected && Controller.getCharts().size() == 0)
+				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 
 				if(endX == -1 || endY == -1)
@@ -545,7 +434,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// the mouse was dragged while attempting to create a new chart
 			@Override public void mouseDragged(MouseEvent me) {
 				
-				if(!serialPortConnected && Controller.getCharts().size() == 0)
+				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 				
 				if(endX == -1 || endY == -1)
@@ -564,7 +453,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// log the mouse position so a chart close icon can be drawn
 			@Override public void mouseMoved(MouseEvent me) {
 				
-				if(!serialPortConnected && Controller.getCharts().size() == 0)
+				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 				
 				mouseX = me.getX();
@@ -637,9 +526,6 @@ public class OpenGLChartsRegion extends JPanel {
 			columnCount = columns;
 			rowCount = rows;
 		});
-		
-		// track if a serial port is connected
-		CommunicationController.addConnectionListener(newConnectionStatus -> serialPortConnected = newConnectionStatus);
 		
 	}
 	

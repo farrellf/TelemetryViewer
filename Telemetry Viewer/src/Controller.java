@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.swing.SwingUtilities;
+
 /**
  * Handles all non-GUI logic and manages access to the Model (the data).
  */
@@ -189,6 +191,13 @@ public class Controller {
 			SettingsController.setBenchmarkedChart(null);
 		ConfigureView.closeIfUsedFor(chart);
 		Model.charts.remove(chart);
+		
+		if(getCharts().isEmpty()) {
+			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
+				if(Controller.getCharts().isEmpty())
+					NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
+			});
+		}
 		
 	}
 	
