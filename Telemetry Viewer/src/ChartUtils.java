@@ -485,6 +485,7 @@ public class ChartUtils {
 		List<float[]> occupiedRegions = new ArrayList<float[]>(); // [0] = minX, [1] = maxX, [2] = minY, [3] = maxY
 		
 		// draw each event
+		boolean insufficientSpace = false;
 		for(BitfieldEvents.EventsAtSampleNumber marker : markers) {
 			
 			// calculate the box size
@@ -515,9 +516,9 @@ public class ChartUtils {
 					anchorY = anchorY - 1;
 				
 				if(anchorY < bottomRightY) {
-					// give up and use north, so we don't fail silently
-					orientation = NORTH;
-					anchorY =  topLeftY - boxHeight - padding;
+					// not enough room to draw this marker
+					insufficientSpace = true;
+					continue;
 				}
 			}
 			
@@ -676,6 +677,71 @@ public class ChartUtils {
 				
 			}
 			
+		}
+		
+		// notify the user if not all markers could be drawn
+		if(insufficientSpace) {
+			
+			float gradientLength = 10 * Controller.getDisplayScalingFactor();
+			
+			// top gradient
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glColor4f(1, 0, 0, 1);
+				gl.glVertex2f(topLeftX, topLeftY);
+				gl.glVertex2f(bottomRightX, topLeftY);
+				gl.glColor4f(1, 0, 0, 0);
+				gl.glVertex2f(bottomRightX, topLeftY - gradientLength);
+				gl.glVertex2f(topLeftX, topLeftY - gradientLength);
+			gl.glEnd();
+			
+			// bottom gradient
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glColor4f(1, 0, 0, 1);
+				gl.glVertex2f(topLeftX, bottomRightY);
+				gl.glVertex2f(bottomRightX, bottomRightY);
+				gl.glColor4f(1, 0, 0, 0);
+				gl.glVertex2f(bottomRightX, bottomRightY + gradientLength);
+				gl.glVertex2f(topLeftX, bottomRightY + gradientLength);
+			gl.glEnd();
+			
+			// left gradient
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glColor4f(1, 0, 0, 1);
+				gl.glVertex2f(topLeftX, topLeftY);
+				gl.glVertex2f(topLeftX, bottomRightY);
+				gl.glColor4f(1, 0, 0, 0);
+				gl.glVertex2f(topLeftX + gradientLength, bottomRightY);
+				gl.glVertex2f(topLeftX + gradientLength, topLeftY);
+			gl.glEnd();
+			
+			// right gradient
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glColor4f(1, 0, 0, 1);
+				gl.glVertex2f(bottomRightX, topLeftY);
+				gl.glVertex2f(bottomRightX, bottomRightY);
+				gl.glColor4f(1, 0, 0, 0);
+				gl.glVertex2f(bottomRightX - gradientLength, bottomRightY);
+				gl.glVertex2f(bottomRightX - gradientLength, topLeftY);
+			gl.glEnd();
+			
+			String text = "Insufficent Room for All Markers";
+			float textWidth = FontUtils.tickTextWidth(text);
+			float textLeftX = (bottomRightX - topLeftX) / 2f + topLeftX - (textWidth / 2f);
+			float textRightX = (bottomRightX - topLeftX) / 2f + topLeftX + (textWidth / 2f);
+			float textBottomY = bottomRightY + padding;
+			float textTopY = textBottomY + FontUtils.tickTextHeight;
+			
+			// text background
+			gl.glBegin(GL2.GL_QUADS);
+				gl.glColor4f(1, 0, 0, 1);
+				gl.glVertex2f(textLeftX - padding, textBottomY - padding);
+				gl.glVertex2f(textRightX + padding, textBottomY - padding);
+				gl.glVertex2f(textRightX + padding, textTopY + padding);
+				gl.glVertex2f(textLeftX - padding, textTopY + padding);
+			gl.glEnd();
+			
+			FontUtils.drawMarkerText(text, (int) textLeftX, (int) textBottomY); 
+						
 		}
 		
 	}
