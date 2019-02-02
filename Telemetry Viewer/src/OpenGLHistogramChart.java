@@ -783,7 +783,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 		// draw the tooltip if the mouse is in the plot region
 		if(haveDatasets && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
-			int binN = Math.round(((float) mouseX - xPlotLeft) / plotWidth * binCount);
+			int binN = (int) Math.floor(((float) mouseX - xPlotLeft) / plotWidth * binCount);
 			if(binN > binCount - 1)
 				binN = binCount - 1;
 			float min = minX + (binSize *  binN);      // inclusive
