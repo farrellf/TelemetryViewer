@@ -18,6 +18,8 @@ public class FontUtils {
 	
 	private static int xOffset = 0;
 	private static int yOffset = 0;
+	private static int canvasWidth = 0;
+	private static int canvasHeight = 0;
 	private static boolean displayScalingChanged = false;
 	
 	private static final Queue<PositionedText> tickTextQueue    = new LinkedList<PositionedText>();
@@ -56,14 +58,25 @@ public class FontUtils {
 	}
 	
 	/**
-	 * Saves the location of the chart's lower-left corner in the GLcanvas. This needs to be called before using any of the draw*text() methods.
+	 * Saves the location of the chart's lower-left corner in the GLcanvas, and the size of the canvas. This needs to be called before using any of the draw*text() methods.
 	 * 
 	 * @param xOffset    The x location of the lower-left corner, in pixels.
 	 * @param yOffset    The y location of the lower-left corner, in pixels.
+	 * @param width      The canvas width, in pixels.
+	 * @param height     The canvas height, in pixels.
 	 */
-	static void setOffsets(int xOffset, int yOffset) {
+	static void setOffsets(int xOffset, int yOffset, int width, int height) {
 		FontUtils.xOffset = xOffset;
 		FontUtils.yOffset = yOffset;
+		FontUtils.canvasWidth = width;
+		FontUtils.canvasHeight = height;
+	}
+	
+	static void drawMarkerText(String text, int x, int y) {
+		tickTextRenderer.beginRendering(canvasWidth, canvasHeight);
+		tickTextRenderer.setColor(Theme.tickFontColor);
+		tickTextRenderer.draw(text, x + xOffset, y + yOffset);
+		tickTextRenderer.endRendering();
 	}
 		
 	static void drawTickText(String text, int x, int y) {
@@ -82,7 +95,7 @@ public class FontUtils {
 		yAxisTextQueue.add(new PositionedText(text, x + xOffset, y + yOffset, degrees));
 	}
 	
-	static void drawQueuedText(GL2 gl, int width, int height) {
+	static void drawQueuedText(GL2 gl) {
 		
 		if(displayScalingChanged) {
 			
@@ -106,7 +119,7 @@ public class FontUtils {
 			
 		}
 		
-		tickTextRenderer.beginRendering(width, height);
+		tickTextRenderer.beginRendering(canvasWidth, canvasHeight);
 		tickTextRenderer.setColor(Theme.tickFontColor);
 		while(!tickTextQueue.isEmpty()) {
 			PositionedText pt = tickTextQueue.remove();
@@ -114,7 +127,7 @@ public class FontUtils {
 		}
 		tickTextRenderer.endRendering();
 		
-		legendTextRenderer.beginRendering(width, height);
+		legendTextRenderer.beginRendering(canvasWidth, canvasHeight);
 		legendTextRenderer.setColor(Theme.legendFontColor);
 		while(!legendTextQueue.isEmpty()) {
 			PositionedText pt = legendTextQueue.remove();
@@ -122,7 +135,7 @@ public class FontUtils {
 		}
 		legendTextRenderer.endRendering();
 		
-		xAxisTextRenderer.beginRendering(width, height);
+		xAxisTextRenderer.beginRendering(canvasWidth, canvasHeight);
 		xAxisTextRenderer.setColor(Theme.xAxisFontColor);
 		while(!xAxisTextQueue.isEmpty()) {
 			PositionedText pt = xAxisTextQueue.remove();
@@ -132,7 +145,7 @@ public class FontUtils {
 		
 		while(!yAxisTextQueue.isEmpty()) {
 			PositionedText pt = yAxisTextQueue.remove();
-			yAxisTextRenderer.beginRendering(width, height);
+			yAxisTextRenderer.beginRendering(canvasWidth, canvasHeight);
 			gl.glMatrixMode(GL2.GL_MODELVIEW);
 			gl.glPushMatrix();
 			gl.glTranslatef(pt.x, pt.y, 0);

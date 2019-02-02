@@ -188,9 +188,9 @@ public class OpenGLChartsRegion extends JPanel {
 					float messageHeight = FontUtils.xAxisTextHeight;
 					float xMessageLeft = (canvasWidth / 2.0f) - (messageWidth / 2.0f);
 					float yMessageBottom = (canvasHeight / 2.0f) - (messageHeight / 2.0f);
-					FontUtils.setOffsets(0, 0);
+					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
 					FontUtils.drawXaxisText(message, (int) xMessageLeft, (int) yMessageBottom);
-					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+					FontUtils.drawQueuedText(gl);
 					
 					// arrow settings
 					float arrowHeight = 50 * Controller.getDisplayScalingFactor();
@@ -314,9 +314,9 @@ public class OpenGLChartsRegion extends JPanel {
 						gl.glVertex2f(xMessageRight + Theme.legendTextPadding, yMessageBottom - Theme.legendTextPadding);
 					gl.glEnd();
 					
-					FontUtils.setOffsets(0, 0);
+					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
 					FontUtils.drawXaxisText(message, (int) xMessageLeft, (int) yMessageBottom);
-					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+					FontUtils.drawQueuedText(gl);
 					
 				}
 				
@@ -385,10 +385,10 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glPushMatrix();
 					gl.glTranslatef(xOffset, yOffset, 0);
 					
-					FontUtils.setOffsets(xOffset, yOffset);
+					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
 					int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
 					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
-					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+					FontUtils.drawQueuedText(gl);
 					
 					// draw the cpu/gpu benchmarks for this chart if benchmarking
 					if(chart == SettingsController.getBenchmarkedChart()) {
@@ -409,7 +409,7 @@ public class OpenGLChartsRegion extends JPanel {
 						gl.glEnd();
 						FontUtils.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + FontUtils.tickTextHeight));
 						FontUtils.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
-						FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+						FontUtils.drawQueuedText(gl);
 						NotificationsController.showVerboseForSeconds(line1 + ", " + line2, 1, false);
 					}
 					
@@ -443,9 +443,9 @@ public class OpenGLChartsRegion extends JPanel {
 						gl.glVertex2f(textWidth + padding * 2, textHeight + padding * 2);
 						gl.glVertex2f(textWidth + padding * 2, 0);
 					gl.glEnd();
-					FontUtils.setOffsets(0, 0);
+					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
 					FontUtils.drawXaxisText(text, padding, padding);
-					FontUtils.drawQueuedText(gl, canvasWidth, canvasHeight);
+					FontUtils.drawQueuedText(gl);
 					NotificationsController.showVerboseForSeconds(text, 1, false);
 				}
 				

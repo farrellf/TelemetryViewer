@@ -561,10 +561,10 @@ public class ChartUtils {
 				// draw the text and color boxes
 				float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				FontUtils.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				FontUtils.drawMarkerText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					FontUtils.drawTickText(marker.names.get(i), (int) textX, (int) textY);
+					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
 					gl.glBegin(GL2.GL_QUADS);
 						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
 						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
@@ -611,10 +611,10 @@ public class ChartUtils {
 				// draw the text and color boxes
 				float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				FontUtils.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				FontUtils.drawMarkerText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					FontUtils.drawTickText(marker.names.get(i), (int) textX, (int) textY);
+					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
 					gl.glBegin(GL2.GL_QUADS);
 						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
 						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
@@ -661,10 +661,10 @@ public class ChartUtils {
 				// draw the text and color boxes
 				float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				FontUtils.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				FontUtils.drawMarkerText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					FontUtils.drawTickText(marker.names.get(i), (int) textX, (int) textY);
+					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
 					gl.glBegin(GL2.GL_QUADS);
 						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
 						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
