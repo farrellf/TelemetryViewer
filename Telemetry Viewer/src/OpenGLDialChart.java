@@ -180,6 +180,7 @@ public class OpenGLDialChart extends PositionedChart {
 		samples = new Samples();
 		
 		datasetWidget = new WidgetDataset("Dataset",
+		                                  false,
 		                                  newDataset -> datasets = newDataset);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Dial",

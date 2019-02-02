@@ -1,6 +1,5 @@
 import java.awt.Color;
 import java.util.Map;
-
 import javax.swing.JPanel;
 
 import com.jogamp.opengl.GL2;
@@ -191,7 +190,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		autoscale = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.10f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets);
+		datasetsWidget = new WidgetDatasets(true, newDatasets -> datasets = newDatasets);
 		
 		sampleCountWidget = new WidgetTextfieldInteger("Sample Count",
 		                                               SampleCountDefault,
@@ -469,6 +468,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(haveDatasets && slice.glDataset[0].vertexCount >= 2) {
 			for(int i = 0; i < slice.glDataset.length; i++) {
 				
+				// do not draw bitfields
+				if(datasets[i].isBitfield)
+					continue;
+				
 				gl.glMatrixMode(GL2.GL_MODELVIEW);
 				gl.glPushMatrix();
 				
@@ -496,6 +499,14 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				
 			}
 		}
+		
+		// draw any bitfield changes
+		if(haveDatasets && slice.glDataset[0].vertexCount >= 2) {
+			BitfieldEvents events = new BitfieldEvents();
+			for(Dataset dataset : datasets)
+				dataset.appendBitfieldEvents(events, plotMinX > 0 ? plotMinX : 0, plotMaxX);
+			ChartUtils.drawMarkers(gl, events.get(), (float) plotMinX, (float) plotMaxX, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+		}
 
 		// stop clipping to the plot region
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
@@ -509,8 +520,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				text[0] = "Sample " + sampleNumber;
 				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
 				for(int i = 0; i < datasets.length; i++) {
-					float y = datasets[i].getSample(sampleNumber);
-					text[i + 1] = ChartUtils.formattedNumber(y, 5) + " " + datasets[i].unit;
+					text[i + 1] = datasets[i].getSampleAsString(sampleNumber);
 					colors[i + 1] = datasets[i].color;
 				}
 				float anchorX = ((float) sampleNumber - plotMinX) / domain * plotWidth + xPlotLeft;

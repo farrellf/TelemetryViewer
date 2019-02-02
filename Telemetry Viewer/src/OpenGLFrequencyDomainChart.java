@@ -242,7 +242,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		autoscalePower = new AutoScale(AutoScale.MODE_EXPONENTIAL, 90, 0.20f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets);
+		datasetsWidget = new WidgetDatasets(false, newDatasets -> datasets = newDatasets);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Power",
 		                                                  PowerMinimumDefault,

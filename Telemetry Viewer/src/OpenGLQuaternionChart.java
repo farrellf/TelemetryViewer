@@ -103,10 +103,10 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		shape = ChartUtils.getShapeFromAsciiStl(getClass().getResourceAsStream("monkey.stl"));
 		
 		// create the control widgets and event handlers
-		q0Widget = new WidgetDataset("Q0", newDataset -> datasets[0] = newDataset[0]);
-		q1Widget = new WidgetDataset("Q1", newDataset -> datasets[1] = newDataset[0]);
-		q2Widget = new WidgetDataset("Q2", newDataset -> datasets[2] = newDataset[0]);
-		q3Widget = new WidgetDataset("Q3", newDataset -> datasets[3] = newDataset[0]);
+		q0Widget = new WidgetDataset("Q0", false, newDataset -> datasets[0] = newDataset[0]);
+		q1Widget = new WidgetDataset("Q1", false, newDataset -> datasets[1] = newDataset[0]);
+		q2Widget = new WidgetDataset("Q2", false, newDataset -> datasets[2] = newDataset[0]);
+		q3Widget = new WidgetDataset("Q3", false, newDataset -> datasets[3] = newDataset[0]);
 		
 		showTextLabelWidget = new WidgetCheckbox("Show Text Label",
 		                                         true,

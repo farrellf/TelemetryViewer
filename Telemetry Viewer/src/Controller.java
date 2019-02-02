@@ -355,6 +355,13 @@ public class Controller {
 				outputFile.println("\tunit = " + dataset.unit);
 				outputFile.println("\tconversion factor a = " + dataset.conversionFactorA);
 				outputFile.println("\tconversion factor b = " + dataset.conversionFactorB);
+				if(processorIndex != -1 && dataset.processor.toString().startsWith("Bitfield"))
+					for(Bitfield bitfield : dataset.bitfields) {
+						outputFile.print("\t[" + bitfield.MSBit + ":" + bitfield.LSBit + "] = " + bitfield.names[0]);
+						for(int i = 1; i < bitfield.names.length; i++)
+							outputFile.print("," + bitfield.names[i]);
+						outputFile.println();
+					}
 				
 			}
 			
@@ -485,6 +492,28 @@ public class Controller {
 					Communication.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
 				else
 					Communication.binaryPacket.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				
+				if(processor != null && processor.toString().startsWith("Bitfield")) {
+					List<Bitfield> fields = new ArrayList<Bitfield>();
+					String line = lines.get(n++);
+					while(!line.equals("")){
+						line = line.substring(1); // skip past the "\t"
+						String bitNumbers = line.split(" ")[0];
+						String[] fieldNames = line.substring(bitNumbers.length() + 3).split(","); // skip past "[n:n] = "
+						bitNumbers = bitNumbers.substring(1, bitNumbers.length() - 1); // remove [ and ]
+						int MSBit = Integer.parseInt(bitNumbers.split(":")[0]);
+						int LSBit = Integer.parseInt(bitNumbers.split(":")[1]);
+						Bitfield field = new Bitfield(MSBit, LSBit);
+						for(int f = 0; f < fieldNames.length; f++) {
+							field.textfields[f].setText(fieldNames[f]);
+							field.names[f] = fieldNames[f];
+						}
+						fields.add(field);
+						line = lines.get(n++);
+					}
+					n--; // rewind because of the last empty line
+					Controller.getDatasetByLocation(location).setBitfields(fields);
+				}
 				
 			}
 			

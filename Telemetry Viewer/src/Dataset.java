@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.jogamp.common.nio.Buffers;
@@ -18,12 +19,16 @@ public class Dataset {
 	final float conversionFactorB;
 	final float conversionFactor;
 
-	// samples are stored in an array of double[]'s, each containing 1M doubles, and allocated as needed.
-	// access to the samples is controlled with an atomic integer, providing lockless concurrency if there is only one writer.
-	final int slotSize = (int) Math.pow(2, 20); // 1M doubles per slot
+	// samples are stored in an array of float[]'s, each containing 1M floats, and allocated as needed.
+	// access to the samples is controlled with an atomic integer, providing lockless concurrency since there is only one writer.
+	final int slotSize = (int) Math.pow(2, 20); // 1M floats per slot
 	final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
 	float[][] slot;
 	AtomicInteger size;
+	
+	// bitfields if this dataset represents a bitfield
+	boolean isBitfield;
+	List<Bitfield> bitfields;
 	
 	/**
 	 * Creates a new object that describes one dataset and stores all of its samples.
@@ -46,9 +51,59 @@ public class Dataset {
 		this.conversionFactorA = conversionFactorA;
 		this.conversionFactorB = conversionFactorB;
 		this.conversionFactor  = conversionFactorB / conversionFactorA;
+		this.isBitfield        = false;
 		
 		slot = new float[slotCount][];
 		size = new AtomicInteger(0);
+		
+	}
+	
+	/**
+	 * Configures this Dataset as a bitfield.
+	 * 
+	 * @param bitfields    A List of Bitfield objects that describe each bitfield in this Dataset.
+	 */
+	public void setBitfields(List<Bitfield> bitfields) {
+		
+		isBitfield = true;
+		this.bitfields = bitfields;
+		
+	}
+	
+	/**
+	 * Checks a range in this dataset for any bitfield events.
+	 * 
+	 * @param events        The object to append any events to.
+	 * @param startIndex    The first sample number (inclusive) to check.
+	 * @param endIndex      The last sample number (inclusive) to check. This must be > startIndex.
+	 */
+	public void appendBitfieldEvents(BitfieldEvents events, int startIndex, int endIndex) {
+		
+		if(!isBitfield)
+			return;
+		
+		if(endIndex <= startIndex)
+			return;
+		
+		int sampleCount = endIndex - startIndex + 1;
+		
+		for(int i = 1; i < sampleCount; i++) {
+			int slotNumber = (i + startIndex) / slotSize;
+			int slotIndex  = (i + startIndex) % slotSize;
+			int currentState = (int) slot[slotNumber][slotIndex];
+			slotNumber = (i - 1 + startIndex) / slotSize;
+			slotIndex  = (i - 1 + startIndex) % slotSize;
+			int previousState = (int) slot[slotNumber][slotIndex];
+			
+			if(currentState != previousState) {
+				for(Bitfield bitfield: bitfields) {
+					int currentValue = bitfield.getValue(currentState);
+					int previousValue = bitfield.getValue(previousState);
+					if(currentValue != previousValue)
+						events.add(startIndex + i, bitfield.names[currentValue], color);
+				}
+			}
+		}
 		
 	}
 	
@@ -81,6 +136,23 @@ public class Dataset {
 		int slotNumber = index / slotSize;
 		int slotIndex  = index % slotSize;
 		return slot[slotNumber][slotIndex];
+		
+	}
+	
+	/**
+	 * Gets a String representation of one specific sample.
+	 * 
+	 * @param index    Which sample to obtain.
+	 * @return         The sample formatted as a String.
+	 */
+	public String getSampleAsString(int index) {
+		
+		float value = getSample(index);
+		
+		if(isBitfield)
+			return "0b" + String.format("%8s", Integer.toBinaryString((int) value)).replace(' ', '0');
+		else
+			return ChartUtils.formattedNumber(value, 5) + " " + unit;
 		
 	}
 	

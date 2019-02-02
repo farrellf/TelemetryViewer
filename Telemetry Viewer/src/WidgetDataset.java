@@ -15,15 +15,20 @@ public class WidgetDataset extends JPanel {
 	/**
 	 * A widget that lets the user pick one dataset from a drop-down list.
 	 * 
-	 * @param eventHandler    Will be notified when the chosen dataset changes.
+	 * @param labelText         Label to show at the left of the drop-down list.
+	 * @param allowBitfields    If bitfield datasets should be shown in the list.
+	 * @param eventHandler      Will be notified when the chosen dataset changes.
 	 */
-	public WidgetDataset(String labelText, Consumer<Dataset[]> eventHandler) {
+	public WidgetDataset(String labelText, boolean allowBitfields, Consumer<Dataset[]> eventHandler) {
 		
 		super();
 		
 		handler = eventHandler;
 		
-		combobox = new JComboBox<Dataset>(Controller.getAllDatasets());
+		combobox = new JComboBox<Dataset>();
+		for(Dataset dataset : Controller.getAllDatasets())
+			if(allowBitfields || (!allowBitfields && !dataset.isBitfield))
+				combobox.addItem(dataset);
 		combobox.addActionListener(event -> handler.accept(new Dataset[] {(Dataset) combobox.getSelectedItem()}));
 		
 		setLayout(new GridLayout(1, 2, 10, 10));

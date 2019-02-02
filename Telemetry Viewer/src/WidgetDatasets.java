@@ -17,19 +17,23 @@ public class WidgetDatasets extends JPanel {
 	/**
 	 * A widget that lets the user pick zero or more datasets from a list of checkboxes.
 	 * 
-	 * @param eventHandler    Will be notified when the chosen datasets change.
+	 * @param allowBitfields    If bitfield datasets should be shown in the list.
+	 * @param eventHandler      Will be notified when the chosen datasets change.
 	 */
-	public WidgetDatasets(Consumer<Dataset[]> eventHandler) {
+	public WidgetDatasets(boolean allowBitfields, Consumer<Dataset[]> eventHandler) {
 		
 		super();
 		
 		Dataset[] datasets = Controller.getAllDatasets();
 		datasetsMap = new LinkedHashMap<Dataset, JCheckBox>();
 		
-		setLayout(new GridLayout(datasets.length, 2, 10, 10));
+		setLayout(new GridLayout(0, 2, 10, 10));
 		add(new JLabel("Datasets: "));
 		
 		for(int i = 0; i < datasets.length; i++) {
+			
+			if(!allowBitfields && datasets[i].isBitfield)
+				continue;
 			
 			JCheckBox checkbox = new JCheckBox(datasets[i].name);
 			checkbox.addActionListener(event -> notifyHandler());

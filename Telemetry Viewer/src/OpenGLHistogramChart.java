@@ -270,7 +270,8 @@ public class OpenGLHistogramChart extends PositionedChart {
 		yAutoscaleFrequency = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.20f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(newDatasets -> {datasets = newDatasets;
+		datasetsWidget = new WidgetDatasets(false,
+		                                    newDatasets -> {datasets = newDatasets;
 		                                                    bins = new int[datasets.length][binCount];
 		                                                    samples = new Samples[datasets.length];
 		                                                    for(int i = 0; i < samples.length; i++)

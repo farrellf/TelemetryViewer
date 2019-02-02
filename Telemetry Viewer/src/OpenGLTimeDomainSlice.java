@@ -50,18 +50,22 @@ public class OpenGLTimeDomainSlice {
 		if(glDataset == null || glDataset.length != dataset.length)
 			glDataset = new SamplesGL[dataset.length];
 		
-		if(glDataset[0] == null)
-			glDataset[0] = new SamplesGL();
-		dataset[0].getGLsamples(minX, maxX, glDataset[0]);
-		sliceMinY = glDataset[0].min;
-		sliceMaxY = glDataset[0].max;
+		sliceMinY = Float.MAX_VALUE;
+		sliceMaxY = -Float.MAX_VALUE;
 		
-		for(int i = 1; i < dataset.length; i++) {
+		for(int i = 0; i < dataset.length; i++) {
 			if(glDataset[i] == null)
 				glDataset[i] = new SamplesGL();
 			dataset[i].getGLsamples(minX, maxX, glDataset[i]);
-			if(glDataset[i].min < sliceMinY) sliceMinY = glDataset[i].min;
-			if(glDataset[i].max > sliceMaxY) sliceMaxY = glDataset[i].max;
+			if(!dataset[i].isBitfield) {
+				if(glDataset[i].min < sliceMinY) sliceMinY = glDataset[i].min;
+				if(glDataset[i].max > sliceMaxY) sliceMaxY = glDataset[i].max;
+			}
+		}
+		
+		if(sliceMinY == Float.MAX_VALUE && sliceMaxY == -Float.MAX_VALUE) {
+			sliceMinY = -1;
+			sliceMaxY = 1;
 		}
 		
 	}
@@ -241,6 +245,10 @@ public class OpenGLTimeDomainSlice {
 		
 		// draw each dataset
 		for(int i = 0; i < glDataset.length; i++) {
+			
+			// do not draw bitfields
+			if(datasets[i].isBitfield)
+				continue;
 			
 			int vertexCount = sliceMaxX - sliceMinX + 1;
 			if(vertexCount < 2)

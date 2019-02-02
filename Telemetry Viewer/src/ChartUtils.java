@@ -462,6 +462,272 @@ public class ChartUtils {
 	}
 	
 	/**
+	 * Draws a collection of markers over a plot.
+	 * 
+	 * @param gl              The OpenGL context.
+	 * @param markers         A List of events in time and their corresponding names/colors.
+	 * @param plotMinX        X value at the left of the plot.
+	 * @param plotMaxX        X value at the right of the plot.
+	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
+	 * @param topLeftY        Allowed bounding box's top-left y coordinate.
+	 * @param bottomRightX    Allowed bounding box's bottom-right x coordinate.
+	 * @param bottomRightY    Allowed bounding box's bottom-right y coordinate.
+	 */
+	public static void drawMarkers(GL2 gl, List<BitfieldEvents.EventsAtSampleNumber> markers, float plotMinX, float plotMaxX, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
+			
+		final int NORTH      = 0;
+		final int NORTH_WEST = 1;
+		final int NORTH_EAST = 2;
+		final int UNDEFINED  = 3;
+		
+		float padding = 6f * Controller.getDisplayScalingFactor();
+		
+		List<float[]> occupiedRegions = new ArrayList<float[]>(); // [0] = minX, [1] = maxX, [2] = minY, [3] = maxY
+		
+		// draw each event
+		for(BitfieldEvents.EventsAtSampleNumber marker : markers) {
+			
+			// calculate the box size
+			float maxTextWidth = FontUtils.tickTextWidth("Sample " + marker.sampleNumber);
+			for(int i = 0; i < marker.names.size(); i++)
+				if(FontUtils.tickTextWidth(marker.names.get(i)) > maxTextWidth)
+					maxTextWidth = FontUtils.tickTextWidth(marker.names.get(i));
+			float textHeight = FontUtils.tickTextHeight;
+			
+			float boxWidth = textHeight + Theme.tooltipTextPadding + maxTextWidth + (2 * padding);
+			float boxHeight = (marker.names.size() + 1) * (textHeight + padding) + padding;
+			
+			// calculate the box anchor position
+			float anchorX = ((float) marker.sampleNumber - plotMinX) / (plotMaxX - plotMinX) * (bottomRightX - topLeftX) + topLeftX;
+			float anchorY = topLeftY - boxHeight - padding;
+			
+			// decide which orientation to use
+			int orientation = UNDEFINED;
+			
+			while(orientation == UNDEFINED) {
+				if(anchorX - boxWidth > topLeftX && anchorX < bottomRightX && regionAvailable(occupiedRegions, anchorX - boxWidth, anchorX, anchorY, anchorY + boxHeight + padding))
+					orientation = NORTH_WEST;
+				else if(anchorX - (boxWidth / 2f) > topLeftX && anchorX + (boxWidth / 2f) < bottomRightX && regionAvailable(occupiedRegions, anchorX - (boxWidth / 2f), anchorX + (boxWidth / 2f), anchorY, anchorY + boxHeight + padding))
+					orientation = NORTH;
+				else if(anchorX > topLeftX && anchorX + boxWidth < bottomRightX && regionAvailable(occupiedRegions, anchorX, anchorX + boxWidth, anchorY, anchorY + boxHeight + padding))
+					orientation = NORTH_EAST;
+				else
+					anchorY = anchorY - 1;
+				
+				if(anchorY < bottomRightY) {
+					// give up and use north, so we don't fail silently
+					orientation = NORTH;
+					anchorY =  topLeftY - boxHeight - padding;
+				}
+			}
+			
+			// draw the marker
+			if(orientation == NORTH) {
+				
+				gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+				gl.glBegin(GL2.GL_TRIANGLES);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
+				gl.glEnd();
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
+					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
+				gl.glEnd();
+				
+				gl.glColor4fv(Theme.tooltipBorderColor, 0);
+				gl.glBegin(GL2.GL_LINE_LOOP);
+					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
+					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
+					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
+				gl.glEnd();
+				gl.glBegin(GL2.GL_LINES);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glColor4f(Theme.tooltipBorderColor[0], Theme.tooltipBorderColor[1], Theme.tooltipBorderColor[2], 0);
+					gl.glVertex2f(anchorX, anchorY - padding * 6);
+				gl.glEnd();
+				
+				occupiedRegions.add(new float[] {anchorX - (boxWidth / 2f),
+				                                 anchorX + (boxWidth / 2f),
+				                                 anchorY,
+				                                 anchorY + padding + boxHeight});
+				
+				// draw the text and color boxes
+				float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
+				float textY = anchorY + padding + boxHeight - (padding + textHeight);
+				FontUtils.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				for(int i = 0; i < marker.names.size(); i++) {
+					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
+					FontUtils.drawTickText(marker.names.get(i), (int) textX, (int) textY);
+					gl.glBegin(GL2.GL_QUADS);
+						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+					gl.glEnd();
+				}
+				
+			} else if(orientation == NORTH_WEST) {
+				
+				gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+				gl.glBegin(GL2.GL_TRIANGLES);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glVertex2f(anchorX, anchorY + padding);
+					gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
+				gl.glEnd();
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
+					gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
+					gl.glVertex2f(anchorX, anchorY + padding);
+					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+				gl.glEnd();
+				
+				gl.glColor4fv(Theme.tooltipBorderColor, 0);
+				gl.glBegin(GL2.GL_LINE_LOOP);
+					gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
+					gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
+					gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+				gl.glEnd();
+				gl.glBegin(GL2.GL_LINES);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glColor4f(Theme.tooltipBorderColor[0], Theme.tooltipBorderColor[1], Theme.tooltipBorderColor[2], 0);
+					gl.glVertex2f(anchorX, anchorY - padding * 6);
+				gl.glEnd();
+				
+				occupiedRegions.add(new float[] {anchorX - boxWidth,
+				                                 anchorX,
+				                                 anchorY,
+				                                 anchorY + padding + boxHeight});
+				
+				// draw the text and color boxes
+				float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
+				float textY = anchorY + padding + boxHeight - (padding + textHeight);
+				FontUtils.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				for(int i = 0; i < marker.names.size(); i++) {
+					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
+					FontUtils.drawTickText(marker.names.get(i), (int) textX, (int) textY);
+					gl.glBegin(GL2.GL_QUADS);
+						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+					gl.glEnd();
+				}
+				
+			} else if(orientation == NORTH_EAST) {
+				
+				gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
+				gl.glBegin(GL2.GL_TRIANGLES);
+					gl.glVertex2f(anchorX, anchorY + padding);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
+				gl.glEnd();
+				gl.glBegin(GL2.GL_QUADS);
+					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+					gl.glVertex2f(anchorX, anchorY + padding);
+					gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
+					gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
+				gl.glEnd();
+				
+				gl.glColor4fv(Theme.tooltipBorderColor, 0);
+				gl.glBegin(GL2.GL_LINE_LOOP);
+					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
+					gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
+					gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
+				gl.glEnd();
+				gl.glBegin(GL2.GL_LINES);
+					gl.glVertex2f(anchorX, anchorY);
+					gl.glColor4f(Theme.tooltipBorderColor[0], Theme.tooltipBorderColor[1], Theme.tooltipBorderColor[2], 0);
+					gl.glVertex2f(anchorX, anchorY - padding * 6);
+				gl.glEnd();
+				
+				occupiedRegions.add(new float[] {anchorX,
+				                                 anchorX + boxWidth,
+				                                 anchorY,
+				                                 anchorY + padding + boxHeight});
+				
+				// draw the text and color boxes
+				float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
+				float textY = anchorY + padding + boxHeight - (padding + textHeight);
+				FontUtils.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				for(int i = 0; i < marker.names.size(); i++) {
+					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
+					FontUtils.drawTickText(marker.names.get(i), (int) textX, (int) textY);
+					gl.glBegin(GL2.GL_QUADS);
+						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
+						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
+					gl.glEnd();
+				}
+				
+			}
+			
+		}
+		
+	}
+	
+	/**
+	 * Checks if a region overlaps with any occupied regions.
+	 * 
+	 * @param occupiedRegions    A List of float[]'s describing any currently occupied regions. [0] = minX, [1] = maxX, [2] = minY, [3] = maxY
+	 * @param minX               Proposed region's left-most x value.
+	 * @param maxX               Proposed region's right-most x value.
+	 * @param minY               Proposed region's bottom-most y value.
+	 * @param maxY               Proposed region's top-most y value.
+	 * @return                   True if there is no overlap, false otherwise.
+	 */
+	private static boolean regionAvailable(List<float[]> occupiedRegions, float minX, float maxX, float minY, float maxY) {
+		
+		for(float[] region : occupiedRegions) {
+			float regionMinX = region[0];
+			float regionMaxX = region[1];
+			float regionMinY = region[2];
+			float regionMaxY = region[3];
+			
+			if(minX >= regionMinX && minX <= regionMaxX) { // x starts inside region
+				if(minY >= regionMinY && minY <= regionMaxY) // y starts inside region
+					return false;
+				else if(maxY >= regionMinY && maxY <= regionMaxY) // y ends inside region
+					return false;
+				else if(minY <= regionMinY && maxY >= regionMaxY) // y surrounds region
+					return false;
+			} else if(maxX >= regionMinX && maxX <= regionMaxX) { // x ends inside region
+				if(minY >= regionMinY && minY <= regionMaxY) // y starts inside region
+					return false;
+				else if(maxY >= regionMinY && maxY <= regionMaxY) // y ends inside region
+					return false;
+				else if(minY <= regionMinY && maxY >= regionMaxY) // y surrounds region
+					return false;
+			} else if(minX <= regionMinX && maxX >= regionMaxX) { // x surrounds region
+				if(minY >= regionMinY && minY <= regionMaxY) // y starts inside region
+					return false;
+				else if(maxY >= regionMinY && maxY <= regionMaxY) // y ends inside region
+					return false;
+				else if(minY <= regionMinY && maxY >= regionMaxY) // y surrounds region
+					return false;
+			}
+		}
+		
+		// not occupied
+		return true;
+		
+	}
+	
+	/**
 	 * Draws a tooltip. An anchor point specifies where the tooltip should point to.
 	 * 
 	 * @param gl              The OpenGL context.
