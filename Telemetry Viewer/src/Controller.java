@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.swing.SwingUtilities;
@@ -177,6 +178,20 @@ public class Controller {
 	public static void addChart(PositionedChart chart) {
 		
 		Model.charts.add(chart);
+		
+	}
+	
+	/**
+	 * Reorders the list of charts so the specified chart will be rendered after all other charts.
+	 * 
+	 * @param chart    The chart to render last.
+	 */
+	public static void drawChartLast(PositionedChart chart) {
+		
+		if(Model.charts.size() < 2)
+			return;
+		
+		Collections.swap(Model.charts, Model.charts.indexOf(chart), Model.charts.size() - 1);
 		
 	}
 	

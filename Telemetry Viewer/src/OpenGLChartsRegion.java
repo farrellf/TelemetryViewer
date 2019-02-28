@@ -49,8 +49,14 @@ public class OpenGLChartsRegion extends JPanel {
 	int mouseX;
 	int mouseY;
 	PositionedChart chartToRemoveOnClick;
+	PositionedChart chartToMaximizeOnClick;
 	PositionedChart chartToConfigureOnClick;
 	PositionedChart chartUnderMouse;
+	PositionedChart maximizedChart;
+	
+	boolean maximizing;
+	boolean demaximizing;
+	double animationPosition;
 	
 	// chart benchmarking
 	long cpuStartNanoseconds;
@@ -88,7 +94,6 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		mouseX = -1;
 		mouseY = -1;
-		chartToRemoveOnClick = null;
 		
 		antialiasing = false;
 		
@@ -231,9 +236,14 @@ public class OpenGLChartsRegion extends JPanel {
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
 				chartToRemoveOnClick = null;
+				chartToMaximizeOnClick = null;
 				chartToConfigureOnClick = null;
 				chartUnderMouse = null;
 				for(PositionedChart chart : charts) {
+					
+					// if there is a maximized chart, only draw that chart
+					if(maximizedChart != null && chart != maximizedChart && !maximizing && !demaximizing)
+						continue;
 					
 					// calculate cpu/gpu benchmarks for this chart if benchmarking
 					if(chart == SettingsController.getBenchmarkedChart()) {
@@ -261,6 +271,45 @@ public class OpenGLChartsRegion extends JPanel {
 					int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
 					int xOffset = chart.topLeftX * tileWidth;
 					int yOffset = canvasHeight - (chart.topLeftY * tileHeight) - height;
+					
+					// size the maximized chart correctly
+					if(chart == maximizedChart) {
+						int maximizedWidth = tileWidth * columnCount;
+						int maximizedHeight = tileHeight * rowCount;
+						int maximizedXoffset = 0;
+						int maximizedYoffset = canvasHeight - maximizedHeight;
+
+						if(maximizing) {
+							width = (int) Math.round(width * (1.0 - animationPosition) + (maximizedWidth * animationPosition));
+							height = (int) Math.round(height * (1.0 - animationPosition) + (maximizedHeight * animationPosition));
+							xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
+							yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
+							
+							animationPosition = 1.0 - (1.0 - animationPosition) * 0.8;
+							if(animationPosition >= 0.999) {
+								animationPosition = 1.0;
+								maximizing = false;
+							}
+						} else if(demaximizing) {
+							width = (int) Math.round(width * (1.0 - animationPosition) + (maximizedWidth * animationPosition));
+							height = (int) Math.round(height * (1.0 - animationPosition) + (maximizedHeight * animationPosition));
+							xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
+							yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
+							
+							animationPosition *= 0.8;
+							if(animationPosition <= 0.005) {
+								animationPosition = 0.0;
+								demaximizing = false;
+								maximizedChart = null;
+							}
+						} else {
+							width = maximizedWidth;
+							height = maximizedHeight;
+							xOffset = maximizedXoffset;
+							yOffset = maximizedYoffset;
+						}
+					}
+					
 					drawTile(gl, xOffset, yOffset, width, height);
 					
 					// draw the chart
@@ -305,11 +354,16 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glPopMatrix();
 					gl.glDisable(GL2.GL_SCISSOR_TEST);
 					
-					// draw the chart configure and close buttons
+					// draw the chart's configure / maximize / close buttons
 					width += (int) Theme.tileShadowOffset;
 					boolean mouseOverCloseButton = drawChartCloseButton(gl, xOffset, yOffset, width, height);
 					if(mouseOverCloseButton)
 						chartToRemoveOnClick = chart;
+					
+					boolean mouseOverMaximimizeButton = drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
+					if(mouseOverMaximimizeButton)
+						chartToMaximizeOnClick = chart;
+					
 					boolean mouseOverConfigureButton = drawChartSettingsButton(gl, xOffset, yOffset, width, height);
 					if(mouseOverConfigureButton)
 						chartToConfigureOnClick = chart;
@@ -368,6 +422,19 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				if(chartToRemoveOnClick != null) {
 					Controller.removeChart(chartToRemoveOnClick);
+					return;
+				}
+				
+				if(chartToMaximizeOnClick != null) {
+					if(maximizedChart == null) {
+						maximizedChart = chartToMaximizeOnClick;
+						animationPosition = 0.0;
+						maximizing = true;
+						Controller.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
+					} else {
+						animationPosition = 1.0;
+						demaximizing = true;
+					}
 					return;
 				}
 				
@@ -628,6 +695,71 @@ public class OpenGLChartsRegion extends JPanel {
 	}
 	
 	/**
+	 * Draws a chart maximize button (rectangle icon) for the user to click on if the mouse is over this chart.
+	 * 
+	 * @param gl         The OpenGL context.
+	 * @param xOffset    Chart region lower-left x location.
+	 * @param yOffset    Chart region lower-left y location.
+	 * @param width      Chart region width.
+	 * @param height     Chart region height.
+	 * @return           True if the mouse cursor is over this button, false if not.
+	 */
+	private boolean drawChartMaximizeButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
+		
+		// only draw if necessary
+		boolean mouseOverChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
+		if(!mouseOverChart)
+			return false;
+		
+		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
+		float inset = buttonWidth * 0.2f;
+		float offset = buttonWidth + 1;
+		float buttonXleft = xOffset + width - buttonWidth - offset;
+		float buttonXright = xOffset + width - offset;
+		float buttonYtop = yOffset + height;
+		float buttonYbottom = yOffset + height - buttonWidth;
+		boolean mouseOverButton = mouseX >= buttonXleft && mouseX <= buttonXright && mouseY >= buttonYbottom && mouseY <= buttonYtop;
+		float[] white = new float[] {1, 1, 1, 1};
+		float[] black = new float[] {0, 0, 0, 1};
+		
+		// draw button background
+		gl.glBegin(GL2.GL_QUADS);
+			gl.glColor4fv(mouseOverButton ? black : white, 0);
+			gl.glVertex2f(buttonXleft, buttonYbottom);
+			gl.glVertex2f(buttonXleft, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYbottom);
+		gl.glEnd();
+		
+		// draw button outline
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glColor4fv(mouseOverButton ? white : black, 0);
+			gl.glVertex2f(buttonXleft, buttonYbottom);
+			gl.glVertex2f(buttonXleft, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYtop);
+			gl.glVertex2f(buttonXright, buttonYbottom);
+		gl.glEnd();
+		
+		// draw the rectangle
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glColor4fv(mouseOverButton ? white : black, 0);
+			gl.glVertex2f(buttonXleft + inset, buttonYbottom + inset);
+			gl.glVertex2f(buttonXleft + inset, buttonYtop - inset);
+			gl.glVertex2f(buttonXright - inset, buttonYtop - inset);
+			gl.glVertex2f(buttonXright - inset, buttonYbottom + inset);
+		gl.glEnd();
+		gl.glBegin(GL2.GL_QUADS);
+			gl.glVertex2f(buttonXleft + inset, buttonYtop - inset);
+			gl.glVertex2f(buttonXright - inset, buttonYtop - inset);
+			gl.glVertex2f(buttonXright - inset, buttonYtop - inset - (inset / 1.5f));
+			gl.glVertex2f(buttonXleft + inset, buttonYtop - inset - (inset / 1.5f));
+		gl.glEnd();
+		
+		return mouseOverButton;
+		
+	}
+	
+	/**
 	 * Draws a chart settings button (gear icon) for the user to click on if the mouse is over this chart.
 	 * 
 	 * @param gl         The OpenGL context.
@@ -645,7 +777,7 @@ public class OpenGLChartsRegion extends JPanel {
 			return false;
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
-		float offset = buttonWidth + 1;
+		float offset = (buttonWidth + 1) * 2;
 		float buttonXleft = xOffset + width - buttonWidth - offset;
 		float buttonXright = xOffset + width - offset;
 		float buttonYtop = yOffset + height;
