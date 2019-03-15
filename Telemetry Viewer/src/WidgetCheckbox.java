@@ -3,25 +3,26 @@ import java.util.function.Consumer;
 
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 
 @SuppressWarnings("serial")
-public class WidgetCheckbox extends JPanel {
+public class WidgetCheckbox extends Widget {
 	
+	String label;
 	JCheckBox checkbox;
 	Consumer<Boolean> handler;
 	
 	/**
 	 * A widget that lets the user check or uncheck a checkbox.
 	 * 
-	 * @param label           Label to show at the right of the checkbox.
+	 * @param labelText       Label to show at the right of the checkbox.
 	 * @param isChecked       If the checkbox should default to checked.
 	 * @param eventHandler    Will be notified when the checkbox changes.
 	 */
-	public WidgetCheckbox(String label, boolean isChecked, Consumer<Boolean> eventHandler) {
+	public WidgetCheckbox(String labelText, boolean isChecked, Consumer<Boolean> eventHandler) {
 		
 		super();
 		
+		label = labelText;
 		handler = eventHandler;
 		
 		checkbox = new JCheckBox(label);
@@ -37,24 +38,33 @@ public class WidgetCheckbox extends JPanel {
 	}
 	
 	/**
-	 * Sets the checkbox to a particular state.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Updates the widget and chart based on settings from a layout file.
 	 * 
-	 * @param checked    True for checked, false for unchecked.
+	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	public void setChecked(boolean checked) {
+	@Override public void importState(Controller.QueueOfLines lines) {
+
+		// parse the text
+		boolean checked = ChartUtils.parseBoolean(lines.remove(), label.trim().toLowerCase() + " = %b");
 		
+		// update the widget
 		checkbox.setSelected(checked);
+		
+		// update the chart
+		handler.accept(checkbox.isSelected());
 		
 	}
 	
 	/**
-	 * Ensures the widget is in a consistent state, then calls the event handler.
+	 * Saves the current state to one or more lines of text.
+	 * 
+	 * @return    A String[] where each element is a line of text.
 	 */
-	public void sanityCheck() {
+	@Override public String[] exportState() {
 		
-		// nothing to check, just call the event handler
-		handler.accept(checkbox.isSelected());
+		return new String[] {
+			label.trim().toLowerCase() + " = " + checkbox.isSelected()
+		};
 		
 	}
 

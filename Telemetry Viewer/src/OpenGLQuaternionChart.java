@@ -1,4 +1,3 @@
-import javax.swing.JPanel;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.math.Quaternion;
 
@@ -30,10 +29,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 	float xTextLabelRight;
 	
 	// control widgets
-	WidgetDataset q0Widget;
-	WidgetDataset q1Widget;
-	WidgetDataset q2Widget;
-	WidgetDataset q3Widget;
+	WidgetDatasets datasetsWidget;
 	WidgetCheckbox showTextLabelWidget;
 	
 	@Override public String toString() {
@@ -42,76 +38,28 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		
 	}
 	
-	@Override public String[] exportChart() {
-		
-		String[] lines = new String[3];
-
-		lines[0] = "datasets = " + exportDatasets();
-		lines[1] = "sample count = " + sampleCount;
-		lines[2] = "show text label = " + showTextLabel;
-		
-		return lines;
-		
-	}
-	
-	@Override public void importChart(String[] lines, int firstLineNumber) {
-		
-		if(lines.length != 3)
-			throw new AssertionError("Line " + firstLineNumber + ": Invalid Quaternion Chart configuration section.");
-
-		String datasets =  (String) ChartUtils.parse(firstLineNumber + 0, lines[0], "datasets = %s");
-		sampleCount     =     (int) ChartUtils.parse(firstLineNumber + 1, lines[1], "sample count = %d");
-		showTextLabel   = (boolean) ChartUtils.parse(firstLineNumber + 2, lines[2], "show text label = %b");
-		
-		importDatasets(firstLineNumber, datasets);
-        
-		// sync the widgets with the current chart state
-		q0Widget.setDataset(this.datasets[0]);
-		q0Widget.sanityCheck();
-		q1Widget.setDataset(this.datasets[1]);
-		q1Widget.sanityCheck();
-		q2Widget.setDataset(this.datasets[2]);
-		q2Widget.sanityCheck();
-		q3Widget.setDataset(this.datasets[3]);
-		q3Widget.sanityCheck();
-		showTextLabelWidget.setChecked(showTextLabel);
-		showTextLabelWidget.sanityCheck();
-		
-	}
-	
-	@Override public JPanel[] getWidgets() {
-
-		JPanel[] widgets = new JPanel[6];
-		
-		widgets[0] = q0Widget;
-		widgets[1] = q1Widget;
-		widgets[2] = q2Widget;
-		widgets[3] = q3Widget;
-		widgets[4] = null;
-		widgets[5] = showTextLabelWidget;
-
-		return widgets;
-		
-	}
-	
 	public OpenGLQuaternionChart(int x1, int y1, int x2, int y2) {
 		
 		super(x1, y1, x2, y2);
 		
+		sampleCount = 1;
 		datasets = new Dataset[4];
 		
 		shape = ChartUtils.getShapeFromAsciiStl(getClass().getResourceAsStream("monkey.stl"));
 		
 		// create the control widgets and event handlers
-		q0Widget = new WidgetDataset("Q0", false, newDataset -> datasets[0] = newDataset[0]);
-		q1Widget = new WidgetDataset("Q1", false, newDataset -> datasets[1] = newDataset[0]);
-		q2Widget = new WidgetDataset("Q2", false, newDataset -> datasets[2] = newDataset[0]);
-		q3Widget = new WidgetDataset("Q3", false, newDataset -> datasets[3] = newDataset[0]);
+		datasetsWidget = new WidgetDatasets(4, new String[] {"Q0", "Q1", "Q2", "Q3"}, false, newDatasets -> datasets = newDatasets);
 		
 		showTextLabelWidget = new WidgetCheckbox("Show Text Label",
 		                                         true,
 		                                         newShowTextLabel -> showTextLabel = newShowTextLabel);
 
+		widgets = new Widget[3];
+		
+		widgets[0] = datasetsWidget;
+		widgets[1] = null;
+		widgets[2] = showTextLabelWidget;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {

@@ -5,11 +5,10 @@ import java.util.function.Consumer;
 
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 @SuppressWarnings("serial")
-public class WidgetFrequencyDomainType extends JPanel {
+public class WidgetFrequencyDomainType extends Widget {
 	
 	JComboBox<String> typeCombobox;
 	JLabel sampleCountLabel;
@@ -228,52 +227,50 @@ public class WidgetFrequencyDomainType extends JPanel {
 	}
 	
 	/**
-	 * Sets the chart type to a specific value.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Updates the widget and chart based on settings from a layout file.
 	 * 
-	 * @param type    "Live View" or "Waveform View" or "Waterfall View".
+	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	public void setType(String type) {
+	@Override public void importState(Controller.QueueOfLines lines) {
+
+		// parse the text
+		int sampleCount      = ChartUtils.parseInteger(lines.remove(), "sample count = %d");
+		int totalSampleCount = ChartUtils.parseInteger(lines.remove(), "total sample count = %d");
+		String chartType     = ChartUtils.parseString (lines.remove(), "type = %s");
+		int waveformRowCount = ChartUtils.parseInteger(lines.remove(), "waveform view row count = %d");
 		
-		for(int i = 0; i < typeCombobox.getItemCount(); i++)
-			if(typeCombobox.getItemAt(i).equals(type))
-				typeCombobox.setSelectedIndex(i);
+		if(!chartType.equals("Live View") && !chartType.equals("Waveform View") && !chartType.equals("Waterfall View"))
+			throw new AssertionError("Invalid Frequency Domain Chart type.");
 		
-	}
-	
-	/**
-	 * Sets the sample count to a specific value.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
-	 * 
-	 * @param sampleCount    The sample count.
-	 */
-	public void setSampleCount(int sampleCount) {
-		
+		// update the widget
 		sampleCountTextfield.setText(Integer.toString(sampleCount));
-		
-	}
-	
-	/**
-	 * Sets the total sample count to a specific value.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
-	 * 
-	 * @param totalSampleCount    The total sample count.
-	 */
-	public void setTotalSampleCount(int totalSampleCount) {
 		
 		totalSampleCountTextfield.setText(Integer.toString(totalSampleCount));
 		
+		for(int i = 0; i < typeCombobox.getItemCount(); i++)
+			if(typeCombobox.getItemAt(i).equals(chartType))
+				typeCombobox.setSelectedIndex(i);
+		
+		rowCountTextfield.setText(Integer.toString(waveformRowCount));
+		
+		// update the chart
+		sanityCheck();
+		
 	}
 	
 	/**
-	 * Sets the row count to a specific value.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Saves the current state to one or more lines of text.
 	 * 
-	 * @param rowCount    The row count.
+	 * @return    A String[] where each element is a line of text.
 	 */
-	public void setRowCount(int rowCount) {
+	@Override public String[] exportState() {
 		
-		rowCountTextfield.setText(Integer.toString(rowCount));
+		return new String[] {
+			"sample count = " + sampleCountTextfield.getText(),
+			"total sample count = " + totalSampleCountTextfield.getText(),
+			"type = " + typeCombobox.getSelectedItem().toString(),
+			"waveform view row count = " + rowCountTextfield.getText()
+		};
 		
 	}
 

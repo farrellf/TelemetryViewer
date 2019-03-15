@@ -12,7 +12,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 @SuppressWarnings("serial")
-public class WidgetHistogramYaxisType extends JPanel {
+public class WidgetHistogramYaxisType extends Widget {
 	
 	JLabel axisTypeLabel;
 	JComboBox<String> axisTypeCombobox;
@@ -227,53 +227,52 @@ public class WidgetHistogramYaxisType extends JPanel {
 	}
 	
 	/**
-	 * Sets the axis type.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Updates the widget and chart based on settings from a layout file.
 	 * 
-	 * @param relativeFrequency    True if the axis shows Relative Frequency.
-	 * @param frequency            True if the axis show Frequency.
+	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	public void setAxisType(boolean relativeFrequency, boolean frequency) {
+	@Override public void importState(Controller.QueueOfLines lines) {
+
+		// parse the text
+		boolean yAxisShowsRelativeFrequency = ChartUtils.parseBoolean(lines.remove(), "y-axis shows relative frequency = %b");
+		boolean yAxisShowsFrequency         = ChartUtils.parseBoolean(lines.remove(), "y-axis shows frequency = %b");
+		boolean yMinimumIsZero              = ChartUtils.parseBoolean(lines.remove(), "y-axis minimum is zero = %b");
+		boolean yAutoscaleMax               = ChartUtils.parseBoolean(lines.remove(), "y-axis autoscale maximum = %b");
+		float manualMinY                    = ChartUtils.parseFloat  (lines.remove(), "y-axis manual minimum = %f");
+		float manualMaxY                    = ChartUtils.parseFloat  (lines.remove(), "y-axis manual maximum = %f");
 		
-		String s;
-		if(relativeFrequency && frequency)
-			s = "Both";
-		else if(relativeFrequency)
-			s = "Relative Frequency";
-		else
-			s = "Frequency";
-		
+		// update the widget
+		String type = (yAxisShowsRelativeFrequency && yAxisShowsFrequency) ? "Both" : yAxisShowsRelativeFrequency ? "Relative Frequency" : "Frequency";
 		for(int i = 0; i < axisTypeCombobox.getItemCount(); i++)
-			if(axisTypeCombobox.equals(s))
+			if(axisTypeCombobox.equals(type))
 				axisTypeCombobox.setSelectedIndex(i);
+
+		minCheckbox.setSelected(yMinimumIsZero);
+		minTextfield.setText(Float.toString(manualMinY));
+		
+		maxCheckbox.setSelected(yAutoscaleMax);
+		maxTextfield.setText(Float.toString(manualMaxY));
+		
+		// update the chart
+		sanityCheck();
 		
 	}
 	
 	/**
-	 * Sets the axis minimum to be either zero or manually scaled, and specifies the manual scale.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Saves the current state to one or more lines of text.
 	 * 
-	 * @param minIsZero    True for the minimum is zero, false for manually scaled.
-	 * @param manualMin    Minimum to use if manually scaled.
+	 * @return    A String[] where each element is a line of text.
 	 */
-	public void setAxisMin(boolean minIsZero, float manualMin) {
+	@Override public String[] exportState() {
 		
-		minCheckbox.setSelected(minIsZero);
-		minTextfield.setText(Float.toString(manualMin));
-		
-	}
-	
-	/**
-	 * Sets the axis maximum to be either autoscaled or manually scaled, and specifies the manual scale.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
-	 * 
-	 * @param autoscaleMax    True for autoscaled, false for manually scaled.
-	 * @param manualMax       Maximum to use if manually scaled.
-	 */
-	public void setAxisMax(boolean autoscaleMax, float manualMax) {
-		
-		maxCheckbox.setSelected(autoscaleMax);
-		maxTextfield.setText(Float.toString(manualMax));
+		return new String[] {
+			"y-axis shows relative frequency = " + (axisTypeCombobox.getSelectedIndex() == 0 || axisTypeCombobox.getSelectedIndex() == 2),
+			"y-axis shows frequency = " + (axisTypeCombobox.getSelectedIndex() == 1 || axisTypeCombobox.getSelectedIndex() == 2),
+			"y-axis minimum is zero = " + minCheckbox.isSelected(),
+			"y-axis autoscale maximum = " + maxCheckbox.isSelected(),
+			"y-axis manual minimum = " + minTextfield.getText(),
+			"y-axis manual maximum = " + maxTextfield.getText()
+		};
 		
 	}
 

@@ -11,8 +11,9 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 @SuppressWarnings("serial")
-public class WidgetTextfieldsOptionalMinMax extends JPanel {
+public class WidgetTextfieldsOptionalMinMax extends Widget {
 	
+	String prefix;
 	JCheckBox maxCheckbox;
 	JCheckBox minCheckbox;
 	JTextField maxTextfield;
@@ -39,6 +40,7 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 		
 		super();
 		
+		prefix = labelPrefix;
 		this.upperLimit = upperLimit;
 		this.lowerLimit = lowerLimit;
 		this.defaultMax = defaultMax;
@@ -147,30 +149,42 @@ public class WidgetTextfieldsOptionalMinMax extends JPanel {
 	}
 	
 	/**
-	 * Sets the minimum to be either autoscaled or manually scaled, and specifies the manual scale.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Updates the widget and chart based on settings from a layout file.
 	 * 
-	 * @param autoscaleMin    True for autoscaled, false for manually scaled.
-	 * @param manualMin       Minimum to use if manually scaled.
+	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	public void setMin(boolean autoscaleMin, float manualMin) {
+	@Override public void importState(Controller.QueueOfLines lines) {
+
+		// parse the text
+		boolean autoscaleMin = ChartUtils.parseBoolean(lines.remove(), "autoscale " + prefix.trim().toLowerCase() + " minimum = %b");
+		float manualMin      = ChartUtils.parseFloat  (lines.remove(), "manual " + prefix.trim().toLowerCase() + " minimum = %f");
+		boolean autoscaleMax = ChartUtils.parseBoolean(lines.remove(), "autoscale " + prefix.trim().toLowerCase() + " maximum = %b");
+		float manualMax      = ChartUtils.parseFloat  (lines.remove(), "manual " + prefix.trim().toLowerCase() + " maximum = %f");
 		
+		// update the widget
 		minCheckbox.setSelected(autoscaleMin);
 		minTextfield.setText(Float.toString(manualMin));
+		maxCheckbox.setSelected(autoscaleMax);
+		maxTextfield.setText(Float.toString(manualMax));
+		
+		// update the chart
+		sanityCheck();
 		
 	}
 	
 	/**
-	 * Sets the maximum to be either autoscaled or manually scaled, and specifies the manual scale.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Saves the current state to one or more lines of text.
 	 * 
-	 * @param autoscaleMax    True for autoscaled, false for manually scaled.
-	 * @param manualMax       Maximum to use if manually scaled.
+	 * @return    A String[] where each element is a line of text.
 	 */
-	public void setMax(boolean autoscaleMax, float manualMax) {
+	@Override public String[] exportState() {
 		
-		maxCheckbox.setSelected(autoscaleMax);
-		maxTextfield.setText(Float.toString(manualMax));
+		return new String[] {
+			"autoscale " + prefix.trim().toLowerCase() + " minimum = " + minCheckbox.isSelected(),
+			"manual " + prefix.trim().toLowerCase() + " minimum = " + minTextfield.getText(),
+			"autoscale " + prefix.trim().toLowerCase() + " maximum = " + maxCheckbox.isSelected(),
+			"manual " + prefix.trim().toLowerCase() + " maximum = " + maxTextfield.getText()
+		};
 		
 	}
 

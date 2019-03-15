@@ -1,8 +1,5 @@
 import java.awt.Color;
 import java.util.Map;
-
-import javax.swing.JPanel;
-
 import com.jogamp.opengl.GL2;
 
 /**
@@ -145,123 +142,6 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 	}
 	
-	@Override public String[] exportChart() {
-		
-		String[] lines = new String[20];
-		
-		lines[0]  = "datasets = " + exportDatasets();
-		lines[1]  = "sample count = " + sampleCount;
-		lines[2]  = "bin count = " + binCount;
-		lines[3]  = "x-axis is centered = " + xAxisIsCentered;
-		lines[4]  = "x-axis center value = " + xCenterValue;
-		lines[5]  = "x-axis autoscale minimum = " + xAutoscaleMin;
-		lines[6]  = "x-axis manual minimum = " + manualMinX;
-		lines[7]  = "x-axis autoscale maximum = " + xAutoscaleMax;
-		lines[8]  = "x-axis manual maximum = " + manualMaxX;
-		lines[9]  = "y-axis shows relative frequency = " + yAxisShowsRelativeFrequency;
-		lines[10] = "y-axis shows frequency = " + yAxisShowsFrequency;
-		lines[11] = "y-axis minimum is zero = " + yMinimumIsZero;
-		lines[12] = "y-axis autoscale maximum = " + yAutoscaleMax;
-		lines[13] = "y-axis manual minimum = " + manualMinY;
-		lines[14] = "y-axis manual maximum = " + manualMaxY;
-		lines[15] = "show x-axis title = " + showXaxisTitle;
-		lines[16] = "show x-axis scale = " + showXaxisScale;
-		lines[17] = "show y-axis title = " + showYaxisTitle;
-		lines[18] = "show y-axis scale = " + showYaxisScale;
-		lines[19] = "show legend = " + showLegend;
-		
-		return lines;
-		
-	}
-	
-	@Override public void importChart(String[] lines, int firstLineNumber) {
-		
-		if(lines.length != 20)
-			throw new AssertionError("Line " + firstLineNumber + ": Invalid Histogram Chart configuration section.");
-
-		String datasets             =  (String) ChartUtils.parse(firstLineNumber +  0, lines[0],  "datasets = %s");
-		sampleCount                 =     (int) ChartUtils.parse(firstLineNumber +  1, lines[1],  "sample count = %d");
-		binCount                    =     (int) ChartUtils.parse(firstLineNumber +  2, lines[2],  "bin count = %d");
-		xAxisIsCentered             = (boolean) ChartUtils.parse(firstLineNumber +  3, lines[3],  "x-axis is centered = %b");
-		xCenterValue                =   (float) ChartUtils.parse(firstLineNumber +  4, lines[4],  "x-axis center value = %f");
-		xAutoscaleMin               = (boolean) ChartUtils.parse(firstLineNumber +  5, lines[5],  "x-axis autoscale minimum = %b");
-		manualMinX                  =   (float) ChartUtils.parse(firstLineNumber +  6, lines[6],  "x-axis manual minimum = %f");
-		xAutoscaleMax               = (boolean) ChartUtils.parse(firstLineNumber +  7, lines[7],  "x-axis autoscale maximum = %b");
-		manualMaxX                  =   (float) ChartUtils.parse(firstLineNumber +  8, lines[8],  "x-axis manual maximum = %f");
-		yAxisShowsRelativeFrequency = (boolean) ChartUtils.parse(firstLineNumber +  9, lines[9],  "y-axis shows relative frequency = %b");
-		yAxisShowsFrequency         = (boolean) ChartUtils.parse(firstLineNumber + 10, lines[10], "y-axis shows frequency = %b");
-		yMinimumIsZero              = (boolean) ChartUtils.parse(firstLineNumber + 11, lines[11], "y-axis minimum is zero = %b");
-		yAutoscaleMax               = (boolean) ChartUtils.parse(firstLineNumber + 12, lines[12], "y-axis autoscale maximum = %b");
-		manualMinY                  =   (float) ChartUtils.parse(firstLineNumber + 13, lines[13], "y-axis manual minimum = %f");
-		manualMaxY                  =   (float) ChartUtils.parse(firstLineNumber + 14, lines[14], "y-axis manual maximum = %f");
-		showXaxisTitle              = (boolean) ChartUtils.parse(firstLineNumber + 15, lines[15], "show x-axis title = %b");
-		showXaxisScale              = (boolean) ChartUtils.parse(firstLineNumber + 16, lines[16], "show x-axis scale = %b");
-		showYaxisTitle              = (boolean) ChartUtils.parse(firstLineNumber + 17, lines[17], "show y-axis title = %b");
-		showYaxisScale              = (boolean) ChartUtils.parse(firstLineNumber + 18, lines[18], "show y-axis scale = %b");
-		showLegend                  = (boolean) ChartUtils.parse(firstLineNumber + 19, lines[19], "show legend = %b");
-		
-		importDatasets(firstLineNumber, datasets);
-		
-		// also need to update bins[][] and samples[] after setting the datasets
-		int datasetCount = this.datasets.length;
-		bins = new int[datasetCount][binCount];
-        samples = new Samples[datasetCount];
-        for(int i = 0; i < samples.length; i++)
-        	samples[i] = new Samples();
-        
-		// sync the widgets with the current chart state
-		datasetsWidget.setDatasets(this.datasets);
-		datasetsWidget.sanityCheck();
-		sampleCountWidget.setInteger(sampleCount);
-		sampleCountWidget.sanityCheck();
-		binCountWidget.setInteger(binCount);
-		binCountWidget.sanityCheck();
-		xAxisTypeWidget.setAxisType(xAxisIsCentered, xCenterValue);
-		xAxisTypeWidget.setAxisMin(xAutoscaleMin, manualMinX);
-		xAxisTypeWidget.setAxisMax(xAutoscaleMax, manualMaxX);
-		xAxisTypeWidget.sanityCheck();
-		yAxisTypeWidget.setAxisType(yAxisShowsRelativeFrequency, yAxisShowsFrequency);
-		yAxisTypeWidget.setAxisMin(yMinimumIsZero, manualMinY);
-		yAxisTypeWidget.setAxisMax(yAutoscaleMax, manualMaxY);
-		yAxisTypeWidget.sanityCheck();
-		showXaxisTitleWidget.setChecked(showXaxisTitle);
-		showXaxisTitleWidget.sanityCheck();
-		showXaxisScaleWidget.setChecked(showXaxisScale);
-		showXaxisScaleWidget.sanityCheck();
-		showYaxisTitleWidget.setChecked(showYaxisTitle);
-		showYaxisTitleWidget.sanityCheck();
-		showYaxisScaleWidget.setChecked(showYaxisScale);
-		showYaxisScaleWidget.sanityCheck();
-		showLegendWidget.setChecked(showLegend);
-		showLegendWidget.sanityCheck();
-		
-	}
-	
-	@Override public JPanel[] getWidgets() {
-		
-		JPanel[] widgets = new JPanel[16];
-		
-		widgets[0]  = datasetsWidget;
-		widgets[1]  = null;
-		widgets[2]  = sampleCountWidget;
-		widgets[3]  = binCountWidget;
-		widgets[4]  = null;
-		widgets[5]  = xAxisTypeWidget;
-		widgets[6]  = null;
-		widgets[7]  = yAxisTypeWidget;
-		widgets[8]  = null;
-		widgets[9]  = showXaxisTitleWidget;
-		widgets[10] = showXaxisScaleWidget;
-		widgets[11] = null;
-		widgets[12] = showYaxisTitleWidget;
-		widgets[13] = showYaxisScaleWidget;
-		widgets[14] = null;
-		widgets[15] = showLegendWidget;
-
-		return widgets;
-		
-	}
-	
 	public OpenGLHistogramChart(int x1, int y1, int x2, int y2) {
 		
 		super(x1, y1, x2, y2);
@@ -334,6 +214,25 @@ public class OpenGLHistogramChart extends PositionedChart {
 		                                      true,
 		                                      newShowLegend -> showLegend = newShowLegend);
 
+		widgets = new Widget[16];
+		
+		widgets[0]  = datasetsWidget;
+		widgets[1]  = null;
+		widgets[2]  = sampleCountWidget;
+		widgets[3]  = binCountWidget;
+		widgets[4]  = null;
+		widgets[5]  = xAxisTypeWidget;
+		widgets[6]  = null;
+		widgets[7]  = yAxisTypeWidget;
+		widgets[8]  = null;
+		widgets[9]  = showXaxisTitleWidget;
+		widgets[10] = showXaxisScaleWidget;
+		widgets[11] = null;
+		widgets[12] = showYaxisTitleWidget;
+		widgets[13] = showYaxisScaleWidget;
+		widgets[14] = null;
+		widgets[15] = showLegendWidget;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {

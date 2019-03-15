@@ -95,6 +95,16 @@ public class NotificationsController {
 	 * @param autoExpire    If this Notification should be expired when disconnecting.
 	 */
 	public static void showHintUntil(String message, BooleanSupplier isExpired, boolean autoExpire) {
+		
+		// prevent duplicate hints
+		if(notificationsView != null) {
+			Component[] notifications = notificationsView.getComponents();
+			for(Component notification : notifications) {
+				Notification n = (Notification) notification;
+				if(n.label.getText().equals(message))
+					return;
+			}
+		}
 
 		System.out.println(timestamp.format(new Date()) + "   [HINT   ]   " + message);
 		if(hintEnabled)
@@ -110,6 +120,16 @@ public class NotificationsController {
 	 * @param autoExpire         If this Notification should be expired when disconnecting.
 	 */
 	public static void showHintForSeconds(String message, int durationSeconds, boolean autoExpire) {
+		
+		// prevent duplicate hints
+		if(notificationsView != null) {
+			Component[] notifications = notificationsView.getComponents();
+			for(Component notification : notifications) {
+				Notification n = (Notification) notification;
+				if(n.label.getText().equals(message))
+					return;
+			}
+		}
 
 		System.out.println(timestamp.format(new Date()) + "   [HINT   ]   " + message);
 		if(hintEnabled) {

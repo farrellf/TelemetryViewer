@@ -1,5 +1,5 @@
-import javax.swing.JPanel;
-
+import java.util.ArrayList;
+import java.util.List;
 import com.jogamp.opengl.GL2;
 
 public abstract class PositionedChart {
@@ -12,6 +12,7 @@ public abstract class PositionedChart {
 	
 	int sampleCount;
 	Dataset[] datasets;
+	Widget[] widgets;
 	
 	public PositionedChart(int x1, int y1, int x2, int y2) {
 		
@@ -23,6 +24,17 @@ public abstract class PositionedChart {
 	}
 	
 	public boolean regionOccupied(int startX, int startY, int endX, int endY) {
+		
+		if(endX < startX) {
+			int temp = startX;
+			startX = endX;
+			endX = temp;
+		}
+		if(endY < startY) {
+			int temp = startY;
+			startY = endY;
+			endY = temp;
+		}
 
 		for(int x = startX; x <= endX; x++)
 			for(int y = startY; y <= endY; y++)
@@ -33,46 +45,28 @@ public abstract class PositionedChart {
 		
 	}
 	
-	public String exportDatasets() {
-		
-		if(datasets == null || datasets.length == 0) {
-			return "";
-		} else {
-			String s = Integer.toString(datasets[0].location);
-			for(int i = 1; i < datasets.length; i++)
-				s += "," + datasets[i].location;
-			return s;
-		}
-		
-	}
-	
-	public void importDatasets(int lineNumber, String s) {
-		
-		try {
-			
-			String[] tokens = s.split(",");
-			for(String t : tokens)
-				Integer.parseInt(t);
-			
-			datasets = new Dataset[tokens.length];
-			for(int i = 0; i < tokens.length; i++)
-				datasets[i] = Controller.getDatasetByLocation(Integer.parseInt(tokens[i]));
-			
-		} catch(Exception e) {
-			
-			throw new AssertionError("Line " + lineNumber + ": Invalid datasets list.");
-			
-		}
-		
-	}
-	
 	public abstract void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
 	
-	public abstract String[] exportChart();
+	public final void importChart(Controller.QueueOfLines lines) {
+
+		for(Widget widget : widgets)
+			if(widget != null)
+				widget.importState(lines);
+		
+	}
 	
-	public abstract void importChart(String[] lines, int firstLineNumber);
-	
-	public abstract JPanel[] getWidgets();
+	public final List<String> exportChart() {
+		
+		List<String> lines = new ArrayList<String>();
+		
+		for(Widget widget : widgets)
+			if(widget != null)
+				for(String line : widget.exportState())
+					lines.add(line);
+		
+		return lines;
+		
+	}
 	
 	public abstract String toString();
 	

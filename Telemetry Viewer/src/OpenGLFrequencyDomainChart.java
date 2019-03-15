@@ -1,8 +1,5 @@
 import java.awt.Color;
 import java.util.Map;
-
-import javax.swing.JPanel;
-
 import com.jogamp.opengl.GL2;
 
 /**
@@ -135,106 +132,6 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public String[] exportChart() {
-		
-		String[] lines = new String[15];
-
-		lines[0]  = "datasets = " + exportDatasets();
-		lines[1]  = "sample count = " + sampleCount;
-		lines[2]  = "total sample count = " + totalSampleCount;
-		lines[3]  = "autoscale minimum power = " + autoscaleMinPower;
-		lines[4]  = "manual minimum power = " + manualMinPower;
-		lines[5]  = "autoscale maximum power = " + autoscaleMaxPower;
-		lines[6]  = "manual maximum power = " + manualMaxPower;
-		lines[7]  = "type = " + chartType;
-		lines[8]  = "waveform view row count = " + waveformRowCount;
-		lines[9]  = "show x-axis title = " + showXaxisTitle;
-		lines[10] = "show x-axis scale = " + showXaxisScale;
-		lines[11] = "show y-axis title = " + showYaxisTitle;
-		lines[12] = "show y-axis scale = " + showYaxisScale;
-		lines[13] = "show legend = " + showLegend;
-		lines[14] = "show dft info = " + showDftInfo;
-		
-		return lines;
-		
-	}
-	
-	@Override public void importChart(String[] lines, int firstLineNumber) {
-		
-		if(lines.length != 15)
-			throw new AssertionError("Line " + firstLineNumber + ": Invalid Frequency Domain Chart configuration section.");
-
-		String datasets   =  (String) ChartUtils.parse(firstLineNumber + 0,  lines[0],  "datasets = %s");
-		sampleCount       =     (int) ChartUtils.parse(firstLineNumber + 1,  lines[1],  "sample count = %d");
-		totalSampleCount  =     (int) ChartUtils.parse(firstLineNumber + 2,  lines[2],  "total sample count = %d");
-		autoscaleMinPower = (boolean) ChartUtils.parse(firstLineNumber + 3,  lines[3],  "autoscale minimum power = %b");
-		manualMinPower    =   (float) ChartUtils.parse(firstLineNumber + 4,  lines[4],  "manual minimum power = %f");
-		autoscaleMaxPower = (boolean) ChartUtils.parse(firstLineNumber + 5,  lines[5],  "autoscale maximum power = %b");
-		manualMaxPower    =   (float) ChartUtils.parse(firstLineNumber + 6,  lines[6],  "manual maximum power = %f");
-		chartType         =  (String) ChartUtils.parse(firstLineNumber + 7,  lines[7],  "type = %s");
-		waveformRowCount  =     (int) ChartUtils.parse(firstLineNumber + 8,  lines[8],  "waveform view row count = %d");
-		showXaxisTitle    = (boolean) ChartUtils.parse(firstLineNumber + 9,  lines[9],  "show x-axis title = %b");
-		showXaxisScale    = (boolean) ChartUtils.parse(firstLineNumber + 10, lines[10], "show x-axis scale = %b");
-		showYaxisTitle    = (boolean) ChartUtils.parse(firstLineNumber + 11, lines[11], "show y-axis title = %b");
-		showYaxisScale    = (boolean) ChartUtils.parse(firstLineNumber + 12, lines[12], "show y-axis scale = %b");
-		showLegend        = (boolean) ChartUtils.parse(firstLineNumber + 13, lines[13], "show legend = %b");
-		showDftInfo       = (boolean) ChartUtils.parse(firstLineNumber + 14, lines[14], "show dft info = %b");
-		
-		if(!chartType.equals("Live View") && !chartType.equals("Waveform View") && !chartType.equals("Waterfall View"))
-			throw new AssertionError("Line " + (firstLineNumber + 5) + ": Invalid Frequency Domain Chart type.");
-		
-		importDatasets(firstLineNumber, datasets);
-		
-		// sync the widgets with the current chart state
-		datasetsWidget.setDatasets(this.datasets);
-		datasetsWidget.sanityCheck();
-		typeWidget.setSampleCount(sampleCount);
-		typeWidget.setTotalSampleCount(totalSampleCount);
-		typeWidget.setRowCount(waveformRowCount);
-		typeWidget.setType(chartType);
-		typeWidget.sanityCheck();
-		minMaxWidget.setMin(autoscaleMinPower, manualMinPower);
-		minMaxWidget.setMax(autoscaleMaxPower, manualMaxPower);
-		minMaxWidget.sanityCheck();
-		showXaxisTitleWidget.setChecked(showXaxisTitle);
-		showXaxisTitleWidget.sanityCheck();
-		showXaxisScaleWidget.setChecked(showXaxisScale);
-		showXaxisScaleWidget.sanityCheck();
-		showYaxisTitleWidget.setChecked(showYaxisTitle);
-		showYaxisTitleWidget.sanityCheck();
-		showYaxisScaleWidget.setChecked(showYaxisScale);
-		showYaxisScaleWidget.sanityCheck();
-		showLegendWidget.setChecked(showLegend);
-		showLegendWidget.sanityCheck();
-		showDftInfoWidget.setChecked(showDftInfo);
-		showDftInfoWidget.sanityCheck();
-		
-	}
-	
-	@Override public JPanel[] getWidgets() {
-
-		JPanel[] widgets = new JPanel[15];
-		
-		widgets[0]  = datasetsWidget;
-		widgets[1]  = null;
-		widgets[2]  = minMaxWidget;
-		widgets[3]  = null;
-		widgets[4]  = typeWidget;
-		widgets[5]  = null;
-		widgets[6]  = showXaxisTitleWidget;
-		widgets[7]  = showXaxisScaleWidget;
-		widgets[8]  = null;
-		widgets[9]  = showYaxisTitleWidget;
-		widgets[10] = showYaxisScaleWidget;
-		widgets[11] = null;
-		widgets[12] = showLegendWidget;
-		widgets[13] = null;
-		widgets[14] = showDftInfoWidget;
-
-		return widgets;
-		
-	}
-	
 	public OpenGLFrequencyDomainChart(int x1, int y1, int x2, int y2) {
 		
 		super(x1, y1, x2, y2);
@@ -288,6 +185,24 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		                                       true,
 		                                       newShowDftInfo -> showDftInfo = newShowDftInfo);
 
+		widgets = new Widget[15];
+		
+		widgets[0]  = datasetsWidget;
+		widgets[1]  = null;
+		widgets[2]  = minMaxWidget;
+		widgets[3]  = null;
+		widgets[4]  = typeWidget;
+		widgets[5]  = null;
+		widgets[6]  = showXaxisTitleWidget;
+		widgets[7]  = showXaxisScaleWidget;
+		widgets[8]  = null;
+		widgets[9]  = showYaxisTitleWidget;
+		widgets[10] = showYaxisScaleWidget;
+		widgets[11] = null;
+		widgets[12] = showLegendWidget;
+		widgets[13] = null;
+		widgets[14] = showDftInfoWidget;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {

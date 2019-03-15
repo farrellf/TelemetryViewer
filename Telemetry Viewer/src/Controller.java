@@ -7,8 +7,8 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
-
 import javax.swing.SwingUtilities;
 
 /**
@@ -209,7 +209,7 @@ public class Controller {
 		
 		if(getCharts().isEmpty()) {
 			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
-				if(Controller.getCharts().isEmpty())
+				if(Controller.getCharts().isEmpty() && CommunicationController.isConnected())
 					NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
 			});
 		}
@@ -335,7 +335,7 @@ public class Controller {
 		try {
 			
 			PrintWriter outputFile = new PrintWriter(new File(outputFilePath), "UTF-8");
-			outputFile.println("Telemetry Viewer File Format v0.5");
+			outputFile.println("Telemetry Viewer File Format v0.6");
 			outputFile.println("");
 			
 			outputFile.println("GUI Settings:");
@@ -420,10 +420,8 @@ public class Controller {
 				outputFile.println("\tbottom right x = " + chart.bottomRightX);
 				outputFile.println("\tbottom right y = " + chart.bottomRightY);
 				
-				String[] additionalLines = chart.exportChart();
-				if(additionalLines != null)
-					for(String line : additionalLines)
-						outputFile.println("\t" + line);
+				for(String line : chart.exportChart())
+					outputFile.println("\t" + line);
 				
 			}
 			
@@ -449,25 +447,26 @@ public class Controller {
 		Controller.removeAllCharts();
 		Controller.removeAllDatasets();
 		
+		QueueOfLines lines = null;
+		
 		try {
 			
-			List<String> lines = Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8);
-			int n = 0;
+			lines = new QueueOfLines(Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8));
 			
-			ChartUtils.parse(n, lines.get(n++), "Telemetry Viewer File Format v0.5");
-			ChartUtils.parse(n, lines.get(n++), "");
+			ChartUtils.parseExact(lines.remove(), "Telemetry Viewer File Format v0.6");
+			ChartUtils.parseExact(lines.remove(), "");
 			
-			ChartUtils.parse(n, lines.get(n++), "GUI Settings:");
-			ChartUtils.parse(n, lines.get(n++), "");
+			ChartUtils.parseExact(lines.remove(), "GUI Settings:");
+			ChartUtils.parseExact(lines.remove(), "");
 			
-			int tileColumns =               (int) ChartUtils.parse(n, lines.get(n++), "\ttile column count = %d");
-			int tileRows =                  (int) ChartUtils.parse(n, lines.get(n++), "\ttile row count = %d");
-			boolean tooltipVisibility = (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow plot tooltips = %b");
-			boolean smoothScrolling =   (boolean) ChartUtils.parse(n, lines.get(n++), "\tsmooth scrolling = %b");
-			boolean antialiasing =      (boolean) ChartUtils.parse(n, lines.get(n++), "\topengl antialiasing = %b");
-			boolean fpsVisibility =     (boolean) ChartUtils.parse(n, lines.get(n++), "\tshow fps and period = %b");
-			int chartIndex =                (int) ChartUtils.parse(n, lines.get(n++), "\tchart index for benchmarks = %d");
-			ChartUtils.parse(n, lines.get(n++), "");
+			int tileColumns           = ChartUtils.parseInteger(lines.remove(), "tile column count = %d");
+			int tileRows              = ChartUtils.parseInteger(lines.remove(), "tile row count = %d");
+			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
+			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
+			boolean antialiasing      = ChartUtils.parseBoolean(lines.remove(), "opengl antialiasing = %b");
+			boolean fpsVisibility     = ChartUtils.parseBoolean(lines.remove(), "show fps and period = %b");
+			int chartIndex            = ChartUtils.parseInteger(lines.remove(), "chart index for benchmarks = %d");
+			ChartUtils.parseExact(lines.remove(), "");
 			
 			SettingsController.setTileColumns(tileColumns);
 			SettingsController.setTileRows(tileRows);
@@ -476,18 +475,17 @@ public class Controller {
 			SettingsController.setAntialiasing(antialiasing);
 			SettingsController.setFpsVisibility(fpsVisibility);
 
-			ChartUtils.parse(n, lines.get(n++), "Communication Settings:");
-			ChartUtils.parse(n, lines.get(n++), "");
+			ChartUtils.parseExact(lines.remove(), "Communication Settings:");
+			ChartUtils.parseExact(lines.remove(), "");
 			
-			String portName =   (String) ChartUtils.parse(n, lines.get(n++), "\tport = %s");
-			int baudRate =         (int) ChartUtils.parse(n, lines.get(n++), "\tuart baud rate = %d");
-			int tcpUdpPort =       (int) ChartUtils.parse(n, lines.get(n++), "\ttcp/udp port number = %d");
-			String packetType = (String) ChartUtils.parse(n, lines.get(n++), "\tpacket type = %s");
-			int sampleRate =       (int) ChartUtils.parse(n, lines.get(n++), "\tsample rate = %d");
-			ChartUtils.parse(n, lines.get(n++), "");
-			
+			String portName   = ChartUtils.parseString (lines.remove(), "port = %s");
+			int baudRate      = ChartUtils.parseInteger(lines.remove(), "uart baud rate = %d");
+			int tcpUdpPort    = ChartUtils.parseInteger(lines.remove(), "tcp/udp port number = %d");
+			String packetType = ChartUtils.parseString (lines.remove(), "packet type = %s");
 			if(!Arrays.asList(CommunicationController.getPacketTypes()).contains(packetType))
-				throw new AssertionError("Line " + (n - 3) + ": Invalid packet type.");
+				throw new AssertionError("Invalid packet type.");
+			int sampleRate    = ChartUtils.parseInteger(lines.remove(), "sample rate = %d");
+			ChartUtils.parseExact(lines.remove(), "");
 			
 			CommunicationController.setPort(portName);
 			CommunicationController.setBaudRate(baudRate);
@@ -495,23 +493,22 @@ public class Controller {
 			CommunicationController.setPacketType(packetType);
 			CommunicationController.setSampleRate(sampleRate);
 			
-			int locationsCount = (int) ChartUtils.parse(n, lines.get(n++), "%d Data Structure Locations:");
+			int locationsCount = ChartUtils.parseInteger(lines.remove(), "%d Data Structure Locations:");
+			ChartUtils.parseExact(lines.remove(), "");
 
 			for(int i = 0; i < locationsCount; i++) {
 				
-				ChartUtils.parse(n, lines.get(n++), "");
-				int location =              (int) ChartUtils.parse(n, lines.get(n++), "\tlocation = %d");
-				int processorIndex =        (int) ChartUtils.parse(n, lines.get(n++), "\tprocessor index = %d");
-				String name =            (String) ChartUtils.parse(n, lines.get(n++), "\tname = %s");
-				String colorText =       (String) ChartUtils.parse(n, lines.get(n++), "\tcolor = 0x%s");
-				String unit =            (String) ChartUtils.parse(n, lines.get(n++), "\tunit = %s");
-				float conversionFactorA = (float) ChartUtils.parse(n, lines.get(n++), "\tconversion factor a = %f");
-				float conversionFactorB = (float) ChartUtils.parse(n, lines.get(n++), "\tconversion factor b = %f");
+				int location            = ChartUtils.parseInteger(lines.remove(), "location = %d");
+				int processorIndex      = ChartUtils.parseInteger(lines.remove(), "processor index = %d");
+				String name             = ChartUtils.parseString (lines.remove(), "name = %s");
+				String colorText        = ChartUtils.parseString (lines.remove(), "color = 0x%s");
+				String unit             = ChartUtils.parseString (lines.remove(), "unit = %s");
+				float conversionFactorA = ChartUtils.parseFloat  (lines.remove(), "conversion factor a = %f");
+				float conversionFactorB = ChartUtils.parseFloat  (lines.remove(), "conversion factor b = %f");
 				
-				int colorNumber = Integer.parseInt(colorText, 16);
-				Color color = new Color(colorNumber);
-				
+				Color color = new Color(Integer.parseInt(colorText, 16));
 				BinaryFieldProcessor processor = (processorIndex >= 0) ? BinaryPacket.getBinaryFieldProcessors()[processorIndex] : null;
+				
 				if(Communication.packet == Communication.csvPacket)
 					Communication.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
 				else
@@ -519,35 +516,38 @@ public class Controller {
 				
 				if(processor != null && processor.toString().startsWith("Bitfield")) {
 					List<Bitfield> fields = new ArrayList<Bitfield>();
-					String line = lines.get(n++);
+					String line = lines.remove();
 					while(!line.equals("")){
-						line = line.substring(1); // skip past the "\t"
-						String bitNumbers = line.split(" ")[0];
-						String[] fieldNames = line.substring(bitNumbers.length() + 3).split(","); // skip past "[n:n] = "
-						bitNumbers = bitNumbers.substring(1, bitNumbers.length() - 1); // remove [ and ]
-						int MSBit = Integer.parseInt(bitNumbers.split(":")[0]);
-						int LSBit = Integer.parseInt(bitNumbers.split(":")[1]);
-						Bitfield field = new Bitfield(MSBit, LSBit);
-						for(int f = 0; f < fieldNames.length; f++) {
-							field.textfields[f].setText(fieldNames[f]);
-							field.names[f] = fieldNames[f];
+						try {
+							String bitNumbers = line.split(" ")[0];
+							String[] fieldNames = line.substring(bitNumbers.length() + 3).split(","); // skip past "[n:n] = "
+							bitNumbers = bitNumbers.substring(1, bitNumbers.length() - 1); // remove [ and ]
+							int MSBit = Integer.parseInt(bitNumbers.split(":")[0]);
+							int LSBit = Integer.parseInt(bitNumbers.split(":")[1]);
+							Bitfield field = new Bitfield(MSBit, LSBit);
+							for(int f = 0; f < fieldNames.length; f++) {
+								field.textfields[f].setText(fieldNames[f]);
+								field.names[f] = fieldNames[f];
+							}
+							fields.add(field);
+						} catch(Exception e) {
+							throw new AssertionError("Text does not start with a bitfield range.");
 						}
-						fields.add(field);
-						line = lines.get(n++);
+						line = lines.remove();
 					}
-					n--; // rewind because of the last empty line
 					Controller.getDatasetByLocation(location).setBitfields(fields);
+				} else {
+					ChartUtils.parseExact(lines.remove(), "");
 				}
 				
 			}
 			
 			if(Communication.packet == Communication.binaryPacket) {
 				
-				ChartUtils.parse(n, lines.get(n++), "");
-				ChartUtils.parse(n, lines.get(n++), "Checksum:");
-				ChartUtils.parse(n, lines.get(n++), "");
-				int checksumOffset = (int) ChartUtils.parse(n, lines.get(n++), "\tlocation = %d");
-				int checksumIndex = (int) ChartUtils.parse(n, lines.get(n++), "\tchecksum processor index = %d");
+				ChartUtils.parseExact(lines.remove(), "Checksum:");
+				ChartUtils.parseExact(lines.remove(), "");
+				int checksumOffset = ChartUtils.parseInteger(lines.remove(), "location = %d");
+				int checksumIndex  = ChartUtils.parseInteger(lines.remove(), "checksum processor index = %d");
 				
 				if(checksumOffset >= 1 && checksumIndex >= 0) {
 					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
@@ -558,43 +558,48 @@ public class Controller {
 			
 			CommunicationController.connect(null);
 
-			ChartUtils.parse(n, lines.get(n++), "");
-			int chartsCount = (int) ChartUtils.parse(n, lines.get(n++), "%d Charts:");
+			ChartUtils.parseExact(lines.remove(), "");
+			int chartsCount = ChartUtils.parseInteger(lines.remove(), "%d Charts:");
 			if(chartsCount == 0)
 				return;
-			ChartUtils.parse(n, lines.get(n++), "");
 
 			for(int i = 0; i < chartsCount; i++) {
 				
-				String chartType = (String) ChartUtils.parse(n, lines.get(n++), "\tchart type = %s");
-				int topLeftX     =    (int) ChartUtils.parse(n, lines.get(n++), "\ttop left x = %d");
-				int topLeftY     =    (int) ChartUtils.parse(n, lines.get(n++), "\ttop left y = %d");
-				int bottomRightX =    (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right x = %d");
-				int bottomRightY =    (int) ChartUtils.parse(n, lines.get(n++), "\tbottom right y = %d");
+				ChartUtils.parseExact(lines.remove(), "");
+				String chartType = ChartUtils.parseString (lines.remove(), "chart type = %s");
+				int topLeftX     = ChartUtils.parseInteger(lines.remove(), "top left x = %d");
+				int topLeftY     = ChartUtils.parseInteger(lines.remove(), "top left y = %d");
+				int bottomRightX = ChartUtils.parseInteger(lines.remove(), "bottom right x = %d");
+				int bottomRightY = ChartUtils.parseInteger(lines.remove(), "bottom right y = %d");
 				
-				List<String> list = new ArrayList<String>();
-				int firstLineNumber = n;
-				
-				while(true) {
-					
-					// stop at end of file
-					if(n >= lines.size())
-						break;
-					
-					String line = lines.get(n++);
-					
-					// stop at end of section
-					if(line.equals(""))
-						break;
-					
-					list.add(line.substring(1)); // skip past the \t
-					
+				if(topLeftX < 0 || topLeftX >= SettingsController.getTileColumns()) {
+					lines.lineNumber -= 3;
+					throw new AssertionError("Invalid chart position.");
 				}
 				
-				String[] additionalLines = list.toArray(new String[list.size()]);
+				if(topLeftY < 0 || topLeftY >= SettingsController.getTileRows()) {
+					lines.lineNumber -= 2;
+					throw new AssertionError("Invalid chart position.");
+				}
+				
+				if(bottomRightX < 0 || bottomRightX >= SettingsController.getTileColumns()) {
+					lines.lineNumber -= 1;
+					throw new AssertionError("Invalid chart position.");
+				}
+				
+				if(bottomRightY < 0 || bottomRightY >= SettingsController.getTileRows())
+					throw new AssertionError("Invalid chart position.");
+				
+				for(PositionedChart existingChart : getCharts())
+					if(existingChart.regionOccupied(topLeftX, topLeftY, bottomRightX, bottomRightY))
+						throw new AssertionError("Chart overlaps an existing chart.");
 				
 				PositionedChart chart = Controller.createAndAddChart(chartType, topLeftX, topLeftY, bottomRightX, bottomRightY);
-				chart.importChart(additionalLines, firstLineNumber);
+				if(chart == null) {
+					lines.lineNumber -= 4;
+					throw new AssertionError("Invalid chart type.");
+				}
+				chart.importChart(lines);
 				
 			}
 			
@@ -602,18 +607,51 @@ public class Controller {
 			
 		} catch (IOException ioe) {
 			
-			NotificationsController.showFailureForSeconds("Unable to open the layout file.", 5, false);
+			NotificationsController.showFailureUntil("Unable to open the layout file.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+			NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 			
 		} catch(AssertionError ae) {
 		
-			CommunicationController.disconnect();
 			Controller.removeAllCharts();
 			Controller.removeAllDatasets();
+			CommunicationController.disconnect();
 			
-			NotificationsController.showFailureForSeconds("<html>Error while parsing the layout file.<br>" + ae.getMessage() + "</html>", 5, false);
+			NotificationsController.showFailureUntil("<html><center>Error while parsing the layout file:<br>Line " + lines.lineNumber + ": " + ae.getMessage() + "</center></html>", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+			NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 		
 		}
 		
+	}
+	
+	@SuppressWarnings("serial")
+	public static class QueueOfLines extends LinkedList <String> {
+		
+		int lineNumber = 0;
+		
+		/**
+		 * A Queue<String> that keeps track of how many items have been removed from the Queue.
+		 * This is for easily tracking the current line number, so it can be displayed in error messages if necessary.
+		 * 
+		 * @param lines    The lines of text to insert into the queue. Leading tabs will be removed.
+		 */
+		public QueueOfLines(List<String> lines) {
+			super();
+			for(String line : lines)
+				if(line.startsWith("\t"))
+					add(line.substring(1));
+				else
+					add(line);
+		}
+		
+		@Override public String remove() {
+			lineNumber++;
+			try {
+				return super.remove();
+			} catch(Exception e) {
+				throw new AssertionError("Incomplete file. More lines are required.");
+			}
+		}
+
 	}
 	
 }

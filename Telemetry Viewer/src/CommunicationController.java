@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 
 import com.fazecast.jSerialComm.SerialPort;
 
@@ -52,7 +53,8 @@ public class CommunicationController {
 			return;
 		
 		// prepare
-		disconnect();
+		if(isConnected())
+			disconnect();
 		
 		// set and notify
 		Communication.port = newPort;
@@ -121,7 +123,8 @@ public class CommunicationController {
 			return;
 		
 		// prepare
-		disconnect();
+		if(isConnected())
+			disconnect();
 		Controller.removeAllCharts();
 		Controller.removeAllDatasets();
 		
@@ -215,7 +218,8 @@ public class CommunicationController {
 			newBaud = 1;
 		
 		// prepare
-		disconnect();
+		if(isConnected())
+			disconnect();
 		
 		// set and notify
 		Communication.uartBaudRate = newBaud;		
@@ -269,7 +273,8 @@ public class CommunicationController {
 			newPort = 65535;
 		
 		// prepare
-		disconnect();
+		if(isConnected())
+			disconnect();
 		
 		// set and notify
 		Communication.tcpUdpPort = newPort;		
@@ -351,7 +356,7 @@ public class CommunicationController {
 			startTester(parentWindow);
 		
 		SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
-			if(Controller.getCharts().isEmpty())
+			if(Controller.getCharts().isEmpty() && isConnected())
 				NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
 		});
 		
@@ -378,7 +383,7 @@ public class CommunicationController {
 		if(wasConnected) {
 			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
 				if(Controller.getCharts().isEmpty() && !CommunicationController.isConnected())
-					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), false);
+					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 			});
 		}
 		
@@ -421,7 +426,14 @@ public class CommunicationController {
 			Communication.packet.showDataStructureWindow(parentWindow, false);
 		
 		int oldSampleCount = Controller.getSamplesCount();
-		NotificationsController.showSuccessUntil(Communication.port.substring(6) + " is connected. Send telemetry.", () -> Controller.getSamplesCount() > oldSampleCount, true); // trim the leading "UART: "
+		Timer t = new Timer(100, event -> {
+			if(Controller.getSamplesCount() == oldSampleCount)
+				NotificationsController.showSuccessUntil(Communication.port.substring(6) + " is connected. Send telemetry.", () -> Controller.getSamplesCount() > oldSampleCount, true); // trim the leading "UART: "
+			else
+				NotificationsController.showVerboseForSeconds(Communication.port.substring(6) + " is connected and receiving telemetry.", 5, true);
+		});
+		t.setRepeats(false);
+		t.start();
 		
 		Communication.packet.startReceivingData(uartPort.getInputStream());
 		
@@ -476,7 +488,14 @@ public class CommunicationController {
 				Communication.packet.showDataStructureWindow(parentWindow, false);
 			
 			int oldSampleCount = Controller.getSamplesCount();
-			NotificationsController.showSuccessUntil("The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
+			Timer t = new Timer(100, event -> {
+				if(Controller.getSamplesCount() == oldSampleCount)
+					NotificationsController.showSuccessUntil("The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
+				else
+					NotificationsController.showVerboseForSeconds("The TCP server is running and receiving telemetry.", 5, true);
+			});
+			t.setRepeats(false);
+			t.start();
 			
 			// wait for a connection
 			while(true) {
@@ -596,7 +615,14 @@ public class CommunicationController {
 				Communication.packet.showDataStructureWindow(parentWindow, false);
 				
 			int oldSampleCount = Controller.getSamplesCount();
-			NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
+			Timer t = new Timer(100, event -> {
+				if(Controller.getSamplesCount() == oldSampleCount)
+					NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
+				else
+					NotificationsController.showVerboseForSeconds("The UDP server is running and receiving telemetry.", 5, true);
+			});
+			t.setRepeats(false);
+			t.start();
 			
 			Communication.packet.startReceivingData(inputStream);
 			

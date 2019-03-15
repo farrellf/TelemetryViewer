@@ -12,7 +12,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 @SuppressWarnings("serial")
-public class WidgetHistogramXaxisType extends JPanel {
+public class WidgetHistogramXaxisType extends Widget {
 	
 	JLabel axisTypeLabel;
 	JComboBox<String> axisTypeCombobox;
@@ -230,44 +230,48 @@ public class WidgetHistogramXaxisType extends JPanel {
 	}
 	
 	/**
-	 * Sets the axis minimum to be either autoscaled or manually scaled, and specifies the manual scale.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Updates the widget and chart based on settings from a layout file.
 	 * 
-	 * @param autoscaleMin    True for autoscaled, false for manually scaled.
-	 * @param manualMin       Minimum to use if manually scaled.
+	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	public void setAxisMin(boolean autoscaleMin, float manualMin) {
+	@Override public void importState(Controller.QueueOfLines lines) {
+
+		// parse the text
+		boolean xAxisIsCentered = ChartUtils.parseBoolean(lines.remove(), "x-axis is centered = %b");
+		float xCenterValue      = ChartUtils.parseFloat  (lines.remove(), "x-axis center value = %f");
+		boolean xAutoscaleMin   = ChartUtils.parseBoolean(lines.remove(), "x-axis autoscale minimum = %b");
+		float manualMinX        = ChartUtils.parseFloat  (lines.remove(), "x-axis manual minimum = %f");
+		boolean xAutoscaleMax   = ChartUtils.parseBoolean(lines.remove(), "x-axis autoscale maximum = %b");
+		float manualMaxX        = ChartUtils.parseFloat  (lines.remove(), "x-axis manual maximum = %f");
 		
-		minCheckbox.setSelected(autoscaleMin);
-		minTextfield.setText(Float.toString(manualMin));
+		// update the widget
+		axisTypeCombobox.setSelectedItem(xAxisIsCentered ? "Locked Center" : "Normal");
+		centerTextfield.setText(Float.toString(xCenterValue));
+		minCheckbox.setSelected(xAutoscaleMin);
+		minTextfield.setText(Float.toString(manualMinX));
+		maxCheckbox.setSelected(xAutoscaleMax);
+		maxTextfield.setText(Float.toString(manualMaxX));
+		
+		// update the chart
+		sanityCheck();
 		
 	}
 	
 	/**
-	 * Sets the axis maximum to be either autoscaled or manually scaled, and specifies the manual scale.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
+	 * Saves the current state to one or more lines of text.
 	 * 
-	 * @param autoscaleMax    True for autoscaled, false for manually scaled.
-	 * @param manualMax       Maximum to use if manually scaled.
+	 * @return    A String[] where each element is a line of text.
 	 */
-	public void setAxisMax(boolean autoscaleMax, float manualMax) {
+	@Override public String[] exportState() {
 		
-		maxCheckbox.setSelected(autoscaleMax);
-		maxTextfield.setText(Float.toString(manualMax));
-		
-	}
-	
-	/**
-	 * Sets the axis type.
-	 * This should be called after importing a chart since the widget will not be in sync with the chart's state.
-	 * 
-	 * @param centered    True if "Locked Center" or false if "Normal".
-	 * @param center    Center value if the axis type is Locked Center.
-	 */
-	public void setAxisType(boolean centered, float center) {
-		
-		axisTypeCombobox.setSelectedItem(centered ? "Locked Center" : "Normal");
-		centerTextfield.setText(Float.toString(center));
+		return new String[] {
+			"x-axis is centered = " + (axisTypeCombobox.getSelectedIndex() == 0),
+			"x-axis center value = " + centerTextfield.getText(),
+			"x-axis autoscale minimum = " + minCheckbox.isSelected(),
+			"x-axis manual minimum = " + minTextfield.getText(),
+			"x-axis autoscale maximum = " + maxCheckbox.isSelected(),
+			"x-axis manual maximum = " + maxTextfield.getText()
+		};
 		
 	}
 

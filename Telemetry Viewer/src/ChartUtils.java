@@ -275,32 +275,67 @@ public class ChartUtils {
 	}
 	
 	/**
-	 * Takes a string of text and attempts to parse it with a format string.
-	 * Throws an exception if the text does not match the format string, or if the format string is invalid.
+	 * Takes a string of text and checks that it exactly matches a format string.
+	 * Throws an AssertionException if the text does not match the format string.
 	 * 
-	 * @param line            Line number to show in the error message if an error occurs.
-	 * @param text            Line of text to parse.
-	 * @param formatString    Printf-style format string but with many limitations:
-	 *                            1. Only %d %f %s or %b (boolean) can be used.
-                                  2. A %d or %f can only be at the very beginning or very end. A %s or %b can only be at the very end.
-                                  3. There must be a space between %d/%f/%s/%b and the rest of the text.
-	 * @return                An Integer if %d was used, a Float if %f was used, a String if %s was used, a Boolean if %b was used, or null if no format specifier was used.
+	 * @param text            Line of text to examine.
+	 * @param formatString    Expected line of text, for example: "GUI Settings:"
 	 */
-	public static Object parse(int line, String text, String formatString) {
+	public static void parseExact(String text, String formatString) {
 		
-		// error message line numbers should start at 1 but the argument starts at 0
-		line++;
+		if(!text.equals(formatString))
+			throw new AssertionError("Text does not match the expected value.");
 		
-		// no format specifier, so just ensure the text matches the formatString exactly
-		if(!formatString.contains("%")) {
-			if(text.equals(formatString))
-				return null;
+	}
+	
+	/**
+	 * Takes a string of text and attempts to extract a boolean from the end of it.
+	 * Throws an AssertionException if the text does not match the format string or does not end with a boolean value.
+	 * 
+	 * @param text            Line of text to examine.
+	 * @param formatString    Expected line of text, for example: "show x-axis title = %b"
+	 * @return                The boolean value extracted from the text.
+	 */
+	public static boolean parseBoolean(String text, String formatString) {
+		
+		if(!formatString.endsWith("%b"))
+			throw new AssertionError("Source code contains an invalid format string.");
+		
+		try {
+			String expectedText = formatString.substring(0, formatString.length() - 2);
+			String actualText = text.substring(0, expectedText.length());
+			String token = text.substring(expectedText.length()); 
+			if(actualText.equals(expectedText))
+				if(token.toLowerCase().equals("true"))
+					return true;
+				else if(token.toLowerCase().equals("false"))
+					return false;
+				else
+					throw new Exception();
 			else
-				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
+				throw new AssertionError("Text does not match the expected value.");
+		} catch(Exception e) {
+			throw new AssertionError("Text does not end with a boolean.");
 		}
 		
-		// starting with %d, so an integer should be at the start of the text
+	}
+	
+	/**
+	 * Takes a string of text and attempts to extract an integer from the beginning or end of it.
+	 * Throws an AssertionException if the text does not match the format string or does not start/end with an integer value.
+	 * 
+	 * @param text            Line of text to examine.
+	 * @param formatString    Expected line of text, for example: "sample count = %d"
+	 * @return                The integer value extracted from the text.
+	 */
+	public static int parseInteger(String text, String formatString) {
+		
+		if(!formatString.startsWith("%d") && !formatString.endsWith("%d"))
+			throw new AssertionError("Source code contains an invalid format string.");
+		
 		if(formatString.startsWith("%d")) {
+			
+			// starting with %d, so an integer should be at the start of the text
 			try {
 				String[] tokens = text.split(" ");
 				int number = Integer.parseInt(tokens[0]);
@@ -311,32 +346,14 @@ public class ChartUtils {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
+					throw new AssertionError("Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not start with an integer.");
+				throw new AssertionError("Text does not start with an integer.");
 			}
-		}
-		
-		// starting with %f, so a float should be at the start of the text
-		if(formatString.startsWith("%f")) {
-			try {
-				String[] tokens = text.split(" ");
-				float number = Float.parseFloat(tokens[0]);
-				String expectedText = formatString.substring(2);
-				String remainingText = "";
-				for(int i = 1; i < tokens.length; i++)
-					remainingText += " " + tokens[i];
-				if(remainingText.equals(expectedText))
-					return number;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not start with a floating point number.");
-			}
-		}
-		
-		// ending with %d, so an integer should be at the end of the text
-		if(formatString.endsWith("%d")) {
+			
+		} else  {
+			
+			// ending with %d, so an integer should be at the end of the text
 			try {
 				String[] tokens = text.split(" ");
 				int number = Integer.parseInt(tokens[tokens.length - 1]);
@@ -347,14 +364,49 @@ public class ChartUtils {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
+					throw new AssertionError("Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not end with an integer.");
+				throw new AssertionError("Text does not end with an integer.");
 			}
+			
 		}
 		
-		// ending with %f, so a float should be at the end of the text
-		if(formatString.endsWith("%f")) {
+	}
+	
+	/**
+	 * Takes a string of text and attempts to extract an float from the beginning or end of it.
+	 * Throws an AssertionException if the text does not match the format string or does not start/end with a float value.
+	 * 
+	 * @param text            Line of text to examine.
+	 * @param formatString    Expected line of text, for example: "manual y-axis maximum = %f"
+	 * @return                The float value extracted from the text.
+	 */
+	public static float parseFloat(String text, String formatString) {
+		
+		if(!formatString.startsWith("%f") && !formatString.endsWith("%f"))
+			throw new AssertionError("Source code contains an invalid format string.");
+		
+		if(formatString.startsWith("%f")) {
+			
+			// starting with %f, so a float should be at the start of the text
+			try {
+				String[] tokens = text.split(" ");
+				float number = Float.parseFloat(tokens[0]);
+				String expectedText = formatString.substring(2);
+				String remainingText = "";
+				for(int i = 1; i < tokens.length; i++)
+					remainingText += " " + tokens[i];
+				if(remainingText.equals(expectedText))
+					return number;
+				else
+					throw new AssertionError("Text does not match the expected value.");
+			} catch(Exception e) {
+				throw new AssertionError("Text does not start with a floating point number.");
+			}
+			
+		} else  {
+			
+			// ending with %f, so a float should be at the end of the text
 			try {
 				String[] tokens = text.split(" ");
 				float number = Float.parseFloat(tokens[tokens.length - 1]);
@@ -365,44 +417,39 @@ public class ChartUtils {
 				if(remainingText.equals(expectedText))
 					return number;
 				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
+					throw new AssertionError("Text does not match the expected value.");
 			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not end with a floating point number.");
+				throw new AssertionError("Text does not end with a floating point number.");
 			}
+			
 		}
 		
-		// ending with %s, so a String should be at the end of the text
-		if(formatString.endsWith("%s")) {
-			try {
-				String expectedText = formatString.substring(0, formatString.length() - 2);
-				String actualText = text.substring(0, expectedText.length());
-				String token = text.substring(expectedText.length()); 
-				if(actualText.equals(expectedText))
-					return token;
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			}
-		}
+	}
+	
+	/**
+	 * Takes a string of text and attempts to extract a string from the end of it.
+	 * Throws an AssertionException if the text does not match the format string.
+	 * 
+	 * @param text            Line of text to examine.
+	 * @param formatString    Expected line of text, for example: "packet type = %s"
+	 * @return                The String value extracted from the text.
+	 */
+	public static String parseString(String text, String formatString) {
 		
-		// ending with %b, so a Boolean should be at the end of the text
-		if(formatString.endsWith("%b")) {
-			try {
-				String expectedText = formatString.substring(0, formatString.length() - 2);
-				String actualText = text.substring(0, expectedText.length());
-				String token = text.substring(expectedText.length()); 
-				if(actualText.equals(expectedText))
-					return Boolean.parseBoolean(token);
-				else
-					throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			} catch(Exception e) {
-				throw new AssertionError("Line " + line + ": Text does not match the expected value.");
-			}
-		}
+		if(!formatString.endsWith("%s"))
+			throw new AssertionError("Source code contains an invalid format string.");
 		
-		// formatString is not as expected
-		throw new AssertionError("Line " + line + ": Source code contains an invalid format string.");
+		try {
+			String expectedText = formatString.substring(0, formatString.length() - 2);
+			String actualText = text.substring(0, expectedText.length());
+			String token = text.substring(expectedText.length()); 
+			if(actualText.equals(expectedText))
+				return token;
+			else
+				throw new AssertionError("Text does not match the expected value.");
+		} catch(Exception e) {
+			throw new AssertionError("Text does not match the expected value.");
+		}
 		
 	}
 	

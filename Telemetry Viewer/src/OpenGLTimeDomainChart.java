@@ -1,7 +1,5 @@
 import java.awt.Color;
 import java.util.Map;
-import javax.swing.JPanel;
-
 import com.jogamp.opengl.GL2;
 
 /**
@@ -101,88 +99,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public String[] exportChart() {
-		
-		String[] lines = new String[11];
-		
-		lines[0]  = "datasets = " + exportDatasets();
-		lines[1]  = "sample count = " + sampleCount;
-		lines[2]  = "autoscale y-axis minimum = " + autoscaleYmin;
-		lines[3]  = "manual y-axis minimum = " + manualYmin;
-		lines[4]  = "autoscale y-axis maximum = " + autoscaleYmax;
-		lines[5]  = "manual y-axis maximum = " + manualYmax;
-		lines[6]  = "show x-axis title = " + showXaxisTitle;
-		lines[7]  = "show x-axis scale = " + showXaxisScale;
-		lines[8]  = "show y-axis title = " + showYaxisTitle;
-		lines[9]  = "show y-axis scale = " + showYaxisScale;
-		lines[10] = "show legend = " + showLegend;
-		
-		return lines;
-		
-	}
-	
-	@Override public void importChart(String[] lines, int firstLineNumber) {
-	
-		if(lines.length != 11)
-			throw new AssertionError("Line " + firstLineNumber + ": Invalid Time Domain Chart configuration section.");
-
-		String datasets =  (String) ChartUtils.parse(firstLineNumber + 0,  lines[0],  "datasets = %s");
-		sampleCount     =     (int) ChartUtils.parse(firstLineNumber + 1,  lines[1],  "sample count = %d");
-		autoscaleYmin   = (boolean) ChartUtils.parse(firstLineNumber + 2,  lines[2],  "autoscale y-axis minimum = %b");
-		manualYmin      =   (float) ChartUtils.parse(firstLineNumber + 3,  lines[3],  "manual y-axis minimum = %f");
-		autoscaleYmax   = (boolean) ChartUtils.parse(firstLineNumber + 4,  lines[4],  "autoscale y-axis maximum = %b");
-		manualYmax      =   (float) ChartUtils.parse(firstLineNumber + 5,  lines[5],  "manual y-axis maximum = %f");
-		showXaxisTitle  = (boolean) ChartUtils.parse(firstLineNumber + 6,  lines[6],  "show x-axis title = %b");
-		showXaxisScale  = (boolean) ChartUtils.parse(firstLineNumber + 7,  lines[7],  "show x-axis scale = %b");
-		showYaxisTitle  = (boolean) ChartUtils.parse(firstLineNumber + 8,  lines[8],  "show y-axis title = %b");
-		showYaxisScale  = (boolean) ChartUtils.parse(firstLineNumber + 9,  lines[9],  "show y-axis scale = %b");
-		showLegend      = (boolean) ChartUtils.parse(firstLineNumber + 10, lines[10], "show legend = %b");
-		
-		importDatasets(firstLineNumber, datasets);
-		
-		// sync the widgets with the current chart state
-		datasetsWidget.setDatasets(this.datasets);
-		datasetsWidget.sanityCheck();
-		sampleCountWidget.setInteger(sampleCount);
-		sampleCountWidget.sanityCheck();
-		minMaxWidget.setMin(autoscaleYmin, manualYmin);
-		minMaxWidget.setMax(autoscaleYmax, manualYmax);
-		minMaxWidget.sanityCheck();
-		showXaxisTitleWidget.setChecked(showXaxisTitle);
-		showXaxisTitleWidget.sanityCheck();
-		showXaxisScaleWidget.setChecked(showXaxisScale);
-		showXaxisScaleWidget.sanityCheck();
-		showYaxisTitleWidget.setChecked(showYaxisTitle);
-		showYaxisTitleWidget.sanityCheck();
-		showYaxisScaleWidget.setChecked(showYaxisScale);
-		showYaxisScaleWidget.sanityCheck();
-		showLegendWidget.setChecked(showLegend);
-		showLegendWidget.sanityCheck();
-		
-	}
-	
-	@Override public JPanel[] getWidgets() {
-		
-		JPanel[] widgets = new JPanel[13];
-		
-		widgets[0]  = datasetsWidget;
-		widgets[1]  = null;
-		widgets[2]  = sampleCountWidget;
-		widgets[3]  = null;
-		widgets[4]  = minMaxWidget;
-		widgets[5]  = null;
-		widgets[6]  = showXaxisTitleWidget;
-		widgets[7]  = showXaxisScaleWidget;
-		widgets[8]  = null;
-		widgets[9]  = showYaxisTitleWidget;
-		widgets[10] = showYaxisScaleWidget;
-		widgets[11] = null;
-		widgets[12] = showLegendWidget;
-
-		return widgets;
-		
-	}
-	
 	public OpenGLTimeDomainChart(int x1, int y1, int x2, int y2) {
 		
 		super(x1, y1, x2, y2);
@@ -226,6 +142,22 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		                                      true,
 		                                      newShowLegend -> showLegend = newShowLegend);
 
+		widgets = new Widget[13];
+		
+		widgets[0]  = datasetsWidget;
+		widgets[1]  = null;
+		widgets[2]  = sampleCountWidget;
+		widgets[3]  = null;
+		widgets[4]  = minMaxWidget;
+		widgets[5]  = null;
+		widgets[6]  = showXaxisTitleWidget;
+		widgets[7]  = showXaxisScaleWidget;
+		widgets[8]  = null;
+		widgets[9]  = showYaxisTitleWidget;
+		widgets[10] = showYaxisScaleWidget;
+		widgets[11] = null;
+		widgets[12] = showLegendWidget;
+		
 	}
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {

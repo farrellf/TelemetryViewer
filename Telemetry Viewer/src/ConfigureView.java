@@ -41,7 +41,7 @@ public class ConfigureView extends JPanel {
 		instance.add(contents);
 
 		// show the widgets
-		for(JPanel widget : chart.getWidgets()) {
+		for(Widget widget : chart.widgets) {
 			contents.add(widget != null ? widget : Box.createVerticalStrut(10));
 			contents.add(Box.createVerticalStrut(10));
 		}
@@ -120,7 +120,7 @@ public class ConfigureView extends JPanel {
 			
 			// create the chart and show it's widgets
 			activeChart = Controller.createAndAddChart(chartTypeCombobox.getSelectedItem().toString(), x1, y1, x2, y2);
-			for(JPanel widget : activeChart.getWidgets()) {
+			for(Widget widget : activeChart.widgets) {
 				contents.add(widget != null ? widget : Box.createVerticalStrut(10));
 				contents.add(Box.createVerticalStrut(10));
 			}
