@@ -1,7 +1,5 @@
 import java.awt.Color;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import com.jogamp.common.nio.Buffers;
 
 /**
@@ -24,7 +22,6 @@ public class Dataset {
 	final int slotSize = (int) Math.pow(2, 20); // 1M floats per slot
 	final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
 	float[][] slot;
-	AtomicInteger size;
 	
 	// bitfields if this dataset represents a bitfield
 	boolean isBitfield;
@@ -54,7 +51,6 @@ public class Dataset {
 		this.isBitfield        = false;
 		
 		slot = new float[slotCount][];
-		size = new AtomicInteger(0);
 		
 	}
 	
@@ -113,15 +109,6 @@ public class Dataset {
 	@Override public String toString() {
 		
 		return name;
-		
-	}
-	
-	/**
-	 * @return    Count of the stored samples.
-	 */
-	public int size() {
-		
-		return size.get();
 		
 	}
 	
@@ -273,22 +260,12 @@ public class Dataset {
 	 */
 	public void add(float value) {
 		
-		int currentSize = size.get();
+		int currentSize = DatasetsController.getSampleCount();
 		int slotNumber = currentSize / slotSize;
 		int slotIndex  = currentSize % slotSize;
 		if(slotIndex == 0)
 			slot[slotNumber] = new float[slotSize];
 		slot[slotNumber][slotIndex] = value * conversionFactor;
-		size.incrementAndGet();
-		
-	}
-	
-	/**
-	 * Empties the dataset, but does not free any memory.
-	 */
-	public void clear() {
-		
-		size.set(0);
 		
 	}
 	

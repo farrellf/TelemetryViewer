@@ -85,94 +85,6 @@ public class Controller {
 	}
 	
 	/**
-	 * @return    The number of CSV columns or Binary elements described in the data structure.
-	 */
-	public static int getDatasetsCount() {
-		
-		return Model.datasets.size();
-		
-	}
-	
-	/**
-	 * @param location    CSV column number, or Binary packet byte offset. Locations may be sparse.
-	 * @return            The Dataset.
-	 */
-	public static Dataset getDatasetByLocation(int location) {
-		
-		return Model.datasets.get(location);
-
-	}
-	
-	/**
-	 * @param index    An index between 0 and getDatasetsCount()-1, inclusive.
-	 * @return         The Dataset.
-	 */
-	public static Dataset getDatasetByIndex(int index) {
-		
-		return (Dataset) Model.datasets.values().toArray()[index];
-		
-	}
-	
-	/**
-	 * Creates and stores a new Dataset. If a Dataset already exists for the same location, the new Dataset will replace it.
-	 * 
-	 * @param location             CSV column number, or Binary packet byte offset.
-	 * @param processor            BinaryProcessor for the raw samples in the Binary packet. (Ignored in CSV mode.)
-	 * @param name                 Descriptive name of what the samples represent.
-	 * @param color                Color to use when visualizing the samples.
-	 * @param unit                 Descriptive name of how the samples are quantified.
-	 * @param conversionFactorA    This many unprocessed LSBs...
-	 * @param conversionFactorB    ... equals this many units.
-	 */
-	public static void insertDataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
-		
-		Model.datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
-		
-	}
-	
-	/**
-	 * Removes a specific dataset.
-	 * 
-	 * @return    true on success, false if nothing existed there.
-	 */
-	public static boolean removeDataset(int location) {
-		
-		PositionedChart[] charts = Controller.getCharts().toArray(new PositionedChart[0]);
-		for(PositionedChart chart : charts)
-			for(Dataset dataset : chart.datasets)
-				if(dataset.location == location)
-					Controller.removeChart(chart);
-		
-		Dataset removedDataset = Model.datasets.remove(location);
-		
-		if(removedDataset == null)
-			return false;
-		else
-			return true;
-		
-	}
-	
-	/**
-	 * Removes all charts and Datasets.
-	 */
-	public static void removeAllDatasets() {
-		
-		Controller.removeAllCharts();
-		
-		Model.datasets.clear();
-		
-	}
-	
-	/**
-	 * @return    The Datasets.
-	 */
-	public static Dataset[] getAllDatasets() {
-		
-		return Model.datasets.values().toArray(new Dataset[Model.datasets.size()]);
-		
-	}
-	
-	/**
 	 * @param chart    New chart to insert and display.
 	 */
 	public static void addChart(PositionedChart chart) {
@@ -270,27 +182,6 @@ public class Controller {
 		return Model.lineColorDefault;
 		
 	}
-
-	/**
-	 * A helper function that calculates the sample count of all datasets.
-	 * Since datasets may contain different numbers of samples (due to live insertion of new samples), the smallest count is returned to ensure validity.
-	 * 
-	 * @return    Smallest sample count from the datasets.
-	 */
-	static int getSamplesCount() {
-		
-		Dataset[] datasets = Controller.getAllDatasets();
-		
-		if(datasets.length == 0)
-			return 0;
-		
-		int[] count = new int[datasets.length];
-		for(int i = 0; i < datasets.length; i++)
-			count[i] = datasets[i].size();
-		Arrays.sort(count);
-		return count[0];
-		
-	}
 	
 	/**
 	 * Exports all samples to a CSV file.
@@ -299,15 +190,15 @@ public class Controller {
 	 */
 	static void exportCsvLogFile(String filepath) {
 		
-		int datasetsCount = Controller.getDatasetsCount();
-		int sampleCount = Controller.getSamplesCount();
+		int datasetsCount = DatasetsController.getDatasetsCount();
+		int sampleCount = DatasetsController.getSampleCount();
 		
 		try {
 			
 			PrintWriter logFile = new PrintWriter(filepath, "UTF-8");
 			logFile.print("Sample Number (" + CommunicationController.getSampleRate() + " samples per second)");
 			for(int i = 0; i < datasetsCount; i++) {
-				Dataset d = Controller.getDatasetByIndex(i);
+				Dataset d = DatasetsController.getDatasetByIndex(i);
 				logFile.print("," + d.name + " (" + d.unit + ")");
 			}
 			logFile.println();
@@ -315,7 +206,7 @@ public class Controller {
 			for(int i = 0; i < sampleCount; i++) {
 				logFile.print(i);
 				for(int n = 0; n < datasetsCount; n++)
-					logFile.print("," + Float.toString(Controller.getDatasetByIndex(n).getSample(i)));
+					logFile.print("," + Float.toString(DatasetsController.getDatasetByIndex(n).getSample(i)));
 				logFile.println();
 			}
 			
@@ -358,9 +249,9 @@ public class Controller {
 			outputFile.println("\tsample rate = " +         CommunicationController.getSampleRate());
 			outputFile.println("");
 			
-			outputFile.println(Model.datasets.size() + " Data Structure Locations:");
+			outputFile.println(DatasetsController.getDatasetsCount() + " Data Structure Locations:");
 			
-			for(Dataset dataset : Model.datasets.values()) {
+			for(Dataset dataset : DatasetsController.getAllDatasets()) {
 				
 				int processorIndex = -1;
 				
@@ -389,24 +280,11 @@ public class Controller {
 				
 			}
 			
-			if(Communication.packet.toString().equals("Binary")) {
-			
-				BinaryPacket packet = (BinaryPacket) Communication.packet;
-				
-				int checksumProcessorIndex = -1;
-				BinaryChecksumProcessor[] processors = BinaryPacket.getBinaryChecksumProcessors();
-				if(packet.checksumProcessor != null)
-					for(int i = 0; i < processors.length; i++)
-						if(packet.checksumProcessor.toString().equals(processors[i].toString()))
-							checksumProcessorIndex = i;
-				
-				outputFile.println("");
-				outputFile.println("Checksum:");
-				outputFile.println("");
-				outputFile.println("\tlocation = " + packet.checksumProcessorOffset);
-				outputFile.println("\tchecksum processor index = " + checksumProcessorIndex);
-			
-			}
+			outputFile.println("");
+			outputFile.println("Checksum:");
+			outputFile.println("");
+			outputFile.println("\tlocation = " +                 Communication.packet.getChecksumProcessorLocation());
+			outputFile.println("\tchecksum processor index = " + Communication.packet.getChecksumProcessorIndex());
 			
 			outputFile.println("");
 			outputFile.println(Model.charts.size() + " Charts:");
@@ -445,7 +323,7 @@ public class Controller {
 		
 		CommunicationController.disconnect();
 		Controller.removeAllCharts();
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
 		
 		QueueOfLines lines = null;
 		
@@ -509,10 +387,7 @@ public class Controller {
 				Color color = new Color(Integer.parseInt(colorText, 16));
 				BinaryFieldProcessor processor = (processorIndex >= 0) ? BinaryPacket.getBinaryFieldProcessors()[processorIndex] : null;
 				
-				if(Communication.packet == Communication.csvPacket)
-					Communication.csvPacket.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
-				else
-					Communication.binaryPacket.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				Communication.packet.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
 				if(processor != null && processor.toString().startsWith("Bitfield")) {
 					List<Bitfield> fields = new ArrayList<Bitfield>();
@@ -535,25 +410,21 @@ public class Controller {
 						}
 						line = lines.remove();
 					}
-					Controller.getDatasetByLocation(location).setBitfields(fields);
+					DatasetsController.getDatasetByLocation(location).setBitfields(fields);
 				} else {
 					ChartUtils.parseExact(lines.remove(), "");
 				}
 				
 			}
 			
-			if(Communication.packet == Communication.binaryPacket) {
-				
-				ChartUtils.parseExact(lines.remove(), "Checksum:");
-				ChartUtils.parseExact(lines.remove(), "");
-				int checksumOffset = ChartUtils.parseInteger(lines.remove(), "location = %d");
-				int checksumIndex  = ChartUtils.parseInteger(lines.remove(), "checksum processor index = %d");
-				
-				if(checksumOffset >= 1 && checksumIndex >= 0) {
-					BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
-					Communication.binaryPacket.insertChecksum(checksumOffset, processor);
-				}
+			ChartUtils.parseExact(lines.remove(), "Checksum:");
+			ChartUtils.parseExact(lines.remove(), "");
+			int checksumOffset = ChartUtils.parseInteger(lines.remove(), "location = %d");
+			int checksumIndex  = ChartUtils.parseInteger(lines.remove(), "checksum processor index = %d");
 			
+			if(checksumOffset >= 1 && checksumIndex >= 0) {
+				BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
+				Communication.packet.insertChecksum(checksumOffset, processor);
 			}
 			
 			CommunicationController.connect(null);
@@ -613,7 +484,7 @@ public class Controller {
 		} catch(AssertionError ae) {
 		
 			Controller.removeAllCharts();
-			Controller.removeAllDatasets();
+			DatasetsController.removeAllDatasets();
 			CommunicationController.disconnect();
 			
 			NotificationsController.showFailureUntil("<html><center>Error while parsing the layout file:<br>Line " + lines.lineNumber + ": " + ae.getMessage() + "</center></html>", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);

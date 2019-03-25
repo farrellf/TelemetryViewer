@@ -10,11 +10,7 @@ public class Communication {
 	final static String PORT_TEST = "Test"; // dummy mode that generates test waveforms
 	static String port = PORT_UART;
 	
-	final static String PACKET_TYPE_CSV = "CSV";
-	final static String PACKET_TYPE_BINARY = "Binary";
-	static CsvPacket csvPacket = new CsvPacket();
-	static BinaryPacket binaryPacket = new BinaryPacket();
-	static Packet packet = csvPacket;
+	static Packet packet = new CsvPacket();
 	
 	static int sampleRate = 10000; // how many samples per second the DUT sends, used for FFTs
 	

@@ -3,12 +3,9 @@ import java.awt.Toolkit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 public class Model {
 	
-	static Map<Integer, Dataset> datasets = Collections.synchronizedMap(new TreeMap<Integer, Dataset>());
 	static List<PositionedChart> charts = Collections.synchronizedList(new ArrayList<PositionedChart>());
 	
 	final static Color lineColorDefault = Color.RED;

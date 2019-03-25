@@ -29,7 +29,7 @@ public class WidgetDatasets extends Widget {
 		
 		super();
 		
-		Dataset[] datasets = Controller.getAllDatasets();
+		Dataset[] datasets = DatasetsController.getAllDatasets();
 		datasetsMap = new LinkedHashMap<Dataset, JCheckBox>();
 		
 		setLayout(new GridLayout(0, 2, 10, 10));
@@ -73,7 +73,7 @@ public class WidgetDatasets extends Widget {
 		datasetsList = new ArrayList<JComboBox<Dataset>>(datasetCount);
 		for(int i = 0; i < datasetCount; i++) {
 			JComboBox<Dataset> combobox = new JComboBox<Dataset>();
-			for(Dataset dataset : Controller.getAllDatasets())
+			for(Dataset dataset : DatasetsController.getAllDatasets())
 				if(allowBitfields || (!allowBitfields && !dataset.isBitfield))
 					combobox.addItem(dataset);
 			combobox.addActionListener(event -> notifyHandler());
@@ -148,7 +148,7 @@ public class WidgetDatasets extends Widget {
 			
 			datasets = new Dataset[tokens.length];
 			for(int i = 0; i < tokens.length; i++) {
-				datasets[i] = Controller.getDatasetByLocation(Integer.parseInt(tokens[i]));
+				datasets[i] = DatasetsController.getDatasetByLocation(Integer.parseInt(tokens[i]));
 				if(datasets[i] == null)
 					throw new Exception();
 			}

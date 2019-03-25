@@ -76,7 +76,7 @@ public class ConfigureView extends JPanel {
 	 */
 	public static void newChart(int x1, int y1, int x2, int y2) {
 		
-		if(Controller.getDatasetsCount() == 0) {
+		if(DatasetsController.getDatasetsCount() == 0) {
 			JOptionPane.showMessageDialog(null, "Error: The packet's data structure must be defined before adding charts.\nUse the controls at the bottom-right corner of the main window to make a connection and define the data structure.", "Error", JOptionPane.ERROR_MESSAGE);
 			close();
 			return;

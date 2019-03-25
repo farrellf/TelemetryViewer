@@ -70,7 +70,7 @@ import javax.swing.table.AbstractTableModel;
  * 5. When use user clicks Done in the CsvDataStructureWindow, Controller.connectToSerialPort() will call CsvPacket.startReceivingData().
  * 6. The user can then interactively create the charts.
  */
-public class CsvPacket implements Packet {
+public class CsvPacket extends Packet {
 
 	private Thread thread;
 	
@@ -79,25 +79,26 @@ public class CsvPacket implements Packet {
 	 */
 	public CsvPacket() {
 
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
 		
 		thread = null;
 		
 	}
 	
 	/**
-	 * Description shown in the packetTypeCombobox in the ControlsRegion.
+	 * @return    User-friendly name for this packet type.
 	 */
 	@Override public String toString() {
 		
-		return Communication.PACKET_TYPE_CSV;
+		return "CSV";
 		
 	}
 	
 	/**
 	 * Adds a field to the data structure if possible.
 	 * 
-	 * @param column               CSV column number, starting at 0.
+	 * @param location             CSV column number, starting at 0.
+	 * @param processor            Ignored for CSV packets, can be null.
 	 * @param name                 Descriptive name of what the samples represent.
 	 * @param color                Color to use when visualizing the samples.
 	 * @param unit                 Descriptive name of how the samples are quantified.
@@ -105,15 +106,15 @@ public class CsvPacket implements Packet {
 	 * @param conversionFactorB    ... equals this many units.
 	 * @return                     null on success, or a user-friendly String describing why the field could not be added.
 	 */
-	public String insertField(int column, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	@Override public String insertField(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
 		// check for overlap with existing fields
-		for(Dataset dataset : Controller.getAllDatasets())
-			if(dataset.location == column)
-				return "Error: A field already exists at column " + column + ".";
+		for(Dataset dataset : DatasetsController.getAllDatasets())
+			if(dataset.location == location)
+				return "Error: A field already exists at column " + location + ".";
 		
 		// add the field
-		Controller.insertDataset(column, null, name, color, unit, conversionFactorA, conversionFactorB);
+		DatasetsController.insertDataset(location, null, name, color, unit, conversionFactorA, conversionFactorB);
 
 		// no errors
 		return null;
@@ -123,14 +124,14 @@ public class CsvPacket implements Packet {
 	/**
 	 * Removes a field from the data structure if possible.
 	 * 
-	 * @param column    The field at this CSV column number will be removed.
-	 * @return          null on success, or a user-friendly String describing why the field could not be added.
+	 * @param location    The field at this CSV column number will be removed.
+	 * @return            null on success, or a user-friendly String describing why the field could not be removed.
 	 */
-	public String removeField(int column) {
+	public String removeField(int location) {
 		
-		boolean success = Controller.removeDataset(column);
+		boolean success = DatasetsController.removeDataset(location);
 		if(!success)
-			return "Error: No field exists at column " + column + ".";
+			return "Error: No field exists at column " + location + ".";
 		
 		// no errors
 		return null;
@@ -140,9 +141,33 @@ public class CsvPacket implements Packet {
 	/**
 	 * Removes all fields from the data structure.
 	 */
-	@Override public void clear() {
+	@Override public void reset() {
 		
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
+		
+	}
+	
+	/**
+	 * Adds a checksum field to the data structure if possible.
+	 * 
+	 * @param location     CSV column number.
+	 * @param processor    The type of checksum field.
+	 * @return             null on success, or a user-friendly String describing why the checksum field could not be added.
+	 */
+	@Override public String insertChecksum(int location, BinaryChecksumProcessor processor) {
+		
+		return "Error: The CSV packet type does not currently support checksums.";
+		
+	}
+	
+	/**
+	 * Removes the checksum field from the data structure if possible.
+	 * 
+	 * @return    null on success, or a user-friendly String describing why the checksum field could not be removed.
+	 */
+	@Override public String removeChecksum() {
+		
+		return "Error: The CSV packet type does not currently support checksums.";
 		
 	}
 	
@@ -153,7 +178,7 @@ public class CsvPacket implements Packet {
 	 */
 	public boolean isEmpty() {
 		
-		if(Controller.getAllDatasets().length == 0)
+		if(DatasetsController.getAllDatasets().length == 0)
 			return true;
 		else
 			return false;
@@ -167,7 +192,7 @@ public class CsvPacket implements Packet {
 	 */
 	public int getRowCount() {
 		
-		return Controller.getDatasetsCount();
+		return DatasetsController.getDatasetsCount();
 		
 	}
 	
@@ -186,7 +211,7 @@ public class CsvPacket implements Packet {
 	 */
 	public String getCellContents(int column, int row) {
 		
-		Dataset dataset = Controller.getDatasetByIndex(row);
+		Dataset dataset = DatasetsController.getDatasetByIndex(row);
 		if(column == 0)      return Integer.toString(dataset.location);
 		else if(column == 1) return dataset.name;
 		else if(column == 2) return "<html><font color=\"rgb(" + dataset.color.getRed() + "," + dataset.color.getGreen() + "," + dataset.color.getBlue() + ")\">\u25B2</font></html>";
@@ -202,14 +227,14 @@ public class CsvPacket implements Packet {
 	public int getFirstAvailableColumn() {
 		
 		// the packet is empty
-		if(Controller.getAllDatasets().length == 0)
+		if(DatasetsController.getAllDatasets().length == 0)
 			return 0;
 		
 		// check for an opening in a sparse layout
-		int max = Controller.getAllDatasets().length;
+		int max = DatasetsController.getAllDatasets().length;
 		for(int i = 0; i < max; i++) {
 			boolean used = false;
-			for(Dataset dataset : Controller.getAllDatasets())
+			for(Dataset dataset : DatasetsController.getAllDatasets())
 				if(dataset.location == i)
 					used = true;
 			if(!used)
@@ -246,10 +271,11 @@ public class CsvPacket implements Packet {
 					String line = reader.readLine();
 					String[] tokens = line.split(",");
 					// ensure they can all be parsed as floats before populating the datasets
-					for(Dataset dataset : Controller.getAllDatasets())
+					for(Dataset dataset : DatasetsController.getAllDatasets())
 						Float.parseFloat(tokens[dataset.location]);
-					for(Dataset dataset : Controller.getAllDatasets())
+					for(Dataset dataset : DatasetsController.getAllDatasets())
 						dataset.add(Float.parseFloat(tokens[dataset.location]));
+					DatasetsController.incrementSampleCount();
 					
 				} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException | SocketTimeoutException e1) {
 					
@@ -462,7 +488,7 @@ public class CsvPacket implements Packet {
 						return;
 					}
 					
-					String errorMessage = packet.insertField(location, name, color, unit, conversionFactorA, conversionFactorB);
+					String errorMessage = packet.insertField(location, null, name, color, unit, conversionFactorA, conversionFactorB);
 					updateDataStructureTable();
 					updateExampleCode();
 					
@@ -483,7 +509,7 @@ public class CsvPacket implements Packet {
 			resetButton = new JButton("Reset");
 			resetButton.addActionListener(new ActionListener() {
 				@Override public void actionPerformed(ActionEvent arg0) {
-					packet.clear();
+					packet.reset();
 					updateDataStructureTable();
 					updateExampleCode();
 
@@ -613,8 +639,8 @@ public class CsvPacket implements Packet {
 		private void updateExampleCode() {
 			
 			int baudRate = CommunicationController.getBaudRate();
-			int datasetsCount = Controller.getDatasetsCount();
-			Dataset[] datasets = Controller.getAllDatasets();
+			int datasetsCount = DatasetsController.getDatasetsCount();
+			Dataset[] datasets = DatasetsController.getAllDatasets();
 			
 			if(datasetsCount == 0) {
 				arduinoCode.setText("[...waiting for at least one CSV column...]");

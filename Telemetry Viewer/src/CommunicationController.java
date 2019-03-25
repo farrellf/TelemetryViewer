@@ -113,31 +113,30 @@ public class CommunicationController {
 	 * If a connection currently exists, it will be closed first.
 	 * Any existing charts and datasets will be removed.
 	 * 
-	 * @param newType    Communication.PACKET_TYPE_CSV or .PACKET_TYPE_BINARY
+	 * @param newType    One of the options from getPacketTypes().
 	 */
 	public static void setPacketType(String newType) {
 		
 		// sanity check
-		if(!newType.equals(Communication.csvPacket.toString()) &&
-		   !newType.equals(Communication.binaryPacket.toString()))
+		if(!newType.equals("CSV") &&
+		   !newType.equals("Binary"))
 			return;
 		
 		// prepare
 		if(isConnected())
 			disconnect();
 		Controller.removeAllCharts();
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
 		
 		// set and notify
-		Communication.packet = newType.equals(Communication.csvPacket.toString()) ? Communication.csvPacket : Communication.binaryPacket;
-		Communication.packet.clear();
+		Communication.packet = newType.equals("CSV") ? new CsvPacket() : new BinaryPacket();
 		for(Consumer<String> listener : packetTypeListeners)
 			listener.accept(Communication.packet.toString());
 		
 	}
 	
 	/**
-	 * @return    The current packet type (Communication.PACKET_TYPE_CSV or .PACKET_TYPE_BINARY)
+	 * @return    The current packet type.
 	 */
 	public static String getPacketType() {
 		
@@ -150,7 +149,7 @@ public class CommunicationController {
 	 */
 	public static String[] getPacketTypes() {
 		
-		return new String[] {Communication.csvPacket.toString(), Communication.binaryPacket.toString()};
+		return new String[] {"CSV", "Binary"};
 		
 	}
 	
@@ -425,10 +424,10 @@ public class CommunicationController {
 		if(parentWindow != null)
 			Communication.packet.showDataStructureWindow(parentWindow, false);
 		
-		int oldSampleCount = Controller.getSamplesCount();
+		int oldSampleCount = DatasetsController.getSampleCount();
 		Timer t = new Timer(100, event -> {
-			if(Controller.getSamplesCount() == oldSampleCount)
-				NotificationsController.showSuccessUntil(Communication.port.substring(6) + " is connected. Send telemetry.", () -> Controller.getSamplesCount() > oldSampleCount, true); // trim the leading "UART: "
+			if(DatasetsController.getSampleCount() == oldSampleCount)
+				NotificationsController.showSuccessUntil(Communication.port.substring(6) + " is connected. Send telemetry.", () -> DatasetsController.getSampleCount() > oldSampleCount, true); // trim the leading "UART: "
 			else
 				NotificationsController.showVerboseForSeconds(Communication.port.substring(6) + " is connected and receiving telemetry.", 5, true);
 		});
@@ -487,10 +486,10 @@ public class CommunicationController {
 			if(parentWindow != null)
 				Communication.packet.showDataStructureWindow(parentWindow, false);
 			
-			int oldSampleCount = Controller.getSamplesCount();
+			int oldSampleCount = DatasetsController.getSampleCount();
 			Timer t = new Timer(100, event -> {
-				if(Controller.getSamplesCount() == oldSampleCount)
-					NotificationsController.showSuccessUntil("The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
+				if(DatasetsController.getSampleCount() == oldSampleCount)
+					NotificationsController.showSuccessUntil("The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
 				else
 					NotificationsController.showVerboseForSeconds("The TCP server is running and receiving telemetry.", 5, true);
 			});
@@ -513,10 +512,10 @@ public class CommunicationController {
 					
 					// enter an infinite loop that checks for inactivity. if the TCP port is idle for >10 seconds, abandon it so another device can try to connect.
 					long previousTimestamp = System.currentTimeMillis();
-					int previousSampleNumber = Controller.getSamplesCount();
+					int previousSampleNumber = DatasetsController.getSampleCount();
 					while(true) {
 						Thread.sleep(1000);
-						int sampleNumber = Controller.getSamplesCount();
+						int sampleNumber = DatasetsController.getSampleCount();
 						long timestamp = System.currentTimeMillis();
 						if(sampleNumber > previousSampleNumber) {
 							previousSampleNumber = sampleNumber;
@@ -614,10 +613,10 @@ public class CommunicationController {
 			if(parentWindow != null)
 				Communication.packet.showDataStructureWindow(parentWindow, false);
 				
-			int oldSampleCount = Controller.getSamplesCount();
+			int oldSampleCount = DatasetsController.getSampleCount();
 			Timer t = new Timer(100, event -> {
-				if(Controller.getSamplesCount() == oldSampleCount)
-					NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> Controller.getSamplesCount() > oldSampleCount, true);
+				if(DatasetsController.getSampleCount() == oldSampleCount)
+					NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
 				else
 					NotificationsController.showVerboseForSeconds("The UDP server is running and receiving telemetry.", 5, true);
 			});
@@ -722,7 +721,7 @@ public class CommunicationController {
 		
 		Tester.stopTransmission();
 		Controller.removeAllCharts();
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
 		
 		Communication.testConnected = false;
 		notifyConnectionListeners();

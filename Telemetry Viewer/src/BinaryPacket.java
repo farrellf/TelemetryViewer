@@ -79,11 +79,9 @@ import net.miginfocom.swing.MigLayout;
  * 5. When use user clicks Done in the BinaryDataStructureWindow, Controller.connectToSerialPort() will call BinaryPacket.startReceivingData().
  * 6. The user can then interactively create the charts.
  */
-public class BinaryPacket implements Packet {
+public class BinaryPacket extends Packet {
 
 	private byte syncWord;
-	public BinaryChecksumProcessor checksumProcessor;
-	public int checksumProcessorOffset;
 	private int packetSize; // total byte count: includes sync word, fields, and checksum field
 	private Thread thread;
 	
@@ -93,7 +91,7 @@ public class BinaryPacket implements Packet {
 	public BinaryPacket() {
 		
 		syncWord = (byte) 0xAA;
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
 		checksumProcessor = null;
 		checksumProcessorOffset = -1;
 		packetSize = 1; // the syncWord
@@ -103,11 +101,11 @@ public class BinaryPacket implements Packet {
 	}
 	
 	/**
-	 * Description shown in the packetTypeCombobox in the ControlsRegion.
+	 * @return    User-friendly name for this packet type.
 	 */
 	@Override public String toString() {
 		
-		return Communication.PACKET_TYPE_BINARY;
+		return "Binary";
 		
 	}
 	
@@ -123,7 +121,7 @@ public class BinaryPacket implements Packet {
 	 * @param conversionFactorB    ... equals this many units.
 	 * @return                     null on success, or a user-friendly String describing why the field could not be added.
 	 */
-	public String insertField(int byteOffset, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	@Override public String insertField(int byteOffset, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 
 		if(byteOffset == 0)
 			return "Error: Can not place a field that overlaps the sync word.";
@@ -138,7 +136,7 @@ public class BinaryPacket implements Packet {
 		// check for overlap with existing fields
 		int proposedStartByte = byteOffset;
 		int proposedEndByte = proposedStartByte + processor.getByteCount() - 1;
-		for(Dataset dataset : Controller.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getAllDatasets()) {
 			int existingStartByte = dataset.location;
 			int existingEndByte = existingStartByte + dataset.processor.getByteCount() - 1;
 			if(proposedStartByte >= existingStartByte && proposedStartByte <= existingEndByte)
@@ -150,11 +148,11 @@ public class BinaryPacket implements Packet {
 		}
 		
 		// add the field
-		Controller.insertDataset(byteOffset, processor, name, color, unit, conversionFactorA, conversionFactorB);
+		DatasetsController.insertDataset(byteOffset, processor, name, color, unit, conversionFactorA, conversionFactorB);
 		
 		// update packetSize
 		int newPacketSize = 1;
-		for(Dataset dataset : Controller.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getAllDatasets()) {
 			int endByte = dataset.location + dataset.processor.getByteCount() - 1;
 			if(endByte + 1 > newPacketSize)
 				newPacketSize = endByte + 1;
@@ -170,22 +168,22 @@ public class BinaryPacket implements Packet {
 	/**
 	 * Removes a field from the data structure if possible.
 	 * 
-	 * @param byteOffset    The field at this offset will be removed.
-	 * @return              null on success, or a user-friendly String describing why the field could not be added.
+	 * @param location    The field at this byte offset will be removed.
+	 * @return            null on success, or a user-friendly String describing why the field could not be removed.
 	 */
-	public String removeField(int byteOffset) {
+	@Override public String removeField(int location) {
 		
-		if(byteOffset == 0)
+		if(location == 0)
 			return "Error: Can not remove the sync word.";
 		
-		boolean success = Controller.removeDataset(byteOffset);
+		boolean success = DatasetsController.removeDataset(location);
 		if(!success)
 			return "Error: No field exists at that location.";
 
 		// update packetSize if there is no checksum
 		if(checksumProcessor == null) {
 			int newPacketSize = 1;
-			for(Dataset dataset : Controller.getAllDatasets()) {
+			for(Dataset dataset : DatasetsController.getAllDatasets()) {
 				int endByte = dataset.location + dataset.processor.getByteCount() - 1;
 				if(endByte + 1 > newPacketSize)
 					newPacketSize = endByte + 1;
@@ -197,34 +195,46 @@ public class BinaryPacket implements Packet {
 		return null;
 		
 	}
+	
+	
+	/**
+	 * Removes the checksum and all fields from the data structure, leaving just the sync word.
+	 */
+	@Override public void reset() {
+		
+		DatasetsController.removeAllDatasets();
+		checksumProcessor = null;
+		packetSize = 1; // the syncWord
+		
+	}
 
 	/**
 	 * Adds a checksum field to the data structure if possible.
 	 * 
-	 * @param byteOffset    Binary packet byte offset.
-	 * @param processor     The type of checksum field.
-	 * @return              null on success, or a user-friendly String describing why the checksum field could not be added.
+	 * @param location     Binary packet byte offset.
+	 * @param processor    The type of checksum field.
+	 * @return             null on success, or a user-friendly String describing why the checksum field could not be added.
 	 */
-	public String insertChecksum(int byteOffset, BinaryChecksumProcessor processor) {
+	@Override public String insertChecksum(int location, BinaryChecksumProcessor processor) {
 
 		if(checksumProcessor != null)
 			return "Error: A checksum field already exists.";
 		
-		if(byteOffset == 0)
+		if(location == 0)
 			return "Error: A checksum field can not overlap with the sync word.";
 		
-		if(byteOffset < packetSize)
+		if(location < packetSize)
 			return "Error: A checksum field can not be placed in front of existing fields.";
 		
-		if((byteOffset - 1) % processor.getByteCount() != 0)
+		if((location - 1) % processor.getByteCount() != 0)
 			return "Error: The checksum must be aligned. The number of bytes before the checksum, not counting the sync word, must be a multiple of " + processor.getByteCount() + " for this checksum type.";
 		
 		// add the checksum processor
 		checksumProcessor = processor;
-		checksumProcessorOffset = byteOffset;
+		checksumProcessorOffset = location;
 		
 		// update packetSize
-		packetSize = byteOffset + processor.getByteCount();
+		packetSize = location + processor.getByteCount();
 		
 		// no errors
 		return null;
@@ -236,7 +246,7 @@ public class BinaryPacket implements Packet {
 	 * 
 	 * @return    null on success, or a user-friendly String describing why the checksum field could not be removed.
 	 */
-	public String removeChecksum() {
+	@Override public String removeChecksum() {
 		
 		if(checksumProcessor == null)
 			return "Error: There was no checksum processor to remove.";
@@ -247,7 +257,7 @@ public class BinaryPacket implements Packet {
 		
 		// update packetSize
 		int newPacketSize = 1;
-		for(Dataset dataset : Controller.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getAllDatasets()) {
 			int endByte = dataset.location + dataset.processor.getByteCount() - 1;
 			if(endByte + 1 > newPacketSize)
 				newPacketSize = endByte + 1;
@@ -256,18 +266,6 @@ public class BinaryPacket implements Packet {
 		
 		// no errors
 		return null;
-		
-	}
-	
-	
-	/**
-	 * Removes the checksum and all fields from the data structure, leaving just the sync word.
-	 */
-	@Override public void clear() {
-		
-		Controller.removeAllDatasets();
-		checksumProcessor = null;
-		packetSize = 1; // the syncWord
 		
 	}
 	
@@ -284,7 +282,7 @@ public class BinaryPacket implements Packet {
 		// check which bytes before the checksum are occupied
 		boolean[] byteUsed = new boolean[packetSize - checksumProcessor.getByteCount()];
 		byteUsed[0] = true; // the syncWord
-		for(Dataset dataset : Controller.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getAllDatasets()) {
 			int start = dataset.location;
 			int end = start + dataset.processor.getByteCount() - 1;
 			for (int i = start; i <= end; i++)
@@ -327,7 +325,7 @@ public class BinaryPacket implements Packet {
 	public int getRowCount() {
 		
 		int count = 1; // the syncWord
-		count += Controller.getDatasetsCount();
+		count += DatasetsController.getDatasetsCount();
 		if(checksumProcessor != null)
 			count++;
 		
@@ -359,9 +357,8 @@ public class BinaryPacket implements Packet {
 		
 		// subsequent rows are the fields
 		row--;
-		int count = Controller.getDatasetsCount();
-		if(row < count) {
-			Dataset dataset = Controller.getDatasetByIndex(row);
+		if(row < DatasetsController.getDatasetsCount()) {
+			Dataset dataset = DatasetsController.getDatasetByIndex(row);
 			if(column == 0)      return dataset.location + ", " + dataset.processor.toString();
 			else if(column == 1) return dataset.name;
 			else if(column == 2) return "<html><font color=\"rgb(" + dataset.color.getRed() + "," + dataset.color.getGreen() + "," + dataset.color.getBlue() + ")\">\u25B2</font></html>";
@@ -401,7 +398,7 @@ public class BinaryPacket implements Packet {
 			size -= checksumProcessor.getByteCount();
 		boolean[] byteUsed = new boolean[size];
 		byteUsed[0] = true; // the syncWord
-		for(Dataset dataset : Controller.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getAllDatasets()) {
 			int start = dataset.location;
 			int end = start + dataset.processor.getByteCount() - 1;
 			for (int i = start; i <= end; i++)
@@ -564,7 +561,7 @@ public class BinaryPacket implements Packet {
 					}
 					
 					// extract raw numbers and insert them into the datasets
-					for(Dataset dataset : Controller.getAllDatasets()) {
+					for(Dataset dataset : DatasetsController.getAllDatasets()) {
 						BinaryFieldProcessor processor = dataset.processor;
 						int byteOffset = dataset.location;
 						int byteCount  = processor.getByteCount();
@@ -576,6 +573,7 @@ public class BinaryPacket implements Packet {
 						float rawNumber = processor.extractValue(buffer);
 						dataset.add(rawNumber);
 					}
+					DatasetsController.incrementSampleCount();
 				
 				} catch(IOException | InterruptedException e) {
 					
@@ -813,7 +811,7 @@ public class BinaryPacket implements Packet {
 					
 					if(((BinaryFieldProcessor) processor).toString().startsWith("Bitfield")) {
 
-						BitfieldPanel bitfieldPanel = new BitfieldPanel(((BinaryFieldProcessor) processor).getByteCount() * 8, Controller.getDatasetByLocation(location));
+						BitfieldPanel bitfieldPanel = new BitfieldPanel(((BinaryFieldProcessor) processor).getByteCount() * 8, DatasetsController.getDatasetByLocation(location));
 						bitfieldPanel.eventHandler = event2 -> {
 							
 							remove(bitfieldPanel);
@@ -867,7 +865,7 @@ public class BinaryPacket implements Packet {
 			// user clicks Reset to remove all fields from the data structure
 			resetButton = new JButton("Reset");
 			resetButton.addActionListener(event -> {
-				packet.clear();
+				packet.reset();
 				dataStructureTable.revalidate();
 				dataStructureTable.repaint();
 				

@@ -324,7 +324,7 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glTranslatef(xOffset, yOffset, 0);
 					
 					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
-					int lastSampleNumber = liveView ? Controller.getSamplesCount() - 1 : nonLiveViewSamplesCount;
+					int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSamplesCount;
 					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl);
 					
@@ -551,7 +551,7 @@ public class OpenGLChartsRegion extends JPanel {
 					// no modifiers held down, so we're timeshifting
 					if(liveView == true) {
 						liveView = false;
-						nonLiveViewSamplesCount = (Controller.getSamplesCount() - 1);
+						nonLiveViewSamplesCount = (DatasetsController.getSampleCount() - 1);
 					}
 					
 					double delta = scrollAmount * samplesPerScroll * zoomLevel;
@@ -563,7 +563,7 @@ public class OpenGLChartsRegion extends JPanel {
 						delta = 1;
 					nonLiveViewSamplesCount += delta;
 					
-					if(nonLiveViewSamplesCount >= Controller.getSamplesCount() - 1)
+					if(nonLiveViewSamplesCount >= DatasetsController.getSampleCount() - 1)
 						liveView = true;
 				
 				} else if(mwe.isControlDown() == true) {

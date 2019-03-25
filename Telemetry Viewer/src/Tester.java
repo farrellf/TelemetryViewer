@@ -28,13 +28,12 @@ public class Tester {
 							(System.nanoTime() % 100) * scalar * 0.6f / 14000f
 						};
 						for(int i = 0; i < 10; i++) {
-							Controller.getDatasetByIndex(0).add(newSamples[0]);
-							Controller.getDatasetByIndex(1).add(newSamples[1]);
-							Controller.getDatasetByIndex(2).add(newSamples[2]);
-						}
-						for(int i = 0; i < 10; i++) {
-							Controller.getDatasetByIndex(3).add((float) Math.sin(2 * Math.PI * 1000 * counter));
+							DatasetsController.getDatasetByIndex(0).add(newSamples[0]);
+							DatasetsController.getDatasetByIndex(1).add(newSamples[1]);
+							DatasetsController.getDatasetByIndex(2).add(newSamples[2]);
+							DatasetsController.getDatasetByIndex(3).add((float) Math.sin(2 * Math.PI * 1000 * counter));
 							counter += 0.0001;
+							DatasetsController.incrementSampleCount();
 						}
 						
 						Thread.sleep(1);
@@ -66,7 +65,7 @@ public class Tester {
 	
 	public static void populateDataStructure() {
 		
-		Controller.removeAllDatasets();
+		DatasetsController.removeAllDatasets();
 		
 		int location = 0;
 		BinaryFieldProcessor processor = BinaryPacket.getBinaryFieldProcessors()[0];
@@ -79,22 +78,22 @@ public class Tester {
 		location = 0;
 		name = "Waveform A";
 		color = Color.RED;
-		Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+		DatasetsController.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 		
 		location = 1;
 		name = "Waveform B";
 		color = Color.GREEN;
-		Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+		DatasetsController.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 		
 		location = 2;
 		name = "Waveform C";
 		color = Color.BLUE;
-		Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+		DatasetsController.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 		
 		location = 3;
 		name = "Sine Wave 1kHz";
 		color = Color.CYAN;
-		Controller.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+		DatasetsController.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 		
 	}
 
