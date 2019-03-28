@@ -1,3 +1,4 @@
+import java.io.File;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -6,6 +7,8 @@ import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -41,7 +44,7 @@ public class CommunicationController {
 	 * Changes the port and notifies any listeners.
 	 * If a connection currently exists, it will be closed first.
 	 * 
-	 * @param newPort    Communication.MODE_UART + ": port name" or .MODE_TCP or .MODE_UDP or .MODE_TEST
+	 * @param newPort    Communication.PORT_UART + ": port name" or .PORT_TCP or .PORT_UDP or .PORT_TEST or .PORT_FILE
 	 */
 	public static void setPort(String newPort) {
 		
@@ -49,7 +52,8 @@ public class CommunicationController {
 		if(!newPort.startsWith(Communication.PORT_UART + ": ") &&
 		   !newPort.equals(Communication.PORT_TCP) &&
 		   !newPort.equals(Communication.PORT_UDP) &&
-		   !newPort.equals(Communication.PORT_TEST))
+		   !newPort.equals(Communication.PORT_TEST) &&
+		   !newPort.equals(Communication.PORT_FILE))
 			return;
 		
 		// prepare
@@ -57,6 +61,8 @@ public class CommunicationController {
 			disconnect();
 		
 		// set and notify
+		if(Communication.port != Communication.PORT_FILE && newPort.equals(Communication.PORT_FILE))
+			Communication.portUsedBeforeImport = Communication.port;
 		Communication.port = newPort;
 		for(Consumer<String> listener : portListeners)
 			listener.accept(Communication.port);
@@ -246,6 +252,17 @@ public class CommunicationController {
 	}
 	
 	/**
+	 * Specifies the CSV log file to import.
+	 * 
+	 * @param path    The CSV log file.
+	 */
+	public static void setImportFile(String path) {
+		
+		Communication.importFilePath = path;
+		
+	}
+	
+	/**
 	 * Registers a listener that will be notified when the TCP/UDP port number changes, and triggers an event to ensure the GUI is in sync.
 	 * 
 	 * @param listener    The listener to be notified.
@@ -322,6 +339,7 @@ public class CommunicationController {
 			else if(Communication.port.equals(Communication.PORT_TCP))  listener.accept(Communication.tcpConnected);
 			else if(Communication.port.equals(Communication.PORT_UDP))  listener.accept(Communication.udpConnected);
 			else if(Communication.port.equals(Communication.PORT_TEST)) listener.accept(Communication.testConnected);
+			else if(Communication.port.equals(Communication.PORT_FILE)) listener.accept(Communication.fileConnected);
 		
 	}
 	
@@ -334,6 +352,7 @@ public class CommunicationController {
 		else if(Communication.port.equals(Communication.PORT_TCP))  return Communication.tcpConnected;
 		else if(Communication.port.equals(Communication.PORT_UDP))  return Communication.udpConnected;
 		else if(Communication.port.equals(Communication.PORT_TEST)) return Communication.testConnected;
+		else if(Communication.port.equals(Communication.PORT_FILE)) return Communication.fileConnected;
 		else                                                        return false;
 		
 	}
@@ -353,6 +372,8 @@ public class CommunicationController {
 			startUdpServer(parentWindow);
 		else if(Communication.port.equals(Communication.PORT_TEST))
 			startTester(parentWindow);
+		else if(Communication.port.equals(Communication.PORT_FILE))
+			connectToFile();
 		
 		SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
 			if(Controller.getCharts().isEmpty() && isConnected())
@@ -376,6 +397,8 @@ public class CommunicationController {
 			stopUdpServer();
 		else if(Communication.port.equals(Communication.PORT_TEST))
 			stopTester();
+		else if(Communication.port.equals(Communication.PORT_FILE))
+			disconnectFromFile();
 		
 		NotificationsController.removeAll();
 
@@ -385,6 +408,139 @@ public class CommunicationController {
 					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 			});
 		}
+		
+	}
+	
+	private static Thread fileImportThread = null;
+	
+	/**
+	 * Imports samples from a CSV Log file.
+	 */
+	private static void connectToFile() {
+		
+		fileImportThread = new Thread(() -> {
+			
+			try {
+				
+				// open the file
+				List<String> lines = Files.readAllLines(new File(Communication.importFilePath).toPath(), StandardCharsets.UTF_8);
+				
+				// sanity checks
+				if(lines.size() < 1) {
+					SwingUtilities.invokeLater(() -> {
+						disconnect();
+						NotificationsController.showFailureUntil("CSV Log file is empty.", () -> false, true);
+						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+					});
+					return;
+				}
+				
+				String header = lines.get(0);
+				String[] tokens = header.split(",");
+				int columnCount = tokens.length;
+				if(columnCount != DatasetsController.getDatasetsCount() + 2) {
+					SwingUtilities.invokeLater(() -> {
+						disconnect();
+						NotificationsController.showFailureUntil("CSV Log file header does not match the current data structure.", () -> false, true);
+						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+					});
+					return;
+				}
+				
+				boolean correctColumnLabels = true;
+				if(!tokens[0].startsWith("Sample Number"))
+					correctColumnLabels = false;
+				if(!tokens[1].startsWith("UNIX Timestamp"))
+					correctColumnLabels = false;
+				for(int i = 0; i < DatasetsController.getDatasetsCount(); i++) {
+					Dataset d = DatasetsController.getDatasetByIndex(i);
+					String expectedLabel = d.name + " (" + d.unit + ")";
+					if(!tokens[2+i].equals(expectedLabel))
+						correctColumnLabels = false;
+				}
+				if(!correctColumnLabels) {
+					SwingUtilities.invokeLater(() -> {
+						disconnect();
+						NotificationsController.showFailureUntil("CSV Log file header does not match the current data structure.", () -> false, true);
+						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+					});
+					return;
+				}
+
+				if(lines.size() < 2) {
+					SwingUtilities.invokeLater(() -> {
+						disconnect();
+						NotificationsController.showFailureUntil("CSV Log file does not contain any samples.", () -> false, true);
+						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+					});
+					return;
+				}
+
+				SwingUtilities.invokeLater(() -> {
+					Communication.fileConnected = true;
+					notifyConnectionListeners();
+				});
+				
+				// parse and input the lines of data
+				long startTimeThread = System.currentTimeMillis();
+				long startTimeFile = Long.parseLong(lines.get(1).split(",")[1]);
+				boolean realtimeImporting = true;
+				for(int lineN = 1; lineN < lines.size(); lineN++) {
+					tokens = lines.get(lineN).split(",");
+					if(realtimeImporting) {
+						if(Thread.interrupted()) {
+							realtimeImporting = false;
+						} else {
+							long delay = (Long.parseLong(tokens[1]) - startTimeFile) - (System.currentTimeMillis() - startTimeThread);
+							if(delay > 0)
+								try { Thread.sleep(delay); } catch(Exception e) { realtimeImporting = false; }
+						}
+					}
+					for(int columnN = 2; columnN < columnCount; columnN++)
+						DatasetsController.getDatasetByIndex(columnN - 2).addConverted(Float.parseFloat(tokens[columnN]));
+					DatasetsController.incrementSampleCount();
+				}
+				
+				// done
+				SwingUtilities.invokeLater(() -> {
+					disconnect();
+				});
+				
+			} catch (IOException e) {
+				SwingUtilities.invokeLater(() -> {
+					disconnect();
+					NotificationsController.showFailureUntil("Unable to open the CSV Log file.", () -> false, true);
+					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);	
+				});
+			} catch (Exception e) {
+				SwingUtilities.invokeLater(() -> {
+					disconnect();
+					NotificationsController.showFailureUntil("Unable to parse the CSV Log file.", () -> false, true);
+				NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+				});
+			}
+			
+		});
+		
+		fileImportThread.start();
+		
+	}
+	
+	/**
+	 * Stops the file import thread, and notifies any listeners that the connection has been closed.
+	 */
+	private static void disconnectFromFile() {
+			
+		if(fileImportThread != null && fileImportThread.isAlive()) {
+			fileImportThread.interrupt();
+			while(fileImportThread.isAlive()); // wait
+		}
+
+		Communication.fileConnected = false;
+		notifyConnectionListeners();
+		
+		// switch back to the original port, so "File" is removed from the combobox
+		setPort(Communication.portUsedBeforeImport);
 		
 	}
 	

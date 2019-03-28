@@ -149,15 +149,33 @@ public class CommunicationView extends JPanel {
 				baudRateCombobox.setVisible(true);
 				portNumberCombobox.setVisible(false);
 				sampleRateTextfield.setEditable(true);
+				packetTypeCombobox.setVisible(true);
 			} else if(newPort.equals(Communication.PORT_TEST)) {
 				baudRateCombobox.setVisible(false);
 				portNumberCombobox.setVisible(false);
 				sampleRateTextfield.setText("10000");
 				sampleRateTextfield.setEditable(false);
+				packetTypeCombobox.setVisible(true);
+			} else if(newPort.equals(Communication.PORT_FILE)) {
+				baudRateCombobox.setVisible(false);
+				portNumberCombobox.setVisible(false);
+				sampleRateTextfield.setEditable(false);
+				packetTypeCombobox.setVisible(false);
 			} else {
 				baudRateCombobox.setVisible(false);
 				portNumberCombobox.setVisible(true);
 				sampleRateTextfield.setEditable(true);
+				packetTypeCombobox.setVisible(true);
+			}
+			
+			// do not show "File" if we are not currently importing a file
+			if(!newPort.equals(Communication.PORT_FILE)) {
+				int index = -1;
+				for(int i = 0; i < portCombobox.getItemCount(); i++)
+					if(portCombobox.getItemAt(i).equals(Communication.PORT_FILE))
+						index = i;
+				if(index >= 0)
+					portCombobox.removeItemAt(index);
 			}
 		});
 		

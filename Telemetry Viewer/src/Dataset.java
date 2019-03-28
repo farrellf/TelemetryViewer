@@ -269,4 +269,18 @@ public class Dataset {
 		
 	}
 	
+	/**
+	 * @param value    New sample to appended to the dataset. It will be added as-is, not converted.
+	 */
+	public void addConverted(float value) {
+		
+		int currentSize = DatasetsController.getSampleCount();
+		int slotNumber = currentSize / slotSize;
+		int slotIndex  = currentSize % slotSize;
+		if(slotIndex == 0)
+			slot[slotNumber] = new float[slotSize];
+		slot[slotNumber][slotIndex] = value;
+		
+	}
+	
 }

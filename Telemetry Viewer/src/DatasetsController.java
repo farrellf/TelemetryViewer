@@ -8,6 +8,11 @@ public class DatasetsController {
 	private static Map<Integer, Dataset> datasets = new TreeMap<Integer, Dataset>();
 	private static AtomicInteger sampleCount = new AtomicInteger(0);
 	
+	// timestamps are stored in an array of long[]'s, each containing 1M longs, and allocated as needed.
+	private static final int slotSize = (int) Math.pow(2, 20); // 1M longs per slot
+	private static final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
+	private static long[][] timestamps = new long[slotCount][];
+	
 	/**
 	 * @return    The number of fields in the data structure.
 	 */
@@ -105,7 +110,28 @@ public class DatasetsController {
 	 */
 	public static void incrementSampleCount() {
 		
+		int currentSize = getSampleCount();
+		int slotNumber = currentSize / slotSize;
+		int slotIndex  = currentSize % slotSize;
+		if(slotIndex == 0)
+			timestamps[slotNumber] = new long[slotSize];
+		timestamps[slotNumber][slotIndex] = System.currentTimeMillis();
+		
 		sampleCount.incrementAndGet();
+		
+	}
+	
+	/**
+	 * Gets the timestamp for one specific sample.
+	 * 
+	 * @param sampleNumnber    Which sample to check.
+	 * @return                 The corresponding UNIX timestamp.
+	 */
+	public static long getTimestamp(int sampleNumber) {
+		
+		int slotNumber = sampleNumber / slotSize;
+		int slotIndex  = sampleNumber % slotSize;
+		return timestamps[slotNumber][slotIndex];
 		
 	}
 	

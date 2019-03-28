@@ -66,6 +66,18 @@ public class ControlsRegion extends JPanel {
 		});
 		CommunicationController.addConnectionListener(newConnectionState -> saveLayoutButton.setEnabled(newConnectionState));
 		
+		JButton importCsvLogButton = new JButton("Import CSV Log");
+		importCsvLogButton.addActionListener(event -> {
+			
+			JFileChooser inputFile = new JFileChooser();
+			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
+			if(inputFile.showOpenDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
+				String filePath = inputFile.getSelectedFile().getAbsolutePath();
+				Controller.importCsvLogFile(filePath);
+			}
+
+		});
+		
 		JButton exportCsvLogButton = new JButton("Export CSV Log");
 		exportCsvLogButton.addActionListener(event -> {
 			
@@ -128,6 +140,8 @@ public class ControlsRegion extends JPanel {
 		add(openLayoutButton);
 		add(Box.createHorizontalStrut(5));
 		add(saveLayoutButton);
+		add(Box.createHorizontalStrut(5));
+		add(importCsvLogButton);
 		add(Box.createHorizontalStrut(5));
 		add(exportCsvLogButton);
 		add(Box.createHorizontalStrut(5));

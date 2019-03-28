@@ -8,6 +8,7 @@ public class Communication {
 	final static String PORT_TCP  = "TCP";  // the DUT is a TCP client, so we spawn a TCP server
 	final static String PORT_UDP  = "UDP";  // the DUT sends UDP packets, so we listen for them
 	final static String PORT_TEST = "Test"; // dummy mode that generates test waveforms
+	final static String PORT_FILE = "File"; // dummy mode for importing CSV log files
 	static String port = PORT_UART;
 	
 	static Packet packet = new CsvPacket();
@@ -45,5 +46,9 @@ public class Communication {
 	final static int MAX_UDP_PACKET_SIZE = 65507; // 65535 - (8byte UDP header) - (20byte IP header)
 	
 	static boolean testConnected = false;
+	
+	static boolean fileConnected = false;
+	static String importFilePath = null;
+	static String portUsedBeforeImport = null;
 	
 }

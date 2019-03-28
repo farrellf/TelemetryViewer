@@ -184,6 +184,19 @@ public class Controller {
 	}
 	
 	/**
+	 * Imports all samples from a CSV file.
+	 * 
+	 * @param path    Full path with file name.
+	 */
+	static void importCsvLogFile(String filepath) {
+
+		CommunicationController.setPort(Communication.PORT_FILE);
+		CommunicationController.setImportFile(filepath);
+		CommunicationController.connect(null);
+		
+	}
+	
+	/**
 	 * Exports all samples to a CSV file.
 	 * 
 	 * @param path    Full path with file name.
@@ -196,7 +209,7 @@ public class Controller {
 		try {
 			
 			PrintWriter logFile = new PrintWriter(filepath, "UTF-8");
-			logFile.print("Sample Number (" + CommunicationController.getSampleRate() + " samples per second)");
+			logFile.print("Sample Number (" + CommunicationController.getSampleRate() + " samples per second),UNIX Timestamp (Milliseconds since 1970-01-01)");
 			for(int i = 0; i < datasetsCount; i++) {
 				Dataset d = DatasetsController.getDatasetByIndex(i);
 				logFile.print("," + d.name + " (" + d.unit + ")");
@@ -204,7 +217,7 @@ public class Controller {
 			logFile.println();
 			
 			for(int i = 0; i < sampleCount; i++) {
-				logFile.print(i);
+				logFile.print(i + "," + DatasetsController.getTimestamp(i));
 				for(int n = 0; n < datasetsCount; n++)
 					logFile.print("," + Float.toString(DatasetsController.getDatasetByIndex(n).getSample(i)));
 				logFile.println();
