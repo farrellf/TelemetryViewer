@@ -52,11 +52,17 @@ public class OpenGLChartsRegion extends JPanel {
 	PositionedChart chartToMaximizeOnClick;
 	PositionedChart chartToConfigureOnClick;
 	PositionedChart chartUnderMouse;
-	PositionedChart maximizedChart;
 	
 	boolean maximizing;
 	boolean demaximizing;
-	double animationPosition;
+	PositionedChart maximizedChart;
+	long maximizingAnimationEndTime;
+	final long maximizingAnimationDuration = 200; // milliseconds
+	
+	boolean removing;
+	PositionedChart removingChart;
+	long removingAnimationEndTime;
+	final long removingAnimationDuration = 300; // milliseconds
 	
 	// chart benchmarking
 	long cpuStartNanoseconds;
@@ -242,7 +248,7 @@ public class OpenGLChartsRegion extends JPanel {
 				for(PositionedChart chart : charts) {
 					
 					// if there is a maximized chart, only draw that chart
-					if(maximizedChart != null && chart != maximizedChart && !maximizing && !demaximizing)
+					if(maximizedChart != null && maximizedChart != removingChart && chart != maximizedChart && !maximizing && !demaximizing)
 						continue;
 					
 					// calculate cpu/gpu benchmarks for this chart if benchmarking
@@ -274,40 +280,58 @@ public class OpenGLChartsRegion extends JPanel {
 					
 					// size the maximized chart correctly
 					if(chart == maximizedChart) {
+						
+						double animationPosition = 1.0 - (double) (maximizingAnimationEndTime - System.currentTimeMillis()) / maximizingAnimationDuration;
+						animationPosition = smoothstep(animationPosition);
+						
 						int maximizedWidth = tileWidth * columnCount;
 						int maximizedHeight = tileHeight * rowCount;
 						int maximizedXoffset = 0;
 						int maximizedYoffset = canvasHeight - maximizedHeight;
 
 						if(maximizing) {
+							
 							width = (int) Math.round(width * (1.0 - animationPosition) + (maximizedWidth * animationPosition));
 							height = (int) Math.round(height * (1.0 - animationPosition) + (maximizedHeight * animationPosition));
 							xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
 							yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
 							
-							animationPosition = 1.0 - (1.0 - animationPosition) * 0.8;
-							if(animationPosition >= 0.999) {
-								animationPosition = 1.0;
+							if(animationPosition == 1.0)
 								maximizing = false;
-							}
-						} else if(demaximizing) {
-							width = (int) Math.round(width * (1.0 - animationPosition) + (maximizedWidth * animationPosition));
-							height = (int) Math.round(height * (1.0 - animationPosition) + (maximizedHeight * animationPosition));
-							xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
-							yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
 							
-							animationPosition *= 0.8;
-							if(animationPosition <= 0.005) {
-								animationPosition = 0.0;
+						} else if(demaximizing) {
+							
+							width = (int) Math.round((width * animationPosition) + (maximizedWidth * (1.0 - animationPosition)));
+							height = (int) Math.round((height * animationPosition) + (maximizedHeight * (1.0 - animationPosition)));
+							xOffset = (int) Math.round((xOffset * animationPosition) + (maximizedXoffset * (1.0 - animationPosition)));
+							yOffset = (int) Math.round((yOffset * animationPosition) + (maximizedYoffset * (1.0 - animationPosition)));
+
+							if(animationPosition == 1.0) {
 								demaximizing = false;
 								maximizedChart = null;
 							}
+							
 						} else {
+							
 							width = maximizedWidth;
 							height = maximizedHeight;
 							xOffset = maximizedXoffset;
 							yOffset = maximizedYoffset;
+							
 						}
+					}
+					
+					// size the closing chart correctly
+					if(chart == removingChart) {
+						
+						double animationPosition = 1.0 - (double) (removingAnimationEndTime - System.currentTimeMillis()) / removingAnimationDuration;
+						animationPosition = smoothstep(animationPosition);
+						
+						xOffset = (int) Math.round(xOffset + (0.5 * width * animationPosition));
+						yOffset = (int) Math.round(yOffset + (0.5 * height * animationPosition));
+						width = (int) Math.round(width * (1.0 - animationPosition));
+						height = (int) Math.round(height * (1.0 - animationPosition));
+						
 					}
 					
 					drawTile(gl, xOffset, yOffset, width, height);
@@ -373,6 +397,15 @@ public class OpenGLChartsRegion extends JPanel {
 					
 				}
 				
+				// remove a chart if necessary
+				if(removing && removingAnimationEndTime <= System.currentTimeMillis()) {
+					Controller.removeChart(removingChart);
+					if(maximizedChart == removingChart)
+						maximizedChart = null;
+					removingChart = null;
+					removing = false;
+				}
+				
 				// show the FPS/period in the lower-left corner if enabled
 				if(SettingsController.getFpsVisibility()) {
 					String text = String.format("%2.1fFPS, %dms", animator.getLastFPS(), animator.getLastFPSPeriod());
@@ -421,19 +454,21 @@ public class OpenGLChartsRegion extends JPanel {
 				}
 				
 				if(chartToRemoveOnClick != null) {
-					Controller.removeChart(chartToRemoveOnClick);
+					removing = true;
+					removingChart = chartToRemoveOnClick;
+					removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
 					return;
 				}
 				
 				if(chartToMaximizeOnClick != null) {
 					if(maximizedChart == null) {
-						maximizedChart = chartToMaximizeOnClick;
-						animationPosition = 0.0;
 						maximizing = true;
+						maximizedChart = chartToMaximizeOnClick;
+						maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
 						Controller.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
 					} else {
-						animationPosition = 1.0;
 						demaximizing = true;
+						maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
 					}
 					return;
 				}
@@ -593,6 +628,24 @@ public class OpenGLChartsRegion extends JPanel {
 			columnCount = columns;
 			rowCount = rows;
 		});
+		
+	}
+	
+	/**
+	 * Implements the smoothstep algorithm, with a "left edge" of 0 and a "right edge" of 1.
+	 * 
+	 * @param x    Input, in the range of 0-1 inclusive.
+	 * @return     Output, in the range of 0-1 inclusive.
+	 */
+	private double smoothstep(double x) {
+		
+		if(x < 0) {
+			return 0;
+		} else if(x > 1) {
+			return 1;
+		} else {
+			return x * x * (3 - 2 * x);
+		}
 		
 	}
 	

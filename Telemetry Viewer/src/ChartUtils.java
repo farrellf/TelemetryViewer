@@ -20,6 +20,12 @@ public class ChartUtils {
 	 */
 	public static Map<Float, String> getYdivisions125(float plotHeight, float minY, float maxY) {
 		
+		Map<Float, String> yValues = new HashMap<Float, String>();
+		
+		// sanity check
+		if(plotHeight < 1)
+			return yValues;
+		
 		// calculate the best vertical division size
 		float minSpacingBetweenText = 2.0f * FontUtils.tickTextHeight;
 		float maxDivisionsCount = plotHeight / (FontUtils.tickTextHeight + minSpacingBetweenText) + 1.0f;
@@ -57,7 +63,6 @@ public class ChartUtils {
 			lastDivision += divisionSize;
 		int divisionCount = (int) Math.round((firstDivision - lastDivision) / divisionSize) + 1;
 		
-		Map<Float, String> yValues = new HashMap<Float, String>();
 		for(int i = 0; i < divisionCount; i++) {
 			float number = firstDivision - (i * divisionSize);
 			String text;
@@ -82,6 +87,12 @@ public class ChartUtils {
 	 * @return              A Map of the y values for each division, keys are Floats and values are formatted Strings
 	 */
 	public static Map<Float, String> getLogYdivisions(float plotHeight, float minY, float maxY) {
+		
+		Map<Float, String> yValues = new HashMap<Float, String>();
+		
+		// sanity check
+		if(plotHeight < 1)
+			return yValues;
 		
 		// calculate the best vertical division size
 		float minSpacingBetweenText = 2.0f * FontUtils.tickTextHeight;
@@ -113,7 +124,6 @@ public class ChartUtils {
 //		if(divisionCount > Math.floor(maxDivisionsCount))
 //			divisionCount = (int) Math.floor(maxDivisionsCount);
 		
-		Map<Float, String> yValues = new HashMap<Float, String>();
 		for(int i = 0; i < divisionCount; i++) {
 			float number = firstDivision - (i * divisionSize);
 			String text = "1e" + Integer.toString((int) number);
@@ -133,6 +143,12 @@ public class ChartUtils {
 	 * @return             A Map of the x values for each division, keys are Integers and values are formatted Strings
 	 */
 	public static Map<Integer, String> getXdivisions125(float plotWidth, int minX, int maxX) {
+		
+		Map<Integer, String> xValues = new HashMap<Integer, String>();
+		
+		// sanity check
+		if(plotWidth < 1)
+			return xValues;
 		
 		// calculate the best horizontal division size
 		int textWidth = (int) Float.max(FontUtils.tickTextWidth(Integer.toString(maxX)), FontUtils.tickTextWidth(Integer.toString(minX)));
@@ -162,7 +178,6 @@ public class ChartUtils {
 			lastDivision += divisionSize;
 		int divisionCount = ((firstDivision - lastDivision) / divisionSize + 1);
 		
-		Map<Integer, String> xValues = new HashMap<Integer, String>();
 		for(int i = 0; i < divisionCount; i++) {
 			int number = lastDivision + (i * divisionSize);
 			String text = Integer.toString(number);
@@ -184,6 +199,10 @@ public class ChartUtils {
 	public static Map<Float, String> getFloatXdivisions125(float plotWidth, float minX, float maxX) {
 		
 		Map<Float, String> xValues = new HashMap<Float, String>();
+		
+		// sanity check
+		if(plotWidth < 1)
+			return xValues;
 		
 		for(int maxDivisionsCount = 1; maxDivisionsCount < 100; maxDivisionsCount++) {
 			
