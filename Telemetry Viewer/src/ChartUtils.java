@@ -584,7 +584,7 @@ public class ChartUtils {
 				if(anchorY < bottomRightY) {
 					// not enough room to draw this marker
 					insufficientSpace = true;
-					continue;
+					break;
 				}
 			}
 			
