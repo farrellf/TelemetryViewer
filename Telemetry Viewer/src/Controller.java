@@ -331,8 +331,9 @@ public class Controller {
 	 * The state consists of: GUI settings, communication settings, data structure definition, and details for each chart.
 	 * 
 	 * @param inputFilePath    An absolute path to a .txt file.
+	 * @param connect          True to connect, or false to just configure things without connecting to the device.
 	 */
-	static void openLayout(String inputFilePath) {
+	static void openLayout(String inputFilePath, boolean connect) {
 		
 		CommunicationController.disconnect();
 		Controller.removeAllCharts();
@@ -440,7 +441,8 @@ public class Controller {
 				Communication.packet.insertChecksum(checksumOffset, processor);
 			}
 			
-			CommunicationController.connect(null);
+			if(connect)
+				CommunicationController.connect(null);
 
 			ChartUtils.parseExact(lines.remove(), "");
 			int chartsCount = ChartUtils.parseInteger(lines.remove(), "%d Charts:");

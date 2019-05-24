@@ -1,12 +1,20 @@
 import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowFocusListener;
+import java.io.File;
+import java.util.List;
+
 import javax.swing.JFrame;
 import javax.swing.UIManager;
 
 public class Main {
 
+	@SuppressWarnings("serial")
 	public static void main(String[] args) {
 		
 		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
@@ -41,6 +49,32 @@ public class Main {
 				mouse.updateScrolling();
 			}
 			@Override public void windowLostFocus(WindowEvent we) { }
+		});
+		
+		// allow the user to drag-n-drop a layout file, or a CSV log file, or both
+		window.setDropTarget(new DropTarget() {			
+			@Override public void drop(DropTargetDropEvent event) {
+				try {
+					event.acceptDrop(DnDConstants.ACTION_LINK);
+					@SuppressWarnings("unchecked")
+					List<File> files = (List<File>) event.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+					
+					if(files.size() == 1 && files.get(0).getAbsolutePath().endsWith(".txt")) {
+						Controller.openLayout(files.get(0).getAbsolutePath(), true);
+					} else if(files.size() == 1 && files.get(0).getAbsolutePath().endsWith(".csv")) {
+						Controller.importCsvLogFile(files.get(0).getAbsolutePath());
+					} else if(files.size() == 2 && files.get(0).getAbsolutePath().endsWith(".txt") && files.get(1).getAbsolutePath().endsWith(".csv")) {
+						Controller.openLayout(files.get(0).getAbsolutePath(), false);
+						Controller.importCsvLogFile(files.get(1).getAbsolutePath());
+					} else if(files.size() == 2 && files.get(0).getAbsolutePath().endsWith(".csv") && files.get(1).getAbsolutePath().endsWith(".txt")) {
+						Controller.openLayout(files.get(1).getAbsolutePath(), false);
+						Controller.importCsvLogFile(files.get(0).getAbsolutePath());
+					} else {
+						NotificationsController.showFailureUntil("Error: Wrong file type or too many files selected. Select one layout file, or one CSV log file, or one of each.", () -> false, true);
+					}
+						
+				} catch(Exception e) {}
+			}
 		});
 		
 	}

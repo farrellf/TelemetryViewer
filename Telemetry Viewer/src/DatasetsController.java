@@ -1,17 +1,43 @@
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public class DatasetsController {
 
 	private static Map<Integer, Dataset> datasets = new TreeMap<Integer, Dataset>();
 	private static AtomicInteger sampleCount = new AtomicInteger(0);
+	private static List<Consumer<Boolean>> sampleCountListeners = new ArrayList<Consumer<Boolean>>(); // true = (sampleCount >= 1)
 	
 	// timestamps are stored in an array of long[]'s, each containing 1M longs, and allocated as needed.
 	private static final int slotSize = (int) Math.pow(2, 20); // 1M longs per slot
 	private static final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
 	private static long[][] timestamps = new long[slotCount][];
+	
+	/**
+	 * Registers a listener that will be notified when the sample count is set to 1 or 0, and triggers an event to ensure the GUI is in sync.
+	 * 
+	 * @param listener    The listener to be notified.
+	 */
+	public static void addSampleCountListener(Consumer<Boolean> listener) {
+		
+		sampleCountListeners.add(listener);
+		notifySampleCountListeners();
+		
+	}
+	
+	/**
+	 * Notifies all registered listeners about the sample count.
+	 */
+	private static void notifySampleCountListeners() {
+		
+		for(Consumer<Boolean> listener : sampleCountListeners)
+			listener.accept(sampleCount.get() >= 1);
+		
+	}
 	
 	/**
 	 * @return    The number of fields in the data structure.
@@ -74,8 +100,10 @@ public class DatasetsController {
 		
 		Dataset removedDataset = datasets.remove(location);
 		
-		if(datasets.isEmpty())
+		if(datasets.isEmpty()) {
 			sampleCount.set(0);
+			notifySampleCountListeners();
+		}
 		
 		if(removedDataset == null)
 			return false;
@@ -93,6 +121,7 @@ public class DatasetsController {
 		
 		datasets.clear();
 		sampleCount.set(0);
+		notifySampleCountListeners();
 		
 	}
 	
@@ -117,7 +146,9 @@ public class DatasetsController {
 			timestamps[slotNumber] = new long[slotSize];
 		timestamps[slotNumber][slotIndex] = System.currentTimeMillis();
 		
-		sampleCount.incrementAndGet();
+		int newSampleCount = sampleCount.incrementAndGet();
+		if(newSampleCount == 1)
+			notifySampleCountListeners();
 		
 	}
 	

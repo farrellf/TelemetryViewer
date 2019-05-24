@@ -45,7 +45,7 @@ public class ControlsRegion extends JPanel {
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
 			if(inputFile.showOpenDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
 				String filePath = inputFile.getSelectedFile().getAbsolutePath();
-				Controller.openLayout(filePath);
+				Controller.openLayout(filePath, true);
 			}
 			
 		});
@@ -91,6 +91,7 @@ public class ControlsRegion extends JPanel {
 			}
 
 		});
+		DatasetsController.addSampleCountListener(haveSamples -> exportCsvLogButton.setEnabled(haveSamples));
 		
 		JButton resetButton = new JButton("Reset");
 		resetButton.addActionListener(event -> Controller.removeAllCharts());
