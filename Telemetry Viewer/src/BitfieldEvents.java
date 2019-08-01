@@ -47,6 +47,7 @@ public class BitfieldEvents {
 	public class EventsAtSampleNumber {
 		
 		int sampleNumber = 0;
+		float pixelX = 0;
 		List<String> names = new ArrayList<String>();
 		List<Color> colors = new ArrayList<Color>();
 		

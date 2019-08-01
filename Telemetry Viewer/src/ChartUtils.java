@@ -194,7 +194,7 @@ public class ChartUtils {
 	 * @param plotWidth    Number of pixels for the x-axis
 	 * @param minX         X value at the left of the plot
 	 * @param maxX         X value at the right of the plot
-	 * @return             A Map of the x values for each division, keys are Integers and values are formatted Strings
+	 * @return             A Map of the x values for each division, keys are Floats and values are formatted Strings
 	 */
 	public static Map<Float, String> getFloatXdivisions125(float plotWidth, float minX, float maxX) {
 		
@@ -532,14 +532,12 @@ public class ChartUtils {
 	 * 
 	 * @param gl              The OpenGL context.
 	 * @param markers         A List of events in time and their corresponding names/colors.
-	 * @param plotMinX        X value at the left of the plot.
-	 * @param plotMaxX        X value at the right of the plot.
 	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
 	 * @param topLeftY        Allowed bounding box's top-left y coordinate.
 	 * @param bottomRightX    Allowed bounding box's bottom-right x coordinate.
 	 * @param bottomRightY    Allowed bounding box's bottom-right y coordinate.
 	 */
-	public static void drawMarkers(GL2 gl, List<BitfieldEvents.EventsAtSampleNumber> markers, float plotMinX, float plotMaxX, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
+	public static void drawMarkers(GL2 gl, List<BitfieldEvents.EventsAtSampleNumber> markers, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
 			
 		final int NORTH      = 0;
 		final int NORTH_WEST = 1;
@@ -565,18 +563,18 @@ public class ChartUtils {
 			float boxHeight = (marker.names.size() + 1) * (textHeight + padding) + padding;
 			
 			// calculate the box anchor position
-			float anchorX = ((float) marker.sampleNumber - plotMinX) / (plotMaxX - plotMinX) * (bottomRightX - topLeftX) + topLeftX;
+			float anchorX = marker.pixelX + topLeftX;
 			float anchorY = topLeftY - boxHeight - padding;
 			
 			// decide which orientation to use
 			int orientation = UNDEFINED;
 			
 			while(orientation == UNDEFINED) {
-				if(anchorX - boxWidth > topLeftX && anchorX < bottomRightX && regionAvailable(occupiedRegions, anchorX - boxWidth, anchorX, anchorY, anchorY + boxHeight + padding))
+				if(anchorX - boxWidth >= topLeftX && anchorX <= bottomRightX && regionAvailable(occupiedRegions, anchorX - boxWidth, anchorX, anchorY, anchorY + boxHeight + padding))
 					orientation = NORTH_WEST;
-				else if(anchorX - (boxWidth / 2f) > topLeftX && anchorX + (boxWidth / 2f) < bottomRightX && regionAvailable(occupiedRegions, anchorX - (boxWidth / 2f), anchorX + (boxWidth / 2f), anchorY, anchorY + boxHeight + padding))
+				else if(anchorX - (boxWidth / 2f) >= topLeftX && anchorX + (boxWidth / 2f) <= bottomRightX && regionAvailable(occupiedRegions, anchorX - (boxWidth / 2f), anchorX + (boxWidth / 2f), anchorY, anchorY + boxHeight + padding))
 					orientation = NORTH;
-				else if(anchorX > topLeftX && anchorX + boxWidth < bottomRightX && regionAvailable(occupiedRegions, anchorX, anchorX + boxWidth, anchorY, anchorY + boxHeight + padding))
+				else if(anchorX >= topLeftX && anchorX + boxWidth <= bottomRightX && regionAvailable(occupiedRegions, anchorX, anchorX + boxWidth, anchorY, anchorY + boxHeight + padding))
 					orientation = NORTH_EAST;
 				else
 					anchorY = anchorY - 1;
@@ -820,7 +818,7 @@ public class ChartUtils {
 	 * @param maxX               Proposed region's right-most x value.
 	 * @param minY               Proposed region's bottom-most y value.
 	 * @param maxY               Proposed region's top-most y value.
-	 * @return                   True if there is no overlap, false otherwise.
+	 * @return                   True if there is no overlap (touching is allowed), false otherwise.
 	 */
 	private static boolean regionAvailable(List<float[]> occupiedRegions, float minX, float maxX, float minY, float maxY) {
 		
@@ -830,26 +828,26 @@ public class ChartUtils {
 			float regionMinY = region[2];
 			float regionMaxY = region[3];
 			
-			if(minX >= regionMinX && minX <= regionMaxX) { // x starts inside region
-				if(minY >= regionMinY && minY <= regionMaxY) // y starts inside region
+			if(minX >= regionMinX && minX < regionMaxX) { // x starts inside region
+				if(minY >= regionMinY && minY < regionMaxY) // y starts inside region
 					return false;
-				else if(maxY >= regionMinY && maxY <= regionMaxY) // y ends inside region
+				else if(maxY > regionMinY && maxY <= regionMaxY) // y ends inside region
 					return false;
-				else if(minY <= regionMinY && maxY >= regionMaxY) // y surrounds region
+				else if(minY < regionMinY && maxY > regionMaxY) // y surrounds region
 					return false;
-			} else if(maxX >= regionMinX && maxX <= regionMaxX) { // x ends inside region
-				if(minY >= regionMinY && minY <= regionMaxY) // y starts inside region
+			} else if(maxX > regionMinX && maxX <= regionMaxX) { // x ends inside region
+				if(minY >= regionMinY && minY < regionMaxY) // y starts inside region
 					return false;
-				else if(maxY >= regionMinY && maxY <= regionMaxY) // y ends inside region
+				else if(maxY > regionMinY && maxY <= regionMaxY) // y ends inside region
 					return false;
-				else if(minY <= regionMinY && maxY >= regionMaxY) // y surrounds region
+				else if(minY < regionMinY && maxY > regionMaxY) // y surrounds region
 					return false;
 			} else if(minX <= regionMinX && maxX >= regionMaxX) { // x surrounds region
-				if(minY >= regionMinY && minY <= regionMaxY) // y starts inside region
+				if(minY >= regionMinY && minY < regionMaxY) // y starts inside region
 					return false;
-				else if(maxY >= regionMinY && maxY <= regionMaxY) // y ends inside region
+				else if(maxY > regionMinY && maxY <= regionMaxY) // y ends inside region
 					return false;
-				else if(minY <= regionMinY && maxY >= regionMaxY) // y surrounds region
+				else if(minY < regionMinY && maxY > regionMaxY) // y surrounds region
 					return false;
 			}
 		}
@@ -896,31 +894,31 @@ public class ChartUtils {
 		
 		// decide which orientation to draw the tooltip in, or return if there is not enough space
 		int orientation = NORTH;
-		if(anchorY + padding + boxHeight < topLeftY) {
+		if(anchorY + padding + boxHeight <= topLeftY) {
 			// there is space above the anchor, so use NORTH or NORTH_WEST or NORTH_EAST if there is enough horizontal space
-			if(anchorX - (boxWidth / 2f) > topLeftX && anchorX + (boxWidth / 2f) < bottomRightX)
+			if(anchorX - (boxWidth / 2f) >= topLeftX && anchorX + (boxWidth / 2f) <= bottomRightX)
 				orientation = NORTH;
-			else if(anchorX - boxWidth > topLeftX && anchorX < bottomRightX)
+			else if(anchorX - boxWidth >= topLeftX && anchorX <= bottomRightX)
 				orientation = NORTH_WEST;
-			else if(anchorX > topLeftX && anchorX + boxWidth < bottomRightX)
+			else if(anchorX >= topLeftX && anchorX + boxWidth <= bottomRightX)
 				orientation = NORTH_EAST;
 			else
 				return;
-		} else if(anchorY + (boxHeight / 2f) < topLeftY && anchorY - (boxHeight / 2f) > bottomRightY) {
+		} else if(anchorY + (boxHeight / 2f) <= topLeftY && anchorY - (boxHeight / 2f) >= bottomRightY) {
 			// there is some space above and below the anchor, so use WEST or EAST if there is enough horizontal space
-			if(anchorX - padding - boxWidth > topLeftX)
+			if(anchorX - padding - boxWidth >= topLeftX)
 				orientation = WEST;
-			else if(anchorX + padding + boxWidth < bottomRightX)
+			else if(anchorX + padding + boxWidth <= bottomRightX)
 				orientation = EAST;
 			else
 				return;
-		} else if(anchorY - padding - boxHeight > bottomRightY) {
+		} else if(anchorY - padding - boxHeight >= bottomRightY) {
 			// there is space below the anchor, so use SOUTH or SOUTH_WEST or SOUTH_EAST if there is enough horizontal space
-			if(anchorX - (boxWidth / 2f) > topLeftX && anchorX + (boxWidth / 2f) < bottomRightX)
+			if(anchorX - (boxWidth / 2f) >= topLeftX && anchorX + (boxWidth / 2f) <= bottomRightX)
 				orientation = SOUTH;
-			else if(anchorX - boxWidth > topLeftX && anchorX < bottomRightX)
+			else if(anchorX - boxWidth >= topLeftX && anchorX <= bottomRightX)
 				orientation = SOUTH_WEST;
-			else if(anchorX > topLeftX && anchorX + boxWidth < bottomRightX)
+			else if(anchorX >= topLeftX && anchorX + boxWidth <= bottomRightX)
 				orientation = SOUTH_EAST;
 			else
 				return;

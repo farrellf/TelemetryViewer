@@ -18,8 +18,6 @@ import com.jogamp.opengl.GL2;
  */
 public class OpenGLTimeDomainChart extends PositionedChart {
 	
-	OpenGLTimeDomainSlice slice;
-	
 	// plot region
 	float xPlotLeft;
 	float xPlotRight;
@@ -48,7 +46,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	// x-axis scale
 	boolean showXaxisScale;
-	Map<Integer, String> xDivisions;
 	float yXaxisTickTextBaseline;
 	float yXaxisTickTextTop;
 	float yXaxisTickBottom;
@@ -73,6 +70,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float manualYmin;
 	float manualYmax;
 	
+	String xAxisUnit;
+	
 	// constraints
 	static final int SampleCountDefault = 1000;
 	static final int SampleCountMinimum = 5;
@@ -85,7 +84,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	// control widgets
 	WidgetDatasets datasetsWidget;
-	WidgetTextfieldInteger sampleCountWidget;
+	WidgetDuration durationWidget;
 	WidgetTextfieldsOptionalMinMax minMaxWidget;
 	WidgetCheckbox showXaxisTitleWidget;
 	WidgetCheckbox showXaxisScaleWidget;
@@ -108,11 +107,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		// create the control widgets and event handlers
 		datasetsWidget = new WidgetDatasets(true, newDatasets -> datasets = newDatasets);
 		
-		sampleCountWidget = new WidgetTextfieldInteger("Sample Count",
-		                                               SampleCountDefault,
-		                                               SampleCountMinimum,
-		                                               SampleCountMaximum,
-		                                               newSampleCount -> sampleCount = newSampleCount);
+		durationWidget = new WidgetDuration(SampleCountDefault,
+		                                    SampleCountMinimum,
+		                                    SampleCountMaximum,
+		                                    newDurationType -> xAxisUnit = newDurationType);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
 		                                                  yAxisMinimumDefault,
@@ -146,7 +144,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		widgets[0]  = datasetsWidget;
 		widgets[1]  = null;
-		widgets[2]  = sampleCountWidget;
+		widgets[2]  = durationWidget;
 		widgets[3]  = null;
 		widgets[4]  = minMaxWidget;
 		widgets[5]  = null;
@@ -162,34 +160,17 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
-		// calculate domain
-		int plotMaxX = lastSampleNumber;
-		int plotMinX = plotMaxX - (int) (sampleCount * zoomLevel) + 1;
-		int minDomain = SampleCountMinimum - 1;
-		if(plotMaxX - plotMinX < minDomain) plotMinX = plotMaxX - minDomain;
-		float domain = plotMaxX - plotMinX;
-		
-		if(plotMaxX < minDomain)
-			return;
-		
 		boolean haveDatasets = datasets != null && datasets.length > 0;
 		
-		// get the samples
-		if(slice == null) {
-			slice = new OpenGLTimeDomainSlice(gl);
-			slice.freeResources(gl);
-		}
-		if(haveDatasets)
-			slice.updateSamples(datasets, plotMinX > 0 ? plotMinX : 0, plotMaxX);
+		SamplesManager samples = new SamplesManager();
+		if(xAxisUnit.equals("Samples"))
+			samples.acquireNsamples(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, durationWidget.getDurationInteger());
+		else
+			samples.acquireNtimeUnits(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, durationWidget.getDurationFloat(), xAxisUnit);
 		
-		// ensure range is >0
-		float plotMaxY = haveDatasets ? slice.sliceMaxY :  1;
-		float plotMinY = haveDatasets ? slice.sliceMinY : -1;
-		if(plotMinY == plotMaxY) {
-			float value = plotMinY;
-			plotMinY = value - 0.001f;
-			plotMaxY = value + 0.001f;
-		}
+		// calculate the plot range
+		float plotMaxY = samples.maxY;
+		float plotMinY = samples.minY;
 		autoscale.update(plotMinY, plotMaxY);
 		plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
 		plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
@@ -206,7 +187,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
 			yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
-			xAxisTitle = "Sample Number";
+			xAxisTitle = samples.xAxisTitle;
 			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
@@ -300,9 +281,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			if(showXaxisTitle && !showLegend)
 				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
 		}
-	
-		// get the x divisions now that we know the final plot width
-		xDivisions = ChartUtils.getXdivisions125(plotWidth, plotMinX, plotMaxX);
 		
 		// stop if the plot is too small
 		if(plotWidth < 1 || plotHeight < 1)
@@ -319,9 +297,11 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// draw the x-axis scale
 		if(showXaxisScale) {
+			Map<Float, String> divisions = samples.getXdivisions(plotWidth);
+			
 			gl.glBegin(GL2.GL_LINES);
-			for(Integer xValue : xDivisions.keySet()) {
-				float x = (float) (xValue - plotMinX) / domain * plotWidth + xPlotLeft;
+			for(Float divisionLocation : divisions.keySet()) {
+				float x = divisionLocation + xPlotLeft;
 				gl.glColor4fv(Theme.divisionLinesColor, 0);
 				gl.glVertex2f(x, yPlotTop);
 				gl.glVertex2f(x, yPlotBottom);
@@ -331,8 +311,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			}
 			gl.glEnd();
 			
-			for(Map.Entry<Integer,String> entry : xDivisions.entrySet()) {
-				float x = (float) (entry.getKey() - plotMinX) / domain * plotWidth + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
+			for(Map.Entry<Float,String> entry : divisions.entrySet()) {
+				float x = entry.getKey() + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
 				float y = yXaxisTickTextBaseline;
 				FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
 			}
@@ -371,14 +351,14 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			
 			for(int i = 0; i < datasets.length; i++) {
 				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4fv(slice.glDataset[i].color, 0);
+				gl.glColor3f(datasets[i].color.getRed() / 255.0f, datasets[i].color.getGreen() / 255.0f, datasets[i].color.getBlue() / 255.0f);
 					gl.glVertex2f(legendBoxCoordinates[i][0], legendBoxCoordinates[i][1]);
 					gl.glVertex2f(legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
 					gl.glVertex2f(legendBoxCoordinates[i][4], legendBoxCoordinates[i][5]);
 					gl.glVertex2f(legendBoxCoordinates[i][6], legendBoxCoordinates[i][7]);
 				gl.glEnd();
 				
-				FontUtils.drawLegendText(slice.glDataset[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
+				FontUtils.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 			}
 		}
 		
@@ -397,8 +377,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
 		
 		// draw each dataset
-		if(haveDatasets && slice.glDataset[0].vertexCount >= 2) {
-			for(int i = 0; i < slice.glDataset.length; i++) {
+		if(haveDatasets && samples.plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.length; i++) {
 				
 				// do not draw bitfields
 				if(datasets[i].isBitfield)
@@ -410,8 +390,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
 				gl.glTranslatef(xPlotLeft, 0, 0);
 				gl.glScalef(plotWidth, 1, 1);
-				gl.glScalef(1.0f / domain, 1, 1);
-				gl.glTranslatef(-plotMinX, 0, 0);
+				gl.glScalef(1.0f / samples.getPlotDomain(), 1, 1);
+				gl.glTranslatef(-samples.getPlotMinX(), 0, 0);
 				
 				// adjust so y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
 				gl.glTranslatef(0, yPlotBottom, 0);
@@ -419,13 +399,13 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				gl.glScalef(1, 1.0f / plotRange, 1);
 				gl.glTranslatef(0, -plotMinY, 0);
 				
-				gl.glColor4fv(slice.glDataset[i].color, 0);
-				gl.glVertexPointer(2, GL2.GL_FLOAT, 0, slice.glDataset[i].buffer);
-				gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, slice.glDataset[i].vertexCount);
+				gl.glColor3f(datasets[i].color.getRed() / 255.0f, datasets[i].color.getGreen() / 255.0f, datasets[i].color.getBlue() / 255.0f);
+				gl.glVertexPointer(2, GL2.GL_FLOAT, 0, samples.buffers[i]);
+				gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, samples.plotSampleCount);
 				
 				// also draw points if there are relatively few samples on screen
-				if(plotWidth / domain > 2 * Theme.pointSize)
-					gl.glDrawArrays(GL2.GL_POINTS, 0, slice.glDataset[i].vertexCount);
+				if(samples.fewSamplesOnScreen(plotWidth))
+					gl.glDrawArrays(GL2.GL_POINTS, 0, samples.plotSampleCount);
 				
 				gl.glPopMatrix();
 				
@@ -433,38 +413,34 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		}
 		
 		// draw any bitfield changes
-		if(haveDatasets && slice.glDataset[0].vertexCount >= 2) {
-			BitfieldEvents events = new BitfieldEvents();
-			for(Dataset dataset : datasets)
-				dataset.appendBitfieldEvents(events, plotMinX > 0 ? plotMinX : 0, plotMaxX);
-			ChartUtils.drawMarkers(gl, events.get(), (float) plotMinX, (float) plotMaxX, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
-		}
+		if(haveDatasets && samples.plotSampleCount >= 2)
+			ChartUtils.drawMarkers(gl, samples.getBitfieldEvents(plotWidth), xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 
 		// stop clipping to the plot region
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 		
 		// draw the tooltip if the mouse is in the plot region
 		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
-			int sampleNumber = Math.round(((float) mouseX - xPlotLeft) / plotWidth * domain + plotMinX);
-			if(sampleNumber >= 0) {
+			SamplesManager.TooltipInfo tooltip = samples.getTooltip(mouseX - (int) xPlotLeft, plotWidth);
+			if(tooltip.draw) {
 				String[] text = new String[datasets.length + 1];
 				Color[] colors = new Color[datasets.length + 1];
-				text[0] = "Sample " + sampleNumber;
+				text[0] = tooltip.label;
 				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
 				for(int i = 0; i < datasets.length; i++) {
-					text[i + 1] = datasets[i].getSampleAsString(sampleNumber);
+					text[i + 1] = datasets[i].getSampleAsString(tooltip.sampleNumber);
 					colors[i + 1] = datasets[i].color;
 				}
-				float anchorX = ((float) sampleNumber - plotMinX) / domain * plotWidth + xPlotLeft;
-				if(datasets.length > 1) {
+				float anchorX = tooltip.pixelX + xPlotLeft;
+				if(anchorX >= 0 && datasets.length > 1) {
 					gl.glBegin(GL2.GL_LINES);
 					gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
 						gl.glVertex2f(anchorX, yPlotTop);
 						gl.glVertex2f(anchorX, yPlotBottom);
 					gl.glEnd();
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
-				} else {
-					int anchorY = (int) ((datasets[0].getSample(sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom);
+				} else if(anchorX >= 0) {
+					int anchorY = (int) ((datasets[0].getSample(tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom);
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				}
 			}

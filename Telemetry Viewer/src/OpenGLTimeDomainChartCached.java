@@ -1,5 +1,6 @@
 import java.awt.Color;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import com.jogamp.opengl.GL2;
 
@@ -433,7 +434,10 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			BitfieldEvents events = new BitfieldEvents();
 			for(Dataset dataset : datasets)
 				dataset.appendBitfieldEvents(events, plotMinX > 0 ? plotMinX : 0, plotMaxX);
-			ChartUtils.drawMarkers(gl, events.get(), (float) plotMinX, (float) plotMaxX, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+			List<BitfieldEvents.EventsAtSampleNumber> list = events.get();
+			for(BitfieldEvents.EventsAtSampleNumber event : list)
+				event.pixelX = ((float) event.sampleNumber - plotMinX) / domain * plotWidth;
+			ChartUtils.drawMarkers(gl, list, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 		}
 		
 		// stop clipping to the plot region

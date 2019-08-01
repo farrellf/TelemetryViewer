@@ -498,7 +498,7 @@ public class CommunicationController {
 					}
 					for(int columnN = 2; columnN < columnCount; columnN++)
 						DatasetsController.getDatasetByIndex(columnN - 2).addConverted(Float.parseFloat(tokens[columnN]));
-					DatasetsController.incrementSampleCount();
+					DatasetsController.incrementSampleCountWithTimestamp(Long.parseLong(tokens[1]));
 				}
 				
 				// done

@@ -600,6 +600,9 @@ public class OpenGLChartsRegion extends JPanel {
 					
 					if(nonLiveViewSamplesCount >= DatasetsController.getSampleCount() - 1)
 						liveView = true;
+					
+					if(nonLiveViewSamplesCount < 0)
+						nonLiveViewSamplesCount = -1;
 				
 				} else if(mwe.isControlDown() == true) {
 					

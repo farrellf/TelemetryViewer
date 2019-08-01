@@ -153,10 +153,28 @@ public class DatasetsController {
 	}
 	
 	/**
+	 * Increments the sample count and sets the timestamp to a specific value. Call this function when importing a file, after all datasets have received a new value.
+	 */
+	public static void incrementSampleCountWithTimestamp(long timestamp) {
+		
+		int currentSize = getSampleCount();
+		int slotNumber = currentSize / slotSize;
+		int slotIndex  = currentSize % slotSize;
+		if(slotIndex == 0)
+			timestamps[slotNumber] = new long[slotSize];
+		timestamps[slotNumber][slotIndex] = timestamp;
+		
+		int newSampleCount = sampleCount.incrementAndGet();
+		if(newSampleCount == 1)
+			notifySampleCountListeners();
+		
+	}
+	
+	/**
 	 * Gets the timestamp for one specific sample.
 	 * 
-	 * @param sampleNumnber    Which sample to check.
-	 * @return                 The corresponding UNIX timestamp.
+	 * @param sampleNumber    Which sample to check.
+	 * @return                The corresponding UNIX timestamp.
 	 */
 	public static long getTimestamp(int sampleNumber) {
 		

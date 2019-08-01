@@ -83,7 +83,7 @@ public class Dataset {
 		
 		int sampleCount = endIndex - startIndex + 1;
 		
-		for(int i = 1; i < sampleCount; i++) {
+		for(int i = (startIndex == 0) ? 1 : 0; i < sampleCount; i++) {
 			int slotNumber = (i + startIndex) / slotSize;
 			int slotIndex  = (i + startIndex) % slotSize;
 			int currentState = (int) slot[slotNumber][slotIndex];
