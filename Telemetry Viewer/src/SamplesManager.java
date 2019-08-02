@@ -341,6 +341,9 @@ public class SamplesManager {
 			if(sampleNumber < 0)
 				return new TooltipInfo(false, 0, "", 0);
 			
+			if(sampleNumber > maxSampleNumber)
+				sampleNumber = maxSampleNumber;
+			
 			String label = "Sample " + sampleNumber;
 			float pixelX = (float) (sampleNumber - intPlotMinX) / (float) intPlotDomain * plotWidth;
 			return new TooltipInfo(true, sampleNumber, label, pixelX);

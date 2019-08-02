@@ -1,4 +1,4 @@
-import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -7,10 +7,9 @@ import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 import java.util.function.Consumer;
 
 import javax.swing.JFrame;
@@ -70,7 +69,7 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * @return    The current port (Communication.MODE_UART + ": port name" or .MODE_TCP or .MODE_UDP or .MODE_TEST)
+	 * @return    The current port (Communication.MODE_UART + ": port name" or .MODE_TCP or .MODE_UDP or .MODE_TEST or .MODE_FILE)
 	 */
 	public static String getPort() {
 		
@@ -423,19 +422,20 @@ public class CommunicationController {
 			try {
 				
 				// open the file
-				List<String> lines = Files.readAllLines(new File(Communication.importFilePath).toPath(), StandardCharsets.UTF_8);
+				Scanner file = new Scanner(new FileInputStream(Communication.importFilePath), "UTF-8");
 				
 				// sanity checks
-				if(lines.size() < 1) {
+				if(!file.hasNextLine()) {
 					SwingUtilities.invokeLater(() -> {
 						disconnect();
 						NotificationsController.showFailureUntil("CSV Log file is empty.", () -> false, true);
 						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 					});
+					file.close();
 					return;
 				}
 				
-				String header = lines.get(0);
+				String header = file.nextLine();
 				String[] tokens = header.split(",");
 				int columnCount = tokens.length;
 				if(columnCount != DatasetsController.getDatasetsCount() + 2) {
@@ -444,6 +444,7 @@ public class CommunicationController {
 						NotificationsController.showFailureUntil("CSV Log file header does not match the current data structure.", () -> false, true);
 						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 					});
+					file.close();
 					return;
 				}
 				
@@ -464,15 +465,17 @@ public class CommunicationController {
 						NotificationsController.showFailureUntil("CSV Log file header does not match the current data structure.", () -> false, true);
 						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 					});
+					file.close();
 					return;
 				}
 
-				if(lines.size() < 2) {
+				if(!file.hasNextLine()) {
 					SwingUtilities.invokeLater(() -> {
 						disconnect();
 						NotificationsController.showFailureUntil("CSV Log file does not contain any samples.", () -> false, true);
 						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 					});
+					file.close();
 					return;
 				}
 
@@ -482,11 +485,12 @@ public class CommunicationController {
 				});
 				
 				// parse and input the lines of data
+				String line = file.nextLine();
 				long startTimeThread = System.currentTimeMillis();
-				long startTimeFile = Long.parseLong(lines.get(1).split(",")[1]);
+				long startTimeFile = Long.parseLong(line.split(",")[1]);
 				boolean realtimeImporting = true;
-				for(int lineN = 1; lineN < lines.size(); lineN++) {
-					tokens = lines.get(lineN).split(",");
+				while(true) {
+					tokens = line.split(",");
 					if(realtimeImporting) {
 						if(Thread.interrupted()) {
 							realtimeImporting = false;
@@ -499,12 +503,18 @@ public class CommunicationController {
 					for(int columnN = 2; columnN < columnCount; columnN++)
 						DatasetsController.getDatasetByIndex(columnN - 2).addConverted(Float.parseFloat(tokens[columnN]));
 					DatasetsController.incrementSampleCountWithTimestamp(Long.parseLong(tokens[1]));
+					
+					if(file.hasNextLine())
+						line = file.nextLine();
+					else
+						break;
 				}
 				
 				// done
 				SwingUtilities.invokeLater(() -> {
 					disconnect();
 				});
+				file.close();
 				
 			} catch (IOException e) {
 				SwingUtilities.invokeLater(() -> {
@@ -541,6 +551,16 @@ public class CommunicationController {
 		
 		// switch back to the original port, so "File" is removed from the combobox
 		setPort(Communication.portUsedBeforeImport);
+		
+	}
+	
+	/**
+	 * Causes the file import thread to finish importing the file as fast as possible (instead of using a real-time playback speed.)
+	 */
+	public static void finishImportingFile() {
+		
+		if(fileImportThread != null && fileImportThread.isAlive())
+			fileImportThread.interrupt();
 		
 	}
 	

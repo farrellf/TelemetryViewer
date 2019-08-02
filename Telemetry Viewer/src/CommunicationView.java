@@ -123,6 +123,9 @@ public class CommunicationView extends JPanel {
 				CommunicationController.connect(parentWindow);
 			} else if(connectButton.getText().equals("Disconnect")) {
 				CommunicationController.disconnect();
+			} else if(connectButton.getText().equals("Finish")) {
+				CommunicationController.finishImportingFile();
+				connectButton.setText("Finishing...");
 			}
 		});
 		CommunicationController.addConnectionListener(connected -> {
@@ -132,7 +135,10 @@ public class CommunicationView extends JPanel {
 				baudRateCombobox.setEnabled(false);
 				portNumberCombobox.setEnabled(false);
 				connectButton.setEnabled(true);
-				connectButton.setText("Disconnect");
+				if(CommunicationController.getPort() == Communication.PORT_FILE)
+					connectButton.setText("Finish");
+				else
+					connectButton.setText("Disconnect");
 			} else {
 				packetTypeCombobox.setEnabled(true);
 				portCombobox.setEnabled(true);
