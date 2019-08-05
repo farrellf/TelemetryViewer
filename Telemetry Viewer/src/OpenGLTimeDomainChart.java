@@ -166,7 +166,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(xAxisUnit.equals("Samples"))
 			samples.acquireNsamples(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, durationWidget.getDurationInteger());
 		else
-			samples.acquireNtimeUnits(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, durationWidget.getDurationFloat(), xAxisUnit);
+			samples.acquireNtimeUnits(lastSampleNumber, zoomLevel, datasets, durationWidget.getDurationFloat(), xAxisUnit);
 		
 		// calculate the plot range
 		float plotMaxY = samples.maxY;
@@ -388,10 +388,11 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				gl.glPushMatrix();
 				
 				// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
+				// edit: now doing the "x - plotMinX" part before putting data into the buffers, to improve float32 precision when x is very large
 				gl.glTranslatef(xPlotLeft, 0, 0);
 				gl.glScalef(plotWidth, 1, 1);
 				gl.glScalef(1.0f / samples.getPlotDomain(), 1, 1);
-				gl.glTranslatef(-samples.getPlotMinX(), 0, 0);
+//				gl.glTranslatef(-samples.getPlotMinX(), 0, 0);
 				
 				// adjust so y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
 				gl.glTranslatef(0, yPlotBottom, 0);
