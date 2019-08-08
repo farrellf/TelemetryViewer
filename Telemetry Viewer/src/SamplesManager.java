@@ -366,9 +366,9 @@ public class SamplesManager {
 			int closestSampleNumberAfter = closestSampleNumberBefore + 1;
 			if(closestSampleNumberAfter > maxSampleNumber)
 				closestSampleNumberAfter = maxSampleNumber;
-			
-			long beforeError = mouseTimestamp - DatasetsController.getTimestamp(closestSampleNumberBefore);
-			long afterError = DatasetsController.getTimestamp(closestSampleNumberAfter) - mouseTimestamp;
+
+			double beforeError = (double) ((mouseX / plotWidth) * plotDomainMilliseconds) - (double) (DatasetsController.getTimestamp(closestSampleNumberBefore) - plotMinXtimestamp);
+			double afterError = (double) (DatasetsController.getTimestamp(closestSampleNumberAfter) - plotMinXtimestamp) - (double) ((mouseX / plotWidth) * plotDomainMilliseconds);
 			
 			int closestSampleNumber = (beforeError < afterError) ? closestSampleNumberBefore : closestSampleNumberAfter;
 			long millisecondsElapsed = DatasetsController.getTimestamp(closestSampleNumber) - DatasetsController.getFirstTimestamp();
