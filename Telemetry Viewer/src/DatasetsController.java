@@ -1,4 +1,11 @@
 import java.awt.Color;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,10 +19,78 @@ public class DatasetsController {
 	private static AtomicInteger sampleCount = new AtomicInteger(0);
 	private static List<Consumer<Boolean>> sampleCountListeners = new ArrayList<Consumer<Boolean>>(); // true = (sampleCount >= 1)
 	
-	// timestamps are stored in an array of long[]'s, each containing 1M longs, and allocated as needed.
-	private static final int slotSize = (int) Math.pow(2, 20); // 1M longs per slot
-	private static final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
-	private static long[][] timestamps = new long[slotCount][];
+	public static final int SLOT_SIZE = 1048576; // 1M values
+	public static final int SLOT_COUNT = Integer.MAX_VALUE / SLOT_SIZE + 1; // +1 to round up
+	/**
+	 * Timestamps are stored in an array of Slots. Each Slot contains 1M values, and may be flushed to disk if RAM runs low.
+	 */
+	private static class Slot {
+		
+		public volatile boolean inRam = true;
+		public volatile boolean flushing = false;
+		private volatile long[] values = new long[SLOT_SIZE];
+		private String pathOnDisk = "cache/" + this.toString();
+		
+		public void moveToDisk() {
+			
+			if(!inRam || flushing)
+				return;
+			
+			flushing = true;
+			
+			new Thread(() -> {
+				try {
+					ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream(pathOnDisk));
+					stream.writeObject(values);
+					stream.close();
+					inRam = false;
+					values = null;
+					flushing = false;
+				} catch(Exception e) {
+					e.printStackTrace();
+				}
+			}).start();
+			
+		}
+		
+		private void copyToRam() {
+			
+			try {
+				ObjectInputStream stream = new ObjectInputStream(new FileInputStream(pathOnDisk));
+				values = (long[]) stream.readObject();
+				stream.close();
+				inRam = true;
+			} catch(Exception e) {
+				e.printStackTrace();
+			}
+			
+		}
+		
+		public void removeFromDisk() {
+			
+			try { Files.deleteIfExists(Paths.get(pathOnDisk)); } catch (IOException e) {}
+			
+		}
+		
+		public void setValue(int index, long value) {
+			
+			if(!inRam)
+				copyToRam();
+			values[index] = value;
+			
+		}
+		
+		public long getValue(int index) {
+			
+			if(!inRam)
+				copyToRam();
+			return values[index];
+			
+		}
+		
+	}
+	private static Slot[] timestamps = new Slot[SLOT_COUNT];
+	private static long firstTimestamp = 0;
 	
 	/**
 	 * Registers a listener that will be notified when the sample count is set to 1 or 0, and triggers an event to ensure the GUI is in sync.
@@ -99,9 +174,20 @@ public class DatasetsController {
 					Controller.removeChart(chart);
 		
 		Dataset removedDataset = datasets.remove(location);
+		if(removedDataset != null)
+			for(Dataset.Slot slot : removedDataset.slots)
+				if(slot != null)
+					slot.removeFromDisk();
 		
 		if(datasets.isEmpty()) {
+			for(Slot timestamp : timestamps)
+				if(timestamp != null)
+					timestamp.removeFromDisk();
+			timestamps = new Slot[SLOT_COUNT];
+			
 			sampleCount.set(0);
+			firstTimestamp = 0;
+			
 			notifySampleCountListeners();
 		}
 		
@@ -119,8 +205,42 @@ public class DatasetsController {
 		
 		Controller.removeAllCharts();
 		
+		for(Dataset dataset : getAllDatasets())
+			for(Dataset.Slot slot : dataset.slots)
+				if(slot != null)
+					slot.removeFromDisk();
 		datasets.clear();
+		
+		for(Slot timestamp : timestamps)
+			if(timestamp != null)
+				timestamp.removeFromDisk();
+		timestamps = new Slot[SLOT_COUNT];
+		
 		sampleCount.set(0);
+		firstTimestamp = 0;
+		
+		notifySampleCountListeners();
+		
+	}
+	
+	/**
+	 * Removes all samples and timestamps, but does not remove the Dataset or Chart objects.
+	 */
+	public static void removeAllData() {
+		
+		for(Dataset dataset : getAllDatasets())
+			for(Dataset.Slot slot : dataset.slots)
+				if(slot != null)
+					slot.removeFromDisk();
+		
+		for(Slot timestamp : timestamps)
+			if(timestamp != null)
+				timestamp.removeFromDisk();
+		timestamps = new Slot[SLOT_COUNT];
+		
+		sampleCount.set(0);
+		firstTimestamp = 0;
+		
 		notifySampleCountListeners();
 		
 	}
@@ -140,15 +260,17 @@ public class DatasetsController {
 	public static void incrementSampleCount() {
 		
 		int currentSize = getSampleCount();
-		int slotNumber = currentSize / slotSize;
-		int slotIndex  = currentSize % slotSize;
+		int slotNumber = currentSize / SLOT_SIZE;
+		int slotIndex  = currentSize % SLOT_SIZE;
 		if(slotIndex == 0)
-			timestamps[slotNumber] = new long[slotSize];
-		timestamps[slotNumber][slotIndex] = System.currentTimeMillis();
+			timestamps[slotNumber] = new Slot();
+		timestamps[slotNumber].setValue(slotIndex, System.currentTimeMillis());
 		
 		int newSampleCount = sampleCount.incrementAndGet();
-		if(newSampleCount == 1)
+		if(newSampleCount == 1) {
+			firstTimestamp = timestamps[0].getValue(0);
 			notifySampleCountListeners();
+		}
 		
 	}
 	
@@ -158,15 +280,26 @@ public class DatasetsController {
 	public static void incrementSampleCountWithTimestamp(long timestamp) {
 		
 		int currentSize = getSampleCount();
-		int slotNumber = currentSize / slotSize;
-		int slotIndex  = currentSize % slotSize;
+		int slotNumber = currentSize / SLOT_SIZE;
+		int slotIndex  = currentSize % SLOT_SIZE;
 		if(slotIndex == 0)
-			timestamps[slotNumber] = new long[slotSize];
-		timestamps[slotNumber][slotIndex] = timestamp;
+			timestamps[slotNumber] = new Slot();
+		timestamps[slotNumber].setValue(slotIndex, timestamp);
 		
 		int newSampleCount = sampleCount.incrementAndGet();
-		if(newSampleCount == 1)
+		if(newSampleCount == 1) {
+			firstTimestamp = timestamps[0].getValue(0);
 			notifySampleCountListeners();
+		}
+		
+	}
+	
+	/**
+	 * @return    The timestamp for sample number 0, or 0 if there are no samples.
+	 */
+	public static long getFirstTimestamp() {
+		
+		return firstTimestamp;
 		
 	}
 	
@@ -178,9 +311,9 @@ public class DatasetsController {
 	 */
 	public static long getTimestamp(int sampleNumber) {
 		
-		int slotNumber = sampleNumber / slotSize;
-		int slotIndex  = sampleNumber % slotSize;
-		return timestamps[slotNumber][slotIndex];
+		int slotNumber = sampleNumber / SLOT_SIZE;
+		int slotIndex  = sampleNumber % SLOT_SIZE;
+		return timestamps[slotNumber].getValue(slotIndex);
 		
 	}
 	
@@ -190,6 +323,59 @@ public class DatasetsController {
 	public static int getSampleCount() {
 		
 		return sampleCount.get();
+		
+	}
+	
+	/**
+	 * If more than half of the max heap size is used, flush the oldest slot to disk.
+	 * 
+	 * @param dontFlushSampleNumberStart    Don't flush a slot containing this range of samples.
+	 * @param dontFlushSampleNumberEnd      Don't flush a slot containing this range of samples.
+	 */
+	public static void flushIfNecessaryExcept(int dontFlushSampleNumberStart, int dontFlushSampleNumberEnd) {
+		
+		// determine how much space is available, and how much is used by the timestamps and datasets
+		long maxHeapSize = Runtime.getRuntime().maxMemory();
+		long currentSize = 0;
+		for(int i = 0; i < timestamps.length; i++)
+			if(timestamps[i] == null)
+				break;
+			else if(timestamps[i].inRam)
+				currentSize += SLOT_SIZE * 8;
+		currentSize += (long) Math.ceil(getDatasetsCount() / 2.0) * currentSize;
+		
+		// if using more than half of the available space, flush one slot
+		if(currentSize > maxHeapSize / 2) {
+			
+			// figure out which slots to NOT flush
+			int firstProtectedSlot = dontFlushSampleNumberStart / SLOT_SIZE;
+			int lastProtectedSlot = dontFlushSampleNumberEnd / SLOT_SIZE;
+			
+			for(int i = 0; i < timestamps.length; i++) {
+				
+				// don't flush protected slots
+				if(i >= firstProtectedSlot && i <= lastProtectedSlot)
+					continue;
+				
+				// if connected, don't flush the last slot
+				if(CommunicationController.isConnected() && i == getSampleCount() / SLOT_SIZE)
+					return;
+				
+				// stop checking if we reached the end
+				if(timestamps[i] == null)
+					return;
+				
+				// move the timestamp array, and corresponding dataset arrays, to disk
+				if(timestamps[i].inRam) {
+					timestamps[i].moveToDisk();
+					for(int j = 0; j < getDatasetsCount(); j++)
+						getDatasetByIndex(j).slots[i].moveToDisk();
+					return;
+				}
+				
+			}
+			
+		}
 		
 	}
 	

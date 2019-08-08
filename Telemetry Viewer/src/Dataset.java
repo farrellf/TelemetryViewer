@@ -1,5 +1,13 @@
 import java.awt.Color;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
+
 import com.jogamp.common.nio.Buffers;
 
 /**
@@ -17,11 +25,75 @@ public class Dataset {
 	final float conversionFactorB;
 	final float conversionFactor;
 
-	// samples are stored in an array of float[]'s, each containing 1M floats, and allocated as needed.
-	// access to the samples is controlled with an atomic integer, providing lockless concurrency since there is only one writer.
-	final int slotSize = (int) Math.pow(2, 20); // 1M floats per slot
-	final int slotCount = (Integer.MAX_VALUE / slotSize) + 1;
-	float[][] slot;
+	/**
+	 * Samples are stored in an array of Slots. Each Slot contains 1M values, and may be flushed to disk if RAM runs low.
+	 */
+	class Slot {
+		
+		public volatile boolean inRam = true;
+		public volatile boolean flushing = false;
+		private volatile float[] values = new float[DatasetsController.SLOT_SIZE];
+		private String pathOnDisk = "cache/" + this.toString();
+		
+		public void moveToDisk() {
+			
+			if(!inRam || flushing)
+				return;
+			
+			flushing = true;
+			
+			new Thread(() -> {
+				try {
+					ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream(pathOnDisk));
+					stream.writeObject(values);
+					stream.close();
+					inRam = false;
+					values = null;
+					flushing = false;
+				} catch(Exception e) {
+					e.printStackTrace();
+				}
+			}).start();
+			
+		}
+		
+		private void copyToRam() {
+			
+			try {
+				ObjectInputStream stream = new ObjectInputStream(new FileInputStream(pathOnDisk));
+				values = (float[]) stream.readObject();
+				stream.close();
+				inRam = true;
+			} catch(Exception e) {
+				e.printStackTrace();
+			}
+			
+		}
+		
+		public void removeFromDisk() {
+			
+			try { Files.deleteIfExists(Paths.get(pathOnDisk)); } catch (IOException e) {}
+			
+		}
+		
+		public void setValue(int index, float value) {
+			
+			if(!inRam)
+				copyToRam();
+			values[index] = value;
+			
+		}
+		
+		public float getValue(int index) {
+			
+			if(!inRam)
+				copyToRam();
+			return values[index];
+			
+		}
+		
+	}
+	Slot[] slots;
 	
 	// bitfields if this dataset represents a bitfield
 	boolean isBitfield;
@@ -50,7 +122,7 @@ public class Dataset {
 		this.conversionFactor  = conversionFactorB / conversionFactorA;
 		this.isBitfield        = false;
 		
-		slot = new float[slotCount][];
+		slots = new Slot[DatasetsController.SLOT_COUNT];
 		
 	}
 	
@@ -84,12 +156,8 @@ public class Dataset {
 		int sampleCount = endIndex - startIndex + 1;
 		
 		for(int i = (startIndex == 0) ? 1 : 0; i < sampleCount; i++) {
-			int slotNumber = (i + startIndex) / slotSize;
-			int slotIndex  = (i + startIndex) % slotSize;
-			int currentState = (int) slot[slotNumber][slotIndex];
-			slotNumber = (i - 1 + startIndex) / slotSize;
-			slotIndex  = (i - 1 + startIndex) % slotSize;
-			int previousState = (int) slot[slotNumber][slotIndex];
+			int currentState  = (int) getSample(i + startIndex);
+			int previousState = (int) getSample(i - 1 + startIndex);
 			
 			if(currentState != previousState) {
 				for(Bitfield bitfield: bitfields) {
@@ -120,9 +188,9 @@ public class Dataset {
 	 */
 	public float getSample(int index) {
 		
-		int slotNumber = index / slotSize;
-		int slotIndex  = index % slotSize;
-		return slot[slotNumber][slotIndex];
+		int slotNumber = index / DatasetsController.SLOT_SIZE;
+		int slotIndex  = index % DatasetsController.SLOT_SIZE;
+		return slots[slotNumber].getValue(slotIndex);
 		
 	}
 	
@@ -155,11 +223,8 @@ public class Dataset {
 		int sampleCount = endIndex - startIndex + 1;
 		float[] samples = new float[sampleCount];
 		
-		for(int i = 0; i < sampleCount; i++) {
-			int slotNumber = (i + startIndex) / slotSize;
-			int slotIndex  = (i + startIndex) % slotSize;
-			samples[i] = slot[slotNumber][slotIndex];
-		}
+		for(int i = 0; i < sampleCount; i++)
+			samples[i] = getSample(i + startIndex);
 		
 		return samples;
 		
@@ -194,13 +259,11 @@ public class Dataset {
 		if(samples.buffer == null || samples.buffer.length != sampleCount)
 			samples.buffer = new float[sampleCount];
 		
-		samples.min = slot[startIndex / slotSize][startIndex % slotSize];
-		samples.max = slot[startIndex / slotSize][startIndex % slotSize];
+		samples.min = getSample(startIndex);
+		samples.max = getSample(startIndex);
 		
 		for(int i = 0; i < sampleCount; i++) {
-			int slotNumber = (i + startIndex) / slotSize;
-			int slotIndex  = (i + startIndex) % slotSize;
-			float value = slot[slotNumber][slotIndex];
+			float value = getSample(i + startIndex);
 			samples.buffer[i] = value;
 			if(value < samples.min) samples.min = value;
 			if(value > samples.max) samples.max = value;
@@ -232,8 +295,8 @@ public class Dataset {
 		
 		samples.unit = unit;
 		
-		samples.min = slot[startIndex / slotSize][startIndex % slotSize];
-		samples.max = slot[startIndex / slotSize][startIndex % slotSize];
+		samples.min = getSample(startIndex);
+		samples.max = getSample(startIndex);
 
 		int vertexCount = endIndex - startIndex + 1;
 		samples.vertexCount = vertexCount;
@@ -245,7 +308,7 @@ public class Dataset {
 		samples.buffer.rewind();
 		
 		for(int x = startIndex; x <= endIndex; x++) {
-			float y = slot[x / slotSize][x % slotSize];
+			float y = getSample(x);
 			samples.buffer.put(x);
 			samples.buffer.put(y);
 			if(y < samples.min) samples.min = y;
@@ -261,11 +324,11 @@ public class Dataset {
 	public void add(float value) {
 		
 		int currentSize = DatasetsController.getSampleCount();
-		int slotNumber = currentSize / slotSize;
-		int slotIndex  = currentSize % slotSize;
+		int slotNumber = currentSize / DatasetsController.SLOT_SIZE;
+		int slotIndex  = currentSize % DatasetsController.SLOT_SIZE;
 		if(slotIndex == 0)
-			slot[slotNumber] = new float[slotSize];
-		slot[slotNumber][slotIndex] = value * conversionFactor;
+			slots[slotNumber] = new Slot();
+		slots[slotNumber].setValue(slotIndex, value * conversionFactor);
 		
 	}
 	
@@ -275,11 +338,11 @@ public class Dataset {
 	public void addConverted(float value) {
 		
 		int currentSize = DatasetsController.getSampleCount();
-		int slotNumber = currentSize / slotSize;
-		int slotIndex  = currentSize % slotSize;
+		int slotNumber = currentSize / DatasetsController.SLOT_SIZE;
+		int slotIndex  = currentSize % DatasetsController.SLOT_SIZE;
 		if(slotIndex == 0)
-			slot[slotNumber] = new float[slotSize];
-		slot[slotNumber][slotIndex] = value;
+			slots[slotNumber] = new Slot();
+		slots[slotNumber].setValue(slotIndex, value);
 		
 	}
 	

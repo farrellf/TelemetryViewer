@@ -4,9 +4,14 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDropEvent;
+import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowFocusListener;
 import java.io.File;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 import javax.swing.JFrame;
@@ -74,6 +79,18 @@ public class Main {
 					}
 						
 				} catch(Exception e) {}
+			}
+		});
+		
+		
+		// create a directory for the cache, and remove it on exit
+		Path cacheDir = Paths.get("cache");
+		try { Files.createDirectory(cacheDir); } catch(FileAlreadyExistsException e) {} catch(Exception e) { e.printStackTrace(); }
+		window.addWindowListener(new WindowAdapter() {
+			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+				CommunicationController.disconnect();
+				DatasetsController.removeAllDatasets();
+				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}
 		});
 		

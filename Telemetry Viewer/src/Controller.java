@@ -190,6 +190,7 @@ public class Controller {
 	 */
 	static void importCsvLogFile(String filepath) {
 
+		CommunicationController.disconnect();
 		CommunicationController.setPort(Communication.PORT_FILE);
 		CommunicationController.setImportFile(filepath);
 		CommunicationController.connect(null);
@@ -221,6 +222,10 @@ public class Controller {
 				for(int n = 0; n < datasetsCount; n++)
 					logFile.print("," + Float.toString(DatasetsController.getDatasetByIndex(n).getSample(i)));
 				logFile.println();
+				
+				// periodically check if running out of heap space
+				if(i % 1024 == 0) 
+					DatasetsController.flushIfNecessaryExcept(i + 1, i + DatasetsController.SLOT_SIZE);
 			}
 			
 			logFile.close();

@@ -417,6 +417,8 @@ public class CommunicationController {
 	 */
 	private static void connectToFile() {
 		
+		DatasetsController.removeAllData();
+		
 		fileImportThread = new Thread(() -> {
 			
 			try {
@@ -896,8 +898,6 @@ public class CommunicationController {
 	private static void stopTester() {
 		
 		Tester.stopTransmission();
-		Controller.removeAllCharts();
-		DatasetsController.removeAllDatasets();
 		
 		Communication.testConnected = false;
 		notifyConnectionListeners();

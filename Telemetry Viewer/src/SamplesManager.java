@@ -232,14 +232,14 @@ public class SamplesManager {
 		}
 		
 		// determine the axis title
-		long leftMillisecondsElapsed = plotMinXtimestamp - DatasetsController.getTimestamp(0);
+		long leftMillisecondsElapsed = plotMinXtimestamp - DatasetsController.getFirstTimestamp();
 		long hours = leftMillisecondsElapsed / 3600000; leftMillisecondsElapsed %= 3600000;
 		long minutes = leftMillisecondsElapsed / 60000; leftMillisecondsElapsed %= 60000;
 		if(hours != 0)
 			showHours = true;
 		if(minutes != 0)
 			showMinutes = true;
-		long rightMillisecondsElapsed = plotMaxXtimestamp - DatasetsController.getTimestamp(0);
+		long rightMillisecondsElapsed = plotMaxXtimestamp - DatasetsController.getFirstTimestamp();
 		hours = rightMillisecondsElapsed / 3600000; rightMillisecondsElapsed %= 3600000;
 		minutes = rightMillisecondsElapsed / 60000; rightMillisecondsElapsed %= 60000;
 		if(hours != 0)
@@ -354,7 +354,7 @@ public class SamplesManager {
 			
 			long mouseTimestamp = (long) Math.round((mouseX / plotWidth) * plotDomainMilliseconds) + plotMinXtimestamp;
 			
-			if(mouseTimestamp < DatasetsController.getTimestamp(0))
+			if(mouseTimestamp < DatasetsController.getFirstTimestamp())
 				return new TooltipInfo(false, 0, "", 0);
 			
 			int closestSampleNumberBefore = maxSampleNumber;
@@ -371,7 +371,7 @@ public class SamplesManager {
 			long afterError = DatasetsController.getTimestamp(closestSampleNumberAfter) - mouseTimestamp;
 			
 			int closestSampleNumber = (beforeError < afterError) ? closestSampleNumberBefore : closestSampleNumberAfter;
-			long millisecondsElapsed = DatasetsController.getTimestamp(closestSampleNumber) - DatasetsController.getTimestamp(0);
+			long millisecondsElapsed = DatasetsController.getTimestamp(closestSampleNumber) - DatasetsController.getFirstTimestamp();
 			long hours = millisecondsElapsed / 3600000; millisecondsElapsed %= 3600000;
 			long minutes = millisecondsElapsed / 60000; millisecondsElapsed %= 60000;
 			long seconds = millisecondsElapsed / 1000;  millisecondsElapsed %= 1000;
@@ -409,7 +409,7 @@ public class SamplesManager {
 			return divisions;
 		
 		// determine how many divisions can fit on screen
-		long firstTimestamp = (minSampleNumber < 0) ? 0 : DatasetsController.getTimestamp(0);
+		long firstTimestamp = DatasetsController.getFirstTimestamp();
 		long hours = 0;
 		long minutes = 0;
 		long seconds = 0;

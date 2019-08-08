@@ -163,10 +163,13 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		boolean haveDatasets = datasets != null && datasets.length > 0;
 		
 		SamplesManager samples = new SamplesManager();
-		if(xAxisUnit.equals("Samples"))
-			samples.acquireNsamples(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, durationWidget.getDurationInteger());
-		else
+		if(xAxisUnit.equals("Samples")) {
+			sampleCount = durationWidget.getDurationInteger();
+			samples.acquireNsamples(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, sampleCount);
+		} else {
 			samples.acquireNtimeUnits(lastSampleNumber, zoomLevel, datasets, durationWidget.getDurationFloat(), xAxisUnit);
+			sampleCount = samples.plotSampleCount;
+		}
 		
 		// calculate the plot range
 		float plotMaxY = samples.maxY;

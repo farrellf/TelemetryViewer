@@ -395,6 +395,15 @@ public class OpenGLChartsRegion extends JPanel {
 					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height)
 						chartUnderMouse = chart;
 					
+					// periodically check if running out of heap space
+					int lastSampleNumberOnScreen = lastSampleNumber;
+					int firstSampleNumberOnScreen = lastSampleNumberOnScreen;
+					for(PositionedChart c : Controller.getCharts()) {
+						if(lastSampleNumberOnScreen - c.sampleCount < firstSampleNumberOnScreen)
+							firstSampleNumberOnScreen = lastSampleNumberOnScreen - c.sampleCount;
+					}
+					DatasetsController.flushIfNecessaryExcept(firstSampleNumberOnScreen, lastSampleNumberOnScreen);
+					
 				}
 				
 				// remove a chart if necessary
@@ -630,6 +639,12 @@ public class OpenGLChartsRegion extends JPanel {
 		SettingsController.addTileCountListener((columns, rows) -> {
 			columnCount = columns;
 			rowCount = rows;
+		});
+		
+		// switch back to live view when samples are removed
+		DatasetsController.addSampleCountListener(haveSamples -> {
+			if(!haveSamples)
+				liveView = true;
 		});
 		
 	}
