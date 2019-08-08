@@ -23,9 +23,9 @@ public class Tester {
 						
 						float scalar = ((System.currentTimeMillis() % 30000) - 15000) / 100.0f;
 						float[] newSamples = new float[] {
-							(System.nanoTime() % 100) * scalar * 1.0f / 14000f,
-							(System.nanoTime() % 100) * scalar * 0.8f / 14000f,
-							(System.nanoTime() % 100) * scalar * 0.6f / 14000f
+							(System.nanoTime() / 100 % 100) * scalar * 1.0f / 14000f,
+							(System.nanoTime() / 100 % 100) * scalar * 0.8f / 14000f,
+							(System.nanoTime() / 100 % 100) * scalar * 0.6f / 14000f
 						};
 						for(int i = 0; i < 10; i++) {
 							DatasetsController.getDatasetByIndex(0).add(newSamples[0]);
