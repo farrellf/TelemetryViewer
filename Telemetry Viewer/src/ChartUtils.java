@@ -870,7 +870,7 @@ public class ChartUtils {
 	 * @param bottomRightX    Allowed bounding box's bottom-right x coordinate.
 	 * @param bottomRightY    Allowed bounding box's bottom-right y coordinate.
 	 */
-	public static void drawTooltip(GL2 gl, String[] text, Color[] colors, int anchorX, int anchorY, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
+	public static void drawTooltip(GL2 gl, String[] text, Color[] colors, float anchorX, float anchorY, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
 			
 		final int NORTH      = 0;
 		final int SOUTH      = 1;

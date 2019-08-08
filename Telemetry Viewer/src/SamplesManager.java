@@ -391,7 +391,7 @@ public class SamplesManager {
 	}
 	
 	/**
-	 * Determines the best values to use for time divisions. The 1/2/5 pattern is used (.1,.2,.5,1,2,5,10,20,50...)
+	 * Determines the best values to use for time divisions.
 	 * 
 	 * @param plotWidth           Number of pixels for the x-axis.
 	 * @param minimumTimestamp    Timestamp value at the left of the plot.

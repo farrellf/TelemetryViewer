@@ -442,10 +442,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 						gl.glVertex2f(anchorX, yPlotTop);
 						gl.glVertex2f(anchorX, yPlotBottom);
 					gl.glEnd();
-					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+					ChartUtils.drawTooltip(gl, text, colors, anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				} else if(anchorX >= 0) {
-					int anchorY = (int) ((datasets[0].getSample(tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom);
-					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
+					float anchorY = (datasets[0].getSample(tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom;
+					ChartUtils.drawTooltip(gl, text, colors, anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				}
 			}
 		}
