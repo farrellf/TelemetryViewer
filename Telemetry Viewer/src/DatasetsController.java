@@ -60,6 +60,7 @@ public class DatasetsController {
 				values = (long[]) stream.readObject();
 				stream.close();
 				inRam = true;
+				flushIfNecessary();
 			} catch(Exception e) {
 				e.printStackTrace();
 			}
@@ -91,6 +92,12 @@ public class DatasetsController {
 	}
 	private static Slot[] timestamps = new Slot[SLOT_COUNT];
 	private static long firstTimestamp = 0;
+	
+	// for keeping track of what slots not to flush to disk
+	private static int minimumSampleNumberOnScreen = -1;
+	private static int maximumSampleNumberOnScreen = -1;
+	private static int minimumSampleNumberExporting = -1;
+	private static int maximumSampleNumberExporting = -1;
 	
 	/**
 	 * Registers a listener that will be notified when the sample count is set to 1 or 0, and triggers an event to ensure the GUI is in sync.
@@ -262,8 +269,10 @@ public class DatasetsController {
 		int currentSize = getSampleCount();
 		int slotNumber = currentSize / SLOT_SIZE;
 		int slotIndex  = currentSize % SLOT_SIZE;
-		if(slotIndex == 0)
+		if(slotIndex == 0) {
 			timestamps[slotNumber] = new Slot();
+			flushIfNecessary();
+		}
 		timestamps[slotNumber].setValue(slotIndex, System.currentTimeMillis());
 		
 		int newSampleCount = sampleCount.incrementAndGet();
@@ -282,8 +291,10 @@ public class DatasetsController {
 		int currentSize = getSampleCount();
 		int slotNumber = currentSize / SLOT_SIZE;
 		int slotIndex  = currentSize % SLOT_SIZE;
-		if(slotIndex == 0)
+		if(slotIndex == 0) {
 			timestamps[slotNumber] = new Slot();
+			flushIfNecessary();
+		}
 		timestamps[slotNumber].setValue(slotIndex, timestamp);
 		
 		int newSampleCount = sampleCount.incrementAndGet();
@@ -327,12 +338,35 @@ public class DatasetsController {
 	}
 	
 	/**
-	 * If more than half of the max heap size is used, flush the oldest slot to disk.
+	 * Prevents slots from being flushed to disk because they are actively being used to draw charts on screen.
 	 * 
-	 * @param dontFlushSampleNumberStart    Don't flush a slot containing this range of samples.
-	 * @param dontFlushSampleNumberEnd      Don't flush a slot containing this range of samples.
+	 * @param minimumSampleNumber    Minimum sample number shown on screen.
+	 * @param maximumSampleNumber    Maximum sample number shown on screen.
 	 */
-	public static void flushIfNecessaryExcept(int dontFlushSampleNumberStart, int dontFlushSampleNumberEnd) {
+	public static void dontFlushRangeOnScreen(int minimumSampleNumber, int maximumSampleNumber) {
+		
+		minimumSampleNumberOnScreen = minimumSampleNumber;
+		maximumSampleNumberOnScreen = maximumSampleNumber;
+		
+	}
+	
+	/**
+	 * Prevents slots from being flushed to disk because they are actively being exported to a CSV file.
+	 * 
+	 * @param minimumSampleNumber    Minimum sample number shown on screen.
+	 * @param maximumSampleNumber    Maximum sample number shown on screen.
+	 */
+	public static void dontFlushRangeBeingExported(int minimumSampleNumber, int maximumSampleNumber) {
+		
+		minimumSampleNumberExporting = minimumSampleNumber;
+		maximumSampleNumberExporting = maximumSampleNumber;
+		
+	}
+	
+	/**
+	 * If more than half of the max heap size is used, flush the oldest unneeded slot to disk.
+	 */
+	public static void flushIfNecessary() {
 		
 		// determine how much space is available, and how much is used by the timestamps and datasets
 		long maxHeapSize = Runtime.getRuntime().maxMemory();
@@ -348,13 +382,17 @@ public class DatasetsController {
 		if(currentSize > maxHeapSize / 2) {
 			
 			// figure out which slots to NOT flush
-			int firstProtectedSlot = dontFlushSampleNumberStart / SLOT_SIZE;
-			int lastProtectedSlot = dontFlushSampleNumberEnd / SLOT_SIZE;
+			int firstProtectedSlotA = minimumSampleNumberOnScreen / SLOT_SIZE;
+			int lastProtectedSlotA = maximumSampleNumberOnScreen / SLOT_SIZE;
+			int firstProtectedSlotB = minimumSampleNumberExporting / SLOT_SIZE;
+			int lastProtectedSlotB = maximumSampleNumberExporting / SLOT_SIZE;
 			
 			for(int i = 0; i < timestamps.length; i++) {
 				
 				// don't flush protected slots
-				if(i >= firstProtectedSlot && i <= lastProtectedSlot)
+				if(i >= firstProtectedSlotA && i <= lastProtectedSlotA)
+					continue;
+				if(i >= firstProtectedSlotB && i <= lastProtectedSlotB)
 					continue;
 				
 				// if connected, don't flush the last slot

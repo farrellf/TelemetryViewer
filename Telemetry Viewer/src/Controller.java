@@ -218,15 +218,18 @@ public class Controller {
 			logFile.println();
 			
 			for(int i = 0; i < sampleCount; i++) {
+				// ensure active slots don't get flushed to disk
+				if(i % 1024 == 0) 
+					DatasetsController.dontFlushRangeBeingExported(i, i + DatasetsController.SLOT_SIZE);
+				
 				logFile.print(i + "," + DatasetsController.getTimestamp(i));
 				for(int n = 0; n < datasetsCount; n++)
 					logFile.print("," + Float.toString(DatasetsController.getDatasetByIndex(n).getSample(i)));
 				logFile.println();
 				
-				// periodically check if running out of heap space
-				if(i % 1024 == 0) 
-					DatasetsController.flushIfNecessaryExcept(i + 1, i + DatasetsController.SLOT_SIZE);
 			}
+			
+			DatasetsController.dontFlushRangeBeingExported(-1, -1);
 			
 			logFile.close();
 			

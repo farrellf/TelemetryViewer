@@ -233,7 +233,18 @@ public class OpenGLChartsRegion extends JPanel {
 				// if there are no charts, ensure we switch back to live view
 				List<PositionedChart> charts = Controller.getCharts();
 				if(charts.size() == 0)
-					liveView = true;	
+					liveView = true;
+				
+				int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSamplesCount;
+				
+				// ensure active slots don't get flushed to disk
+				int lastSampleNumberOnScreen = lastSampleNumber;
+				int firstSampleNumberOnScreen = lastSampleNumberOnScreen;
+				for(PositionedChart c : Controller.getCharts()) {
+					if(lastSampleNumberOnScreen - c.sampleCount < firstSampleNumberOnScreen)
+						firstSampleNumberOnScreen = lastSampleNumberOnScreen - c.sampleCount;
+				}
+				DatasetsController.dontFlushRangeOnScreen(firstSampleNumberOnScreen, lastSampleNumberOnScreen);
 				
 				// draw the charts
 				//
@@ -348,7 +359,6 @@ public class OpenGLChartsRegion extends JPanel {
 					gl.glTranslatef(xOffset, yOffset, 0);
 					
 					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
-					int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSamplesCount;
 					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl);
 					
@@ -394,15 +404,6 @@ public class OpenGLChartsRegion extends JPanel {
 					
 					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height)
 						chartUnderMouse = chart;
-					
-					// periodically check if running out of heap space
-					int lastSampleNumberOnScreen = lastSampleNumber;
-					int firstSampleNumberOnScreen = lastSampleNumberOnScreen;
-					for(PositionedChart c : Controller.getCharts()) {
-						if(lastSampleNumberOnScreen - c.sampleCount < firstSampleNumberOnScreen)
-							firstSampleNumberOnScreen = lastSampleNumberOnScreen - c.sampleCount;
-					}
-					DatasetsController.flushIfNecessaryExcept(firstSampleNumberOnScreen, lastSampleNumberOnScreen);
 					
 				}
 				
