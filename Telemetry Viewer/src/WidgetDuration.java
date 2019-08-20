@@ -13,7 +13,7 @@ public class WidgetDuration extends Widget {
 	
 	JTextField textfield;
 	JComboBox<String> combobox;
-	Consumer<String> handler;
+	Consumer<Boolean> handler;
 	int defaultSampleCount;
 	int lowerLimit;
 	int upperLimit;
@@ -28,7 +28,7 @@ public class WidgetDuration extends Widget {
 	 * @param defaultSampleCount    Default sample count.
 	 * @param eventHandler          Will be notified when the duration type or duration value changes.
 	 */
-	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, Consumer<String> eventHandler) {
+	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, Consumer<Boolean> eventHandler) {
 		
 		super();
 		
@@ -125,6 +125,7 @@ public class WidgetDuration extends Widget {
 				intDuration = i;
 				
 				textfield.setText(Integer.toString(i));
+				handler.accept(true);
 				
 			} else {
 				
@@ -134,17 +135,16 @@ public class WidgetDuration extends Widget {
 				floatDuration = f;
 				
 				textfield.setText(Float.toString(f));
+				handler.accept(false);
 				
 			}
-
-			handler.accept(combobox.getSelectedItem().toString());
 			
 		} catch(Exception e) {
 			
 			combobox.setSelectedItem("Samples");
 			textfield.setText(Integer.toString(defaultSampleCount));
 			intDuration = defaultSampleCount;
-			handler.accept(combobox.getSelectedItem().toString());
+			handler.accept(true);
 			
 		}
 		
@@ -153,9 +153,9 @@ public class WidgetDuration extends Widget {
 	}
 	
 	/**
-	 * @return    The duration, as an integer (a sample count.)
+	 * @return    The duration, as a sample count.
 	 */
-	public int getDurationInteger() {
+	public int getSampleCount() {
 		
 		return intDuration;
 		
@@ -164,9 +164,12 @@ public class WidgetDuration extends Widget {
 	/**
 	 * @return    The duration, as a float (seconds, minutes, hours or days.)
 	 */
-	public float getDurationFloat() {
+	public long getMilliseconds() {
 		
-		return floatDuration;
+		return previousType.equals("Seconds") ? (long) (floatDuration * 1000.0) :
+		       previousType.equals("Minutes") ? (long) (floatDuration * 60000.0) :
+		       previousType.equals("Hours")   ? (long) (floatDuration * 3600000.0) :
+		                                        (long) (floatDuration * 86400000.0);
 		
 	}
 	

@@ -70,7 +70,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float manualYmin;
 	float manualYmax;
 	
-	String xAxisUnit;
+	boolean sampleCountMode;
 	
 	// constraints
 	static final int SampleCountDefault = 1000;
@@ -110,7 +110,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		durationWidget = new WidgetDuration(SampleCountDefault,
 		                                    SampleCountMinimum,
 		                                    SampleCountMaximum,
-		                                    newDurationType -> xAxisUnit = newDurationType);
+		                                    isSampleCount -> sampleCountMode = isSampleCount);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
 		                                                  yAxisMinimumDefault,
@@ -162,18 +162,18 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		boolean haveDatasets = datasets != null && datasets.length > 0;
 		
-		SamplesManager samples = new SamplesManager();
-		if(xAxisUnit.equals("Samples")) {
-			sampleCount = durationWidget.getDurationInteger();
-			samples.acquireNsamples(lastSampleNumber, (float) zoomLevel, datasets, SampleCountMinimum, sampleCount);
-		} else {
-			samples.acquireNtimeUnits(lastSampleNumber, zoomLevel, datasets, durationWidget.getDurationFloat(), xAxisUnit);
-			sampleCount = samples.plotSampleCount;
-		}
+		Plot plot = new Plot();
+		if(sampleCountMode)
+			plot.acquireSamples(lastSampleNumber, zoomLevel, datasets, durationWidget.getSampleCount());
+		else 
+			plot.acquireMilliseconds(lastSampleNumber, zoomLevel, datasets, durationWidget.getMilliseconds());
+		
+		sampleCount = sampleCountMode ? durationWidget.getSampleCount() :
+		                                plot.getPlotSampleCount();
 		
 		// calculate the plot range
-		float plotMaxY = samples.maxY;
-		float plotMinY = samples.minY;
+		float plotMaxY = plot.getMaxY();
+		float plotMinY = plot.getMinY();
 		autoscale.update(plotMinY, plotMaxY);
 		plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
 		plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
@@ -190,7 +190,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
 			yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
-			xAxisTitle = samples.xAxisTitle;
+			xAxisTitle = plot.getTitle();
 			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
@@ -300,7 +300,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// draw the x-axis scale
 		if(showXaxisScale) {
-			Map<Float, String> divisions = samples.getXdivisions(plotWidth);
+			Map<Float, String> divisions = plot.getXdivisions(plotWidth);
 			
 			gl.glBegin(GL2.GL_LINES);
 			for(Float divisionLocation : divisions.keySet()) {
@@ -374,58 +374,12 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showYaxisTitle && yYaxisTitleTextLeft > yPlotBottom)
 			FontUtils.drawYaxisText(yAxisTitle, (int) xYaxisTitleTextBaseline, (int) yYaxisTitleTextLeft, 90);
 		
-		// clip to the plot region
-		int[] originalScissorArgs = new int[4];
-		gl.glGetIntegerv(GL2.GL_SCISSOR_BOX, originalScissorArgs, 0);
-		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
-		
-		// draw each dataset
-		if(haveDatasets && samples.plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.length; i++) {
-				
-				// do not draw bitfields
-				if(datasets[i].isBitfield)
-					continue;
-				
-				gl.glMatrixMode(GL2.GL_MODELVIEW);
-				gl.glPushMatrix();
-				
-				// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
-				// edit: now doing the "x - plotMinX" part before putting data into the buffers, to improve float32 precision when x is very large
-				gl.glTranslatef(xPlotLeft, 0, 0);
-				gl.glScalef(plotWidth, 1, 1);
-				gl.glScalef(1.0f / samples.getPlotDomain(), 1, 1);
-//				gl.glTranslatef(-samples.getPlotMinX(), 0, 0);
-				
-				// adjust so y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
-				gl.glTranslatef(0, yPlotBottom, 0);
-				gl.glScalef(1, plotHeight, 1);
-				gl.glScalef(1, 1.0f / plotRange, 1);
-				gl.glTranslatef(0, -plotMinY, 0);
-				
-				gl.glColor3f(datasets[i].color.getRed() / 255.0f, datasets[i].color.getGreen() / 255.0f, datasets[i].color.getBlue() / 255.0f);
-				gl.glVertexPointer(2, GL2.GL_FLOAT, 0, samples.buffers[i]);
-				gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, samples.plotSampleCount);
-				
-				// also draw points if there are relatively few samples on screen
-				if(samples.fewSamplesOnScreen(plotWidth))
-					gl.glDrawArrays(GL2.GL_POINTS, 0, samples.plotSampleCount);
-				
-				gl.glPopMatrix();
-				
-			}
-		}
-		
-		// draw any bitfield changes
-		if(haveDatasets && samples.plotSampleCount >= 2)
-			ChartUtils.drawMarkers(gl, samples.getBitfieldEvents(plotWidth), xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
-
-		// stop clipping to the plot region
-		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
+		// draw the plot
+		plot.draw(gl, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop, plotMinY, plotMaxY);
 		
 		// draw the tooltip if the mouse is in the plot region
 		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
-			SamplesManager.TooltipInfo tooltip = samples.getTooltip(mouseX - (int) xPlotLeft, plotWidth);
+			Plot.TooltipInfo tooltip = plot.getTooltip(mouseX - (int) xPlotLeft, plotWidth);
 			if(tooltip.draw) {
 				String[] text = new String[datasets.length + 1];
 				Color[] colors = new Color[datasets.length + 1];
