@@ -1,4 +1,3 @@
-import java.awt.font.FontRenderContext;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -21,30 +20,27 @@ public class FontUtils {
 	private static int canvasWidth = 0;
 	private static int canvasHeight = 0;
 	private static boolean displayScalingChanged = false;
+	private static int framesSinceFlush = 0;
 	
 	private static final Queue<PositionedText> tickTextQueue    = new LinkedList<PositionedText>();
 	private static       TextRenderer          tickTextRenderer = new TextRenderer(Theme.tickFont, true, true);
-	private static       FontRenderContext     tickTextFRC      = tickTextRenderer.getFontRenderContext();
-	public  static       float                 tickTextHeight   = Theme.tickFont.createGlyphVector(tickTextFRC, "Test").getPixelBounds(tickTextFRC, 0, 0).height;
-	public  static       float                 tickTextWidth(String text) { return (float) Theme.tickFont.getStringBounds(text, tickTextFRC).getWidth(); }
+	public  static       float                 tickTextHeight   = Theme.tickFont.createGlyphVector(tickTextRenderer.getFontRenderContext(), "Test").getPixelBounds(tickTextRenderer.getFontRenderContext(), 0, 0).height;
+	public  static       float                 tickTextWidth(String text) { return (float) Theme.tickFont.getStringBounds(text, tickTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	private static final Queue<PositionedText> legendTextQueue    = new LinkedList<PositionedText>();
 	private static       TextRenderer          legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
-	private static       FontRenderContext     legendTextFRC      = legendTextRenderer.getFontRenderContext();
-	public  static       float                 legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextFRC, "Test").getPixelBounds(legendTextFRC, 0, 0).height;
-	public  static       float                 legendTextWidth(String text) { return (float) Theme.legendFont.getStringBounds(text, legendTextFRC).getWidth(); }
+	public  static       float                 legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextRenderer.getFontRenderContext(), "Test").getPixelBounds(legendTextRenderer.getFontRenderContext(), 0, 0).height;
+	public  static       float                 legendTextWidth(String text) { return (float) Theme.legendFont.getStringBounds(text, legendTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	private static final Queue<PositionedText> xAxisTextQueue    = new LinkedList<PositionedText>();
 	private static       TextRenderer          xAxisTextRenderer = new TextRenderer(Theme.xAxisFont, true, true);
-	private static       FontRenderContext     xAxisTextFRC      = xAxisTextRenderer.getFontRenderContext();
-	public  static       float                 xAxisTextHeight   = Theme.xAxisFont.createGlyphVector(xAxisTextFRC, "Test").getPixelBounds(xAxisTextFRC, 0, 0).height;
-	public  static       float                 xAxisTextWidth(String text) { return (float) Theme.xAxisFont.getStringBounds(text, xAxisTextFRC).getWidth(); }
+	public  static       float                 xAxisTextHeight   = Theme.xAxisFont.createGlyphVector(xAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(xAxisTextRenderer.getFontRenderContext(), 0, 0).height;
+	public  static       float                 xAxisTextWidth(String text) { return (float) Theme.xAxisFont.getStringBounds(text, xAxisTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	private static final Queue<PositionedText> yAxisTextQueue    = new LinkedList<PositionedText>();
 	private static       TextRenderer          yAxisTextRenderer = new TextRenderer(Theme.yAxisFont, true, true);
-	private static       FontRenderContext     yAxisTextFRC      = yAxisTextRenderer.getFontRenderContext();
-	public  static       float                 yAxisTextHeight   = Theme.yAxisFont.createGlyphVector(yAxisTextFRC, "Test").getPixelBounds(yAxisTextFRC, 0, 0).height;
-	public  static       float                 yAxisTextWidth(String text) { return (float) Theme.yAxisFont.getStringBounds(text, yAxisTextFRC).getWidth(); }
+	public  static       float                 yAxisTextHeight   = Theme.yAxisFont.createGlyphVector(yAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(yAxisTextRenderer.getFontRenderContext(), 0, 0).height;
+	public  static       float                 yAxisTextWidth(String text) { return (float) Theme.yAxisFont.getStringBounds(text, yAxisTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	/**
 	 * Called by the Controller when the display scaling factor changes.
@@ -100,20 +96,16 @@ public class FontUtils {
 		if(displayScalingChanged) {
 			
 			tickTextRenderer   = new TextRenderer(Theme.tickFont, true, true);
-			tickTextFRC        = tickTextRenderer.getFontRenderContext();
-			tickTextHeight     = Theme.tickFont.createGlyphVector(tickTextFRC, "Test").getPixelBounds(tickTextFRC, 0, 0).height;
+			tickTextHeight     = Theme.tickFont.createGlyphVector(tickTextRenderer.getFontRenderContext(), "Test").getPixelBounds(tickTextRenderer.getFontRenderContext(), 0, 0).height;
 			
 			legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
-			legendTextFRC      = legendTextRenderer.getFontRenderContext();
-			legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextFRC, "Test").getPixelBounds(legendTextFRC, 0, 0).height;
+			legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextRenderer.getFontRenderContext(), "Test").getPixelBounds(legendTextRenderer.getFontRenderContext(), 0, 0).height;
 			
 			xAxisTextRenderer  = new TextRenderer(Theme.xAxisFont, true, true);
-			xAxisTextFRC       = xAxisTextRenderer.getFontRenderContext(); 
-			xAxisTextHeight    = Theme.xAxisFont.createGlyphVector(xAxisTextFRC, "Test").getPixelBounds(xAxisTextFRC, 0, 0).height;
+			xAxisTextHeight    = Theme.xAxisFont.createGlyphVector(xAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(xAxisTextRenderer.getFontRenderContext(), 0, 0).height;
 			
 			yAxisTextRenderer  = new TextRenderer(Theme.yAxisFont, true, true);
-			yAxisTextFRC       = yAxisTextRenderer.getFontRenderContext();
-			yAxisTextHeight    = Theme.yAxisFont.createGlyphVector(yAxisTextFRC, "Test").getPixelBounds(yAxisTextFRC, 0, 0).height;
+			yAxisTextHeight    = Theme.yAxisFont.createGlyphVector(yAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(yAxisTextRenderer.getFontRenderContext(), 0, 0).height;
 			
 			displayScalingChanged = false;
 			
@@ -156,7 +148,16 @@ public class FontUtils {
 			yAxisTextRenderer.flush();
 			gl.glPopMatrix();
 		}
-			
+		
+		// work around memory leak in TextRenderer by replacing them periodically
+		framesSinceFlush++;
+		if(framesSinceFlush >= 18000) { // 5 minutes of 60hz
+			tickTextRenderer   = new TextRenderer(Theme.tickFont, true, true);
+			legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
+			xAxisTextRenderer  = new TextRenderer(Theme.xAxisFont, true, true);
+			yAxisTextRenderer  = new TextRenderer(Theme.yAxisFont, true, true);
+			framesSinceFlush = 0;
+		}
 	}
 
 	private static class PositionedText {
