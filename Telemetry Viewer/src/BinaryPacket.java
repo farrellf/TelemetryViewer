@@ -420,7 +420,7 @@ public class BinaryPacket extends Packet {
 	 */
 	static public BinaryFieldProcessor[] getBinaryFieldProcessors() {
 		
-		BinaryFieldProcessor[] processors = new BinaryFieldProcessor[5];
+		BinaryFieldProcessor[] processors = new BinaryFieldProcessor[6];
 		
 		processors[0] = new BinaryFieldProcessor() {
 			
@@ -465,6 +465,14 @@ public class BinaryPacket extends Packet {
 		processors[4] = new BinaryFieldProcessor() {
 			
 			@Override public String toString()                { return "Bitfield: 8 Bits"; }
+			@Override public int getByteCount()               { return 1; }
+			@Override public float extractValue(byte[] bytes) { return (float) (0xFF & bytes[0]);}
+			
+		};
+		
+		processors[5] = new BinaryFieldProcessor() {
+			
+			@Override public String toString()                { return "uint8"; }
 			@Override public int getByteCount()               { return 1; }
 			@Override public float extractValue(byte[] bytes) { return (float) (0xFF & bytes[0]);}
 			
