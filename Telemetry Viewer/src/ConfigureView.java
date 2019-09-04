@@ -1,3 +1,4 @@
+import java.awt.Dimension;
 import java.awt.GridLayout;
 
 import javax.swing.Box;
@@ -7,7 +8,10 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.border.EmptyBorder;
+
+import net.miginfocom.swing.MigLayout;
 
 @SuppressWarnings("serial")
 public class ConfigureView extends JPanel {
@@ -21,6 +25,7 @@ public class ConfigureView extends JPanel {
 	private ConfigureView() {
 		
 		super();
+		setLayout(new MigLayout("insets 0"));
 		
 	}
 	
@@ -33,14 +38,11 @@ public class ConfigureView extends JPanel {
 		
 		activeChart = chart;
 		
-		// start with an empty panel
-		instance.removeAll();
+		// show the GUI
 		JPanel contents = new JPanel();
 		contents.setBorder(new EmptyBorder(10, 10, 10, 10));
 		contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
-		instance.add(contents);
 
-		// show the widgets
 		for(Widget widget : chart.widgets) {
 			contents.add(widget != null ? widget : Box.createVerticalStrut(10));
 			contents.add(Box.createVerticalStrut(10));
@@ -48,7 +50,6 @@ public class ConfigureView extends JPanel {
 		
 		contents.add(Box.createVerticalStrut(40));
 		
-		// show the done button at the bottom
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
 		
@@ -60,6 +61,13 @@ public class ConfigureView extends JPanel {
 		contents.add(doneButtonPanel);
 		
 		// size this panel as needed
+		JScrollPane scroll = new JScrollPane(contents);
+		scroll.setBorder(null);
+		Dimension size = scroll.getPreferredSize();
+		size.width += scroll.getVerticalScrollBar().getPreferredSize().width;
+		scroll.setPreferredSize(size);
+		instance.removeAll();
+		instance.add(scroll);
 		instance.setPreferredSize(null);
 		instance.revalidate();
 		instance.repaint();
@@ -84,12 +92,10 @@ public class ConfigureView extends JPanel {
 		
 		activeChart = null;
 		
-		// start with an empty panel
-		instance.removeAll();
+		// show the GUI
 		JPanel contents = new JPanel();
 		contents.setBorder(new EmptyBorder(10, 10, 10, 10));
 		contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
-		instance.add(contents);
 		
 		JComboBox<String> chartTypeCombobox = new JComboBox<String>(Controller.getChartTypes());
 		
@@ -114,7 +120,6 @@ public class ConfigureView extends JPanel {
 			if(activeChart != null)
 				Controller.removeChart(activeChart);
 			contents.removeAll();
-			instance.add(contents);
 			contents.add(chartTypePanel);
 			contents.add(Box.createVerticalStrut(40));
 			
@@ -130,6 +135,13 @@ public class ConfigureView extends JPanel {
 			contents.add(doneAndCancelPanel);
 			
 			// size the panel as needed
+			JScrollPane scroll = new JScrollPane(contents);
+			scroll.setBorder(null);
+			Dimension size = scroll.getPreferredSize();
+			size.width += scroll.getVerticalScrollBar().getPreferredSize().width;
+			scroll.setPreferredSize(size);
+			instance.removeAll();
+			instance.add(scroll);
 			instance.setPreferredSize(null);
 			instance.revalidate();
 			instance.repaint();
