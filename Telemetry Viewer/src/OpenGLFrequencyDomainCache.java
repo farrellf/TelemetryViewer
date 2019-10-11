@@ -55,27 +55,9 @@ public class OpenGLFrequencyDomainCache {
 		firstDft = 0;
 		lastDft = 0;
 		
-		// create and use a framebuffer
 		fbHandle = new int[1];
-		gl.glGenFramebuffers(1, fbHandle, 0);
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbHandle[0]);
-		
-		// create and use a texture
 		texHandle = new int[1];
-		gl.glGenTextures(1, texHandle, 0);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGBA, 512, 512, 0, GL2.GL_RGBA, GL2.GL_UNSIGNED_BYTE, null); // dummy 512x512 texture
-		gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_NEAREST);
-		gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_NEAREST);
-		gl.glFramebufferTexture2D(GL2.GL_FRAMEBUFFER, GL2.GL_COLOR_ATTACHMENT0, GL2.GL_TEXTURE_2D, texHandle[0], 0);
-		gl.glDrawBuffers(1, new int[] {GL2.GL_COLOR_ATTACHMENT0}, 0);
-		
-		// check for errors
-		if(gl.glCheckFramebufferStatus(GL2.GL_FRAMEBUFFER) != GL2.GL_FRAMEBUFFER_COMPLETE)
-			NotificationsController.showFailureForSeconds("Error while creating the frequency domain cache's framebuffer or texture.", 10, false);
-		
-		// switch back to the screen framebuffer
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
+		OpenGL.createOffscreenFramebuffer(gl, fbHandle, texHandle);
 		
 	}
 	
@@ -314,6 +296,7 @@ public class OpenGLFrequencyDomainCache {
 	 * Draws a Live View on screen. "Live View" is a line chart of a single DFT.
 	 * The x-axis is frequency, the y-axis is power.
 	 * 
+	 * @param chartMatrix    The current 4x4 matrix.
 	 * @param bottomLeftX    Lower-left coordinate of the region to draw in.
 	 * @param bottomLeftY    Lower-left coordinate of the region to draw in.
 	 * @param width          Width of region to draw in.
@@ -323,107 +306,34 @@ public class OpenGLFrequencyDomainCache {
 	 * @param gl             The OpenGL context.
 	 * @param datasets       The datasets to visualize.
 	 */
-	public void renderLiveView(int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2 gl, Dataset[] datasets) {
+	public void renderLiveView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2 gl, Dataset[] datasets) {
 		
-		// save the viewport/scissor/point settings, modelview matrix, and projection matrix
-		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT | GL2.GL_POINT_BIT);
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPushMatrix();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPushMatrix();
-
-		// switch to the off-screen framebuffer and corresponding texture
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbHandle[0]);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-
-		// replace the existing texture
-		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGBA, width, height, 0, GL2.GL_RGBA, GL2.GL_UNSIGNED_BYTE, null);
-
-		// set the viewport and disable the scissor test
-		gl.glViewport(0, 0, width, height);
-		gl.glDisable(GL2.GL_SCISSOR_TEST);
+		float[] offscreenMatrix = new float[16];
+		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, width, 0, height, -1, 1);
+		// adjust so: x = (x - plotMinX) / domain * plotWidth;
+		// adjust so: y = (y - plotMinY) / plotRange * plotHeight;
+		OpenGL.scaleMatrix    (offscreenMatrix, width,              height,                   1);
+		OpenGL.scaleMatrix    (offscreenMatrix, 1f/(maxHz - minHz), 1f/(maxPower - minPower), 1);
+		OpenGL.translateMatrix(offscreenMatrix, -minHz,             -minPower,                0);
 		
-		// set the projection matrix
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glLoadIdentity();
-		gl.glOrtho(0, width, 0, height, -1, 1);
-		
-		// set the modelview matrix
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();
-		
-		// set the blend function
-		gl.glBlendFuncSeparate(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA, GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
-		
-		// clear the texture and set the modelview matrix
-		gl.glClearColor(0, 0, 0, 0);
-		gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPushMatrix();
-		
-		// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
-		gl.glTranslatef(0, 0, 0);
-		gl.glScalef(width, 1, 1);
-		gl.glScalef(1.0f / (maxHz - minHz), 1, 1);
-		gl.glTranslatef(-minHz, 0, 0);
-		
-		// adjust so y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
-		gl.glTranslatef(0, 0, 0);
-		gl.glScalef(1, height, 1);
-		gl.glScalef(1, 1.0f / (maxPower - minPower), 1);
-		gl.glTranslatef(0, -minPower, 0);
+		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, width, height);
 		
 		// draw the DFT line charts onto the texture
 		for(int dataset = 0; dataset < datasets.length; dataset++) {
 			
 			int dftBinCount = dfts[dataset][0].length / 2;
-			
-			gl.glColor4f(datasets[dataset].color.getRed()/255.0f, datasets[dataset].color.getGreen()/255.0f, datasets[dataset].color.getBlue()/255.0f, 1);
-			gl.glVertexPointer(2, GL2.GL_FLOAT, 0, Buffers.newDirectFloatBuffer(dfts[dataset][0]));
-			gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, dftBinCount);
+			FloatBuffer buffer = Buffers.newDirectFloatBuffer(dfts[dataset][0]);
+			OpenGL.drawLineStrip2D(gl, datasets[dataset].glColor, buffer, dftBinCount);
 			
 			// also draw points if there are relatively few bins on screen
 			if(width / dftBinCount > 2 * Theme.pointSize)
-				gl.glDrawArrays(GL2.GL_POINTS, 0, dftBinCount);
+				OpenGL.drawPoints2D(gl, datasets[dataset].glColor, buffer, dftBinCount);
 			
 		}
 		
-		gl.glPopMatrix();
+		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
-		// switch back to the screen framebuffer
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
-		
-		// restore old viewport/scissor/point settings, projection matrix, and modelview matrix
-		gl.glPopAttrib();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPopMatrix();
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPopMatrix();
-		
-		
-		// draw a textured quad on screen, with the texture replacing the color and opacity of the quad
-		gl.glBlendFunc(GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
-		gl.glTexEnvi(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_REPLACE);
-		gl.glDisable(GL2.GL_LIGHTING);
-		gl.glEnable(GL2.GL_TEXTURE_2D);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-		gl.glBegin(GL2.GL_QUADS);
-			gl.glTexCoord2f(0, 0);
-			gl.glVertex2f(bottomLeftX, bottomLeftY);
-			
-			gl.glTexCoord2f(0, 1);
-			gl.glVertex2f(bottomLeftX, bottomLeftY + height);
-			
-			gl.glTexCoord2f(1, 1);
-			gl.glVertex2f(bottomLeftX + width, bottomLeftY + height);
-			
-			gl.glTexCoord2f(1, 0);
-			gl.glVertex2f(bottomLeftX + width, bottomLeftY);
-		gl.glEnd();
-		gl.glDisable(GL2.GL_TEXTURE_2D);
-		
-		// restore the normal blend function
-		gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 0);
 		
 	}
 	
@@ -432,6 +342,7 @@ public class OpenGLFrequencyDomainCache {
 	 * Multiple DFTs are stacked on top of each other to get a feel for what regions of the spectrum have been occupied.
 	 * The x-axis is frequency, the y-axis is power.
 	 * 
+	 * @param chartMatrix    The current 4x4 matrix.
 	 * @param bottomLeftX    Lower-left coordinate of the region to draw in.
 	 * @param bottomLeftY    Lower-left coordinate of the region to draw in.
 	 * @param width          Width of region to draw in.
@@ -442,7 +353,7 @@ public class OpenGLFrequencyDomainCache {
 	 * @param datasets       The datasets to visualize.
 	 * @param rowCount       How many vertical bins to divide the plot into. (The number of horizontal bins is the DFT bin count.)
 	 */
-	public void renderWaveformView(int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2 gl, Dataset[] datasets, int rowCount) {
+	public void renderWaveformView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2 gl, Dataset[] datasets, int rowCount) {
 		
 		// calculate a 2D histogram for each dataset
 		int datasetsCount = datasets.length;
@@ -458,39 +369,10 @@ public class OpenGLFrequencyDomainCache {
 			}
 		}
 		
-		// save the viewport/scissor/point settings, modelview matrix, and projection matrix
-		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT | GL2.GL_POINT_BIT);
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPushMatrix();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPushMatrix();
+		float[] offscreenMatrix = new float[16];
+		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, xBinCount, 0, rowCount, -1, 1);
+		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, xBinCount, rowCount);
 
-		// switch to the off-screen framebuffer and corresponding texture
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbHandle[0]);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-
-		// replace the existing texture
-		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGBA, xBinCount, rowCount, 0, GL2.GL_RGBA, GL2.GL_UNSIGNED_BYTE, null);
-
-		// set the viewport and disable the scissor test
-		gl.glViewport(0, 0, xBinCount, rowCount);
-		gl.glDisable(GL2.GL_SCISSOR_TEST);
-		
-		// set the projection matrix
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glLoadIdentity();
-		gl.glOrtho(0, xBinCount, 0, rowCount, -1, 1);
-		
-		// set the modelview matrix
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();
-		
-		// set the blend function
-		gl.glBlendFuncSeparate(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA, GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
-		
-		// draw the 2D histogram onto the texture, one point (pixel) at a time
-		gl.glClearColor(0, 0, 0, 0);
-		gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
 		gl.glPointSize(1);
 		gl.glDisable(GL2.GL_POINT_SMOOTH);
 		
@@ -504,9 +386,9 @@ public class OpenGLFrequencyDomainCache {
 
 			waveformPixels.position(0);
 			
-			float r = datasets[dataset].color.getRed()   / 255.0f;
-			float g = datasets[dataset].color.getGreen() / 255.0f;
-			float b = datasets[dataset].color.getBlue()  / 255.0f;
+			float r = datasets[dataset].glColor[0];
+			float g = datasets[dataset].glColor[1];
+			float b = datasets[dataset].glColor[2];
 			
 			for(int x = 0; x < xBinCount; x++) {
 				for(int y = 0; y < rowCount; y++) {
@@ -521,47 +403,16 @@ public class OpenGLFrequencyDomainCache {
 			}
 			
 			gl.glEnableClientState(GL2.GL_COLOR_ARRAY);
-			gl.glVertexPointer(2, GL2.GL_FLOAT, 6, waveformPixels.position(0));
-			gl.glColorPointer(4, GL2.GL_FLOAT, 6, waveformPixels.position(2));
-			gl.glDrawArrays(GL2.GL_POINTS, 0, pixelCount*4);
+			gl.glVertexPointer(2, GL2.GL_FLOAT, 6*4, waveformPixels.position(0));
+			gl.glColorPointer(4, GL2.GL_FLOAT, 6*4, waveformPixels.position(2));
+			gl.glDrawArrays(GL2.GL_POINTS, 0, pixelCount);
 			gl.glDisableClientState(GL2.GL_COLOR_ARRAY);
 			
 		}
 		
-		// switch back to the screen framebuffer
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
+		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
-		// restore old viewport/scissor/point settings, projection matrix, and modelview matrix
-		gl.glPopAttrib();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPopMatrix();
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPopMatrix();
-		
-		// draw a textured quad on screen, with the texture replacing the color and opacity of the quad
-		gl.glBlendFunc(GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
-		gl.glTexEnvi(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_REPLACE);
-		gl.glDisable(GL2.GL_LIGHTING);
-		gl.glEnable(GL2.GL_TEXTURE_2D);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-		gl.glBegin(GL2.GL_QUADS);
-			float offset = 1.0f / xBinCount / 2.0f; // to start and stop in the *middle* of the first and last bins
-			gl.glTexCoord2f(0 + offset, 0);
-			gl.glVertex2f(bottomLeftX, bottomLeftY);
-			
-			gl.glTexCoord2f(0 + offset, 1);
-			gl.glVertex2f(bottomLeftX, bottomLeftY + height);
-			
-			gl.glTexCoord2f(1 - offset, 1);
-			gl.glVertex2f(bottomLeftX + width, bottomLeftY + height);
-			
-			gl.glTexCoord2f(1 - offset, 0);
-			gl.glVertex2f(bottomLeftX + width, bottomLeftY);
-		gl.glEnd();
-		gl.glDisable(GL2.GL_TEXTURE_2D);
-		
-		// restore the normal blend function
-		gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 1f/xBinCount/2f);
 		
 	}
 	
@@ -571,6 +422,7 @@ public class OpenGLFrequencyDomainCache {
 	 * This allows you to see what regions of the spectrum have been occupied *and* when they were occupied.
 	 * The x-axis is frequency, the y-axis is time.
 	 * 
+	 * @param chartMatrix    The current 4x4 matrix.
 	 * @param bottomLeftX    Lower-left coordinate of the region to draw in.
 	 * @param bottomLeftY    Lower-left coordinate of the region to draw in.
 	 * @param width          Width of region to draw in.
@@ -580,45 +432,16 @@ public class OpenGLFrequencyDomainCache {
 	 * @param gl             The OpenGL context.
 	 * @param datasets       The datasets to visualize.
 	 */
-	public void renderWaterfallView(int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2 gl, Dataset[] datasets) {
+	public void renderWaterfallView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2 gl, Dataset[] datasets) {
 		
 		int binCount = dfts[0][0].length;
 		int dftsCount = dfts[0].length;
 		int datasetsCount = datasets.length;
 		
-		// save the viewport/scissor/point settings, modelview matrix, and projection matrix
-		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT | GL2.GL_POINT_BIT);
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPushMatrix();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPushMatrix();
-
-		// switch to the off-screen framebuffer and corresponding texture
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbHandle[0]);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-
-		// replace the existing texture
-		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGBA, binCount, dftsCount, 0, GL2.GL_RGBA, GL2.GL_UNSIGNED_BYTE, null);
+		float[] offscreenMatrix = new float[16];
+		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, binCount, 0, dftsCount, -1, 1);
+		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, binCount, dftsCount);
 		
-		// set the viewport and disable the scissor test
-		gl.glViewport(0, 0, binCount, dftsCount);
-		gl.glDisable(GL2.GL_SCISSOR_TEST);
-		
-		// set the projection matrix
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glLoadIdentity();
-		gl.glOrtho(0, binCount, 0, dftsCount, -1, 1);
-		
-		// set the modelview matrix
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();
-		
-		// set the blend function
-		gl.glBlendFuncSeparate(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA, GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
-		
-		// draw the waterfall onto the texture, one point (pixel) at a time
-		gl.glClearColor(0, 0, 0, 0);
-		gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
 		gl.glPointSize(1);
 		gl.glDisable(GL2.GL_POINT_SMOOTH);
 		
@@ -631,9 +454,9 @@ public class OpenGLFrequencyDomainCache {
 
 			waterfallPixels.position(0);
 			
-			float r = datasets[dataset].color.getRed()   / 255.0f;
-			float g = datasets[dataset].color.getGreen() / 255.0f;
-			float b = datasets[dataset].color.getBlue()  / 255.0f;
+			float r = datasets[dataset].glColor[0];
+			float g = datasets[dataset].glColor[1];
+			float b = datasets[dataset].glColor[2];
 			
 			for(int y = 0; y < dftsCount; y++) {
 				int dft = lastDft - y;
@@ -660,47 +483,16 @@ public class OpenGLFrequencyDomainCache {
 			}
 			
 			gl.glEnableClientState(GL2.GL_COLOR_ARRAY);
-			gl.glVertexPointer(2, GL2.GL_FLOAT, 6, waterfallPixels.position(0));
-			gl.glColorPointer(4, GL2.GL_FLOAT, 6, waterfallPixels.position(2));
-			gl.glDrawArrays(GL2.GL_POINTS, 0, pixelCount*4);
+			gl.glVertexPointer(2, GL2.GL_FLOAT, 6*4, waterfallPixels.position(0));
+			gl.glColorPointer(4, GL2.GL_FLOAT, 6*4, waterfallPixels.position(2));
+			gl.glDrawArrays(GL2.GL_POINTS, 0, pixelCount);
 			gl.glDisableClientState(GL2.GL_COLOR_ARRAY);
 			
 		}
 		
-		// switch back to the screen framebuffer
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
+		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
-		// restore old viewport/scissor/point settings, projection matrix, and modelview matrix
-		gl.glPopAttrib();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPopMatrix();
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPopMatrix();
-		
-		// draw a textured quad on screen
-		gl.glBlendFunc(GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
-		gl.glTexEnvi(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_REPLACE);
-		gl.glDisable(GL2.GL_LIGHTING);
-		gl.glEnable(GL2.GL_TEXTURE_2D);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-		gl.glBegin(GL2.GL_QUADS);
-			float offset = 1.0f / binCount / 2.0f; // to start and stop in the *middle* of the first and last bins
-			gl.glTexCoord2f(0 + offset, 0);
-			gl.glVertex2f(bottomLeftX, bottomLeftY);
-			
-			gl.glTexCoord2f(0 + offset, 1);
-			gl.glVertex2f(bottomLeftX, bottomLeftY + height);
-			
-			gl.glTexCoord2f(1 - offset, 1);
-			gl.glVertex2f(bottomLeftX + width, bottomLeftY + height);
-			
-			gl.glTexCoord2f(1 - offset, 0);
-			gl.glVertex2f(bottomLeftX + width, bottomLeftY);
-		gl.glEnd();
-		gl.glDisable(GL2.GL_TEXTURE_2D);
-		
-		// restore the normal blend function
-		gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 1f/binCount/2f);
 		
 	}
 	

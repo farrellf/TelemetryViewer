@@ -19,7 +19,8 @@ public class Dataset {
 	final int location;
 	final BinaryFieldProcessor processor;
 	final String name;
-	final Color  color;
+	final Color color;
+	final float[] glColor;
 	final String unit;
 	final float conversionFactorA;
 	final float conversionFactorB;
@@ -116,6 +117,7 @@ public class Dataset {
 		this.processor         = processor;
 		this.name              = name;
 		this.color             = color;
+		this.glColor           = new float[] {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, 1f};
 		this.unit              = unit;
 		this.conversionFactorA = conversionFactorA;
 		this.conversionFactorB = conversionFactorB;
@@ -164,7 +166,7 @@ public class Dataset {
 					int currentValue = bitfield.getValue(currentState);
 					int previousValue = bitfield.getValue(previousState);
 					if(currentValue != previousValue)
-						events.add(startIndex + i, bitfield.names[currentValue], color);
+						events.add(startIndex + i, bitfield.names[currentValue], glColor);
 				}
 			}
 		}
@@ -284,12 +286,8 @@ public class Dataset {
 	 */
 	public void getGLsamples(int startIndex, int endIndex, SamplesGL samples) {
 		
-		if(samples.color == null)
-			samples.color = new float[4];
-		samples.color[0] = (float) color.getRed()   / 255.0f;
-		samples.color[1] = (float) color.getGreen() / 255.0f;
-		samples.color[2] = (float) color.getBlue()  / 255.0f;
-		samples.color[3] = 1.0f;
+		if(samples.glColor == null)
+			samples.glColor = glColor;
 		
 		samples.name = name;
 		

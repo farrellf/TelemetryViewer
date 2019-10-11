@@ -235,7 +235,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
@@ -381,7 +381,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 			
-			legendBoxCoordinates = new float[datasets.length][8];
+			legendBoxCoordinates = new float[datasets.length][4];
 			xLegendNameLeft = new float[datasets.length];
 			
 			float xOffset = xLegendBorderLeft + (Theme.lineWidth / 2) + Theme.legendTextPadding;
@@ -389,15 +389,8 @@ public class OpenGLHistogramChart extends PositionedChart {
 			for(int i = 0; i < datasets.length; i++) {
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
-				
-				legendBoxCoordinates[i][2] = xOffset;
+				legendBoxCoordinates[i][2] = xOffset + FontUtils.legendTextHeight;
 				legendBoxCoordinates[i][3] = yLegendTextTop;
-				
-				legendBoxCoordinates[i][4] = xOffset + FontUtils.legendTextHeight;
-				legendBoxCoordinates[i][5] = yLegendTextTop;
-				
-				legendBoxCoordinates[i][6] = xOffset + FontUtils.legendTextHeight;
-				legendBoxCoordinates[i][7] = yLegendTextBaseline;
 				
 				xOffset += FontUtils.legendTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
@@ -507,27 +500,22 @@ public class OpenGLHistogramChart extends PositionedChart {
 			return;
 		
 		// draw plot background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.plotBackgroundColor, 0);
-			gl.glVertex2f(xPlotLeft,  yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotBottom);
-			gl.glVertex2f(xPlotLeft,  yPlotBottom);
-		gl.glEnd();
+		OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 		// draw the x-axis scale
 		if(showXaxisScale) {
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
 			for(Float xValue : xDivisions.keySet()) {
 				float x = ((xValue - minX) / range * plotWidth) + xPlotLeft;
-				gl.glColor4fv(Theme.divisionLinesColor, 0);
-				gl.glVertex2f(x, yPlotTop);
-				gl.glVertex2f(x, yPlotBottom);
-				gl.glColor4fv(Theme.tickLinesColor, 0);
-				gl.glVertex2f(x, yXaxisTickTop);
-				gl.glVertex2f(x, yXaxisTickBottom);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yPlotTop);    OpenGL.buffer.put(Theme.divisionLinesColor);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yPlotBottom); OpenGL.buffer.put(Theme.divisionLinesColor);
+				
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yXaxisTickTop);    OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yXaxisTickBottom); OpenGL.buffer.put(Theme.tickLinesColor);
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			int vertexCount = xDivisions.keySet().size() * 4;
+			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : xDivisions.entrySet()) {
 				float x = ((entry.getKey() - minX) / range * plotWidth) + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
@@ -541,19 +529,18 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 			// draw right y-axis scale if showing both frequency and relative frequency
 			if(yAxisShowsFrequency && yAxisShowsRelativeFrequency) {
-				
-				gl.glBegin(GL2.GL_LINES);
+				OpenGL.buffer.rewind();
 				for(Float entry : yDivisionsFrequency.keySet()) {
 					float y = (entry - minYfreq) / yFreqRange * plotHeight + yPlotBottom;
-					gl.glColor4fv(Theme.divisionLinesColor, 0);
-					gl.glVertex2f(xPlotRight, y);
-					gl.glColor4fv(Theme.divisionLinesFadedColor, 0);
-					gl.glVertex2f(xPlotLeft,  y);
-					gl.glColor4fv(Theme.tickLinesColor, 0);
-					gl.glVertex2f(xYaxisRightTickLeft,  y);
-					gl.glVertex2f(xYaxisRightTickRight, y);
+					OpenGL.buffer.put(xPlotRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesColor);
+					OpenGL.buffer.put(xPlotLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesFadedColor);
+
+					OpenGL.buffer.put(xYaxisRightTickLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
+					OpenGL.buffer.put(xYaxisRightTickRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
 				}
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				int vertexCount = yDivisionsFrequency.keySet().size() * 4;
+				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 	
 				for(Map.Entry<Float,String> entry : yDivisionsFrequency.entrySet()) {
 					float x = xYaxisRightTickTextLeft;
@@ -566,18 +553,18 @@ public class OpenGLHistogramChart extends PositionedChart {
 			// relative frequency is drawn on the left unless only frequency is to be drawn
 			if(yAxisShowsRelativeFrequency) {
 				
-				gl.glBegin(GL2.GL_LINES);
+				OpenGL.buffer.rewind();
 				for(Float entry : yDivisionsRelativeFrequency.keySet()) {
 					float y = (entry - minYrelFreq) / yRelFreqRange * plotHeight + yPlotBottom;
-					gl.glColor4fv(Theme.divisionLinesColor, 0);
-					gl.glVertex2f(xPlotLeft,  y);
-					if(yAxisShowsFrequency && yAxisShowsRelativeFrequency) gl.glColor4fv(Theme.divisionLinesFadedColor, 0);
-					gl.glVertex2f(xPlotRight, y);
-					gl.glColor4fv(Theme.tickLinesColor, 0);
-					gl.glVertex2f(xYaxisLeftTickLeft,  y);
-					gl.glVertex2f(xYaxisLeftTickRight, y);
+					OpenGL.buffer.put(xPlotLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesColor);
+					OpenGL.buffer.put(xPlotRight); OpenGL.buffer.put(y); OpenGL.buffer.put(yAxisShowsFrequency && yAxisShowsRelativeFrequency ? Theme.divisionLinesFadedColor : Theme.divisionLinesColor);
+
+					OpenGL.buffer.put(xYaxisLeftTickLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
+					OpenGL.buffer.put(xYaxisLeftTickRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
 				}
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				int vertexCount = yDivisionsRelativeFrequency.keySet().size() * 4;
+				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 				
 				for(Map.Entry<Float,String> entry : yDivisionsRelativeFrequency.entrySet()) {
 					float x = xYaxisLeftTickTextRight - FontUtils.tickTextWidth(entry.getValue());
@@ -587,17 +574,18 @@ public class OpenGLHistogramChart extends PositionedChart {
 			
 			} else {
 				
-				gl.glBegin(GL2.GL_LINES);
+				OpenGL.buffer.rewind();
 				for(Float entry : yDivisionsFrequency.keySet()) {
 					float y = (entry - minYfreq) / yFreqRange * plotHeight + yPlotBottom;
-					gl.glColor4fv(Theme.divisionLinesColor, 0);
-					gl.glVertex2f(xPlotLeft,  y);
-					gl.glVertex2f(xPlotRight, y);
-					gl.glColor4fv(Theme.tickLinesColor, 0);
-					gl.glVertex2f(xYaxisLeftTickLeft,  y);
-					gl.glVertex2f(xYaxisLeftTickRight, y);
+					OpenGL.buffer.put(xPlotLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesColor);
+					OpenGL.buffer.put(xPlotRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesColor);
+
+					OpenGL.buffer.put(xYaxisLeftTickLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
+					OpenGL.buffer.put(xYaxisLeftTickRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
 				}
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				int vertexCount = yDivisionsFrequency.keySet().size() * 4;
+				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 				
 				for(Map.Entry<Float,String> entry : yDivisionsFrequency.entrySet()) {
 					float x = xYaxisLeftTickTextRight - FontUtils.tickTextWidth(entry.getValue());
@@ -611,23 +599,10 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 		// draw the legend, if space is available
 		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
-			gl.glBegin(GL2.GL_QUADS);
-			gl.glColor4fv(Theme.legendBackgroundColor, 0);
-				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderBottom);
-				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderTop);
-				gl.glVertex2f(xLegendBorderRight, yLegendBorderTop);
-				gl.glVertex2f(xLegendBorderRight, yLegendBorderBottom);
-			gl.glEnd();
+			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
 			for(int i = 0; i < datasets.length; i++) {
-				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(datasets[i].color.getRed()/255.0f, datasets[i].color.getGreen()/255.0f, datasets[i].color.getBlue()/255.0f, 1);
-					gl.glVertex2f(legendBoxCoordinates[i][0], legendBoxCoordinates[i][1]);
-					gl.glVertex2f(legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-					gl.glVertex2f(legendBoxCoordinates[i][4], legendBoxCoordinates[i][5]);
-					gl.glVertex2f(legendBoxCoordinates[i][6], legendBoxCoordinates[i][7]);
-				gl.glEnd();
-				
+				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
 				FontUtils.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 			}
 		}
@@ -664,13 +639,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 					float yBarTop = ((float) bins[datasetN][binN] - minYfreq) / yFreqRange * plotHeight + yPlotBottom;
 					float halfBarWidth = plotWidth / binCount / 2f;
 					
-					gl.glBegin(GL2.GL_QUADS);
-					gl.glColor3f(datasets[datasetN].color.getRed()/255.0f, datasets[datasetN].color.getGreen()/255.0f, datasets[datasetN].color.getBlue()/255.0f);
-						gl.glVertex2f(xBarCenter - halfBarWidth, yPlotBottom);
-						gl.glVertex2f(xBarCenter - halfBarWidth, yBarTop);
-						gl.glVertex2f(xBarCenter + halfBarWidth, yBarTop);
-						gl.glVertex2f(xBarCenter + halfBarWidth, yPlotBottom);
-					gl.glEnd();
+					OpenGL.drawQuad2D(gl, datasets[datasetN].glColor, xBarCenter - halfBarWidth, yPlotBottom, xBarCenter + halfBarWidth, yBarTop);
 					
 				}
 			
@@ -697,11 +666,11 @@ public class OpenGLHistogramChart extends PositionedChart {
 			}
 			float xBarCenter = ((binSize *  binN) + (binSize * (binN + 1))) / 2f / range * plotWidth + xPlotLeft;
 			if(datasets.length > 1) {
-				gl.glBegin(GL2.GL_LINES);
-				gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
-					gl.glVertex2f(xBarCenter, yPlotTop);
-					gl.glVertex2f(xBarCenter, yPlotBottom);
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(xBarCenter); OpenGL.buffer.put(yPlotTop);
+				OpenGL.buffer.put(xBarCenter); OpenGL.buffer.put(yPlotBottom);
+				OpenGL.buffer.rewind();
+				OpenGL.drawLines2D(gl, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
 				ChartUtils.drawTooltip(gl, text, colors, (int) xBarCenter, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 			} else {
 				int anchorY = (int) (((float) bins[0][binN] - minYfreq) / yFreqRange * plotHeight + yPlotBottom);
@@ -710,13 +679,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		}
 		
 		// draw the plot border
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor3f(0.0f, 0.0f, 0.0f);
-			gl.glVertex2f(xPlotLeft,  yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotBottom);
-			gl.glVertex2f(xPlotLeft,  yPlotBottom);
-		gl.glEnd();
+		OpenGL.drawQuadOutline2D(gl, Theme.plotOutlineColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 	}
 

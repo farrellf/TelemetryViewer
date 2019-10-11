@@ -18,27 +18,9 @@ public class OpenGLTimeDomainSlice {
 	
 	public OpenGLTimeDomainSlice(GL2 gl) {
 		
-		// create and use a framebuffer
 		fbHandle = new int[1];
-		gl.glGenFramebuffers(1, fbHandle, 0);
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbHandle[0]);
-		
-		// create and use a texture
 		texHandle = new int[1];
-		gl.glGenTextures(1, texHandle, 0);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGB, 512, 512, 0, GL2.GL_RGB, GL2.GL_UNSIGNED_BYTE, null); // dummy 512x512 texture
-		gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_LINEAR);
-		gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_LINEAR);
-		gl.glFramebufferTexture2D(GL2.GL_FRAMEBUFFER, GL2.GL_COLOR_ATTACHMENT0, GL2.GL_TEXTURE_2D, texHandle[0], 0);
-		gl.glDrawBuffers(1, new int[] {GL2.GL_COLOR_ATTACHMENT0}, 0);
-		
-		// check for errors
-		if(gl.glCheckFramebufferStatus(GL2.GL_FRAMEBUFFER) != GL2.GL_FRAMEBUFFER_COMPLETE)
-			NotificationsController.showFailureForSeconds("Error while creating a time domain slice's framebuffer or texture.", 10, false);
-		
-		// switch back to the screen framebuffer
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
+		OpenGL.createOffscreenFramebuffer(gl, fbHandle, texHandle);
 		
 	}
 	
@@ -87,6 +69,7 @@ public class OpenGLTimeDomainSlice {
 	/**
 	 * Updates the slice texture if needed.
 	 * 
+	 * @param chartMatrix       The current 4x4 matrix.
 	 * @param sliceNumber       Which slice this texture represents.
 	 * @param sliceWidth        Pixel width of this slice.
 	 * @param sliceHeight       Pixel height of this slice.
@@ -102,7 +85,7 @@ public class OpenGLTimeDomainSlice {
 	 * @param showYaxisScale    If the y division lines need to be drawn.
 	 * @param gl                The OpenGL context.
 	 */
-	public void updateSliceTexture(int sliceNumber, int sliceWidth, int sliceHeight, int plotWidth, float domain, float plotMinY, float plotMaxY, int datasetsSize, Dataset[] datasets, Set<Integer> xDivisions, Set<Float> yDivisions, boolean showXaxisScale, boolean showYaxisScale, GL2 gl) {
+	public void updateSliceTexture(float[] chartMatrix, int sliceNumber, int sliceWidth, int sliceHeight, int plotWidth, float domain, float plotMinY, float plotMaxY, int datasetsSize, Dataset[] datasets, Set<Integer> xDivisions, Set<Float> yDivisions, boolean showXaxisScale, boolean showYaxisScale, GL2 gl) {
 		
 		// determine which x values need to be plotted
 		int firstIndex = (int) Math.floor((double) (sliceNumber * sliceWidth)    * ((double) domain / (double) plotWidth));
@@ -178,70 +161,52 @@ public class OpenGLTimeDomainSlice {
 
 //		System.out.println(String.format("SLICE REDRAWN: sliceNumber = %d, sliceWidth = %d, sliceHeight = %d, plotWidth = %d, domain = %f, plotMinY = %f, plotMaxY = %f, firstIndex = %d, lastIndex = %d", sliceNumber, sliceWidth, sliceHeight, plotWidth, domain, plotMinY, plotMaxY, firstIndex, lastIndex));
 
-		// save the viewport, scissor test, modelview matrix, and projection matrix
-		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT);
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPushMatrix();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPushMatrix();
-		
 		// update glDatasets
 		updateSamples(datasets, firstIndex, lastIndex);
 		
-		// switch to the off-screen framebuffer and corresponding texture
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbHandle[0]);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-
-		// replace the existing texture
-		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGB, sliceWidth, sliceHeight, 0, GL2.GL_RGB, GL2.GL_UNSIGNED_BYTE, null);
-
-		// set the viewport and disable the scissor test
-		gl.glViewport(0, 0, sliceWidth, sliceHeight);
-		gl.glDisable(GL2.GL_SCISSOR_TEST);
-		
-		// set the projection matrix
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glLoadIdentity();
-		gl.glOrtho(0, sliceWidth, 0, sliceHeight, -3, 3);
-		
-		// set the modelview matrix
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();
+		float[] offscreenMatrix = new float[16];
+		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, sliceWidth, 0, sliceHeight, -1, 1);
+		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, sliceWidth, sliceHeight);
 		
 		// draw the plot background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor3fv(Theme.plotBackgroundColor, 0);
-			gl.glVertex2f(0,          0);
-			gl.glVertex2f(0,          sliceHeight);
-			gl.glVertex2f(sliceWidth, sliceHeight);
-			gl.glVertex2f(sliceWidth, 0);
-		gl.glEnd();
+		OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, 0, 0, sliceWidth, sliceHeight);
 		
 		// draw the vertical division lines
 		if(_xDivisionsSize > 0 && _showXaxisScale) {
 			int firstXdiv = firstIndex - (firstIndex % _xDivisionsSize);
 			int lastXdiv = lastIndex - (lastIndex % _xDivisionsSize) + _xDivisionsSize;
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
+			int vertexCount = 0;
 			for(int xValue = firstXdiv; xValue <= lastXdiv; xValue += _xDivisionsSize) {
 				float x = (float) xValue / domain * (float) plotWidth - (float) (sliceNumber * sliceWidth);
-				gl.glColor3fv(Theme.divisionLinesColor, 0);
-				gl.glVertex2f(x, 0);
-				gl.glVertex2f(x, sliceHeight);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(0);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(sliceHeight);
+				vertexCount += 2;
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.drawLines2D(gl, Theme.divisionLinesColor, OpenGL.buffer, vertexCount);
 		}
 		
 		// draw the horizontal division lines
 		if(_showYaxisScale) {
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
+			int vertexCount = 0;
 			for(Float yValue : yDivisions) {
 				float y = (yValue - plotMinY) / (plotMaxY - plotMinY) * (float) sliceHeight;
-				gl.glColor3fv(Theme.divisionLinesColor, 0);
-				gl.glVertex2f(0,  y);
-				gl.glVertex2f(sliceWidth, y);
+				OpenGL.buffer.put(0);          OpenGL.buffer.put(y);
+				OpenGL.buffer.put(sliceWidth); OpenGL.buffer.put(y);
+				vertexCount += 2;
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.drawLines2D(gl, Theme.divisionLinesColor, OpenGL.buffer, vertexCount);
 		}
+		
+		// adjust so: x = x / domain * plotWidth - (sliceNumber * sliceWidth)
+		// adjust so: y = (y - plotMinY) / range * sliceHeight
+		OpenGL.translateMatrix(offscreenMatrix, -(sliceNumber * sliceWidth), 0,                                 0);
+		OpenGL.scaleMatrix    (offscreenMatrix, plotWidth/domain,            sliceHeight/(plotMaxY - plotMinY), 1);
+		OpenGL.translateMatrix(offscreenMatrix, 0,                           -plotMinY,                         0);
+		OpenGL.useMatrix(gl, offscreenMatrix);
 		
 		// draw each dataset
 		for(int i = 0; i < glDataset.length; i++) {
@@ -254,65 +219,21 @@ public class OpenGLTimeDomainSlice {
 			if(vertexCount < 2)
 				break;
 			
-			gl.glMatrixMode(GL2.GL_MODELVIEW);
-			gl.glPushMatrix();
-			gl.glLoadIdentity();
-			
-			// adjust so x = x / domain * plotWidth - (sliceNumber * sliceWidth)
-			gl.glTranslatef(-(sliceNumber * sliceWidth), 0, 0);
-			gl.glScalef(plotWidth, 1, 1);
-			gl.glScalef(1.0f / domain, 1, 1);
-			
-			// adjust so y = (y - plotMinY) / range * sliceHeight
-			gl.glScalef(1, sliceHeight, 1);
-			gl.glScalef(1, 1.0f / (plotMaxY - plotMinY), 1);
-			gl.glTranslatef(0, -plotMinY, 0);
-			
-			gl.glColor3fv(glDataset[i].color, 0);
-			gl.glVertexPointer(2, GL2.GL_FLOAT, 0, glDataset[i].buffer);
-			gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, vertexCount);
+			OpenGL.drawLineStrip2D(gl, glDataset[i].glColor, glDataset[i].buffer, vertexCount);
 			
 			// also draw points if there are relatively few samples on screen
 			if(_plotWidth / _domain > 2 * Theme.pointSize)
-				gl.glDrawArrays(GL2.GL_POINTS, 0, vertexCount);
-			
-			gl.glPopMatrix();
+				OpenGL.drawPoints2D(gl, glDataset[i].glColor, glDataset[i].buffer, vertexCount);
 			
 		}
 		
-		// switch back to the screen framebuffer
-		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
-		
-		// restore old viewport and scissor test state, projection matrix, and modelview matrix
-		gl.glPopAttrib();
-		gl.glMatrixMode(GL2.GL_PROJECTION);
-		gl.glPopMatrix();
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glPopMatrix();
+		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
 	}
 	
 	public void renderSliceAt(int bottomLeftX, int bottomLeftY, GL2 gl) {
 		
-		// draw a textured quad with the slice texture
-		gl.glColor3f(1, 1, 1);
-		gl.glDisable(GL2.GL_LIGHTING);
-		gl.glBindTexture(GL2.GL_TEXTURE_2D, texHandle[0]);
-		gl.glEnable(GL2.GL_TEXTURE_2D);
-		gl.glBegin(GL2.GL_QUADS);
-			gl.glTexCoord2f(0, 0);
-			gl.glVertex2f(bottomLeftX, bottomLeftY);
-			
-			gl.glTexCoord2f(0, 1);
-			gl.glVertex2f(bottomLeftX, bottomLeftY + _sliceHeight);
-			
-			gl.glTexCoord2f(1, 1);
-			gl.glVertex2f(bottomLeftX + _sliceWidth, bottomLeftY + _sliceHeight);
-			
-			gl.glTexCoord2f(1, 0);
-			gl.glVertex2f(bottomLeftX + _sliceWidth, bottomLeftY);
-		gl.glEnd();
-		gl.glDisable(GL2.GL_TEXTURE_2D);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, _sliceWidth, _sliceHeight, 0);
 		
 	}
 	

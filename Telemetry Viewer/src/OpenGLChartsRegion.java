@@ -4,6 +4,7 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.swing.JFrame;
@@ -82,6 +83,8 @@ public class OpenGLChartsRegion extends JPanel {
 	
 	JFrame parentWindow;
 	
+	float[] screenMatrix = new float[16];
+	
 	public OpenGLChartsRegion(SettingsView settingsRegion, ControlsRegion controlsRegion) {
 		
 		super();
@@ -132,15 +135,18 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				gl.glGenQueries(2, gpuQueryHandles, 0);
 				
+				OpenGL.makeXyColorProgram(gl);
+				OpenGL.makeXyrgbaProgram(gl);
+				OpenGL.makeXyzuvwProgram(gl);
+				
 			}
 						
 			@Override public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
 				
 				GL2 gl = drawable.getGL().getGL2();
 				
-				gl.glMatrixMode(GL2.GL_PROJECTION);
-				gl.glLoadIdentity();
-				gl.glOrtho(0, width, 0, height, -100000, 100000);
+				OpenGL.makeOrthoMatrix(screenMatrix, 0, width, 0, height, -100000, 100000);
+				OpenGL.useMatrix(gl, screenMatrix);
 				
 				canvasWidth = width;
 				canvasHeight = height;
@@ -155,11 +161,9 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				// prepare OpenGL
 				GL2 gl = drawable.getGL().getGL2();
+				OpenGL.useMatrix(gl, screenMatrix);
 				
-				gl.glMatrixMode(GL2.GL_MODELVIEW);
-				gl.glLoadIdentity();
-				
-				gl.glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+				gl.glClearColor(Theme.neutralColor[0], Theme.neutralColor[1], Theme.neutralColor[2], Theme.neutralColor[3]);
 				gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
 				
 				gl.glLineWidth(Theme.lineWidth);
@@ -179,15 +183,6 @@ public class OpenGLChartsRegion extends JPanel {
 					}
 				}
 				
-				// draw a neutral background
-				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4fv(Theme.neutralColor, 0);
-					gl.glVertex2f(0,           0);
-					gl.glVertex2f(0,           canvasHeight);
-					gl.glVertex2f(canvasWidth, canvasHeight);
-					gl.glVertex2f(canvasWidth, 0);
-				gl.glEnd();
-				
 				// if there is no connection and no charts, we're done, do not draw any tiles
 				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
@@ -195,40 +190,19 @@ public class OpenGLChartsRegion extends JPanel {
 				// draw every tile
 				for(int column = 0; column < columnCount; column++) {
 					for(int row = 0; row < rowCount; row++) {
-						
-						gl.glColor4fv(Theme.tileShadowColor, 0);
-						gl.glBegin(GL2.GL_QUADS);
-							gl.glVertex2f(tileWidth * column       + Theme.tilePadding + Theme.tileShadowOffset, tilesYoffset + tileHeight * row       + Theme.tilePadding - Theme.tileShadowOffset);
-							gl.glVertex2f(tileWidth * column       + Theme.tilePadding + Theme.tileShadowOffset, tilesYoffset + tileHeight * (row + 1) - Theme.tilePadding - Theme.tileShadowOffset);
-							gl.glVertex2f(tileWidth * (column + 1) - Theme.tilePadding + Theme.tileShadowOffset, tilesYoffset + tileHeight * (row + 1) - Theme.tilePadding - Theme.tileShadowOffset);
-							gl.glVertex2f(tileWidth * (column + 1) - Theme.tilePadding + Theme.tileShadowOffset, tilesYoffset + tileHeight * row       + Theme.tilePadding - Theme.tileShadowOffset);
-						gl.glEnd();
-						
-						gl.glColor4fv(Theme.tileColor, 0);
-						gl.glBegin(GL2.GL_QUADS);
-							gl.glVertex2f(tileWidth * column       + Theme.tilePadding, tilesYoffset + tileHeight * row       + Theme.tilePadding);
-							gl.glVertex2f(tileWidth * column       + Theme.tilePadding, tilesYoffset + tileHeight * (row + 1) - Theme.tilePadding);
-							gl.glVertex2f(tileWidth * (column + 1) - Theme.tilePadding, tilesYoffset + tileHeight * (row + 1) - Theme.tilePadding);
-							gl.glVertex2f(tileWidth * (column + 1) - Theme.tilePadding, tilesYoffset + tileHeight * row       + Theme.tilePadding);
-						gl.glEnd();
-						
+						int lowerLeftX = tileWidth * column;
+						int lowerLeftY = tileHeight * row + tilesYoffset;
+						drawTile(gl, lowerLeftX, lowerLeftY, tileWidth, tileHeight);
 					}
 				}
 				
 				// draw a bounding box where the user is actively clicking-and-dragging to place a new chart
-				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4fv(Theme.tileSelectedColor, 0);
-					int x1 = startX < endX ? startX * tileWidth : endX * tileWidth;
-					int y1 = startY < endY ? startY * tileHeight   : endY * tileHeight;
-					int x2 = x1 + (Math.abs(endX - startX) + 1) * tileWidth;
-					int y2 = y1 + (Math.abs(endY - startY) + 1) * tileHeight;
-					y1 = canvasHeight - y1;
-					y2 = canvasHeight - y2;
-					gl.glVertex2f(x1, y1);
-					gl.glVertex2f(x1, y2);
-					gl.glVertex2f(x2, y2);
-					gl.glVertex2f(x2, y1);
-				gl.glEnd();	
+				OpenGL.drawBox(gl,
+				               Theme.tileSelectedColor,
+				               startX < endX ? startX * tileWidth : endX * tileWidth,
+				               startY < endY ? canvasHeight - (endY + 1)*tileHeight : canvasHeight - (startY + 1)*tileHeight,
+				               (Math.abs(endX - startX) + 1) * tileWidth,
+				               (Math.abs(endY - startY) + 1) * tileHeight);
 				
 				// if there are no charts, ensure we switch back to live view
 				List<PositionedChart> charts = Controller.getCharts();
@@ -355,11 +329,13 @@ public class OpenGLChartsRegion extends JPanel {
 					
 					gl.glEnable(GL2.GL_SCISSOR_TEST);
 					gl.glScissor(xOffset, yOffset, width, height);
-					gl.glPushMatrix();
-					gl.glTranslatef(xOffset, yOffset, 0);
+					
+					float[] chartMatrix = Arrays.copyOf(screenMatrix, 16);
+					OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
+					OpenGL.useMatrix(gl, chartMatrix);
 					
 					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
-					chart.drawChart(gl, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
+					chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl);
 					
 					// draw the cpu/gpu benchmarks for this chart if benchmarking
@@ -367,25 +343,20 @@ public class OpenGLChartsRegion extends JPanel {
 						cpuStopNanoseconds = System.nanoTime();
 						gl.glQueryCounter(gpuQueryHandles[1], GL2.GL_TIMESTAMP);
 						gl.glScissor((int) (xOffset - Theme.tilePadding), (int) (yOffset - Theme.tilePadding), (int) (width + 2 * Theme.tilePadding), (int) (height + 2 * Theme.tilePadding));
-						gl.glTranslatef(0, -Theme.tilePadding, 0);
+						OpenGL.translateMatrix(chartMatrix, 0, -Theme.tilePadding, 0);
+						OpenGL.useMatrix(gl, chartMatrix);
 						String line1 = String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
 						String line2 = String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds);
 						float textHeight = 2 * FontUtils.tickTextHeight + Theme.tickTextPadding;
 						float textWidth = Float.max(FontUtils.tickTextWidth(line1), FontUtils.tickTextWidth(line2));
-						gl.glColor4fv(Theme.neutralColor, 0);
-						gl.glBegin(GL2.GL_QUADS);
-							gl.glVertex2f(0, 0);
-							gl.glVertex2f(0, textHeight + Theme.tickTextPadding * 2);
-							gl.glVertex2f(textWidth + Theme.tickTextPadding * 2, textHeight + Theme.tickTextPadding * 2);
-							gl.glVertex2f(textWidth + Theme.tickTextPadding * 2, 0);
-						gl.glEnd();
+						OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
 						FontUtils.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + FontUtils.tickTextHeight));
 						FontUtils.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
 						FontUtils.drawQueuedText(gl);
 						NotificationsController.showVerboseForSeconds(line1 + ", " + line2, 1, false);
 					}
 					
-					gl.glPopMatrix();
+					OpenGL.useMatrix(gl, screenMatrix);
 					gl.glDisable(GL2.GL_SCISSOR_TEST);
 					
 					// draw the chart's configure / maximize / close buttons
@@ -422,13 +393,7 @@ public class OpenGLChartsRegion extends JPanel {
 					int padding = 10;
 					float textHeight = FontUtils.xAxisTextHeight;
 					float textWidth = FontUtils.xAxisTextWidth(text);
-					gl.glColor4fv(Theme.neutralColor, 0);
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glVertex2f(0, 0);
-						gl.glVertex2f(0, textHeight + padding * 2);
-						gl.glVertex2f(textWidth + padding * 2, textHeight + padding * 2);
-						gl.glVertex2f(textWidth + padding * 2, 0);
-					gl.glEnd();
+					OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + padding*2, textHeight + padding*2);
 					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
 					FontUtils.drawXaxisText(text, padding, padding);
 					FontUtils.drawQueuedText(gl);
@@ -671,40 +636,37 @@ public class OpenGLChartsRegion extends JPanel {
 	/**
 	 * Draws a tile, the tile's drop-shadow, and a margin around the tile.
 	 * 
-	 * @param gl         The OpenGL context.
-	 * @param xOffset    Lower-left x location.
-	 * @param yOffset    Lower-left y location.
-	 * @param width      Total region width, including the tile, drop-shadow and margin.
-	 * @param height     Total region height, including the tile, drop-shadow and margin.
+	 * @param gl            The OpenGL context.
+	 * @param lowerLeftX    Lower-left x location.
+	 * @param lowerLeftY    Lower-left y location.
+	 * @param width         Total region width, including the tile, drop-shadow and margin.
+	 * @param height        Total region height, including the tile, drop-shadow and margin.
 	 */
-	private void drawTile(GL2 gl, int xOffset, int yOffset, int width, int height) {
+	private void drawTile(GL2 gl, int lowerLeftX, int lowerLeftY, int width, int height) {
 		
 		// draw the background (margin)
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.neutralColor, 0);
-			gl.glVertex2f(xOffset,         yOffset);
-			gl.glVertex2f(xOffset,         yOffset + height);
-			gl.glVertex2f(xOffset + width, yOffset + height);
-			gl.glVertex2f(xOffset + width, yOffset);
-		gl.glEnd();
+		OpenGL.drawBox(gl,
+		               Theme.neutralColor,
+		               lowerLeftX,
+		               lowerLeftY,
+		               width,
+		               height);
 		
 		// draw the tile's drop-shadow
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.tileShadowColor, 0);
-			gl.glVertex2f(xOffset         + Theme.tilePadding + Theme.tileShadowOffset, yOffset          + Theme.tilePadding - Theme.tileShadowOffset);
-			gl.glVertex2f(xOffset         + Theme.tilePadding + Theme.tileShadowOffset, yOffset + height - Theme.tilePadding - Theme.tileShadowOffset);
-			gl.glVertex2f(xOffset + width - Theme.tilePadding + Theme.tileShadowOffset, yOffset + height - Theme.tilePadding - Theme.tileShadowOffset);
-			gl.glVertex2f(xOffset + width - Theme.tilePadding + Theme.tileShadowOffset, yOffset          + Theme.tilePadding - Theme.tileShadowOffset);
-		gl.glEnd();
+		OpenGL.drawBox(gl,
+		               Theme.tileShadowColor,
+		               lowerLeftX + Theme.tilePadding + Theme.tileShadowOffset,
+		               lowerLeftY + Theme.tilePadding - Theme.tileShadowOffset,
+		               width - 2*Theme.tilePadding,
+		               height - 2*Theme.tilePadding);
 
 		// draw the tile
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.tileColor, 0);
-			gl.glVertex2f(xOffset         + Theme.tilePadding, yOffset          + Theme.tilePadding);
-			gl.glVertex2f(xOffset         + Theme.tilePadding, yOffset + height - Theme.tilePadding);
-			gl.glVertex2f(xOffset + width - Theme.tilePadding, yOffset + height - Theme.tilePadding);
-			gl.glVertex2f(xOffset + width - Theme.tilePadding, yOffset          + Theme.tilePadding);
-		gl.glEnd();
+		OpenGL.drawBox(gl,
+		               Theme.tileColor,
+		               lowerLeftX + Theme.tilePadding,
+		               lowerLeftY + Theme.tilePadding,
+		               width - 2*Theme.tilePadding,
+		               height - 2*Theme.tilePadding);
 		
 	}
 	
@@ -736,31 +698,19 @@ public class OpenGLChartsRegion extends JPanel {
 		float[] black = new float[] {0, 0, 0, 1};
 		
 		// draw button background
-		gl.glBegin(GL2.GL_QUADS);
-			gl.glColor4fv(mouseOverButton ? black : white, 0);
-			gl.glVertex2f(buttonXleft, buttonYbottom);
-			gl.glVertex2f(buttonXleft, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYbottom);
-		gl.glEnd();
+		OpenGL.drawBox(gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw button outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-			gl.glColor4fv(mouseOverButton ? white : black, 0);
-			gl.glVertex2f(buttonXleft, buttonYbottom);
-			gl.glVertex2f(buttonXleft, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYbottom);
-		gl.glEnd();
+		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw the "X"
-		gl.glBegin(GL2.GL_LINES);
-			gl.glColor4fv(mouseOverButton ? white : black, 0);
-			gl.glVertex2f(buttonXleft  + inset, buttonYtop    - inset);
-			gl.glVertex2f(buttonXright - inset, buttonYbottom + inset);
-			gl.glVertex2f(buttonXleft  + inset, buttonYbottom + inset);
-			gl.glVertex2f(buttonXright - inset, buttonYtop    - inset);
-		gl.glEnd();
+		OpenGL.buffer.rewind();
+		OpenGL.buffer.put(buttonXleft  + inset); OpenGL.buffer.put(buttonYtop    - inset);
+		OpenGL.buffer.put(buttonXright - inset); OpenGL.buffer.put(buttonYbottom + inset);
+		OpenGL.buffer.put(buttonXleft  + inset); OpenGL.buffer.put(buttonYbottom + inset);
+		OpenGL.buffer.put(buttonXright - inset); OpenGL.buffer.put(buttonYtop    - inset);
+		OpenGL.buffer.rewind();
+		OpenGL.drawLines2D(gl, mouseOverButton ? white : black, OpenGL.buffer, 4);
 		
 		return mouseOverButton;
 		
@@ -795,37 +745,14 @@ public class OpenGLChartsRegion extends JPanel {
 		float[] black = new float[] {0, 0, 0, 1};
 		
 		// draw button background
-		gl.glBegin(GL2.GL_QUADS);
-			gl.glColor4fv(mouseOverButton ? black : white, 0);
-			gl.glVertex2f(buttonXleft, buttonYbottom);
-			gl.glVertex2f(buttonXleft, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYbottom);
-		gl.glEnd();
+		OpenGL.drawBox(gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw button outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-			gl.glColor4fv(mouseOverButton ? white : black, 0);
-			gl.glVertex2f(buttonXleft, buttonYbottom);
-			gl.glVertex2f(buttonXleft, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYbottom);
-		gl.glEnd();
+		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw the rectangle
-		gl.glBegin(GL2.GL_LINE_LOOP);
-			gl.glColor4fv(mouseOverButton ? white : black, 0);
-			gl.glVertex2f(buttonXleft + inset, buttonYbottom + inset);
-			gl.glVertex2f(buttonXleft + inset, buttonYtop - inset);
-			gl.glVertex2f(buttonXright - inset, buttonYtop - inset);
-			gl.glVertex2f(buttonXright - inset, buttonYbottom + inset);
-		gl.glEnd();
-		gl.glBegin(GL2.GL_QUADS);
-			gl.glVertex2f(buttonXleft + inset, buttonYtop - inset);
-			gl.glVertex2f(buttonXright - inset, buttonYtop - inset);
-			gl.glVertex2f(buttonXright - inset, buttonYtop - inset - (inset / 1.5f));
-			gl.glVertex2f(buttonXleft + inset, buttonYtop - inset - (inset / 1.5f));
-		gl.glEnd();
+		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft + inset, buttonYbottom + inset, buttonWidth - 2*inset, buttonWidth - 2*inset);
+		OpenGL.drawBox(gl, mouseOverButton ? white : black, buttonXleft + inset, buttonYtop - inset - (inset / 1.5f), buttonWidth - 2*inset, inset / 1.5f);
 		
 		return mouseOverButton;
 		
@@ -867,42 +794,32 @@ public class OpenGLChartsRegion extends JPanel {
 		float holeRadius  = buttonWidth * 0.10f;
 		
 		// draw button background
-		gl.glBegin(GL2.GL_QUADS);
-			gl.glColor4fv(mouseOverButton ? black : white, 0);
-			gl.glVertex2f(buttonXleft, buttonYbottom);
-			gl.glVertex2f(buttonXleft, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYbottom);
-		gl.glEnd();
+		OpenGL.drawBox(gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw button outline
-		gl.glBegin(GL2.GL_LINE_LOOP);
-			gl.glColor4fv(mouseOverButton ? white : black, 0);
-			gl.glVertex2f(buttonXleft, buttonYbottom);
-			gl.glVertex2f(buttonXleft, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYtop);
-			gl.glVertex2f(buttonXright, buttonYbottom);
-		gl.glEnd();
+		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw the gear teeth
-		gl.glBegin(GL2.GL_LINE_LOOP);
-			gl.glColor4fv(mouseOverButton ? white : black, 0);
-			for(int vertex = 0; vertex < vertexCount; vertex++) {
-				float x = gearCenterX + (float) Math.cos((double) vertex / (double)vertexCount * 2 * Math.PI) * (vertex % 4 < 2 ? outerRadius : innerRadius);
-				float y = gearCenterY + (float) Math.sin((double) vertex / (double)vertexCount * 2 * Math.PI) * (vertex % 4 < 2 ? outerRadius : innerRadius);
-				gl.glVertex2f(x, y);
-			}
-		gl.glEnd();
+		OpenGL.buffer.rewind();
+		for(int vertex = 0; vertex < vertexCount; vertex++) {
+			float x = gearCenterX + (float) Math.cos((double) vertex / (double)vertexCount * 2 * Math.PI) * (vertex % 4 < 2 ? outerRadius : innerRadius);
+			float y = gearCenterY + (float) Math.sin((double) vertex / (double)vertexCount * 2 * Math.PI) * (vertex % 4 < 2 ? outerRadius : innerRadius);
+			OpenGL.buffer.put(x);
+			OpenGL.buffer.put(y);
+		}
+		OpenGL.buffer.rewind();
+		OpenGL.drawLineLoop2D(gl, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
 		
 		// draw the hole
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(mouseOverButton ? white : black, 0);
+		OpenGL.buffer.rewind();
 		for(int vertex = 0; vertex < vertexCount; vertex++) {
 			float x = gearCenterX + (float) Math.cos((double) vertex / (double)vertexCount * 2 * Math.PI) * holeRadius;
 			float y = gearCenterY + (float) Math.sin((double) vertex / (double)vertexCount * 2 * Math.PI) * holeRadius;
-			gl.glVertex2f(x, y);
+			OpenGL.buffer.put(x);
+			OpenGL.buffer.put(y);
 		}
-		gl.glEnd();
+		OpenGL.buffer.rewind();
+		OpenGL.drawLineLoop2D(gl, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
 		
 		return mouseOverButton;
 		

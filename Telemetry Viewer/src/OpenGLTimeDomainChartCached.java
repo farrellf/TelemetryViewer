@@ -164,7 +164,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 
 		// calculate domain
 		int totalSampleCount = lastSampleNumber + 1;
@@ -232,7 +232,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 			
-			legendBoxCoordinates = new float[datasets.length][8];
+			legendBoxCoordinates = new float[datasets.length][4];
 			xLegendNameLeft = new float[datasets.length];
 			
 			float xOffset = xLegendBorderLeft + (Theme.lineWidth / 2) + Theme.legendTextPadding;
@@ -240,15 +240,8 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			for(int i = 0; i < datasets.length; i++){
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
-				
-				legendBoxCoordinates[i][2] = xOffset;
+				legendBoxCoordinates[i][2] = xOffset + FontUtils.legendTextHeight;
 				legendBoxCoordinates[i][3] = yLegendTextTop;
-				
-				legendBoxCoordinates[i][4] = xOffset + FontUtils.legendTextHeight;
-				legendBoxCoordinates[i][5] = yLegendTextTop;
-				
-				legendBoxCoordinates[i][6] = xOffset + FontUtils.legendTextHeight;
-				legendBoxCoordinates[i][7] = yLegendTextBaseline;
 				
 				xOffset += FontUtils.legendTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
@@ -320,24 +313,19 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 			return;
 		
 		// draw plot background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.plotBackgroundColor, 0);
-			gl.glVertex2f(xPlotLeft,  yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotBottom);
-			gl.glVertex2f(xPlotLeft,  yPlotBottom);
-		gl.glEnd();
+		OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 		// draw the x-axis scale
 		if(showXaxisScale) {
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
 			for(Integer xValue : xDivisions.keySet()) {
 				float x = (float) (xValue - plotMinX) / domain * plotWidth + xPlotLeft;
-				gl.glColor4fv(Theme.tickLinesColor, 0);
-				gl.glVertex2f(x, yXaxisTickTop);
-				gl.glVertex2f(x, yXaxisTickBottom);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yXaxisTickTop);    OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yXaxisTickBottom); OpenGL.buffer.put(Theme.tickLinesColor);
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			int vertexCount = xDivisions.keySet().size() * 2;
+			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Integer,String> entry : xDivisions.entrySet()) {
 				float x = (float) (entry.getKey() - plotMinX) / domain * plotWidth + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
@@ -348,14 +336,15 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		
 		// draw the y-axis scale
 		if(showYaxisScale) {
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
 			for(Float entry : yDivisions.keySet()) {
 				float y = (entry - plotMinY) / plotRange * plotHeight + yPlotBottom;
-				gl.glColor4fv(Theme.tickLinesColor, 0);
-				gl.glVertex2f(xYaxisTickLeft,  y);
-				gl.glVertex2f(xYaxisTickRight, y);
+				OpenGL.buffer.put(xYaxisTickLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(xYaxisTickRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			int vertexCount = yDivisions.keySet().size() * 2;
+			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : yDivisions.entrySet()) {
 				float x = xYaxisTickTextRight - FontUtils.tickTextWidth(entry.getValue());
@@ -366,24 +355,11 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		
 		// draw the legend, if space is available
 		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
-			gl.glBegin(GL2.GL_QUADS);
-			gl.glColor4fv(Theme.legendBackgroundColor, 0);
-				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderBottom);
-				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderTop);
-				gl.glVertex2f(xLegendBorderRight, yLegendBorderTop);
-				gl.glVertex2f(xLegendBorderRight, yLegendBorderBottom);
-			gl.glEnd();
+			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
 			if(slices.length > 0 && slices[0] != null && slices[0].glDataset != null && slices[0].glDataset.length == datasets.length) {
 				for(int i = 0; i < datasets.length; i++) {
-					gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(slices[0].glDataset[i].color, 0);
-						gl.glVertex2f(legendBoxCoordinates[i][0], legendBoxCoordinates[i][1]);
-						gl.glVertex2f(legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-						gl.glVertex2f(legendBoxCoordinates[i][4], legendBoxCoordinates[i][5]);
-						gl.glVertex2f(legendBoxCoordinates[i][6], legendBoxCoordinates[i][7]);
-					gl.glEnd();
-					
+					OpenGL.drawQuad2D(gl, slices[0].glDataset[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
 					FontUtils.drawLegendText(slices[0].glDataset[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 				}
 			}
@@ -422,7 +398,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		// update textures if needed, and draw the slices
 		if(haveDatasets) {
 			for(int i = firstSliceIndex; i <= lastSliceIndex; i++) {		
-				slices[i % slices.length].updateSliceTexture(i, sliceWidth, (int) plotHeight, (int) plotWidth, domain, plotMinY, plotMaxY, totalSampleCount, datasets, xDivisions.keySet(), yDivisions.keySet(), showXaxisScale, showYaxisScale, gl);
+				slices[i % slices.length].updateSliceTexture(chartMatrix, i, sliceWidth, (int) plotHeight, (int) plotWidth, domain, plotMinY, plotMaxY, totalSampleCount, datasets, xDivisions.keySet(), yDivisions.keySet(), showXaxisScale, showYaxisScale, gl);
 				int x = (int) (xPlotRight + (i * sliceWidth) - ((double) (totalSampleCount - 1) / (double) domain * (int) plotWidth));
 				int y = (int) yPlotBottom;
 				slices[i % slices.length].renderSliceAt(x, y, gl);
@@ -457,11 +433,11 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 				}
 				float anchorX = ((float) sampleNumber - plotMinX) / domain * plotWidth + xPlotLeft;
 				if(datasets.length > 1) {
-					gl.glBegin(GL2.GL_LINES);
-					gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
-						gl.glVertex2f(anchorX, yPlotTop);
-						gl.glVertex2f(anchorX, yPlotBottom);
-					gl.glEnd();
+					OpenGL.buffer.rewind();
+					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotTop);
+					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotBottom);
+					OpenGL.buffer.rewind();
+					OpenGL.drawLines2D(gl, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				} else {
 					int anchorY = (int) ((datasets[0].getSample(sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom);
@@ -471,13 +447,7 @@ public class OpenGLTimeDomainChartCached extends PositionedChart {
 		}
 		
 		// draw the plot border
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.plotOutlineColor, 0);
-			gl.glVertex2f(xPlotLeft,  yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotBottom);
-			gl.glVertex2f(xPlotLeft,  yPlotBottom);
-		gl.glEnd();
+		OpenGL.drawQuadOutline2D(gl, Theme.plotOutlineColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 	}
 

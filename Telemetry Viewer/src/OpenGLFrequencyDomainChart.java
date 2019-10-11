@@ -205,7 +205,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// scale the DFT window size by the current zoom level
 		int dftWindowLength = (int) (sampleCount * zoomLevel);
@@ -273,7 +273,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 			
-			legendBoxCoordinates = new float[datasets.length][8];
+			legendBoxCoordinates = new float[datasets.length][4];
 			xLegendNameLeft = new float[datasets.length];
 			
 			float xOffset = xLegendBorderLeft + (Theme.lineWidth / 2) + Theme.legendTextPadding;
@@ -281,15 +281,8 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			for(int i = 0; i < datasets.length; i++){
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
-				
-				legendBoxCoordinates[i][2] = xOffset;
+				legendBoxCoordinates[i][2] = xOffset + FontUtils.legendTextHeight;
 				legendBoxCoordinates[i][3] = yLegendTextTop;
-				
-				legendBoxCoordinates[i][4] = xOffset + FontUtils.legendTextHeight;
-				legendBoxCoordinates[i][5] = yLegendTextTop;
-				
-				legendBoxCoordinates[i][6] = xOffset + FontUtils.legendTextHeight;
-				legendBoxCoordinates[i][7] = yLegendTextBaseline;
 				
 				xOffset += FontUtils.legendTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
@@ -452,27 +445,22 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			return;
 		
 		// draw plot background
-		gl.glBegin(GL2.GL_QUADS);
-		gl.glColor4fv(Theme.plotBackgroundColor, 0);
-			gl.glVertex2f(xPlotLeft,  yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotBottom);
-			gl.glVertex2f(xPlotLeft,  yPlotBottom);
-		gl.glEnd();
+		OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 		// draw the x-axis scale
 		if(showXaxisScale) {
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
 			for(Float xValue : xDivisions.keySet()) {
 				float x = (xValue - plotMinX) / domain * plotWidth + xPlotLeft;
-				gl.glColor4fv(Theme.divisionLinesColor, 0);
-				gl.glVertex2f(x, yPlotTop);
-				gl.glVertex2f(x, yPlotBottom);
-				gl.glColor4fv(Theme.tickLinesColor, 0);
-				gl.glVertex2f(x, yXaxisTickTop);
-				gl.glVertex2f(x, yXaxisTickBottom);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yPlotTop);    OpenGL.buffer.put(Theme.divisionLinesColor);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yPlotBottom); OpenGL.buffer.put(Theme.divisionLinesColor);
+				
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yXaxisTickTop);    OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(x); OpenGL.buffer.put(yXaxisTickBottom); OpenGL.buffer.put(Theme.tickLinesColor);
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			int vertexCount = xDivisions.keySet().size() * 4;
+			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : xDivisions.entrySet()) {
 				float x = (entry.getKey() - plotMinX) / domain * plotWidth + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
@@ -483,17 +471,18 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		// draw the y-axis scale
 		if(showYaxisScale) {
-			gl.glBegin(GL2.GL_LINES);
+			OpenGL.buffer.rewind();
 			for(Float entry : yDivisions.keySet()) {
 				float y = (entry - plotMinY) / plotRange * plotHeight + yPlotBottom;
-				gl.glColor4fv(Theme.divisionLinesColor, 0);
-				gl.glVertex2f(xPlotLeft,  y);
-				gl.glVertex2f(xPlotRight, y);
-				gl.glColor4fv(Theme.tickLinesColor, 0);
-				gl.glVertex2f(xYaxisTickLeft,  y);
-				gl.glVertex2f(xYaxisTickRight, y);
+				OpenGL.buffer.put(xPlotLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesColor);
+				OpenGL.buffer.put(xPlotRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.divisionLinesColor);
+				
+				OpenGL.buffer.put(xYaxisTickLeft);  OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(xYaxisTickRight); OpenGL.buffer.put(y); OpenGL.buffer.put(Theme.tickLinesColor);
 			}
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			int vertexCount = yDivisions.keySet().size() * 4;
+			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : yDivisions.entrySet()) {
 				float x = xYaxisTickTextRight - FontUtils.tickTextWidth(entry.getValue());
@@ -504,23 +493,10 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		// draw the legend, if space is available
 		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
-			gl.glBegin(GL2.GL_QUADS);
-			gl.glColor4fv(Theme.legendBackgroundColor, 0);
-				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderBottom);
-				gl.glVertex2f(xLegendBorderLeft,  yLegendBorderTop);
-				gl.glVertex2f(xLegendBorderRight, yLegendBorderTop);
-				gl.glVertex2f(xLegendBorderRight, yLegendBorderBottom);
-			gl.glEnd();
+			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
 			for(int i = 0; i < datasets.length; i++) {
-				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(datasets[i].color.getRed()/255.0f, datasets[i].color.getGreen()/255.0f, datasets[i].color.getBlue()/255.0f, 1);
-					gl.glVertex2f(legendBoxCoordinates[i][0], legendBoxCoordinates[i][1]);
-					gl.glVertex2f(legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-					gl.glVertex2f(legendBoxCoordinates[i][4], legendBoxCoordinates[i][5]);
-					gl.glVertex2f(legendBoxCoordinates[i][6], legendBoxCoordinates[i][7]);
-				gl.glEnd();
-				
+				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
 				FontUtils.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 			}
 		}
@@ -544,37 +520,24 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				FontUtils.drawTickText(minPowerText, (int) xMinPowerTextLeft, (int) yPowerTextBaseline);
 				FontUtils.drawTickText(maxPowerText, (int) xMaxPowerTextLeft, (int) yPowerTextBaseline);
 				
-				gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4fv(Theme.plotBackgroundColor, 0);
-					gl.glVertex2f(xPowerScaleLeft,  yPowerTextBaseline);
-					gl.glVertex2f(xPowerScaleLeft,  yPowerTextTop);
-					gl.glVertex2f(xPowerScaleRight, yPowerTextTop);
-					gl.glVertex2f(xPowerScaleRight, yPowerTextBaseline);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPowerScaleLeft, yPowerTextBaseline, xPowerScaleRight, yPowerTextTop);
 				
 				for(int dataset = 0; dataset < datasets.length; dataset++) {
 					float top = yPowerTextTop - (yPowerTextTop - yPowerTextBaseline) * dataset / datasets.length;
 					float bottom = top - (yPowerTextTop - yPowerTextBaseline) / datasets.length;
-					float red = datasets[dataset].color.getRed()/255.0f;
-					float green = datasets[dataset].color.getGreen()/255.0f;
-					float blue = datasets[dataset].color.getBlue()/255.0f;
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glColor4f(red, green, blue, 0);
-						gl.glVertex2f(xPowerScaleLeft,  bottom);
-						gl.glVertex2f(xPowerScaleLeft,  top);
-						gl.glColor4f(red, green, blue, 1);
-						gl.glVertex2f(xPowerScaleRight, top);
-						gl.glVertex2f(xPowerScaleRight, bottom);
-					gl.glEnd();
+					float r = datasets[dataset].glColor[0];
+					float g = datasets[dataset].glColor[1];
+					float b = datasets[dataset].glColor[2];
+					OpenGL.buffer.rewind();
+					OpenGL.buffer.put(xPowerScaleLeft);  OpenGL.buffer.put(top);    OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(0);
+					OpenGL.buffer.put(xPowerScaleLeft);  OpenGL.buffer.put(bottom); OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(0);
+					OpenGL.buffer.put(xPowerScaleRight); OpenGL.buffer.put(top);    OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(1);
+					OpenGL.buffer.put(xPowerScaleRight); OpenGL.buffer.put(bottom); OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(1);
+					OpenGL.buffer.rewind();
+					OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
 				}
 				
-				gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glColor4fv(Theme.legendBackgroundColor, 0);
-					gl.glVertex2f(xPowerScaleLeft,  yPowerTextBaseline);
-					gl.glVertex2f(xPowerScaleLeft,  yPowerTextTop);
-					gl.glVertex2f(xPowerScaleRight, yPowerTextTop);
-					gl.glVertex2f(xPowerScaleRight, yPowerTextBaseline);
-				gl.glEnd();
+				OpenGL.drawQuadOutline2D(gl, Theme.legendBackgroundColor, xPowerScaleLeft, yPowerTextBaseline, xPowerScaleRight, yPowerTextTop);
 				
 			}
 		}
@@ -592,11 +555,11 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// draw the DFTs
 		if(haveDatasets) {
 			if(chartType.equals("Live View"))
-				cache.renderLiveView((int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
+				cache.renderLiveView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
 			else if(chartType.equals("Waveform View"))
-				cache.renderWaveformView((int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets, waveformRowCount);
+				cache.renderWaveformView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets, waveformRowCount);
 			else if(chartType.equals("Waterfall View"))
-				cache.renderWaterfallView((int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
+				cache.renderWaterfallView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
 		}
 		
 		// draw the tooltip if the mouse is in the plot region
@@ -674,11 +637,11 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 
 			if(text != null && colors != null) {
 				if(datasets.length > 1 && chartType.equals("Live View")) {
-					gl.glBegin(GL2.GL_LINES);
-					gl.glColor4fv(Theme.tooltipVerticalBarColor, 0);
-						gl.glVertex2f(anchorX, yPlotTop);
-						gl.glVertex2f(anchorX, yPlotBottom);
-					gl.glEnd();
+					OpenGL.buffer.rewind();
+					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotTop);
+					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotBottom);
+					OpenGL.buffer.rewind();
+					OpenGL.drawLines2D(gl, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				} else {
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
@@ -687,13 +650,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 
 		// draw the plot border
-		gl.glBegin(GL2.GL_LINE_LOOP);
-		gl.glColor4fv(Theme.plotOutlineColor, 0);
-			gl.glVertex2f(xPlotLeft,  yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotTop);
-			gl.glVertex2f(xPlotRight, yPlotBottom);
-			gl.glVertex2f(xPlotLeft,  yPlotBottom);
-		gl.glEnd();
+		OpenGL.drawQuadOutline2D(gl, Theme.plotOutlineColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 	}
 

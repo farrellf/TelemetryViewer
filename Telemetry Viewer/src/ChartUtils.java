@@ -1,11 +1,13 @@
 import java.awt.Color;
 import java.io.InputStream;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
+import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2;
 
 public class ChartUtils {
@@ -479,9 +481,9 @@ public class ChartUtils {
 	 * and ensure your model fits in a bounding box from -1 to +1 Blender units, centered at the origin.
 	 * 
 	 * @param fileStream    InputStream of an ASCII STL file.
-	 * @returns             A float[] with a layout of u,v,w,x1,y1,z1,x2,y2,z2,x3,y3,z3 ... or null if the InputStream could not be parsed.
+	 * @returns             A FloatBuffer with a layout of x1,y1,z1,u1,v1,w1... or null if the InputStream could not be parsed.
 	 */
-	public static float[] getShapeFromAsciiStl(InputStream fileStream) {
+	public static FloatBuffer getShapeFromAsciiStl(InputStream fileStream) {
 		
 		try {
 			
@@ -495,28 +497,33 @@ public class ChartUtils {
 			// count the vertices
 			int vertexCount = 0;
 			for(String line : lines)
-				if(line.startsWith("facet normal") || line.startsWith("vertex"))
-					vertexCount += 3;
+				if(line.startsWith("vertex"))
+					vertexCount++;
 			
 			
-			// copy the vertices into the float[]
-			float[] shape = new float[vertexCount];
-			int vertex = 0;
+			// write the vertices into the FloatBuffer
+			FloatBuffer buffer = Buffers.newDirectFloatBuffer(vertexCount * 6);
+			float u = 0;
+			float v = 0;
+			float w = 0;
 			for(String line : lines) {
 				if(line.startsWith("facet normal")) {
 					String[] token = line.split(" ");
-					shape[vertex++] = Float.parseFloat(token[2]);
-					shape[vertex++] = Float.parseFloat(token[3]);
-					shape[vertex++] = Float.parseFloat(token[4]);
+					u = Float.parseFloat(token[2]);
+					v = Float.parseFloat(token[3]);
+					w = Float.parseFloat(token[4]);
 				} else if(line.startsWith("vertex")) {
 					String[] token = line.split(" ");
-					shape[vertex++] = Float.parseFloat(token[1]);
-					shape[vertex++] = Float.parseFloat(token[2]);
-					shape[vertex++] = Float.parseFloat(token[3]);
+					buffer.put(Float.parseFloat(token[1]));
+					buffer.put(Float.parseFloat(token[2]));
+					buffer.put(Float.parseFloat(token[3]));
+					buffer.put(u);
+					buffer.put(v);
+					buffer.put(w);
 				}
 			}
 			
-			return shape;
+			return buffer;
 			
 		} catch (Exception e) {
 			
@@ -589,34 +596,27 @@ public class ChartUtils {
 			// draw the marker
 			if(orientation == NORTH) {
 				
-				gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-				gl.glBegin(GL2.GL_TRIANGLES);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
-				gl.glEnd();
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
-					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
-				gl.glEnd();
+				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                  anchorY,
+				                                                        anchorX + (padding / 2f), anchorY + padding,
+				                                                        anchorX - (padding / 2f), anchorY + padding);
+				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - (boxWidth / 2f), anchorY + padding,
+				                                                    anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
 				
-				gl.glColor4fv(Theme.tooltipBorderColor, 0);
-				gl.glBegin(GL2.GL_LINE_LOOP);
-					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
-					gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
-					gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
-				gl.glEnd();
-				gl.glBegin(GL2.GL_LINES);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glColor4f(Theme.tooltipBorderColor[0], Theme.tooltipBorderColor[1], Theme.tooltipBorderColor[2], 0);
-					gl.glVertex2f(anchorX, anchorY - padding * 6);
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX - (padding / 2f));  OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX);                   OpenGL.buffer.put(anchorY);
+				OpenGL.buffer.put(anchorX + (padding / 2f));  OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.rewind();
+				OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 7);
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY);               OpenGL.buffer.put(Theme.tooltipBorderColor);
+				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY - padding * 6); OpenGL.buffer.put(Theme.tooltipBorderColor, 0, 3); OpenGL.buffer.put(0);
+				OpenGL.buffer.rewind();
+				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, 2);
 				
 				occupiedRegions.add(new float[] {anchorX - (boxWidth / 2f),
 				                                 anchorX + (boxWidth / 2f),
@@ -630,43 +630,31 @@ public class ChartUtils {
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
 					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-					gl.glEnd();
+					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
 				
 			} else if(orientation == NORTH_WEST) {
 				
-				gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-				gl.glBegin(GL2.GL_TRIANGLES);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glVertex2f(anchorX, anchorY + padding);
-					gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
-				gl.glEnd();
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
-					gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
-					gl.glVertex2f(anchorX, anchorY + padding);
-					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-				gl.glEnd();
+				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY,
+				                                                        anchorX,                     anchorY + padding,
+				                                                        anchorX - (0.85f * padding), anchorY + padding);
+				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - boxWidth, anchorY + padding,
+				                                                    anchorX,            anchorY + padding + boxHeight);
 				
-				gl.glColor4fv(Theme.tooltipBorderColor, 0);
-				gl.glBegin(GL2.GL_LINE_LOOP);
-					gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
-					gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
-					gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-				gl.glEnd();
-				gl.glBegin(GL2.GL_LINES);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glColor4f(Theme.tooltipBorderColor[0], Theme.tooltipBorderColor[1], Theme.tooltipBorderColor[2], 0);
-					gl.glVertex2f(anchorX, anchorY - padding * 6);
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX - (0.85f * padding)); OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
+				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.rewind();
+				OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 5);
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY);               OpenGL.buffer.put(Theme.tooltipBorderColor);
+				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY - padding * 6); OpenGL.buffer.put(Theme.tooltipBorderColor, 0, 3); OpenGL.buffer.put(0);
+				OpenGL.buffer.rewind();
+				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, 2);
 				
 				occupiedRegions.add(new float[] {anchorX - boxWidth,
 				                                 anchorX,
@@ -680,43 +668,31 @@ public class ChartUtils {
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
 					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-					gl.glEnd();
+					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
 				
 			} else if(orientation == NORTH_EAST) {
 				
-				gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-				gl.glBegin(GL2.GL_TRIANGLES);
-					gl.glVertex2f(anchorX, anchorY + padding);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
-				gl.glEnd();
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-					gl.glVertex2f(anchorX, anchorY + padding);
-					gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
-					gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
-				gl.glEnd();
+				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY + padding,
+				                                                        anchorX,                     anchorY,
+				                                                        anchorX + (0.85f * padding), anchorY + padding);
+				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX,            anchorY + padding,
+				                                                    anchorX + boxWidth, anchorY + padding + boxHeight);
 				
-				gl.glColor4fv(Theme.tooltipBorderColor, 0);
-				gl.glBegin(GL2.GL_LINE_LOOP);
-					gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
-					gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
-					gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
-				gl.glEnd();
-				gl.glBegin(GL2.GL_LINES);
-					gl.glVertex2f(anchorX, anchorY);
-					gl.glColor4f(Theme.tooltipBorderColor[0], Theme.tooltipBorderColor[1], Theme.tooltipBorderColor[2], 0);
-					gl.glVertex2f(anchorX, anchorY - padding * 6);
-				gl.glEnd();
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
+				OpenGL.buffer.put(anchorX + (0.85f * padding)); OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY + padding);
+				OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.rewind();
+				OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 5);
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY);               OpenGL.buffer.put(Theme.tooltipBorderColor);
+				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY - padding * 6); OpenGL.buffer.put(Theme.tooltipBorderColor, 0, 3); OpenGL.buffer.put(0);
+				OpenGL.buffer.rewind();
+				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, 2);
 				
 				occupiedRegions.add(new float[] {anchorX,
 				                                 anchorX + boxWidth,
@@ -730,13 +706,8 @@ public class ChartUtils {
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
 					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
-					gl.glBegin(GL2.GL_QUADS);
-						gl.glColor4fv(new float[] {marker.colors.get(i).getRed() / 255f, marker.colors.get(i).getGreen() / 255f, marker.colors.get(i).getBlue() / 255f, 1}, 0);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-						gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-					gl.glEnd();
+					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
 				
 			}
@@ -747,46 +718,44 @@ public class ChartUtils {
 		if(insufficientSpace) {
 			
 			float gradientLength = 10 * Controller.getDisplayScalingFactor();
+			float[] red            = new float[] {1, 0, 0, 1};
+			float[] transparentRed = new float[] {1, 0, 0, 0};
 			
 			// top gradient
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(1, 0, 0, 1);
-				gl.glVertex2f(topLeftX, topLeftY);
-				gl.glVertex2f(bottomRightX, topLeftY);
-				gl.glColor4f(1, 0, 0, 0);
-				gl.glVertex2f(bottomRightX, topLeftY - gradientLength);
-				gl.glVertex2f(topLeftX, topLeftY - gradientLength);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(topLeftX);     OpenGL.buffer.put(topLeftY);                  OpenGL.buffer.put(red);
+			OpenGL.buffer.put(topLeftX);     OpenGL.buffer.put(topLeftY - gradientLength); OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.put(bottomRightX); OpenGL.buffer.put(topLeftY);                  OpenGL.buffer.put(red);
+			OpenGL.buffer.put(bottomRightX); OpenGL.buffer.put(topLeftY - gradientLength); OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.rewind();
+			OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
 			
 			// bottom gradient
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(1, 0, 0, 1);
-				gl.glVertex2f(topLeftX, bottomRightY);
-				gl.glVertex2f(bottomRightX, bottomRightY);
-				gl.glColor4f(1, 0, 0, 0);
-				gl.glVertex2f(bottomRightX, bottomRightY + gradientLength);
-				gl.glVertex2f(topLeftX, bottomRightY + gradientLength);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(topLeftX);     OpenGL.buffer.put(bottomRightY + gradientLength); OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.put(topLeftX);     OpenGL.buffer.put(bottomRightY);                  OpenGL.buffer.put(red);
+			OpenGL.buffer.put(bottomRightX); OpenGL.buffer.put(bottomRightY + gradientLength); OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.put(bottomRightX); OpenGL.buffer.put(bottomRightY);                  OpenGL.buffer.put(red);
+			OpenGL.buffer.rewind();
+			OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
 			
 			// left gradient
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(1, 0, 0, 1);
-				gl.glVertex2f(topLeftX, topLeftY);
-				gl.glVertex2f(topLeftX, bottomRightY);
-				gl.glColor4f(1, 0, 0, 0);
-				gl.glVertex2f(topLeftX + gradientLength, bottomRightY);
-				gl.glVertex2f(topLeftX + gradientLength, topLeftY);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(topLeftX);                  OpenGL.buffer.put(topLeftY);     OpenGL.buffer.put(red);
+			OpenGL.buffer.put(topLeftX);                  OpenGL.buffer.put(bottomRightY); OpenGL.buffer.put(red);
+			OpenGL.buffer.put(topLeftX + gradientLength); OpenGL.buffer.put(topLeftY);     OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.put(topLeftX + gradientLength); OpenGL.buffer.put(bottomRightY); OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.rewind();
+			OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
 			
 			// right gradient
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(1, 0, 0, 1);
-				gl.glVertex2f(bottomRightX, topLeftY);
-				gl.glVertex2f(bottomRightX, bottomRightY);
-				gl.glColor4f(1, 0, 0, 0);
-				gl.glVertex2f(bottomRightX - gradientLength, bottomRightY);
-				gl.glVertex2f(bottomRightX - gradientLength, topLeftY);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(bottomRightX - gradientLength); OpenGL.buffer.put(topLeftY);     OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.put(bottomRightX - gradientLength); OpenGL.buffer.put(bottomRightY); OpenGL.buffer.put(transparentRed);
+			OpenGL.buffer.put(bottomRightX);                  OpenGL.buffer.put(topLeftY);     OpenGL.buffer.put(red);
+			OpenGL.buffer.put(bottomRightX);                  OpenGL.buffer.put(bottomRightY); OpenGL.buffer.put(red);
+			OpenGL.buffer.rewind();
+			OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
 			
 			String text = "Insufficent Room for All Markers";
 			float textWidth = FontUtils.tickTextWidth(text);
@@ -796,13 +765,8 @@ public class ChartUtils {
 			float textTopY = textBottomY + FontUtils.tickTextHeight;
 			
 			// text background
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glColor4f(1, 0, 0, 1);
-				gl.glVertex2f(textLeftX - padding, textBottomY - padding);
-				gl.glVertex2f(textRightX + padding, textBottomY - padding);
-				gl.glVertex2f(textRightX + padding, textTopY + padding);
-				gl.glVertex2f(textLeftX - padding, textTopY + padding);
-			gl.glEnd();
+			OpenGL.drawQuad2D(gl, red, textLeftX - padding,  textBottomY - padding,
+			                           textRightX + padding, textTopY + padding);
 			
 			FontUtils.drawMarkerText(text, (int) textLeftX, (int) textBottomY); 
 						
@@ -862,7 +826,7 @@ public class ChartUtils {
 	 * 
 	 * @param gl              The OpenGL context.
 	 * @param text            Array of text to show.
-	 * @param color           Corresponding array of colors to show at the left of each line of text.
+	 * @param colors          Corresponding array of colors to show at the left of each line of text.
 	 * @param anchorX         X location to point to.
 	 * @param anchorY         Y location to point to.
 	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
@@ -927,317 +891,225 @@ public class ChartUtils {
 			return;
 		}
 		
+		float[][] glColors = new float[colors.length][];
+		for(int i = 0; i < colors.length; i++)
+			glColors[i] = new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1};
+		
 		// draw the tooltip
 		if(orientation == NORTH) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                  anchorY,
+			                                                        anchorX + (padding / 2f), anchorY + padding,
+			                                                        anchorX - (padding / 2f), anchorY + padding);
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - (boxWidth / 2f), anchorY + padding,
+			                                                    anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding + boxHeight);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX - (padding / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX + (padding / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding + boxHeight);
+			OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX - (padding / 2f));  OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX);                   OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX + (padding / 2f));  OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding + boxHeight);
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
 			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == SOUTH) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX - (padding / 2f), anchorY - padding);
-				gl.glVertex2f(anchorX + (padding / 2f), anchorY - padding);
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding);
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                  anchorY, 
+			                                                        anchorX - (padding / 2f), anchorY - padding,
+			                                                        anchorX + (padding / 2f), anchorY - padding);
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - (boxWidth / 2f), anchorY - padding - boxHeight,
+			                                                    anchorX + (boxWidth / 2f), anchorY - padding);
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding);
-				gl.glVertex2f(anchorX - (boxWidth / 2f), anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + (boxWidth / 2f), anchorY - padding);
-				gl.glVertex2f(anchorX + (padding / 2f), anchorY - padding);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX - (padding / 2f), anchorY - padding);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY - padding - boxHeight);
+			OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY - padding - boxHeight);
+			OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.put(anchorX + (padding / 2f));  OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.put(anchorX);                   OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX - (padding / 2f));  OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
 			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == WEST) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX - padding, anchorY + (padding / 2f));
-				gl.glVertex2f(anchorX - padding, anchorY - (padding / 2f));
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX - padding - boxWidth, anchorY + (boxHeight / 2f));
-				gl.glVertex2f(anchorX - padding - boxWidth, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX - padding, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX - padding, anchorY + (boxHeight / 2f));
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX, anchorY,
+			                                                        anchorX - padding, anchorY + (padding / 2f),
+			                                                        anchorX - padding, anchorY - (padding / 2f));
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - padding - boxWidth, anchorY - (boxHeight / 2f),
+			                                                    anchorX - padding,            anchorY + (boxHeight / 2f));
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX - padding - boxWidth, anchorY + (boxHeight / 2f));
-				gl.glVertex2f(anchorX - padding - boxWidth, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX - padding, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX - padding, anchorY - (padding / 2f));
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX - padding, anchorY + (padding / 2f));
-				gl.glVertex2f(anchorX - padding, anchorY + (boxHeight / 2f));
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX - padding - boxWidth); OpenGL.buffer.put(anchorY + (boxHeight / 2f));
+			OpenGL.buffer.put(anchorX - padding - boxWidth); OpenGL.buffer.put(anchorY - (boxHeight / 2f));
+			OpenGL.buffer.put(anchorX - padding);            OpenGL.buffer.put(anchorY - (boxHeight / 2f));
+			OpenGL.buffer.put(anchorX - padding);            OpenGL.buffer.put(anchorY - (padding / 2f));
+			OpenGL.buffer.put(anchorX);                      OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX - padding);            OpenGL.buffer.put(anchorY + (padding / 2f));
+			OpenGL.buffer.put(anchorX - padding);            OpenGL.buffer.put(anchorY + (boxHeight / 2f));
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
 			float textX = anchorX - boxWidth + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == EAST) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX + padding, anchorY - (padding / 2f));
-				gl.glVertex2f(anchorX + padding, anchorY + (padding / 2f));
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX + padding, anchorY + (boxHeight / 2f));
-				gl.glVertex2f(anchorX + padding, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX + padding + boxWidth, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX + padding + boxWidth, anchorY + (boxHeight / 2f));
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,           anchorY,
+			                                                        anchorX + padding, anchorY - (padding / 2f),
+			                                                        anchorX + padding, anchorY + (padding / 2f));
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX + padding,            anchorY - (boxHeight / 2f),
+			                                                    anchorX + padding + boxWidth, anchorY + (boxHeight / 2f));
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX + padding, anchorY + (boxHeight / 2f));
-				gl.glVertex2f(anchorX + padding, anchorY + (padding / 2f));
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX + padding, anchorY - (padding / 2f));
-				gl.glVertex2f(anchorX + padding, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX + padding + boxWidth, anchorY - (boxHeight / 2f));
-				gl.glVertex2f(anchorX + padding + boxWidth, anchorY + (boxHeight / 2f));
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX + padding);            OpenGL.buffer.put(anchorY + (boxHeight / 2f));
+			OpenGL.buffer.put(anchorX + padding);            OpenGL.buffer.put(anchorY + (padding / 2f));
+			OpenGL.buffer.put(anchorX);                      OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX + padding);            OpenGL.buffer.put(anchorY - (padding / 2f));
+			OpenGL.buffer.put(anchorX + padding);            OpenGL.buffer.put(anchorY - (boxHeight / 2f));
+			OpenGL.buffer.put(anchorX + padding + boxWidth); OpenGL.buffer.put(anchorY - (boxHeight / 2f));
+			OpenGL.buffer.put(anchorX + padding + boxWidth); OpenGL.buffer.put(anchorY + (boxHeight / 2f));
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
 			float textX = anchorX + (2f * padding) + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == NORTH_WEST) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX, anchorY + padding);
-				gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
-				gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
-				gl.glVertex2f(anchorX, anchorY + padding);
-				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY,
+			                                                        anchorX,                     anchorY + padding,
+			                                                        anchorX - (0.85f * padding), anchorY + padding);
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - boxWidth, anchorY + padding,
+			                                                    anchorX,            anchorY + padding + boxHeight);
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX - boxWidth, anchorY + padding + boxHeight);
-				gl.glVertex2f(anchorX - boxWidth, anchorY + padding);
-				gl.glVertex2f(anchorX - (0.85f * padding), anchorY + padding);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY + padding + boxHeight);
+			OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX - (0.85f * padding)); OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY + padding + boxHeight);
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
 			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == NORTH_EAST) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY + padding);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-				gl.glVertex2f(anchorX, anchorY + padding);
-				gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
-				gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY + padding,
+			                                                        anchorX,                     anchorY,
+			                                                        anchorX + (0.85f * padding), anchorY + padding);
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX,            anchorY + padding,
+			                                                    anchorX + boxWidth, anchorY + padding + boxHeight);
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX, anchorY + padding + boxHeight);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX + (0.85f * padding), anchorY + padding);
-				gl.glVertex2f(anchorX + boxWidth, anchorY + padding);
-				gl.glVertex2f(anchorX + boxWidth, anchorY + padding + boxHeight);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY + padding + boxHeight);
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX + (0.85f * padding)); OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY + padding);
+			OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY + padding + boxHeight);
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
 			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == SOUTH_WEST) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX - (0.85f * padding), anchorY - padding);
-				gl.glVertex2f(anchorX, anchorY - padding);
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX - boxWidth, anchorY - padding);
-				gl.glVertex2f(anchorX - boxWidth, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX, anchorY - padding);
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY,
+			                                                        anchorX - (0.85f * padding), anchorY - padding,
+			                                                        anchorX,                     anchorY - padding);
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - boxWidth, anchorY - padding - boxHeight,
+			                                                    anchorX,            anchorY - padding);
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX - boxWidth, anchorY - padding);
-				gl.glVertex2f(anchorX - boxWidth, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX - (0.85f * padding), anchorY - padding);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY - padding - boxHeight);
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY - padding - boxHeight);
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX - (0.85f * padding)); OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
 			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == SOUTH_EAST) {
 			
-			gl.glColor4fv(Theme.tooltipBackgroundColor, 0);
-			gl.glBegin(GL2.GL_TRIANGLES);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX, anchorY - padding);
-				gl.glVertex2f(anchorX + (0.85f * padding), anchorY - padding);
-			gl.glEnd();
-			gl.glBegin(GL2.GL_QUADS);
-				gl.glVertex2f(anchorX, anchorY - padding);
-				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + boxWidth, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + boxWidth, anchorY - padding);
-			gl.glEnd();
+			OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY,
+			                                                        anchorX,                     anchorY - padding,
+			                                                        anchorX + (0.85f * padding), anchorY - padding);
+			OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX,            anchorY - padding - boxHeight,
+			                                                    anchorX + boxWidth, anchorY - padding);
 			
-			gl.glColor4fv(Theme.tooltipBorderColor, 0);
-			gl.glBegin(GL2.GL_LINE_LOOP);
-				gl.glVertex2f(anchorX, anchorY);
-				gl.glVertex2f(anchorX, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + boxWidth, anchorY - padding - boxHeight);
-				gl.glVertex2f(anchorX + boxWidth, anchorY - padding);
-				gl.glVertex2f(anchorX + (0.85f * padding), anchorY - padding);
-			gl.glEnd();
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
+			OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY - padding - boxHeight);
+			OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY - padding - boxHeight);
+			OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.put(anchorX + (0.85f * padding)); OpenGL.buffer.put(anchorY - padding);
+			OpenGL.buffer.rewind();
+			OpenGL.drawLineLoop2D(gl, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
 			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				gl.glBegin(GL2.GL_QUADS);
-					gl.glColor4fv(new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1}, 0);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY + textHeight);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding - textHeight, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY);
-					gl.glVertex2f(textX - Theme.tooltipTextPadding, textY + textHeight);
-				gl.glEnd();
+				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		}

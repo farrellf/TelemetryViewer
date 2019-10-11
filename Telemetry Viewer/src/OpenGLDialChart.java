@@ -150,7 +150,7 @@ public class OpenGLDialChart extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
@@ -258,30 +258,26 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		// draw the dial
 		float dialPercentage = (lastSample - dialMin) / range;
-		gl.glBegin(GL2.GL_QUADS);
-			for(float angle = 0; angle < Math.PI; angle += Math.PI / dialResolution) {
-				
-				if(angle > Math.PI * dialPercentage)
-					gl.glColor4fv(Theme.plotBackgroundColor, 0);
-				else
-					gl.glColor4fv(samples.color, 0);
-				
-				float x1 = -1f * circleOuterRadius *                       (float) Math.cos(angle)                            + xCircleCenter; // top-left
-				float y1 =       circleOuterRadius *                       (float) Math.sin(angle)                            + yCircleCenter;
-				float x2 = -1f * circleOuterRadius *                       (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // top-right
-				float y2 =       circleOuterRadius *                       (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
-				float x4 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle)                            + xCircleCenter; // bottom-left
-				float y4 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle)                            + yCircleCenter;
-				float x3 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
-				float y3 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
-				
-				gl.glVertex2f(x1, y1);
-				gl.glVertex2f(x2, y2);
-				gl.glVertex2f(x3, y3);
-				gl.glVertex2f(x4, y4);
-				
-			}
-		gl.glEnd();
+		for(float angle = 0; angle < Math.PI; angle += Math.PI / dialResolution) {
+			
+			float x1 = -1f * circleOuterRadius *                       (float) Math.cos(angle)                            + xCircleCenter; // top-left
+			float y1 =       circleOuterRadius *                       (float) Math.sin(angle)                            + yCircleCenter;
+			float x2 = -1f * circleOuterRadius *                       (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // top-right
+			float y2 =       circleOuterRadius *                       (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
+			float x4 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle)                            + xCircleCenter; // bottom-left
+			float y4 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle)                            + yCircleCenter;
+			float x3 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
+			float y3 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
+			
+			OpenGL.buffer.rewind();
+			OpenGL.buffer.put(x1); OpenGL.buffer.put(y1);
+			OpenGL.buffer.put(x4); OpenGL.buffer.put(y4);
+			OpenGL.buffer.put(x2); OpenGL.buffer.put(y2);
+			OpenGL.buffer.put(x3); OpenGL.buffer.put(y3);
+			OpenGL.buffer.rewind();
+			OpenGL.drawTriangleStrip2D(gl, angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : samples.color, OpenGL.buffer, 4);
+			
+		}
 		
 	}
 

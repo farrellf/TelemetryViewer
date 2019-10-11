@@ -15,7 +15,7 @@ public class SamplesGL {
 	public float min;
 	public float max;
 	
-	public float[] color;
+	public float[] glColor;
 	public String name;
 	public String unit;
 	

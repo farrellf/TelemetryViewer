@@ -1,4 +1,3 @@
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,20 +14,20 @@ public class BitfieldEvents {
 	 * 
 	 * @param sampleNumber    The moment in time associated with this event.
 	 * @param name            A String describing this event.
-	 * @param color           A Color to show for this event.
+	 * @param glColor         A float[r,g,b,a] color to show for this event.
 	 */
-	public void add(int sampleNumber, String name, Color color) {
+	public void add(int sampleNumber, String name, float[] glColor) {
 		
 		// check if an object already exists for this sample number
 		for(EventsAtSampleNumber event : events)
 			if(event.sampleNumber == sampleNumber) {
 				event.names.add(name);
-				event.colors.add(color);
+				event.glColors.add(glColor);
 				return;
 			}
 		
 		// an object does not exist, so create a new one
-		events.add(new EventsAtSampleNumber(sampleNumber, name, color));
+		events.add(new EventsAtSampleNumber(sampleNumber, name, glColor));
 		
 	}
 	
@@ -49,12 +48,12 @@ public class BitfieldEvents {
 		int sampleNumber = 0;
 		float pixelX = 0;
 		List<String> names = new ArrayList<String>();
-		List<Color> colors = new ArrayList<Color>();
+		List<float[]> glColors = new ArrayList<float[]>();
 		
-		public EventsAtSampleNumber(int sampleNumber, String name, Color color) {
+		public EventsAtSampleNumber(int sampleNumber, String name, float[] glColor) {
 			this.sampleNumber = sampleNumber;
 			this.names.add(name);
-			this.colors.add(color);
+			this.glColors.add(glColor);
 		}
 		
 	}

@@ -1,4 +1,5 @@
 import java.nio.FloatBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,7 +95,7 @@ public class Plot {
 							int currentValue = bitfield.getValue((int) y);
 							int previousValue = bitfield.getValue((int) previousY);
 							if(currentValue != previousValue)
-								events.add(sampleNumber, bitfield.names[currentValue], datasets[datasetN].color);
+								events.add(sampleNumber, bitfield.names[currentValue], datasets[datasetN].glColor);
 						}
 					}
 					previousY = y;
@@ -190,7 +191,7 @@ public class Plot {
 							int currentValue = bitfield.getValue((int) y);
 							int previousValue = bitfield.getValue((int) previousY);
 							if(currentValue != previousValue)
-								events.add(sampleN, bitfield.names[currentValue], datasets[datasetN].color);
+								events.add(sampleN, bitfield.names[currentValue], datasets[datasetN].glColor);
 						}
 					}
 					previousY = y;
@@ -240,6 +241,7 @@ public class Plot {
 	 * Renders the plot on screen.
 	 * 
 	 * @param gl             The OpenGL context.
+	 * @param chartMatrix    The current 4x4 matrix.
 	 * @param xPlotLeft      Bottom-left corner location, in pixels.
 	 * @param yPlotBottom    Bottom-left corner location, in pixels.
 	 * @param xPlotRight     Top-right corner location, in pixels.
@@ -247,7 +249,7 @@ public class Plot {
 	 * @param plotMinY       Y-axis value at the bottom of the plot.
 	 * @param plotMaxY       Y-axis value at the top of the plot.
 	 */
-	public void draw(GL2 gl, float xPlotLeft, float yPlotBottom, float xPlotRight, float yPlotTop, float plotMinY, float plotMaxY) {
+	public void draw(GL2 gl, float[] chartMatrix, float xPlotLeft, float yPlotBottom, float xPlotRight, float yPlotTop, float plotMinY, float plotMaxY) {
 		
 		float plotRange = plotMaxY - plotMinY;
 		float plotWidth = xPlotRight - xPlotLeft;
@@ -258,6 +260,15 @@ public class Plot {
 		gl.glGetIntegerv(GL2.GL_SCISSOR_BOX, originalScissorArgs, 0);
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
 		
+		float[] plotMatrix = Arrays.copyOf(chartMatrix, 16);
+		// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
+		// adjust so: y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
+		// edit: now doing the "x - plotMinX" part before putting data into the buffers, to improve float32 precision when x is very large
+		OpenGL.translateMatrix(plotMatrix, xPlotLeft,            yPlotBottom,          0);
+		OpenGL.scaleMatrix    (plotMatrix, plotWidth/plotDomain, plotHeight/plotRange, 1);
+		OpenGL.translateMatrix(plotMatrix, 0,                    -plotMinY,            0);
+		OpenGL.useMatrix(gl, plotMatrix);
+		
 		// draw each dataset
 		if(datasets.length > 0 && plotSampleCount >= 2) {
 			for(int i = 0; i < datasets.length; i++) {
@@ -266,25 +277,7 @@ public class Plot {
 				if(datasets[i].isBitfield)
 					continue;
 				
-				gl.glMatrixMode(GL2.GL_MODELVIEW);
-				gl.glPushMatrix();
-				
-				// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
-				// edit: now doing the "x - plotMinX" part before putting data into the buffers, to improve float32 precision when x is very large
-				gl.glTranslatef(xPlotLeft, 0, 0);
-				gl.glScalef(plotWidth, 1, 1);
-				gl.glScalef(1.0f / plotDomain, 1, 1);
-//				gl.glTranslatef(-getPlotMinX(), 0, 0);
-				
-				// adjust so y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
-				gl.glTranslatef(0, yPlotBottom, 0);
-				gl.glScalef(1, plotHeight, 1);
-				gl.glScalef(1, 1.0f / plotRange, 1);
-				gl.glTranslatef(0, -plotMinY, 0);
-				
-				gl.glColor3f(datasets[i].color.getRed() / 255.0f, datasets[i].color.getGreen() / 255.0f, datasets[i].color.getBlue() / 255.0f);
-				gl.glVertexPointer(2, GL2.GL_FLOAT, 0, buffers[i]);
-				gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, plotSampleCount);
+				OpenGL.drawLineStrip2D(gl, datasets[i].glColor, buffers[i], plotSampleCount);
 				
 				// also draw points if there are relatively few samples on screen
 				boolean fewSamplesOnScreen;
@@ -296,12 +289,12 @@ public class Plot {
 					fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointSize);
 				}
 				if(fewSamplesOnScreen)
-					gl.glDrawArrays(GL2.GL_POINTS, 0, plotSampleCount);
-				
-				gl.glPopMatrix();
+					OpenGL.drawPoints2D(gl, datasets[i].glColor, buffers[i], plotSampleCount);
 				
 			}
 		}
+		
+		OpenGL.useMatrix(gl, chartMatrix);
 		
 		// draw any bitfield changes
 		if(datasets.length > 0 && plotSampleCount >= 2) {

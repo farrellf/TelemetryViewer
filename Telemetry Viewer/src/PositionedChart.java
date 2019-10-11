@@ -45,7 +45,7 @@ public abstract class PositionedChart {
 		
 	}
 	
-	public abstract void drawChart(GL2 gl, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
+	public abstract void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
 	
 	public final void importChart(Controller.QueueOfLines lines) {
 
