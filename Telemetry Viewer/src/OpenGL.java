@@ -127,6 +127,30 @@ public class OpenGL {
 	}
 	
 	/**
+	 * Draws the vertices contained in "buffer" as a GL_LINE_STRIP.
+	 * 
+	 * @param gl             The OpenGL context.
+	 * @param color          The color, as a float[4].
+	 * @param buffer         Vertex buffer containing (y1,y2,...)
+	 * @param vertexCount    Number of vertices in the buffer.
+	 * @param xOffset        How much empty "samples" are to the left of the first vertex. (used when plotMinX < 0)
+	 */
+	public static void drawLineStrip1D(GL2 gl, float[] color, FloatBuffer buffer, int vertexCount, int xOffset) {
+		
+//		gl.glColor4fv(color, 0);
+//		gl.glVertexPointer(2, GL2.GL_FLOAT, 0, buffer);
+//		gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, vertexCount);
+		
+		enableYcolorXoffsetProgram(gl, currentMatrix);
+		gl.glUniform4fv(yColorXoffsetColorHandle, 1, color, 0);
+		gl.glUniform1i(yColorXoffsetXoffsetHandle, xOffset);
+		gl.glBufferData(GL4.GL_ARRAY_BUFFER, vertexCount * 4, buffer.position(0), GL4.GL_STATIC_DRAW);
+		gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, vertexCount);
+		disableYcolorXoffsetProgram(gl);
+		
+	}
+	
+	/**
 	 * Draws the vertices contained in "buffer" as GL_POINTS.
 	 * 
 	 * @param gl             The OpenGL context.
@@ -145,6 +169,29 @@ public class OpenGL {
 		gl.glBufferData(GL4.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer.position(0), GL4.GL_STATIC_DRAW);
 		gl.glDrawArrays(GL2.GL_POINTS, 0, vertexCount);
 		disableXyColorProgram(gl);
+		
+	}
+	
+	/**
+	 * Draws the vertices contained in "buffer" as GL_POINTS.
+	 * 
+	 * @param gl             The OpenGL context.
+	 * @param color          The color, as a float[4].
+	 * @param buffer         Vertex buffer containing (y1,y2,...)
+	 * @param vertexCount    Number of vertices in the buffer.
+	 */
+	public static void drawPoints1D(GL2 gl, float[] color, FloatBuffer buffer, int vertexCount, int xOffset) {
+		
+//		gl.glColor4fv(color, 0);
+//		gl.glVertexPointer(2, GL2.GL_FLOAT, 0, buffer);
+//		gl.glDrawArrays(GL2.GL_POINTS, 0, vertexCount);
+		
+		enableYcolorXoffsetProgram(gl, currentMatrix);
+		gl.glUniform4fv(yColorXoffsetColorHandle, 1, color, 0);
+		gl.glUniform1i(yColorXoffsetXoffsetHandle, xOffset);
+		gl.glBufferData(GL4.GL_ARRAY_BUFFER, vertexCount * 4, buffer.position(0), GL4.GL_STATIC_DRAW);
+		gl.glDrawArrays(GL2.GL_POINTS, 0, vertexCount);
+		disableYcolorXoffsetProgram(gl);
 		
 	}
 	
@@ -349,7 +396,7 @@ public class OpenGL {
 	 */
 	public static void startDrawingOffscreen(GL2 gl, float[] offscreenMatrix, int[] fbo, int[] texture, int width, int height) {
 		
-		// save the viewport/scissor/point settings, modelview matrix, and projection matrix
+		// save the viewport/scissor/point settings
 		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT | GL2.GL_POINT_BIT);
 
 		// switch to the off-screen framebuffer and corresponding texture
@@ -372,6 +419,38 @@ public class OpenGL {
 		// clear the texture
 		gl.glClearColor(0, 0, 0, 0);
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
+		
+	}
+	
+	/**
+	 * Saves the current viewport/scissor/point settings, disables the scissor test,
+	 * switches to the off-screen framebuffer and applies the new matrix.
+	 * 
+	 * @param gl                 The OpenGL context.
+	 * @param offscreenMatrix    The 4x4 matrix to use.
+	 * @param fbo                Handle to the FBO.
+	 * @param texture            Handle to the texture.
+	 * @param width              Width, in pixels.
+	 * @param height             Height, in pixels.
+	 */
+	public static void continueDrawingOffscreen(GL2 gl, float[] offscreenMatrix, int[] fbo, int[] texture, int width, int height) {
+		
+		// save the viewport/scissor/point settings
+		gl.glPushAttrib(GL2.GL_VIEWPORT_BIT | GL2.GL_SCISSOR_BIT | GL2.GL_POINT_BIT);
+
+		// switch to the off-screen framebuffer and corresponding texture
+		gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fbo[0]);
+		gl.glBindTexture(GL2.GL_TEXTURE_2D, texture[0]);
+
+		// set the viewport and disable the scissor test
+		gl.glViewport(0, 0, width, height);
+		gl.glDisable(GL2.GL_SCISSOR_TEST);
+		
+		// set the matrix
+		useMatrix(gl, offscreenMatrix);
+		
+		// set the blend function
+		gl.glBlendFuncSeparate(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA, GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);
 		
 	}
 	
@@ -665,6 +744,141 @@ public class OpenGL {
 	static int[] previousProgram = new int[1];
 	static int[] previousVao = new int[1];
 	static int[] previousVbo = new int[1];
+	
+	/*
+	 * This program is for rendering line charts with a solid color.
+	 * One VBO of floats specifies (y1,y2,...) data.
+	 * One uniform vec4 specifies the color.
+	 * One uniform mat4 specifies the matrix.
+	 * One uniform int specifies the x-offset.
+	 * X-coordinates are automatically generated.
+	 */
+	static int   yColorXoffsetProgramHandle = 0;
+	static int   yColorXoffsetMatrixHandle = 0;
+	static int   yColorXoffsetColorHandle = 0;
+	static int   yColorXoffsetXoffsetHandle = 0;
+	static int[] yColorXoffsetVaoHandle = new int[1];
+	static int[] yColorXoffsetVboHandle = new int[1];
+	
+	public static void makeYcolorXoffsetProgram(GL2 gl) {
+		
+		// save current state
+		gl.glGetIntegerv(GL4.GL_CURRENT_PROGRAM, previousProgram, 0);
+		gl.glGetIntegerv(GL4.GL_VERTEX_ARRAY_BINDING, previousVao, 0);
+		gl.glGetIntegerv(GL4.GL_ARRAY_BUFFER_BINDING, previousVbo, 0);
+		
+		// shaders
+		String[] vertexShaderCode = new String[] {
+			"#version 430\n",
+			"layout (location = 0) in float position;\n",
+			"uniform mat4 matrix;\n",
+			"uniform int xOffset;\n",
+			"void main(void) {\n",
+			"	gl_Position = matrix * vec4(xOffset + gl_VertexID, position, 0.0, 1.0);\n",
+			"}\n"
+		};
+		
+		String[] fragmentShaderCode = new String[] {
+			"#version 430\n",
+			"uniform vec4 rgba;\n",
+			"out vec4 color;\n",
+			"void main(void) {\n",
+			"	color = rgba;\n",
+			"}\n"
+		};
+		
+		// compile the vertex shader and check for errors
+		int vertexShader = gl.glCreateShader(GL4.GL_VERTEX_SHADER);
+		gl.glShaderSource(vertexShader, vertexShaderCode.length, vertexShaderCode, null, 0);
+		gl.glCompileShader(vertexShader);
+		
+		int[] statusCode = new int[1];
+		gl.glGetShaderiv(vertexShader, GL4.GL_COMPILE_STATUS, statusCode, 0);
+		if(statusCode[0] != GL4.GL_TRUE) {
+			int[] length = new int[1];
+			gl.glGetShaderiv(vertexShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
+			byte[] errorMessage = new byte[length[0]];
+			gl.glGetShaderInfoLog(vertexShader, length[0], length, 0, errorMessage, 0);
+			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+		}
+		
+		// compile the fragment shader and check for errors
+		int fragmentShader = gl.glCreateShader(GL4.GL_FRAGMENT_SHADER);
+		gl.glShaderSource(fragmentShader, fragmentShaderCode.length, fragmentShaderCode, null, 0);
+		gl.glCompileShader(fragmentShader);
+		
+		gl.glGetShaderiv(fragmentShader, GL4.GL_COMPILE_STATUS, statusCode, 0);
+		if(statusCode[0] != GL4.GL_TRUE) {
+			int[] length = new int[1];
+			gl.glGetShaderiv(fragmentShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
+			byte[] errorMessage = new byte[length[0]];
+			gl.glGetShaderInfoLog(fragmentShader, length[0], length, 0, errorMessage, 0);
+			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+		}
+		
+		// link the shaders into a program and check for errors
+		yColorXoffsetProgramHandle = gl.glCreateProgram();
+		gl.glAttachShader(yColorXoffsetProgramHandle, vertexShader);
+		gl.glAttachShader(yColorXoffsetProgramHandle, fragmentShader);
+		gl.glLinkProgram(yColorXoffsetProgramHandle);
+		
+		gl.glGetShaderiv(yColorXoffsetProgramHandle, GL4.GL_LINK_STATUS, statusCode, 0);
+		if(statusCode[0] != GL4.GL_TRUE) {
+			int[] length = new int[1];
+			gl.glGetShaderiv(yColorXoffsetProgramHandle, GL4.GL_INFO_LOG_LENGTH, length, 0);
+			byte[] errorMessage = new byte[length[0]];
+			gl.glGetShaderInfoLog(yColorXoffsetProgramHandle, length[0], length, 0, errorMessage, 0);
+			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+		}
+		
+		// free resources
+		gl.glDeleteShader(vertexShader);
+		gl.glDeleteShader(fragmentShader);
+
+		// at least one VAO is required
+		gl.glGenVertexArrays(1, yColorXoffsetVaoHandle, 0);
+		gl.glBindVertexArray(yColorXoffsetVaoHandle[0]);
+		
+		// create a VBO for data
+		gl.glGenBuffers(1, yColorXoffsetVboHandle, 0);
+		gl.glBindBuffer(GL4.GL_ARRAY_BUFFER, yColorXoffsetVboHandle[0]);
+		
+		// use the VBO for (x,y) data
+		gl.glVertexAttribPointer(0, 1, GL4.GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+		
+		// get handles for the uniforms
+		yColorXoffsetMatrixHandle = gl.glGetUniformLocation(yColorXoffsetProgramHandle, "matrix");
+		yColorXoffsetColorHandle = gl.glGetUniformLocation(yColorXoffsetProgramHandle, "rgba");
+		yColorXoffsetXoffsetHandle = gl.glGetUniformLocation(yColorXoffsetProgramHandle, "xOffset");
+		
+		// restore original state
+		disableYcolorXoffsetProgram(gl);
+		
+	}
+	
+	public static void enableYcolorXoffsetProgram(GL2 gl, float[] matrix) {
+		
+		// save current state
+		gl.glGetIntegerv(GL4.GL_CURRENT_PROGRAM, previousProgram, 0);
+		gl.glGetIntegerv(GL4.GL_VERTEX_ARRAY_BINDING, previousVao, 0);
+		gl.glGetIntegerv(GL4.GL_ARRAY_BUFFER_BINDING, previousVbo, 0);
+		
+		gl.glUseProgram(yColorXoffsetProgramHandle);
+		gl.glBindVertexArray(yColorXoffsetVaoHandle[0]);
+		gl.glBindBuffer(GL4.GL_ARRAY_BUFFER, yColorXoffsetVboHandle[0]);
+		
+		gl.glUniformMatrix4fv(yColorXoffsetMatrixHandle, 1, false, matrix, 0);
+		
+	}
+	
+	public static void disableYcolorXoffsetProgram(GL2 gl) {
+		
+		gl.glUseProgram(previousProgram[0]);
+		gl.glBindVertexArray(previousVao[0]);
+		gl.glBindBuffer(GL4.GL_ARRAY_BUFFER, previousVbo[0]);
+		
+	}
 	
 	/*
 	 * This program is for rendering 2D objects with a solid color.

@@ -135,6 +135,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				gl.glGenQueries(2, gpuQueryHandles, 0);
 				
+				OpenGL.makeYcolorXoffsetProgram(gl);
 				OpenGL.makeXyColorProgram(gl);
 				OpenGL.makeXyrgbaProgram(gl);
 				OpenGL.makeXyzuvwProgram(gl);

@@ -71,6 +71,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float manualYmax;
 	
 	boolean sampleCountMode;
+	Plot plot = new Plot();
+//	PlotSampleCountCached plot = new PlotSampleCountCached();
 	
 	// constraints
 	static final int SampleCountDefault = 1000;
@@ -162,7 +164,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		boolean haveDatasets = datasets != null && datasets.length > 0;
 		
-		Plot plot = new Plot();
 		if(sampleCountMode)
 			plot.acquireSamples(lastSampleNumber, zoomLevel, datasets, durationWidget.getSampleCount());
 		else 
@@ -172,11 +173,12 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		                                plot.getPlotSampleCount();
 		
 		// calculate the plot range
-		float plotMaxY = plot.getMaxY();
-		float plotMinY = plot.getMinY();
-		autoscale.update(plotMinY, plotMaxY);
-		plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
-		plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
+		if(autoscaleYmin || autoscaleYmax) {
+			Dataset.MinMax requiredRange = plot.getRequiredRange();
+			autoscale.update(requiredRange.min, requiredRange.max);
+		}
+		float plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
+		float plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
 		float plotRange = plotMaxY - plotMinY;
 		
 		// calculate x and y positions of everything

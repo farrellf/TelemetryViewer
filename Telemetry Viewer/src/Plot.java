@@ -9,9 +9,9 @@ import com.jogamp.opengl.GL2;
 
 public class Plot {
 	
-	private FloatBuffer[] buffers; // note: the x values in here are actually "x - plotMinX" to improve float32 precision when x is very large
 	private Dataset[] datasets;
-	private BitfieldEvents events = new BitfieldEvents();
+	private BitfieldEvents events;
+	private FloatBuffer[] buffers;
 	
 	private int maxSampleNumber;
 	private int minSampleNumber;
@@ -19,8 +19,6 @@ public class Plot {
 	private long plotMaxX;   // sample number or unix timestamp
 	private long plotMinX;   // sample number or unix timestamp
 	private long plotDomain; // sample count  or milliseconds
-	private float maxY;
-	private float minY;
 	private String xAxisTitle = "";
 	
 	private boolean sampleCountMode;
@@ -33,13 +31,13 @@ public class Plot {
 	 * @param lastSampleNumber      The sample to render at the right edge of the plot.
 	 * @param zoomLevel             Current zoom level. 1.0 = no zoom.
 	 * @param datasets              Datasets to acquire from.
-	 * @param sampleCountMinimum    Minimum allowed sample count.
 	 * @param sampleCount           The sample count to acquire, before applying the zoom factor.
 	 */
 	public void acquireSamples(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long sampleCount) {
 		
 		this.datasets = datasets;
 		buffers = new FloatBuffer[datasets == null ? 0 : datasets.length];
+		events = new BitfieldEvents();
 		xAxisTitle = "Sample Number";
 		sampleCountMode = true;
 		
@@ -51,8 +49,6 @@ public class Plot {
 			plotMaxX = 0;
 			plotMinX = plotMaxX - (int) (sampleCount * zoomLevel) + 1;
 			plotDomain = plotMaxX - plotMinX;
-			minY = -1;
-			maxY = 1;
 			return;
 		}
 
@@ -72,47 +68,12 @@ public class Plot {
 		
 		plotSampleCount = maxSampleNumber - minSampleNumber + 1;
 		
-		// acquire the samples, and calculate the range
-		minY = Float.MAX_VALUE;
-		maxY = -Float.MAX_VALUE;
-		
+		// acquire the samples or bitfield events
 		for(int datasetN = 0; datasetN < buffers.length; datasetN++) {
-			buffers[datasetN] = Buffers.newDirectFloatBuffer(2 * plotSampleCount);
-			buffers[datasetN].rewind();
-			
-			float previousY = datasets[datasetN].getSample((minSampleNumber > 0) ? minSampleNumber - 1 : minSampleNumber);
-			for(int sampleNumber = minSampleNumber; sampleNumber <= maxSampleNumber; sampleNumber++) {
-				float y = datasets[datasetN].getSample(sampleNumber);
-				buffers[datasetN].put(sampleNumber - plotMinX);
-				buffers[datasetN].put(y);
-				if(!datasets[datasetN].isBitfield) {
-					if(y < minY) minY = y;
-					if(y > maxY) maxY = y;
-				} else {
-					// check bitfields for changes
-					if(y != previousY) {
-						for(Bitfield bitfield: datasets[datasetN].bitfields) {
-							int currentValue = bitfield.getValue((int) y);
-							int previousValue = bitfield.getValue((int) previousY);
-							if(currentValue != previousValue)
-								events.add(sampleNumber, bitfield.names[currentValue], datasets[datasetN].glColor);
-						}
-					}
-					previousY = y;
-				}
-			}
-			buffers[datasetN].rewind();
-		}
-		
-		if(minY == Float.MAX_VALUE && maxY == -Float.MAX_VALUE) {
-			minY = -1;
-			maxY = 1;
-		}
-		
-		if(minY == maxY) {
-			float value = minY;
-			minY = value - 0.001f;
-			maxY = value + 0.001f;
+			if(!datasets[datasetN].isBitfield)
+				buffers[datasetN] = datasets[datasetN].getBuffer(minSampleNumber, maxSampleNumber);
+			else
+				datasets[datasetN].appendBitfieldEvents(events, minSampleNumber, maxSampleNumber);
 		}
 		
 	}
@@ -129,6 +90,7 @@ public class Plot {
 		
 		this.datasets = datasets;
 		buffers = new FloatBuffer[datasets == null ? 0 : datasets.length];
+		events = new BitfieldEvents();
 		xAxisTitle = "Time Elapsed";
 		sampleCountMode = false;
 		plotDomain = (long) Math.ceil(milliseconds * zoomLevel);
@@ -141,8 +103,6 @@ public class Plot {
 			plotMaxX = 0;
 			plotMinX = plotMaxX - plotDomain;
 			if(plotMinX == 0) plotMinX = -1;
-			minY = -1;
-			maxY = 1;
 			return;
 		}
 
@@ -167,51 +127,25 @@ public class Plot {
 			plotDomain = plotMaxX - plotMinX;
 		}
 		
-		// acquire the samples and calculate the range
-		minY = Float.MAX_VALUE;
-		maxY = -Float.MAX_VALUE;
-		
+		// acquire the samples or bitfield events
 		for(int datasetN = 0; datasetN < buffers.length; datasetN++) {
 			buffers[datasetN] = Buffers.newDirectFloatBuffer(2 * plotSampleCount);
 			buffers[datasetN].rewind();
 			
-			float previousY = datasets[datasetN].getSample((minSampleNumber > 0) ? minSampleNumber - 1 : minSampleNumber);
 			for(int sampleN = minSampleNumber; sampleN <= maxSampleNumber; sampleN++) {
 				float x = (float) (DatasetsController.getTimestamp(sampleN) - plotMinX);
 				float y = datasets[datasetN].getSample(sampleN);
 				buffers[datasetN].put(x);
 				buffers[datasetN].put(y);
-				if(!datasets[datasetN].isBitfield) {
-					if(y < minY) minY = y;
-					if(y > maxY) maxY = y;
-				} else {
+				if(datasets[datasetN].isBitfield) {
 					// check bitfields for changes
-					if(y != previousY) {
-						for(Bitfield bitfield: datasets[datasetN].bitfields) {
-							int currentValue = bitfield.getValue((int) y);
-							int previousValue = bitfield.getValue((int) previousY);
-							if(currentValue != previousValue)
-								events.add(sampleN, bitfield.names[currentValue], datasets[datasetN].glColor);
-						}
-					}
-					previousY = y;
+					datasets[datasetN].appendBitfieldEvents(events, minSampleNumber, maxSampleNumber);
 				}
 			}
 			buffers[datasetN].rewind();
 		}
 		
-		if(minY == Float.MAX_VALUE && maxY == -Float.MAX_VALUE) {
-			minY = -1;
-			maxY = 1;
-		}
-		
-		if(minY == maxY) {
-			float value = minY;
-			minY = value - 0.001f;
-			maxY = value + 0.001f;
-		}
-		
-		// determine the axis title
+		// determine the x-axis title
 		long leftMillisecondsElapsed = plotMinX - DatasetsController.getFirstTimestamp();
 		long hours = leftMillisecondsElapsed / 3600000; leftMillisecondsElapsed %= 3600000;
 		long minutes = leftMillisecondsElapsed / 60000; leftMillisecondsElapsed %= 60000;
@@ -232,8 +166,33 @@ public class Plot {
 		
 	}
 	
-	public float getMinY() { return minY; }
-	public float getMaxY() { return maxY; }
+	public Dataset.MinMax getRequiredRange() {
+		
+		Dataset.MinMax range = new Dataset.MinMax();
+		
+		for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
+			if(!datasets[datasetN].isBitfield) {
+				Dataset.MinMax r = datasets[datasetN].getRange(minSampleNumber, maxSampleNumber);
+				if(r.min < range.min)
+					range.min = r.min;
+				if(r.max > range.max)
+					range.max = r.max;
+			}
+		}
+		
+		if(range.min == Float.MAX_VALUE && range.max == -Float.MAX_VALUE) {
+			range.min = -1;
+			range.max = 1;
+		} else if(range.min == range.max) {
+			float value = range.min;
+			range.min = value - 0.001f;
+			range.max = value + 0.001f;
+		}
+		
+		return range;
+		
+	}
+
 	public String getTitle() { return xAxisTitle; }
 	public int getPlotSampleCount() { return plotSampleCount; }
 	
@@ -277,7 +236,10 @@ public class Plot {
 				if(datasets[i].isBitfield)
 					continue;
 				
-				OpenGL.drawLineStrip2D(gl, datasets[i].glColor, buffers[i], plotSampleCount);
+				if(sampleCountMode)
+					OpenGL.drawLineStrip1D(gl, datasets[i].glColor, buffers[i], plotSampleCount, (int) (plotMinX >= 0 ? 0 : plotMinX * -1));
+				else
+					OpenGL.drawLineStrip2D(gl, datasets[i].glColor, buffers[i], plotSampleCount);
 				
 				// also draw points if there are relatively few samples on screen
 				boolean fewSamplesOnScreen;
@@ -289,7 +251,10 @@ public class Plot {
 					fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointSize);
 				}
 				if(fewSamplesOnScreen)
-					OpenGL.drawPoints2D(gl, datasets[i].glColor, buffers[i], plotSampleCount);
+					if(sampleCountMode)
+						OpenGL.drawPoints1D(gl, datasets[i].glColor, buffers[i], plotSampleCount, (int) (plotMinX >= 0 ? 0 : plotMinX * -1));
+					else
+						OpenGL.drawPoints2D(gl, datasets[i].glColor, buffers[i], plotSampleCount);
 				
 			}
 		}
@@ -524,7 +489,7 @@ public class Plot {
 		
 	}
 	
-	public class TooltipInfo {
+	public static class TooltipInfo {
 		
 		public boolean draw;
 		public int sampleNumber;
