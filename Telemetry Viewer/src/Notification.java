@@ -42,7 +42,11 @@ public class Notification extends JPanel {
 	 */
 	public Notification(Color color, String message, BooleanSupplier isExpired, boolean autoExpire) {
 		
-		label = new JLabel(message);
+		// replace newlines with <br>'s so the JLabel will display them correctly
+		// https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#lineending
+		message = message.replaceAll("\\R", "<br>");
+		
+		label = new JLabel("<html>" + message + "</html>");
 		label.setFont(Theme.xAxisFont);
 		idleColor = interpolate(color, FADE_OUT_COLOR, 0.80f);
 		expireOnDisconnect = autoExpire;

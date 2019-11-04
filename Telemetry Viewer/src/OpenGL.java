@@ -769,7 +769,7 @@ public class OpenGL {
 		
 		// shaders
 		String[] vertexShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"layout (location = 0) in float position;\n",
 			"uniform mat4 matrix;\n",
 			"uniform int xOffset;\n",
@@ -779,7 +779,7 @@ public class OpenGL {
 		};
 		
 		String[] fragmentShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"uniform vec4 rgba;\n",
 			"out vec4 color;\n",
 			"void main(void) {\n",
@@ -799,7 +799,7 @@ public class OpenGL {
 			gl.glGetShaderiv(vertexShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(vertexShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// compile the fragment shader and check for errors
@@ -813,7 +813,7 @@ public class OpenGL {
 			gl.glGetShaderiv(fragmentShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(fragmentShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// link the shaders into a program and check for errors
@@ -828,7 +828,7 @@ public class OpenGL {
 			gl.glGetShaderiv(yColorXoffsetProgramHandle, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(yColorXoffsetProgramHandle, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// free resources
@@ -901,7 +901,7 @@ public class OpenGL {
 		
 		// shaders
 		String[] vertexShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"layout (location = 0) in vec2 position;\n",
 			"uniform mat4 matrix;\n",
 			"void main(void) {\n",
@@ -910,7 +910,7 @@ public class OpenGL {
 		};
 		
 		String[] fragmentShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"uniform vec4 rgba;\n",
 			"out vec4 color;\n",
 			"void main(void) {\n",
@@ -930,7 +930,7 @@ public class OpenGL {
 			gl.glGetShaderiv(vertexShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(vertexShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// compile the fragment shader and check for errors
@@ -944,7 +944,7 @@ public class OpenGL {
 			gl.glGetShaderiv(fragmentShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(fragmentShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// link the shaders into a program and check for errors
@@ -959,7 +959,7 @@ public class OpenGL {
 			gl.glGetShaderiv(xyColorProgramHandle, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(xyColorProgramHandle, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// free resources
@@ -1029,7 +1029,7 @@ public class OpenGL {
 		
 		// shaders
 		String[] vertexShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"layout (location = 0) in vec2 position;\n",
 			"layout (location = 1) in vec4 color;\n",
 			"out vec4 rgba;\n",
@@ -1041,7 +1041,7 @@ public class OpenGL {
 		};
 		
 		String[] fragmentShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"in vec4 rgba;\n",
 			"out vec4 color;\n",
 			"void main(void) {\n",
@@ -1061,7 +1061,7 @@ public class OpenGL {
 			gl.glGetShaderiv(vertexShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(vertexShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// compile the fragment shader and check for errors
@@ -1075,7 +1075,7 @@ public class OpenGL {
 			gl.glGetShaderiv(fragmentShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(fragmentShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// link the shaders into a program and check for errors
@@ -1090,7 +1090,7 @@ public class OpenGL {
 			gl.glGetShaderiv(xyrgbaProgramHandle, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(xyrgbaProgramHandle, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// free resources
@@ -1161,7 +1161,7 @@ public class OpenGL {
 		
 		// shaders
 		String[] vertexShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"layout (location = 0) in vec3 position;\n",
 			"layout (location = 1) in vec3 normal;\n",
 			"out vec3 nor;\n",
@@ -1173,7 +1173,7 @@ public class OpenGL {
 		};
 		
 		String[] fragmentShaderCode = new String[] {
-			"#version 430\n",
+			"#version 330\n",
 			"in vec3 nor;\n",
 			"out vec4 color;\n",
 			"uniform mat4 matrix;\n",
@@ -1201,7 +1201,7 @@ public class OpenGL {
 			gl.glGetShaderiv(vertexShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(vertexShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// compile the fragment shader and check for errors
@@ -1215,7 +1215,7 @@ public class OpenGL {
 			gl.glGetShaderiv(fragmentShader, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(fragmentShader, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// link the shaders into a program and check for errors
@@ -1230,7 +1230,7 @@ public class OpenGL {
 			gl.glGetShaderiv(xyzuvwProgramHandle, GL4.GL_INFO_LOG_LENGTH, length, 0);
 			byte[] errorMessage = new byte[length[0]];
 			gl.glGetShaderInfoLog(xyzuvwProgramHandle, length[0], length, 0, errorMessage, 0);
-			NotificationsController.showFailureForSeconds("OpenGL Shader Error: " + new String(errorMessage), 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL or GLSL error:\n" + new String(errorMessage).trim(), 999, false);
 		}
 		
 		// free resources
