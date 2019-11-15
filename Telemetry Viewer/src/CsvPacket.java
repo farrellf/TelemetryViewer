@@ -3,7 +3,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
-import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -533,28 +532,27 @@ public class CsvPacket extends Packet {
 			});
 			
 			JPanel dataEntryPanel = new JPanel();
-			dataEntryPanel.setBorder(new EmptyBorder(5, 5, 0, 5));
 			dataEntryPanel.add(new JLabel("Column Number"));
 			dataEntryPanel.add(columnTextfield);
-			dataEntryPanel.add(Box.createHorizontalStrut(20));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			dataEntryPanel.add(new JLabel("Name"));
 			dataEntryPanel.add(nameTextfield);
-			dataEntryPanel.add(Box.createHorizontalStrut(20));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			dataEntryPanel.add(new JLabel("Color"));
 			dataEntryPanel.add(colorButton);
-			dataEntryPanel.add(Box.createHorizontalStrut(20));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			dataEntryPanel.add(new JLabel("Unit"));
 			dataEntryPanel.add(unitTextfield);
-			dataEntryPanel.add(Box.createHorizontalStrut(80));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
 			dataEntryPanel.add(conversionFactorAtextfield);
 			dataEntryPanel.add(new JLabel(" LSBs = "));
 			dataEntryPanel.add(conversionFactorBtextfield);
 			dataEntryPanel.add(unitLabel);
-			dataEntryPanel.add(Box.createHorizontalStrut(80));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
 			dataEntryPanel.add(addButton);		
-			dataEntryPanel.add(Box.createHorizontalStrut(20));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			dataEntryPanel.add(resetButton);
-			dataEntryPanel.add(Box.createHorizontalStrut(20));
+			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			dataEntryPanel.add(doneButton);
 			
 			dataStructureTable = new JTable(new AbstractTableModel() {
@@ -583,14 +581,14 @@ public class CsvPacket extends Packet {
 			scrollableDataStructureTable = new JScrollPane(dataStructureTable);
 			
 			JPanel tablePanel = new JPanel(new GridLayout(1, 1));
-			tablePanel.setBorder(new EmptyBorder(5, 5, 5, 5));
+			tablePanel.setBorder(new EmptyBorder(0, 5, 5, 5));
 			tablePanel.add(scrollableDataStructureTable, BorderLayout.CENTER);
 			dataStructureTable.setRowHeight((int) tablePanel.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight()); // fixes display scaling issue
 
 			arduinoCode = new JTextArea();
 			arduinoCode.setEditable(false);
 			arduinoCode.setTabSize(4);
-			arduinoCode.setFont(new Font("Consolas", Font.PLAIN, 12 * (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0)));
+			arduinoCode.setFont(new Font("Consolas", Font.PLAIN, tablePanel.getFont().getSize()));
 			exampleCodePane = new JTabbedPane();
 			
 			if(CommunicationController.getPort().startsWith("UART") || CommunicationController.getPort().startsWith("Test"))

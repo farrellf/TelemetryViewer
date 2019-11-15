@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.function.BooleanSupplier;
@@ -47,11 +48,12 @@ public class Notification extends JPanel {
 		message = message.replaceAll("\\R", "<br>");
 		
 		label = new JLabel("<html>" + message + "</html>");
-		label.setFont(Theme.xAxisFont);
+		label.setFont(new Font("Geneva", Font.BOLD, (int) (getFont().getSize() * 1.7)));
+		
 		idleColor = interpolate(color, FADE_OUT_COLOR, 0.80f);
 		expireOnDisconnect = autoExpire;
 		
-		setBorder(BorderFactory.createMatteBorder(10, 0, 0, 0, FADE_OUT_COLOR));
+		setBorder(BorderFactory.createMatteBorder(Theme.guiThickPadding, 0, 0, 0, FADE_OUT_COLOR));
 		setBackground(color);
 		add(label);
 		

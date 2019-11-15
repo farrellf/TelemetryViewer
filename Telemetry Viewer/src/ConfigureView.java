@@ -40,21 +40,21 @@ public class ConfigureView extends JPanel {
 		
 		// show the GUI
 		JPanel contents = new JPanel();
-		contents.setBorder(new EmptyBorder(10, 10, 10, 10));
+		contents.setBorder(new EmptyBorder(Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding));
 		contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
 
 		for(Widget widget : chart.widgets) {
-			contents.add(widget != null ? widget : Box.createVerticalStrut(10));
-			contents.add(Box.createVerticalStrut(10));
+			contents.add(widget != null ? widget : Box.createVerticalStrut(Theme.guiPadding));
+			contents.add(Box.createVerticalStrut(Theme.guiPadding));
 		}
 		
-		contents.add(Box.createVerticalStrut(40));
+		contents.add(Box.createVerticalStrut(Theme.guiPadding * 4));
 		
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
 		
 		JPanel doneButtonPanel = new JPanel();
-		doneButtonPanel.setLayout(new GridLayout(1, 3, 10, 10));
+		doneButtonPanel.setLayout(new GridLayout(1, 3, Theme.guiThickPadding, Theme.guiThickPadding));
 		doneButtonPanel.add(new JLabel(""));
 		doneButtonPanel.add(new JLabel(""));
 		doneButtonPanel.add(doneButton);
@@ -94,13 +94,13 @@ public class ConfigureView extends JPanel {
 		
 		// show the GUI
 		JPanel contents = new JPanel();
-		contents.setBorder(new EmptyBorder(10, 10, 10, 10));
+		contents.setBorder(new EmptyBorder(Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding));
 		contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
 		
 		JComboBox<String> chartTypeCombobox = new JComboBox<String>(Controller.getChartTypes());
 		
 		JPanel chartTypePanel = new JPanel();
-		chartTypePanel.setLayout(new GridLayout(1, 2, 10, 10));
+		chartTypePanel.setLayout(new GridLayout(1, 2, Theme.guiThickPadding, Theme.guiThickPadding));
 		chartTypePanel.add(new JLabel("Chart Type: "));
 		chartTypePanel.add(chartTypeCombobox);
 		
@@ -109,7 +109,7 @@ public class ConfigureView extends JPanel {
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
 		JPanel doneAndCancelPanel = new JPanel();
-		doneAndCancelPanel.setLayout(new GridLayout(1, 3, 10, 10));
+		doneAndCancelPanel.setLayout(new GridLayout(1, 3, Theme.guiThickPadding, Theme.guiThickPadding));
 		doneAndCancelPanel.add(cancelButton);
 		doneAndCancelPanel.add(new JLabel(""));
 		doneAndCancelPanel.add(doneButton);
@@ -121,17 +121,17 @@ public class ConfigureView extends JPanel {
 				Controller.removeChart(activeChart);
 			contents.removeAll();
 			contents.add(chartTypePanel);
-			contents.add(Box.createVerticalStrut(40));
+			contents.add(Box.createVerticalStrut(Theme.guiPadding * 4));
 			
 			// create the chart and show it's widgets
 			activeChart = Controller.createAndAddChart(chartTypeCombobox.getSelectedItem().toString(), x1, y1, x2, y2);
 			for(Widget widget : activeChart.widgets) {
-				contents.add(widget != null ? widget : Box.createVerticalStrut(10));
+				contents.add(widget != null ? widget : Box.createVerticalStrut(Theme.guiPadding));
 				contents.add(Box.createVerticalStrut(10));
 			}
 			
 			// leave some room, then show the done and cancel buttons
-			contents.add(Box.createVerticalStrut(40));
+			contents.add(Box.createVerticalStrut(Theme.guiPadding * 4));
 			contents.add(doneAndCancelPanel);
 			
 			// size the panel as needed

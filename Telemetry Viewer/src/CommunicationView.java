@@ -1,3 +1,4 @@
+import java.awt.Dimension;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 
@@ -14,6 +15,11 @@ import javax.swing.SwingUtilities;
 @SuppressWarnings("serial")
 public class CommunicationView extends JPanel {
 	
+	JTextField sampleRateTextfield;
+	JComboBox<String> packetTypeCombobox;
+	JComboBox<String> portCombobox;
+	JComboBox<String> baudRateCombobox;
+	JComboBox<String> portNumberCombobox;
 	JButton connectButton;
 
 	/**
@@ -25,9 +31,7 @@ public class CommunicationView extends JPanel {
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 
 		// sample rate
-		JTextField sampleRateTextfield = new JTextField(Integer.toString(CommunicationController.getSampleRate()), 4);
-		sampleRateTextfield.setMinimumSize(sampleRateTextfield.getPreferredSize());
-		sampleRateTextfield.setMaximumSize(sampleRateTextfield.getPreferredSize());
+		sampleRateTextfield = new JTextField(Integer.toString(CommunicationController.getSampleRate()), 4);
 		sampleRateTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe) {
 				try {
@@ -44,15 +48,12 @@ public class CommunicationView extends JPanel {
 		CommunicationController.addSampleRateListener(newSampleRate -> sampleRateTextfield.setText(newSampleRate.toString()));
 		
 		// packet type
-		JComboBox<String> packetTypeCombobox = new JComboBox<String>(CommunicationController.getPacketTypes());
-		packetTypeCombobox.setMinimumSize(packetTypeCombobox.getPreferredSize());
-		packetTypeCombobox.setMaximumSize(packetTypeCombobox.getPreferredSize());
+		packetTypeCombobox = new JComboBox<String>(CommunicationController.getPacketTypes());
 		packetTypeCombobox.addActionListener(event -> CommunicationController.setPacketType(packetTypeCombobox.getSelectedItem().toString()));
 		CommunicationController.addPacketTypeListener(newPacketType -> packetTypeCombobox.setSelectedItem(newPacketType));
 		
 		// port
-		JComboBox<String> portCombobox = new JComboBox<String>(CommunicationController.getPorts());
-		portCombobox.setMaximumSize(portCombobox.getPreferredSize());
+		portCombobox = new JComboBox<String>(CommunicationController.getPorts());
 		portCombobox.addActionListener(event -> {
 			CommunicationController.setPort(portCombobox.getSelectedItem().toString());
 		});
@@ -68,10 +69,8 @@ public class CommunicationView extends JPanel {
 		});
 		
 		// UART baud rate
-		JComboBox<String> baudRateCombobox = new JComboBox<String>(CommunicationController.getBaudRateDefaults());
+		baudRateCombobox = new JComboBox<String>(CommunicationController.getBaudRateDefaults());
 		baudRateCombobox.setMaximumRowCount(baudRateCombobox.getItemCount());
-		baudRateCombobox.setMinimumSize(baudRateCombobox.getPreferredSize());
-		baudRateCombobox.setMaximumSize(baudRateCombobox.getPreferredSize());
 		baudRateCombobox.setEditable(true);
 		baudRateCombobox.addActionListener(event -> {
 			try {
@@ -87,11 +86,8 @@ public class CommunicationView extends JPanel {
 		});
 		
 		// TCP/UDP port number
-		JComboBox<String> portNumberCombobox = new JComboBox<String>(CommunicationController.getPortNumberDefaults());
+		portNumberCombobox = new JComboBox<String>(CommunicationController.getPortNumberDefaults());
 		portNumberCombobox.setMaximumRowCount(portNumberCombobox.getItemCount());
-		portNumberCombobox.setPreferredSize(baudRateCombobox.getPreferredSize()); // force same size as baudRateCombobox
-		portNumberCombobox.setMinimumSize(baudRateCombobox.getPreferredSize());
-		portNumberCombobox.setMaximumSize(baudRateCombobox.getPreferredSize());
 		portNumberCombobox.setEditable(true);
 		portNumberCombobox.addActionListener(event -> {
 			try {
@@ -199,17 +195,38 @@ public class CommunicationView extends JPanel {
 		add(portNumberCombobox);
 		add(Box.createHorizontalStrut(5));
 		add(connectButton);
-		
-		setMinimumSize(getPreferredSize());
 
 	}
 	
-	/**
-	 * @return    The x value of connectButton's center.
-	 */
-	public int getConnectButtonLocation() {
+	@Override public Dimension getPreferredSize() {
 		
-		return connectButton.getLocation().x  + (connectButton.getWidth() / 2);
+		sampleRateTextfield.setMinimumSize(sampleRateTextfield.getPreferredSize());
+		sampleRateTextfield.setMaximumSize(sampleRateTextfield.getPreferredSize());
+		
+		packetTypeCombobox.setMinimumSize(packetTypeCombobox.getPreferredSize());
+		packetTypeCombobox.setMaximumSize(packetTypeCombobox.getPreferredSize());
+		
+		portCombobox.setMaximumSize(portCombobox.getPreferredSize());
+		
+		baudRateCombobox.setPreferredSize(null);
+		Dimension d = baudRateCombobox.getPreferredSize();
+		d.width = (int) (d.width * 0.7);
+		baudRateCombobox.setPreferredSize(d);
+		baudRateCombobox.setMinimumSize(baudRateCombobox.getPreferredSize());
+		baudRateCombobox.setMaximumSize(baudRateCombobox.getPreferredSize());
+		
+		portNumberCombobox.setPreferredSize(baudRateCombobox.getPreferredSize()); // force same size as baudRateCombobox
+		portNumberCombobox.setMinimumSize(baudRateCombobox.getPreferredSize());
+		portNumberCombobox.setMaximumSize(baudRateCombobox.getPreferredSize());
+		
+		revalidate();
+		return super.getPreferredSize();
+		
+	}
+	
+	@Override public Dimension getMinimumSize() {
+		
+		return getPreferredSize();
 		
 	}
 	

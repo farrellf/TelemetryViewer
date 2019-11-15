@@ -73,7 +73,7 @@ public class WidgetFrequencyDomainType extends Widget {
 		this.totalSampleCountHandler = totalSampleCountEventHandler;
 		this.rowCountHandler = rowCountEventHandler;
 		
-		setLayout(new GridLayout(4, 2, 10, 10));
+		setLayout(new GridLayout(4, 2, Theme.guiPadding, Theme.guiPadding));
 		add(new JLabel("Type: "));
 		add(typeCombobox);
 		add(sampleCountLabel);

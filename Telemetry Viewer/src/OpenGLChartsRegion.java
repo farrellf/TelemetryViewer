@@ -1,4 +1,5 @@
 import java.awt.BorderLayout;
+import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -30,6 +31,7 @@ public class OpenGLChartsRegion extends JPanel {
 	Animator animator;
 	int canvasWidth;
 	int canvasHeight;
+	double dpiScalingFactor = 1;
 	
 	// grid size
 	int columnCount;
@@ -140,17 +142,29 @@ public class OpenGLChartsRegion extends JPanel {
 				OpenGL.makeXyrgbaProgram(gl);
 				OpenGL.makeXyzuvwProgram(gl);
 				
+				// FIXME this is a dirty hack to work around the display-scaling-before-first-chart causes an exception problem
+				// should probably do the FontUtil field init'ing in here instead
+				System.out.println(FontUtils.tickTextHeight);
+				
 			}
 						
 			@Override public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
 				
 				GL2 gl = drawable.getGL().getGL2();
 				
+				// work around java 9+ dpi scaling problem with JOGL
+				dpiScalingFactor = ((Graphics2D) getGraphics()).getTransform().getScaleX();
+				width = (int) (width * dpiScalingFactor);
+				height = (int) (height * dpiScalingFactor);
+				gl.glViewport(0, 0, width, height);
+				
 				OpenGL.makeOrthoMatrix(screenMatrix, 0, width, 0, height, -100000, 100000);
 				OpenGL.useMatrix(gl, screenMatrix);
 				
 				canvasWidth = width;
 				canvasHeight = height;
+				
+				Controller.setDisplayScalingFactorJava9((float) dpiScalingFactor);
 				
 			}
 
@@ -534,8 +548,8 @@ public class OpenGLChartsRegion extends JPanel {
 				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 				
-				mouseX = me.getX();
-				mouseY = glCanvas.getHeight() - me.getY();
+				mouseX = (int) (me.getX() * dpiScalingFactor);
+				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * dpiScalingFactor);
 				
 			}
 			
@@ -592,9 +606,9 @@ public class OpenGLChartsRegion extends JPanel {
 					
 				} else if(mwe.isShiftDown() == true) {
 					
-					// shift is down, so we're setting the display scaling factor
-					float newFactor = Controller.getDisplayScalingFactor() * (1 - ((float)scrollAmount * displayScalingPerScroll));
-					Controller.setDisplayScalingFactor(newFactor);
+					// shift is down, so we're adjusting the display scaling factor
+					float newFactor = Controller.getDisplayScalingFactorUser() * (1 - ((float)scrollAmount * displayScalingPerScroll));
+					Controller.setDisplayScalingFactorUser(newFactor);
 					
 				}
 				

@@ -7,8 +7,6 @@ import java.util.function.BooleanSupplier;
 
 @SuppressWarnings("serial")
 public class NotificationsView extends JPanel {
-
-	final static int PADDING = 10;
 	
 	/**
 	 * Creates a JPanel that shows Notifications to the user.
@@ -17,7 +15,7 @@ public class NotificationsView extends JPanel {
 	public NotificationsView() {
 		
 		super();
-		setBorder(new EmptyBorder(0, PADDING, 0, PADDING));
+		setBorder(new EmptyBorder(0, Theme.guiThickPadding, 0, Theme.guiThickPadding));
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		
 		// hide until a message needs to be shown

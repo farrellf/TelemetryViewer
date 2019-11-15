@@ -32,7 +32,7 @@ public class WidgetDatasets extends Widget {
 		Dataset[] datasets = DatasetsController.getAllDatasets();
 		datasetsMap = new LinkedHashMap<Dataset, JCheckBox>();
 		
-		setLayout(new GridLayout(0, 2, 10, 10));
+		setLayout(new GridLayout(0, 2, Theme.guiPadding, Theme.guiPadding));
 		add(new JLabel("Datasets: "));
 		
 		for(int i = 0; i < datasets.length; i++) {

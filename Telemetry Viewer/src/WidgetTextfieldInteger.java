@@ -35,7 +35,7 @@ public class WidgetTextfieldInteger extends Widget {
 		this.lowerLimit = lowerLimit;
 		this.upperLimit = upperLimit;
 		
-		setLayout(new GridLayout(1, 2, 10, 10));
+		setLayout(new GridLayout(1, 2, Theme.guiPadding, Theme.guiPadding));
 		add(new JLabel(label + ": "));
 		
 		textfield = new JTextField(Integer.toString(defaultValue));

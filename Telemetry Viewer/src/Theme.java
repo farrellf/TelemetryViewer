@@ -52,6 +52,10 @@ public class Theme {
 	public static float[] tooltipVerticalBarColor = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
 	public static float   tooltipTextPadding      = 5.0f * Controller.getDisplayScalingFactor();
 	
+	// for the swing gui
+	public static int guiPadding = 5;
+	public static int guiThickPadding = 10;
+	
 	/**
 	 * Called by the Controller when the display scaling factor changes.
 	 * 

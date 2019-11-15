@@ -17,26 +17,63 @@ import javax.swing.SwingUtilities;
 public class Controller {
 	
 	/**
-	 * @return    The display scaling factor. By default, this is the percentage of 100dpi that the screen uses, rounded to an integer.
+	 * @return    The display scaling factor. This takes into account the true DPI scaling requested by the OS, plus the user's modification (if any.)
 	 */
 	public static float getDisplayScalingFactor() {
 		
-		return Model.displayScalingFactor;
+		return Model.dpiScalingFactorUser * Model.dpiScalingFactorJava8 * Model.dpiScalingFactorJava9;
 		
 	}
 	
 	/**
-	 * @param newFactor    The new display scaling factor.
+	 * @return    The display scaling factor requested by the user.
 	 */
-	public static void setDisplayScalingFactor(float newFactor) {
+	public static float getDisplayScalingFactorUser() {
 		
-		if(newFactor < Model.displayScalingFactorMinimum) newFactor = Model.displayScalingFactorMinimum;
-		if(newFactor > Model.displayScalingFactorMaximum) newFactor = Model.displayScalingFactorMaximum;
+		return Model.dpiScalingFactorUser;
 		
-		Model.displayScalingFactor = newFactor;
+	}
+	
+	/**
+	 * @param newFactor    The new display scaling factor specified by the user.
+	 */
+	public static void setDisplayScalingFactorUser(float newFactor) {
 		
-		Theme.displayingScalingFactorChanged(newFactor);
-		FontUtils.displayingScalingFactorChanged(newFactor);
+		if(newFactor < 1) newFactor = 1;
+		if(newFactor > 10) newFactor = 10;
+		
+		Model.dpiScalingFactorUser = newFactor;
+		
+		Theme.displayingScalingFactorChanged(getDisplayScalingFactor());
+		FontUtils.displayingScalingFactorChanged(getDisplayScalingFactor());
+		
+	}
+	
+	/**
+	 * @param newFactor    The new display scaling factor specified by the OS if using Java 9+.
+	 */
+	public static void setDisplayScalingFactorJava9(float newFactor) {
+		
+		if(newFactor == Model.dpiScalingFactorJava9)
+			return;
+		
+		if(newFactor < 1) newFactor = 1;
+		if(newFactor > 10) newFactor = 10;
+		
+		Model.dpiScalingFactorJava9 = newFactor;
+		Model.dpiScalingFactorJava8 = 1; // only use the Java9 scaling factor
+		
+		Theme.displayingScalingFactorChanged(getDisplayScalingFactor());
+		FontUtils.displayingScalingFactorChanged(getDisplayScalingFactor());
+		
+	}
+	
+	/**
+	 * @return    The display scaling factor specified by the OS if using Java 9+.
+	 */
+	public static float getDisplayScalingFactorJava9() {
+		
+		return Model.dpiScalingFactorJava9;
 		
 	}
 	

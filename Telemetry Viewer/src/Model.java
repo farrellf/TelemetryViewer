@@ -10,8 +10,8 @@ public class Model {
 	
 	final static Color lineColorDefault = Color.RED;
 	
-	static float displayScalingFactor = (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0);
-	final static float displayScalingFactorMinimum =  1.0f * displayScalingFactor;
-	final static float displayScalingFactorMaximum = 10.0f;
+	static float dpiScalingFactorJava8 = (int) Math.round((double) Toolkit.getDefaultToolkit().getScreenResolution() / 100.0); // will be reset to 1.0 if using java 9+
+	static float dpiScalingFactorJava9 = 1; // will be updated dynamically if using java 9+
+	static float dpiScalingFactorUser = 1; // may be updated by the user
 	
 }

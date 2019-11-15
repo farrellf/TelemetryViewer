@@ -139,27 +139,39 @@ public class ControlsRegion extends JPanel {
 		
 		// show the components
 		add(settingsButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(openLayoutButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(saveLayoutButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(importCsvLogButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(exportCsvLogButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(resetButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(helpButton);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.guiPadding));
 		add(Box.createHorizontalGlue());
 		add(communicationView);
 		
+	}
+	
+	@Override public Dimension getPreferredSize() {
+		
 		// set minimum panel width to 120% of the "preferred" width
-		Dimension size = getPreferredSize();
+		setPreferredSize(null);
+		revalidate();
+		Dimension size = super.getPreferredSize();
 		size.width = (int) (size.width * 1.2);
-		setMinimumSize(size);
-		setPreferredSize(size);
+		
+		return size;
+		
+	}
+	
+	@Override public Dimension getMinimumSize() {
+		
+		return getPreferredSize();
 		
 	}
 
