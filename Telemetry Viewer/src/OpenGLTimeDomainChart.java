@@ -70,9 +70,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float manualYmin;
 	float manualYmax;
 	
+	Plot plot;
 	boolean sampleCountMode;
-	Plot plot = new Plot();
-//	PlotSampleCountCached plot = new PlotSampleCountCached();
+	boolean cachedMode;
 	
 	// constraints
 	static final int SampleCountDefault = 1000;
@@ -93,6 +93,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	WidgetCheckbox showYaxisTitleWidget;
 	WidgetCheckbox showYaxisScaleWidget;
 	WidgetCheckbox showLegendWidget;
+	WidgetCheckbox cachedWidget;
 	
 	@Override public String toString() {
 		
@@ -112,7 +113,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		durationWidget = new WidgetDuration(SampleCountDefault,
 		                                    SampleCountMinimum,
 		                                    SampleCountMaximum,
-		                                    isSampleCount -> sampleCountMode = isSampleCount);
+		                                    isSampleCount -> {
+		                                    	sampleCountMode = isSampleCount;
+		                                    	plot = isSampleCount ? new PlotSampleCount() : new PlotMilliseconds();
+		                                    });
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
 		                                                  yAxisMinimumDefault,
@@ -141,8 +145,16 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		showLegendWidget = new WidgetCheckbox("Show Legend",
 		                                      true,
 		                                      newShowLegend -> showLegend = newShowLegend);
+		
+		cachedWidget = new WidgetCheckbox("Cached Mode",
+		                                  false,
+		                                  newCachedMode -> {
+		                                      cachedMode = newCachedMode;
+		                                      autoscale = cachedMode ? new AutoScale(AutoScale.MODE_STICKY,       1, 0.10f) :
+		                                                               new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.10f);
+		                                  });
 
-		widgets = new Widget[13];
+		widgets = new Widget[15];
 		
 		widgets[0]  = datasetsWidget;
 		widgets[1]  = null;
@@ -157,26 +169,18 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		widgets[10] = showYaxisScaleWidget;
 		widgets[11] = null;
 		widgets[12] = showLegendWidget;
+		widgets[13] = null;
+		widgets[14] = cachedWidget;
 		
 	}
 	
 	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
-		boolean haveDatasets = datasets != null && datasets.length > 0;
-		
-		if(sampleCountMode)
-			plot.acquireSamples(lastSampleNumber, zoomLevel, datasets, durationWidget.getSampleCount());
-		else 
-			plot.acquireMilliseconds(lastSampleNumber, zoomLevel, datasets, durationWidget.getMilliseconds());
-		
-		sampleCount = sampleCountMode ? durationWidget.getSampleCount() :
-		                                plot.getPlotSampleCount();
+		plot.initialize(lastSampleNumber, zoomLevel, datasets, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode);
 		
 		// calculate the plot range
-		if(autoscaleYmin || autoscaleYmax) {
-			Dataset.MinMax requiredRange = plot.getRequiredRange();
-			autoscale.update(requiredRange.min, requiredRange.max);
-		}
+		Dataset.MinMax requiredRange = plot.getRange();
+		autoscale.update(requiredRange.min, requiredRange.max);
 		float plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
 		float plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
 		float plotRange = plotMaxY - plotMinY;
@@ -188,6 +192,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		yPlotTop = height - Theme.tilePadding;
 		yPlotBottom = Theme.tilePadding;
 		plotHeight = yPlotTop - yPlotBottom;
+		
+		boolean haveDatasets = datasets != null && datasets.length > 0;
 		
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
@@ -284,12 +290,20 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(plotWidth < 1 || plotHeight < 1)
 			return;
 		
+		// force the plot to be an integer number of pixels
+		xPlotLeft = (int) xPlotLeft;
+		xPlotRight = (int) xPlotRight;
+		yPlotBottom = (int) yPlotBottom;
+		yPlotTop = (int) yPlotTop;
+		plotWidth = xPlotRight - xPlotLeft;
+		plotHeight = yPlotTop - yPlotBottom;
+		
 		// draw plot background
 		OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 		// draw the x-axis scale
 		if(showXaxisScale) {
-			Map<Float, String> divisions = plot.getXdivisions(plotWidth);
+			Map<Float, String> divisions = plot.getXdivisions((int) plotWidth);
 			
 			OpenGL.buffer.rewind();
 			for(Float divisionLocation : divisions.keySet()) {
@@ -352,8 +366,12 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showYaxisTitle && yYaxisTitleTextLeft > yPlotBottom)
 			FontUtils.drawYaxisText(yAxisTitle, (int) xYaxisTitleTextBaseline, (int) yYaxisTitleTextLeft, 90);
 		
+		// acquire the samples
+		plot.acquireSamples(plotMinY, plotMaxY, (int) plotWidth, (int) plotHeight);
+		sampleCount = sampleCountMode ? durationWidget.getSampleCount() : plot.getPlotSampleCount();
+		
 		// draw the plot
-		plot.draw(gl, chartMatrix, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop, plotMinY, plotMaxY);
+		plot.draw(gl, chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinY, plotMaxY);
 		
 		// draw the tooltip if the mouse is in the plot region
 		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {

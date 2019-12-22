@@ -311,49 +311,6 @@ public class Dataset {
 	}
 	
 	/**
-	 * Gets a series of samples by updating an existing SamplesGL object with an OpenGL-friendly vertex array.
-	 * 
-	 * The buffer FloatBuffer is updated with the requested series of samples.
-	 * The min/max/vertexCount values are updated to reflect the new series of samples.
-	 * The color/name/unit are updated. 
-	 * 
-	 * @param startIndex    The first index (inclusive.)
-	 * @param endIndex      The last index (inclusive.)
-	 * @param samples       A TimeDomainSamples object to populate. 
-	 */
-	public void getGLsamples(int startIndex, int endIndex, SamplesGL samples) {
-		
-		if(samples.glColor == null)
-			samples.glColor = glColor;
-		
-		samples.name = name;
-		
-		samples.unit = unit;
-		
-		samples.min = getSample(startIndex);
-		samples.max = getSample(startIndex);
-
-		int vertexCount = endIndex - startIndex + 1;
-		samples.vertexCount = vertexCount;
-		
-		if(samples.buffer == null || samples.buffer.capacity() != 2 * vertexCount) {
-			samples.buffer = Buffers.newDirectFloatBuffer(2 * vertexCount);
-		}
-		
-		samples.buffer.rewind();
-		
-		for(int x = startIndex; x <= endIndex; x++) {
-			float y = getSample(x);
-			samples.buffer.put(x);
-			samples.buffer.put(y);
-			if(y < samples.min) samples.min = y;
-			if(y > samples.max) samples.max = y;
-		}
-		samples.buffer.rewind();
-		
-	}
-	
-	/**
 	 * @param value    New raw sample to be converted and then appended to the dataset.
 	 */
 	public void add(float value) {
@@ -451,8 +408,10 @@ public class Dataset {
 	}
 	
 	public static class MinMax {
-		float min = Float.MAX_VALUE;
-		float max = -Float.MAX_VALUE;
+		float min;
+		float max;
+		public MinMax()                     {this.min = Float.MAX_VALUE; this.max = -Float.MAX_VALUE;}
+		public MinMax(float min, float max) {this.min = min;             this.max = max;}
 	}
 	
 }

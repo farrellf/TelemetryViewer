@@ -4,6 +4,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -12,6 +13,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
+import com.jogamp.common.nio.Buffers;
 
 public class DatasetsController {
 
@@ -325,6 +328,21 @@ public class DatasetsController {
 		int slotNumber = sampleNumber / SLOT_SIZE;
 		int slotIndex  = sampleNumber % SLOT_SIZE;
 		return timestamps[slotNumber].getValue(slotIndex);
+		
+	}
+	
+	public static FloatBuffer getTimestampsBuffer(int firstSampleNumber, int lastSampleNumber, long plotMinX) {
+		
+		FloatBuffer buffer = Buffers.newDirectFloatBuffer(lastSampleNumber - firstSampleNumber + 1);
+		
+		if(firstSampleNumber < 0)
+			return buffer;
+		
+		for(int i = firstSampleNumber; i <= lastSampleNumber; i++)
+			buffer.put((float) (getTimestamp(i) - plotMinX));
+		
+		buffer.rewind();
+		return buffer;
 		
 	}
 	

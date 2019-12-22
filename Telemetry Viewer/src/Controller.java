@@ -84,7 +84,6 @@ public class Controller {
 		
 		return new String[] {
 			"Time Domain Chart",
-			"Time Domain Chart (Cached)",
 			"Frequency Domain Chart",
 			"Histogram Chart",
 			"Dial Chart",
@@ -107,12 +106,11 @@ public class Controller {
 		
 		PositionedChart chart = null;
 		
-		     if(chartType.equals("Time Domain Chart"))          chart = new OpenGLTimeDomainChart(x1, y1, x2, y2);
-		else if(chartType.equals("Time Domain Chart (Cached)")) chart = new OpenGLTimeDomainChartCached(x1, y1, x2, y2);
-		else if(chartType.equals("Frequency Domain Chart"))     chart = new OpenGLFrequencyDomainChart(x1, y1, x2, y2);
-		else if(chartType.equals("Histogram Chart"))            chart = new OpenGLHistogramChart(x1, y1, x2, y2);
-		else if(chartType.equals("Dial Chart"))                 chart = new OpenGLDialChart(x1, y1, x2, y2);
-		else if(chartType.equals("Quaternion Chart"))           chart = new OpenGLQuaternionChart(x1, y1, x2, y2);
+		     if(chartType.equals("Time Domain Chart"))      chart = new OpenGLTimeDomainChart(x1, y1, x2, y2);
+		else if(chartType.equals("Frequency Domain Chart")) chart = new OpenGLFrequencyDomainChart(x1, y1, x2, y2);
+		else if(chartType.equals("Histogram Chart"))        chart = new OpenGLHistogramChart(x1, y1, x2, y2);
+		else if(chartType.equals("Dial Chart"))             chart = new OpenGLDialChart(x1, y1, x2, y2);
+		else if(chartType.equals("Quaternion Chart"))       chart = new OpenGLQuaternionChart(x1, y1, x2, y2);
 		
 		if(chart != null)
 			Controller.addChart(chart);
