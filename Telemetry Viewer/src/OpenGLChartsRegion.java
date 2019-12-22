@@ -137,10 +137,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				gl.glGenQueries(2, gpuQueryHandles, 0);
 				
-				OpenGL.makeYcolorXoffsetProgram(gl);
-				OpenGL.makeXyColorProgram(gl);
-				OpenGL.makeXyrgbaProgram(gl);
-				OpenGL.makeXyzuvwProgram(gl);
+				OpenGL.makeAllPrograms(gl);
 				
 				// FIXME this is a dirty hack to work around the display-scaling-before-first-chart causes an exception problem
 				// should probably do the FontUtil field init'ing in here instead
