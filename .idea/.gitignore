@@ -1,0 +1,9 @@
+*
+
+!.gitignore
+!misc.xml
+!modules.xml
+!vcs.xml
+
+!libraries/
+!libraries/**

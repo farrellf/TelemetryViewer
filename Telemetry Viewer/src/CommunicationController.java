@@ -2,11 +2,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
+import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -20,12 +16,13 @@ import com.fazecast.jSerialComm.SerialPort;
 
 public class CommunicationController {
 
-	static List<Consumer<String>>  portListeners =           new ArrayList<Consumer<String>>();
-	static List<Consumer<String>>  packetTypeListeners =     new ArrayList<Consumer<String>>();
-	static List<Consumer<Integer>> sampleRateListeners =     new ArrayList<Consumer<Integer>>();
-	static List<Consumer<Integer>> baudRateListeners =       new ArrayList<Consumer<Integer>>();
-	static List<Consumer<Integer>> portNumberListeners =     new ArrayList<Consumer<Integer>>(); // TCP/UDP port
-	static List<Consumer<Boolean>> connectionListeners =     new ArrayList<Consumer<Boolean>>(); // true = connected or listening
+	static List<Consumer<String>>  portListeners = new ArrayList<>();
+	static List<Consumer<String>>  packetTypeListeners = new ArrayList<>();
+	static List<Consumer<Integer>> sampleRateListeners = new ArrayList<>();
+	static List<Consumer<Integer>> baudRateListeners = new ArrayList<>();
+	static List<Consumer<InetAddress>> ipListeners = new ArrayList<>();
+	static List<Consumer<Integer>> portNumberListeners = new ArrayList<>(); // TCP/UDP port
+	static List<Consumer<Boolean>> connectionListeners = new ArrayList<>(); // true = connected or listening
 	
 	/**
 	 * Registers a listener that will be notified when the port changes, and triggers an event to ensure the GUI is in sync.
@@ -49,6 +46,7 @@ public class CommunicationController {
 		
 		// sanity check
 		if(!newPort.startsWith(Communication.PORT_UART + ": ") &&
+		   !newPort.equals(Communication.PORT_IP) &&
 		   !newPort.equals(Communication.PORT_TCP) &&
 		   !newPort.equals(Communication.PORT_UDP) &&
 		   !newPort.equals(Communication.PORT_TEST) &&
@@ -60,14 +58,28 @@ public class CommunicationController {
 			disconnect();
 		
 		// set and notify
-		if(Communication.port != Communication.PORT_FILE && newPort.equals(Communication.PORT_FILE))
+		if(!Communication.port.equals(Communication.PORT_FILE) && newPort.equals(Communication.PORT_FILE))
 			Communication.portUsedBeforeImport = Communication.port;
 		Communication.port = newPort;
 		for(Consumer<String> listener : portListeners)
 			listener.accept(Communication.port);
 		
 	}
-	
+
+	public static void setIp(String newIp) {
+		if (isConnected())
+			disconnect();
+
+		try {
+			Communication.serverIp = InetAddress.getByName(newIp);
+		} catch (Exception ignored) {
+			return;
+		}
+
+		for (Consumer<InetAddress> listener : ipListeners)
+			listener.accept(Communication.serverIp);
+	}
+
 	/**
 	 * @return    The current port (Communication.MODE_UART + ": port name" or .MODE_TCP or .MODE_UDP or .MODE_TEST or .MODE_FILE)
 	 */
@@ -86,11 +98,12 @@ public class CommunicationController {
 	public static String[] getPorts() {
 		
 		SerialPort[] ports = SerialPort.getCommPorts();
-		String[] names = new String[ports.length + 3];
+		String[] names = new String[ports.length + 4];
 		
 		for(int i = 0; i < ports.length; i++)
 			names[i] = "UART: " + ports[i].getSystemPortName();
 		
+		names[names.length - 4] = Communication.PORT_IP;
 		names[names.length - 3] = Communication.PORT_TCP;
 		names[names.length - 2] = Communication.PORT_UDP;
 		names[names.length - 1] = Communication.PORT_TEST;
@@ -272,7 +285,12 @@ public class CommunicationController {
 		setPortNumber(Communication.tcpUdpPort);
 		
 	}
-	
+
+	public static void addIpAddressListener(Consumer<InetAddress> listener) {
+		ipListeners.add(listener);
+		setIp(Communication.serverIp.toString());
+	}
+
 	/**
 	 * Changes the TCP/UDP port number, and notifies any listeners. The number will be clipped if it is outside the 0-65535 range.
 	 * If a connection currently exists, it will be closed first.
@@ -339,6 +357,7 @@ public class CommunicationController {
 			else if(Communication.port.equals(Communication.PORT_UDP))  listener.accept(Communication.udpConnected);
 			else if(Communication.port.equals(Communication.PORT_TEST)) listener.accept(Communication.testConnected);
 			else if(Communication.port.equals(Communication.PORT_FILE)) listener.accept(Communication.fileConnected);
+			else if (Communication.port.equals(Communication.PORT_IP))  listener.accept(Communication.ipConnected);
 		
 	}
 	
@@ -352,6 +371,7 @@ public class CommunicationController {
 		else if(Communication.port.equals(Communication.PORT_UDP))  return Communication.udpConnected;
 		else if(Communication.port.equals(Communication.PORT_TEST)) return Communication.testConnected;
 		else if(Communication.port.equals(Communication.PORT_FILE)) return Communication.fileConnected;
+		else if(Communication.port.equals(Communication.PORT_IP)) return Communication.ipConnected;
 		else                                                        return false;
 		
 	}
@@ -373,6 +393,8 @@ public class CommunicationController {
 			startTester(parentWindow);
 		else if(Communication.port.equals(Communication.PORT_FILE))
 			connectToFile();
+		else if (Communication.port.equals(Communication.PORT_IP))
+			connectToIp(parentWindow);
 		
 		SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
 			if(Controller.getCharts().isEmpty() && isConnected())
@@ -398,6 +420,8 @@ public class CommunicationController {
 			stopTester();
 		else if(Communication.port.equals(Communication.PORT_FILE))
 			disconnectFromFile();
+		else if (Communication.port.equals(Communication.PORT_IP))
+			disconnectFromIp();
 		
 		NotificationsController.removeAll();
 
@@ -565,7 +589,52 @@ public class CommunicationController {
 			fileImportThread.interrupt();
 		
 	}
-	
+
+	private static Socket tcpClient;
+
+	private static void connectToIp(JFrame parentWindow) {
+		try {
+			if (tcpClient != null && tcpClient.isConnected())
+				tcpClient.close();
+
+			tcpClient = new Socket(Communication.serverIp, Communication.tcpUdpPort);
+
+			while (!tcpClient.isConnected())
+				Thread.sleep(50);
+
+			Communication.ipConnected = true;
+			notifyConnectionListeners();
+
+			if(parentWindow != null)
+				Communication.packet.showDataStructureWindow(parentWindow, false);
+
+			Communication.packet.startReceivingData(tcpClient.getInputStream());
+
+			NotificationsController.showSuccessForSeconds("Connected!", 3, true);
+		} catch (Exception e) {
+			NotificationsController.showFailureForSeconds("Failed to connect: " + e.getMessage(), 15, true);
+		}
+	}
+	/**
+	 * Stops the serial port receiver thread and disconnects from the active serial port.
+	 */
+	private static void disconnectFromIp() {
+
+		if(Communication.packet != null)
+			Communication.packet.stopReceivingData();
+
+		try {
+			if(tcpClient != null && tcpClient.isConnected())
+				tcpClient.close();
+		} catch (Exception ignored) {}
+
+		tcpClient = null;
+
+		Communication.ipConnected = false;
+
+		notifyConnectionListeners();
+	}
+
 	private static SerialPort uartPort = null;
 	
 	/**
@@ -611,7 +680,7 @@ public class CommunicationController {
 		});
 		t.setRepeats(false);
 		t.start();
-		
+
 		Communication.packet.startReceivingData(uartPort.getInputStream());
 		
 	}
