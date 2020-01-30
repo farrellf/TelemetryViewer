@@ -7,3 +7,6 @@
 
 !libraries/
 !libraries/**
+
+!artifacts/
+!artifacts/**
