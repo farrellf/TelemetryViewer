@@ -8,11 +8,12 @@ import java.util.function.BooleanSupplier;
 @SuppressWarnings("serial")
 public class NotificationsView extends JPanel {
 	
+	static NotificationsView instance = new NotificationsView();
+	
 	/**
-	 * Creates a JPanel that shows Notifications to the user.
-	 * Notifications are added with the NotificationsController.show*() methods.
+	 * Private constructor to enforce singleton usage.
 	 */
-	public NotificationsView() {
+	private NotificationsView() {
 		
 		super();
 		setBorder(new EmptyBorder(0, Theme.guiThickPadding, 0, Theme.guiThickPadding));

@@ -17,10 +17,11 @@ import net.miginfocom.swing.MigLayout;
 public class ConfigureView extends JPanel {
 	
 	static ConfigureView instance = new ConfigureView();
+	
 	private static PositionedChart activeChart = null;
 	
 	/**
-	 * Creates an empty panel that can be used for configuring charts.
+	 * Private constructor to enforce singleton usage.
 	 */
 	private ConfigureView() {
 		
@@ -34,7 +35,7 @@ public class ConfigureView extends JPanel {
 	 * 
 	 * @param chart    The chart to configure.
 	 */
-	public static void existingChart(PositionedChart chart) {
+	public void forExistingChart(PositionedChart chart) {
 		
 		activeChart = chart;
 		
@@ -82,7 +83,7 @@ public class ConfigureView extends JPanel {
 	 * @param x2    The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
 	 * @param y2    The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
 	 */
-	public static void newChart(int x1, int y1, int x2, int y2) {
+	public void forNewChart(int x1, int y1, int x2, int y2) {
 		
 		if(DatasetsController.getDatasetsCount() == 0) {
 			JOptionPane.showMessageDialog(null, "Error: The packet's data structure must be defined before adding charts.\nUse the controls at the bottom-right corner of the main window to make a connection and define the data structure.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -157,7 +158,7 @@ public class ConfigureView extends JPanel {
 	 * 
 	 * @param chart    The chart.
 	 */
-	public static void closeIfUsedFor(PositionedChart chart) {
+	public void closeIfUsedFor(PositionedChart chart) {
 		
 		if(activeChart == chart)
 			close();
@@ -167,7 +168,7 @@ public class ConfigureView extends JPanel {
 	/**
 	 * Closes the configuration view.
 	 */
-	public static void close() {
+	public void close() {
 		
 		activeChart = null;
 		instance.removeAll();

@@ -23,22 +23,22 @@ public class FontUtils {
 	private static int framesSinceFlush = 0;
 	
 	private static final Queue<PositionedText> tickTextQueue    = new LinkedList<PositionedText>();
-	private static       TextRenderer          tickTextRenderer = new TextRenderer(Theme.tickFont, true, true);
+	public  static       TextRenderer          tickTextRenderer = new TextRenderer(Theme.tickFont, true, true);
 	public  static       float                 tickTextHeight   = Theme.tickFont.createGlyphVector(tickTextRenderer.getFontRenderContext(), "Test").getPixelBounds(tickTextRenderer.getFontRenderContext(), 0, 0).height;
 	public  static       float                 tickTextWidth(String text) { return (float) Theme.tickFont.getStringBounds(text, tickTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	private static final Queue<PositionedText> legendTextQueue    = new LinkedList<PositionedText>();
-	private static       TextRenderer          legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
+	public  static       TextRenderer          legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
 	public  static       float                 legendTextHeight   = Theme.legendFont.createGlyphVector(legendTextRenderer.getFontRenderContext(), "Test").getPixelBounds(legendTextRenderer.getFontRenderContext(), 0, 0).height;
 	public  static       float                 legendTextWidth(String text) { return (float) Theme.legendFont.getStringBounds(text, legendTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	private static final Queue<PositionedText> xAxisTextQueue    = new LinkedList<PositionedText>();
-	private static       TextRenderer          xAxisTextRenderer = new TextRenderer(Theme.xAxisFont, true, true);
+	public  static       TextRenderer          xAxisTextRenderer = new TextRenderer(Theme.xAxisFont, true, true);
 	public  static       float                 xAxisTextHeight   = Theme.xAxisFont.createGlyphVector(xAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(xAxisTextRenderer.getFontRenderContext(), 0, 0).height;
 	public  static       float                 xAxisTextWidth(String text) { return (float) Theme.xAxisFont.getStringBounds(text, xAxisTextRenderer.getFontRenderContext()).getWidth(); }
 	
 	private static final Queue<PositionedText> yAxisTextQueue    = new LinkedList<PositionedText>();
-	private static       TextRenderer          yAxisTextRenderer = new TextRenderer(Theme.yAxisFont, true, true);
+	public  static       TextRenderer          yAxisTextRenderer = new TextRenderer(Theme.yAxisFont, true, true);
 	public  static       float                 yAxisTextHeight   = Theme.yAxisFont.createGlyphVector(yAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(yAxisTextRenderer.getFontRenderContext(), 0, 0).height;
 	public  static       float                 yAxisTextWidth(String text) { return (float) Theme.yAxisFont.getStringBounds(text, yAxisTextRenderer.getFontRenderContext()).getWidth(); }
 	

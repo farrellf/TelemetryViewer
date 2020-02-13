@@ -1,4 +1,5 @@
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.GraphicsEnvironment;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.DnDConstants;
@@ -19,23 +20,26 @@ import javax.swing.UIManager;
 
 public class Main {
 
+	static JFrame window = new JFrame("Telemetry Viewer v0.6");
+	
+	/**
+	 * Entry point for the program.
+	 * This just creates and configures the main window.
+	 * 
+	 * @param args    Command line arguments (not currently used.)
+	 */
 	@SuppressWarnings("serial")
 	public static void main(String[] args) {
 		
 		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
 		
-		JFrame window = new JFrame("Telemetry Viewer v0.6");
-		NotificationsView notificationsRegion = new NotificationsView();
-		SettingsView settingsRegion = new SettingsView();
-		ControlsRegion controlsRegion = new ControlsRegion(settingsRegion);
-		OpenGLChartsRegion chartsRegion = new OpenGLChartsRegion(settingsRegion, controlsRegion);
-		
 		window.setLayout(new BorderLayout());
-		window.add(notificationsRegion, BorderLayout.NORTH);
-		window.add(chartsRegion, BorderLayout.CENTER);
-		window.add(settingsRegion, BorderLayout.WEST);
-		window.add(controlsRegion, BorderLayout.SOUTH);
-		window.add(ConfigureView.instance, BorderLayout.EAST);
+		
+		window.add(NotificationsView.instance,  BorderLayout.NORTH);
+		window.add(OpenGLChartsRegion.instance, BorderLayout.CENTER);
+		window.add(SettingsView.instance,       BorderLayout.WEST);
+		window.add(ControlsRegion.instance,     BorderLayout.SOUTH);
+		window.add(ConfigureView.instance,      BorderLayout.EAST);
 		
 		window.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		window.setSize( (int) (GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().width * 0.6), (int) (GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().height * 0.6) );
@@ -82,7 +86,6 @@ public class Main {
 			}
 		});
 		
-		
 		// create a directory for the cache, and remove it on exit
 		Path cacheDir = Paths.get("cache");
 		try { Files.createDirectory(cacheDir); } catch(FileAlreadyExistsException e) {} catch(Exception e) { e.printStackTrace(); }
@@ -93,6 +96,43 @@ public class Main {
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}
 		});
+		
+	}
+	
+	/**
+	 * Hides the charts and shows the data structure GUI in the middle of the main window.
+	 */
+	public static void showDataStructureGui() {
+		
+		OpenGLChartsRegion.instance.animator.pause();
+		SettingsView.instance.setVisible(false);
+		ConfigureView.instance.close();
+		window.remove(OpenGLChartsRegion.instance);
+		window.add(Communication.packet.getDataStructureGui(), BorderLayout.CENTER);
+		window.revalidate();
+		window.repaint();
+		
+	}
+	
+	/**
+	 * Hides the data structure GUI and shows the charts in the middle of the main window.
+	 */
+	public static void hideDataStructureGui() {
+		
+		// do nothing if already hidden
+		for(Component c : window.getContentPane().getComponents())
+			if(c == OpenGLChartsRegion.instance)
+				return;
+				
+		window.remove(PacketBinary.BinaryDataStructureGui.instance);
+		window.remove(PacketCsv.CsvDataStructureGui.instance);
+		window.add(OpenGLChartsRegion.instance, BorderLayout.CENTER);
+		window.revalidate();
+		window.repaint();
+		OpenGLChartsRegion.instance.animator.resume();
+		
+		if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+			NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
 		
 	}
 

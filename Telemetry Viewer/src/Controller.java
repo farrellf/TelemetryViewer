@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import javax.swing.SwingUtilities;
 
 /**
  * Handles all non-GUI logic and manages access to the Model (the data).
@@ -151,15 +150,11 @@ public class Controller {
 
 		if(SettingsController.getBenchmarkedChart() == chart)
 			SettingsController.setBenchmarkedChart(null);
-		ConfigureView.closeIfUsedFor(chart);
+		ConfigureView.instance.closeIfUsedFor(chart);
 		Model.charts.remove(chart);
 		
-		if(getCharts().isEmpty()) {
-			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
-				if(Controller.getCharts().isEmpty() && CommunicationController.isConnected())
-					NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
-			});
-		}
+		if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+			NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
 		
 	}
 	
@@ -228,7 +223,7 @@ public class Controller {
 		CommunicationController.disconnect();
 		CommunicationController.setPort(Communication.PORT_FILE);
 		CommunicationController.setImportFile(filepath);
-		CommunicationController.connect(null);
+		CommunicationController.connect(true);
 		
 	}
 	
@@ -311,8 +306,8 @@ public class Controller {
 				
 				int processorIndex = -1;
 				
-				if(Communication.packet instanceof BinaryPacket) {
-					BinaryFieldProcessor[] processors = BinaryPacket.getBinaryFieldProcessors();
+				if(Communication.packet instanceof PacketBinary) {
+					BinaryFieldProcessor[] processors = PacketBinary.getBinaryFieldProcessors();
 					for(int i = 0; i < processors.length; i++)
 						if(dataset.processor.toString().equals(processors[i].toString()))
 							processorIndex = i;
@@ -442,7 +437,7 @@ public class Controller {
 				float conversionFactorB = ChartUtils.parseFloat  (lines.remove(), "conversion factor b = %f");
 				
 				Color color = new Color(Integer.parseInt(colorText, 16));
-				BinaryFieldProcessor processor = (processorIndex >= 0) ? BinaryPacket.getBinaryFieldProcessors()[processorIndex] : null;
+				BinaryFieldProcessor processor = (processorIndex >= 0) ? PacketBinary.getBinaryFieldProcessors()[processorIndex] : null;
 				
 				Communication.packet.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
@@ -480,12 +475,14 @@ public class Controller {
 			int checksumIndex  = ChartUtils.parseInteger(lines.remove(), "checksum processor index = %d");
 			
 			if(checksumOffset >= 1 && checksumIndex >= 0) {
-				BinaryChecksumProcessor processor = BinaryPacket.getBinaryChecksumProcessors()[checksumIndex];
+				BinaryChecksumProcessor processor = PacketBinary.getBinaryChecksumProcessors()[checksumIndex];
 				Communication.packet.insertChecksum(checksumOffset, processor);
 			}
 			
 			if(connect)
-				CommunicationController.connect(null);
+				CommunicationController.connect(true);
+			
+			Communication.packet.dataStructureDefined = true;
 
 			ChartUtils.parseExact(lines.remove(), "");
 			int chartsCount = ChartUtils.parseInteger(lines.remove(), "%d Charts:");

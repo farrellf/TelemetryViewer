@@ -316,6 +316,8 @@ public class OpenGLFrequencyDomainCache {
 		OpenGL.scaleMatrix    (offscreenMatrix, 1f/(maxHz - minHz), 1f/(maxPower - minPower), 1);
 		OpenGL.translateMatrix(offscreenMatrix, -minHz,             -minPower,                0);
 		
+		if(fbHandle == null || texHandle == null)
+			OpenGL.createOffscreenFramebuffer(gl, fbHandle, texHandle);
 		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, width, height);
 		
 		// draw the DFT line charts onto the texture
@@ -371,6 +373,9 @@ public class OpenGLFrequencyDomainCache {
 		
 		float[] offscreenMatrix = new float[16];
 		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, xBinCount, 0, rowCount, -1, 1);
+
+		if(fbHandle == null || texHandle == null)
+			OpenGL.createOffscreenFramebuffer(gl, fbHandle, texHandle);
 		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, xBinCount, rowCount);
 
 		gl.glPointSize(1);
@@ -440,6 +445,9 @@ public class OpenGLFrequencyDomainCache {
 		
 		float[] offscreenMatrix = new float[16];
 		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, binCount, 0, dftsCount, -1, 1);
+
+		if(fbHandle == null || texHandle == null)
+			OpenGL.createOffscreenFramebuffer(gl, fbHandle, texHandle);
 		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, fbHandle, texHandle, binCount, dftsCount);
 		
 		gl.glPointSize(1);
@@ -505,6 +513,9 @@ public class OpenGLFrequencyDomainCache {
 		
 		gl.glDeleteTextures(1, texHandle, 0);
 		gl.glDeleteFramebuffers(1, fbHandle, 0);
+		
+		texHandle = null;
+		fbHandle = null;
 		
 	}
 	

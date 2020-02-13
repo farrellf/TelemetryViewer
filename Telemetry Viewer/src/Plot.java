@@ -125,5 +125,7 @@ public abstract class Plot {
 		}
 		
 	}
+	
+	abstract public void freeResources(GL2 gl);
 
 }

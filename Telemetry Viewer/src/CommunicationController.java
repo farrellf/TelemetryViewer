@@ -1,5 +1,7 @@
+import java.awt.Color;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.DatagramPacket;
@@ -12,10 +14,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.function.Consumer;
 
-import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
-
 import com.fazecast.jSerialComm.SerialPort;
 
 public class CommunicationController {
@@ -58,6 +57,10 @@ public class CommunicationController {
 		// prepare
 		if(isConnected())
 			disconnect();
+		if(Communication.port == Communication.PORT_TEST && newPort != Communication.PORT_TEST) {
+			Controller.removeAllCharts();
+			Communication.packet.reset();
+		}
 		
 		// set and notify
 		if(Communication.port != Communication.PORT_FILE && newPort.equals(Communication.PORT_FILE))
@@ -131,10 +134,11 @@ public class CommunicationController {
 		if(isConnected())
 			disconnect();
 		Controller.removeAllCharts();
-		DatasetsController.removeAllDatasets();
 		
 		// set and notify
-		Communication.packet = newType.equals("CSV") ? new CsvPacket() : new BinaryPacket();
+		Communication.packet = newType.equals("CSV") ? PacketCsv.instance : PacketBinary.instance;
+		Communication.packet.reset();
+		
 		for(Consumer<String> listener : packetTypeListeners)
 			listener.accept(Communication.packet.toString());
 		
@@ -359,25 +363,22 @@ public class CommunicationController {
 	/**
 	 * Connects to the device.
 	 * 
-	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	public static void connect(JFrame parentWindow) {
+	public static void connect(boolean quiet) {
+		
+		Communication.packet.dataStructureDefined = false;
 		
 		if(Communication.port.startsWith(Communication.PORT_UART + ": "))
-			connectToUart(parentWindow);
+			connectToUart(quiet);
 		else if(Communication.port.equals(Communication.PORT_TCP))
-			startTcpServer(parentWindow);
+			startTcpServer(quiet);
 		else if(Communication.port.equals(Communication.PORT_UDP))
-			startUdpServer(parentWindow);
+			startUdpServer(quiet);
 		else if(Communication.port.equals(Communication.PORT_TEST))
-			startTester(parentWindow);
+			conntectToTester(quiet);
 		else if(Communication.port.equals(Communication.PORT_FILE))
 			connectToFile();
-		
-		SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
-			if(Controller.getCharts().isEmpty() && isConnected())
-				NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
-		});
 		
 	}
 	
@@ -395,7 +396,7 @@ public class CommunicationController {
 		else if(Communication.port.equals(Communication.PORT_UDP))
 			stopUdpServer();
 		else if(Communication.port.equals(Communication.PORT_TEST))
-			stopTester();
+			disconnectFromTester();
 		else if(Communication.port.equals(Communication.PORT_FILE))
 			disconnectFromFile();
 		
@@ -569,20 +570,20 @@ public class CommunicationController {
 	private static SerialPort uartPort = null;
 	
 	/**
-	 * Connects to a serial port and shows a DataStructureWindow if necessary.
+	 * Connects to a serial port and shows the DataStructureGui if necessary.
 	 * 
-	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void connectToUart(JFrame parentWindow) { // FIXME make this robust: give up after some time.
+	private static void connectToUart(boolean quiet) { // FIXME make this robust: give up after some time.
 
 		if(uartPort != null && uartPort.isOpen())
 			uartPort.closePort();
 			
 		uartPort = SerialPort.getCommPort(Communication.port.substring(6)); // trim the leading "UART: "
 		uartPort.setBaudRate(Communication.uartBaudRate);
-		if(Communication.packet instanceof CsvPacket)
+		if(Communication.packet == PacketCsv.instance)
 			uartPort.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
-		else if(Communication.packet instanceof BinaryPacket)
+		else if(Communication.packet == PacketBinary.instance)
 			uartPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
 		
 		// try 3 times before giving up
@@ -599,18 +600,8 @@ public class CommunicationController {
 		Communication.uartConnected = true;
 		notifyConnectionListeners();
 
-		if(parentWindow != null)
-			Communication.packet.showDataStructureWindow(parentWindow, false);
-		
-		int oldSampleCount = DatasetsController.getSampleCount();
-		Timer t = new Timer(100, event -> {
-			if(DatasetsController.getSampleCount() == oldSampleCount)
-				NotificationsController.showSuccessUntil(Communication.port.substring(6) + " is connected. Send telemetry.", () -> DatasetsController.getSampleCount() > oldSampleCount, true); // trim the leading "UART: "
-			else
-				NotificationsController.showVerboseForSeconds(Communication.port.substring(6) + " is connected and receiving telemetry.", 5, true);
-		});
-		t.setRepeats(false);
-		t.start();
+		if(!quiet)
+			Main.showDataStructureGui();
 		
 		Communication.packet.startReceivingData(uartPort.getInputStream());
 		
@@ -636,24 +627,28 @@ public class CommunicationController {
 	static Thread tcpServerThread;
 	
 	/**
-	 * Spawns a TCP server and shows a DataStructureWindow if necessary.
+	 * Spawns a TCP server and shows the DataStructureGui if necessary.
 	 * 
-	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void startTcpServer(JFrame parentWindow) {
+	private static void startTcpServer(boolean quiet) {
 		
 		tcpServerThread = new Thread(() -> {
 			
 			ServerSocket tcpServer = null;
 			Socket tcpSocket = null;
+			PipedOutputStream stream = null;
+			PipedInputStream inputStream = null;
 			
 			// start the TCP server
 			try {
 				tcpServer = new ServerSocket(Communication.tcpUdpPort);
 				tcpServer.setSoTimeout(1000);
+				stream = new PipedOutputStream();
+				inputStream = new PipedInputStream(stream);
 			} catch (Exception e) {
 				NotificationsController.showFailureForSeconds("Unable to start the TCP server. Make sure another program is not already using port " + Communication.tcpUdpPort + ".", 5, false);
-				try { tcpServer.close(); } catch(Exception e2) {}
+				try { tcpServer.close(); stream.close(); inputStream.close(); } catch(Exception e2) {}
 				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
 				return;
 			}
@@ -661,20 +656,25 @@ public class CommunicationController {
 			Communication.tcpConnected = true;
 			notifyConnectionListeners();
 			
-			if(parentWindow != null)
-				Communication.packet.showDataStructureWindow(parentWindow, false);
+			if(!quiet)
+				Main.showDataStructureGui();
 			
-			int oldSampleCount = DatasetsController.getSampleCount();
-			Timer t = new Timer(100, event -> {
-				if(DatasetsController.getSampleCount() == oldSampleCount)
-					NotificationsController.showSuccessUntil("The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
-				else
-					NotificationsController.showVerboseForSeconds("The TCP server is running and receiving telemetry.", 5, true);
-			});
-			t.setRepeats(false);
-			t.start();
+			// wait for the data structure to be defined
+			while(!Communication.packet.dataStructureDefined)
+				try {
+					Thread.sleep(1);
+				} catch(Exception e) {
+					// thread got interrupted, so exit.
+					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
+					try { tcpServer.close(); } catch(Exception e2) {}
+					try { stream.close(); } catch(Exception e2) {}
+					try { inputStream.close(); } catch(Exception e2) {}
+					return;
+				}
 			
-			// wait for a connection
+			Communication.packet.startReceivingData(inputStream);
+			
+			// listen for a connection
 			while(true) {
 
 				try {
@@ -684,15 +684,22 @@ public class CommunicationController {
 					
 					tcpSocket = tcpServer.accept();
 					tcpSocket.setSoTimeout(5000); // each valid packet of data must take <5 seconds to arrive
-					Communication.packet.startReceivingData(tcpSocket.getInputStream());
+					InputStream is = tcpSocket.getInputStream();
 
 					NotificationsController.showSuccessForSeconds("TCP connection established with a client at " + tcpSocket.getRemoteSocketAddress().toString().substring(1) + ".", 5, true); // trim leading "/" from the IP address
 					
-					// enter an infinite loop that checks for inactivity. if the TCP port is idle for >10 seconds, abandon it so another device can try to connect.
+					// enter an infinite loop that checks for activity. if the TCP port is idle for >10 seconds, abandon it so another device can try to connect.
 					long previousTimestamp = System.currentTimeMillis();
 					int previousSampleNumber = DatasetsController.getSampleCount();
 					while(true) {
-						Thread.sleep(1000);
+						int byteCount = is.available();
+						if(byteCount > 0) {
+							byte[] buffer = new byte[byteCount];
+							is.read(buffer, 0, byteCount);
+							stream.write(buffer, 0, byteCount);
+							continue;
+						}
+						Thread.sleep(1);
 						int sampleNumber = DatasetsController.getSampleCount();
 						long timestamp = System.currentTimeMillis();
 						if(sampleNumber > previousSampleNumber) {
@@ -701,7 +708,6 @@ public class CommunicationController {
 						} else if(previousTimestamp < timestamp - Communication.MAX_TCP_IDLE_MILLISECONDS) {
 							NotificationsController.showFailureForSeconds("The TCP connection was idle for too long. It has been closed so another device can connect.", 5, true);
 							tcpSocket.close();
-							Communication.packet.stopReceivingData();
 							break;
 						}
 					}
@@ -713,7 +719,7 @@ public class CommunicationController {
 					
 				} catch(IOException ioe) {
 					
-					// problem while accepting the socket connection, or getting the input stream
+					// problem while accepting the socket connection, or getting the input stream, or reading from the input stream
 					NotificationsController.showFailureForSeconds("TCP connection failed.", 5, false);
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
@@ -760,11 +766,11 @@ public class CommunicationController {
 	static Thread udpServerThread;
 	
 	/**
-	 * Spawns a UDP server and shows a DataStructureWindow if necessary.
+	 * Spawns a UDP server and shows the DataStructureGUI if necessary.
 	 * 
-	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void startUdpServer(JFrame parentWindow) {
+	private static void startUdpServer(boolean quiet) {
 		
 		udpServerThread = new Thread(() -> {
 			
@@ -788,18 +794,21 @@ public class CommunicationController {
 			Communication.udpConnected = true;
 			notifyConnectionListeners();
 			
-			if(parentWindow != null)
-				Communication.packet.showDataStructureWindow(parentWindow, false);
-				
-			int oldSampleCount = DatasetsController.getSampleCount();
-			Timer t = new Timer(100, event -> {
-				if(DatasetsController.getSampleCount() == oldSampleCount)
-					NotificationsController.showSuccessUntil("The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
-				else
-					NotificationsController.showVerboseForSeconds("The UDP server is running and receiving telemetry.", 5, true);
-			});
-			t.setRepeats(false);
-			t.start();
+			if(!quiet)
+				Main.showDataStructureGui();
+			
+			// wait for the data structure to be defined
+			while(!Communication.packet.dataStructureDefined)
+				try {
+					Thread.sleep(1);
+				} catch(Exception e) {
+					// thread got interrupted, so exit.
+					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
+					try { udpServer.close(); } catch(Exception e2) {}
+					try { stream.close(); } catch(Exception e2) {}
+					try { inputStream.close(); } catch(Exception e2) {}
+					return;
+				}
 			
 			Communication.packet.startReceivingData(inputStream);
 			
@@ -871,33 +880,91 @@ public class CommunicationController {
 		
 	}
 	
+	static Thread testerThread;
+	
 	/**
-	 * Starts transmission of the test data stream.
+	 * Starts transmission of the test data stream, and shows the DataStructureGUI if necessary.
 	 * 
-	 * @param parentWindow    If not null, a DataStructureWindow will be shown and centered on this JFrame.
+	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void startTester(JFrame parentWindow) {
+	private static void conntectToTester(boolean quiet) {
 		
+		// force specific settings
+		if(!getPacketType().equals("CSV"))
+			setPacketType("CSV");
 		setSampleRate(10000);
 		setBaudRate(9600);
 		
-		Tester.populateDataStructure();
-		Tester.startTransmission();
+		// define the data structure if it is not already defined
+		if(DatasetsController.getDatasetsCount() != 4 ||
+		   !DatasetsController.getDatasetByIndex(0).name.equals("Waveform A") ||
+		   !DatasetsController.getDatasetByIndex(1).name.equals("Waveform B") ||
+		   !DatasetsController.getDatasetByIndex(2).name.equals("Waveform C") ||
+		   !DatasetsController.getDatasetByIndex(3).name.equals("Sine Wave 1kHz")) {
+			
+			DatasetsController.removeAllDatasets();
+			DatasetsController.insertDataset(0, null, "Waveform A",     Color.RED,   "Volts", 1, 1);
+			DatasetsController.insertDataset(1, null, "Waveform B",     Color.GREEN, "Volts", 1, 1);
+			DatasetsController.insertDataset(2, null, "Waveform C",     Color.BLUE,  "Volts", 1, 1);
+			DatasetsController.insertDataset(3, null, "Sine Wave 1kHz", Color.CYAN,  "Volts", 1, 1);
+			
+		}
+
+		// "connect" the tester
+		// this simulates the transmission of 4 numbers every 100us.
+		// the first three numbers are pseudo random, and scaled to form a sort of sawtooth waveform.
+		// the fourth number is a 1kHz sine wave.
+		// this is used to check for proper autoscaling of charts, etc.
+		testerThread = new Thread(() -> {
+			
+			double counter = 0;
+			
+			while(true) {
+				float scalar = ((System.currentTimeMillis() % 30000) - 15000) / 100.0f;
+				float[] newSamples = new float[] {
+					(System.nanoTime() / 100 % 100) * scalar * 1.0f / 14000f,
+					(System.nanoTime() / 100 % 100) * scalar * 0.8f / 14000f,
+					(System.nanoTime() / 100 % 100) * scalar * 0.6f / 14000f
+				};
+				for(int i = 0; i < 10; i++) {
+					DatasetsController.getDatasetByIndex(0).add(newSamples[0]);
+					DatasetsController.getDatasetByIndex(1).add(newSamples[1]);
+					DatasetsController.getDatasetByIndex(2).add(newSamples[2]);
+					DatasetsController.getDatasetByIndex(3).add((float) Math.sin(2 * Math.PI * 1000 * counter));
+					counter += 0.0001;
+					DatasetsController.incrementSampleCount();
+				}
+				
+				try {
+					Thread.sleep(1);
+				} catch(InterruptedException e) {
+					return; // stop and end this thread if we get interrupted
+				}
+			}
+			
+		});
+		testerThread.setPriority(Thread.MAX_PRIORITY);
+		testerThread.setName("Test Transmitter");
+		testerThread.start();
 
 		Communication.testConnected = true;
 		notifyConnectionListeners();
 		
-		if(parentWindow != null)
-			Communication.packet.showDataStructureWindow(parentWindow, true);
+		// show the data structure window
+		if(!quiet)
+			Main.showDataStructureGui();
 		
 	}
 	
 	/**
 	 * Stops transmission of the test data stream.
 	 */
-	private static void stopTester() {
+	private static void disconnectFromTester() {
 		
-		Tester.stopTransmission();
+		if(testerThread != null && testerThread.isAlive()) {
+			testerThread.interrupt();
+			while(testerThread.isAlive()); // wait
+		}
 		
 		Communication.testConnected = false;
 		notifyConnectionListeners();

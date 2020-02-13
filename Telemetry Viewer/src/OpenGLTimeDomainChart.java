@@ -404,5 +404,11 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		OpenGL.drawQuadOutline2D(gl, Theme.plotOutlineColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 	}
+	
+	@Override public void dispose(GL2 gl) {
+		
+		plot.freeResources(gl);
+		
+	}
 
 }

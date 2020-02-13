@@ -653,5 +653,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		OpenGL.drawQuadOutline2D(gl, Theme.plotOutlineColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
 		
 	}
+	
+	@Override public void dispose(GL2 gl) {
+		
+		cache.freeResources(gl);
+		cache = null;
+		
+	}
 
 }

@@ -11,7 +11,7 @@ public class Communication {
 	final static String PORT_FILE = "File"; // dummy mode for importing CSV log files
 	static String port = PORT_UART;
 	
-	static Packet packet = new CsvPacket();
+	static Packet packet = PacketCsv.instance;
 	
 	static int sampleRate = 10000; // how many samples per second the DUT sends, used for FFTs
 	

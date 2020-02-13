@@ -19,6 +19,7 @@ import com.jogamp.opengl.GLEventListener;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.util.Animator;
+import com.jogamp.opengl.util.awt.TextRenderer;
 
 /**
  * Manages the grid region and all charts on the screen.
@@ -27,6 +28,8 @@ import com.jogamp.opengl.util.Animator;
  */
 @SuppressWarnings("serial")
 public class OpenGLChartsRegion extends JPanel {
+	
+	static OpenGLChartsRegion instance = new OpenGLChartsRegion();
 	
 	Animator animator;
 	int canvasWidth;
@@ -87,7 +90,7 @@ public class OpenGLChartsRegion extends JPanel {
 	
 	float[] screenMatrix = new float[16];
 	
-	public OpenGLChartsRegion(SettingsView settingsRegion, ControlsRegion controlsRegion) {
+	private OpenGLChartsRegion() {
 		
 		super();
 		
@@ -110,7 +113,14 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
 		
-		GLCanvas glCanvas = new GLCanvas(new GLCapabilities(GLProfile.get(GLProfile.GL2)));
+		GLCapabilities capabilities = null;
+		try {
+			capabilities = new GLCapabilities(GLProfile.get(GLProfile.GL2));
+		} catch(Exception | InternalError e) {
+			NotificationsController.showFailureForSeconds("Error: Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\"", 999, false);
+			return;
+		}
+		GLCanvas glCanvas = new GLCanvas(capabilities);
 		glCanvas.addGLEventListener(new GLEventListener() {
 
 			@Override public void init(GLAutoDrawable drawable) {
@@ -142,6 +152,15 @@ public class OpenGLChartsRegion extends JPanel {
 				// FIXME this is a dirty hack to work around the display-scaling-before-first-chart causes an exception problem
 				// should probably do the FontUtil field init'ing in here instead
 				System.out.println(FontUtils.tickTextHeight);
+				
+				FontUtils.tickTextRenderer   = new TextRenderer(Theme.tickFont, true, true);
+				FontUtils.tickTextHeight     = Theme.tickFont.createGlyphVector(FontUtils.tickTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.tickTextRenderer.getFontRenderContext(), 0, 0).height;
+				FontUtils.legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
+				FontUtils.legendTextHeight   = Theme.legendFont.createGlyphVector(FontUtils.legendTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.legendTextRenderer.getFontRenderContext(), 0, 0).height;
+				FontUtils.xAxisTextRenderer  = new TextRenderer(Theme.xAxisFont, true, true);
+				FontUtils.xAxisTextHeight    = Theme.xAxisFont.createGlyphVector(FontUtils.xAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.xAxisTextRenderer.getFontRenderContext(), 0, 0).height;
+				FontUtils.yAxisTextRenderer  = new TextRenderer(Theme.yAxisFont, true, true);
+				FontUtils.yAxisTextHeight    = Theme.yAxisFont.createGlyphVector(FontUtils.yAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.yAxisTextRenderer.getFontRenderContext(), 0, 0).height;
 				
 			}
 						
@@ -416,6 +435,13 @@ public class OpenGLChartsRegion extends JPanel {
 			
 			@Override public void dispose(GLAutoDrawable drawable) {
 				
+				GL2 gl = drawable.getGL().getGL2();
+				
+				for(PositionedChart chart : Controller.getCharts())
+					chart.dispose(gl);
+				
+				gl.glDeleteQueries(2, gpuQueryHandles, 0);
+				
 			}
 			
 		});
@@ -461,7 +487,7 @@ public class OpenGLChartsRegion extends JPanel {
 				}
 				
 				if(chartToConfigureOnClick != null) {
-					ConfigureView.existingChart(chartToConfigureOnClick);
+					ConfigureView.instance.forExistingChart(chartToConfigureOnClick);
 					return;
 				}
 				
@@ -500,7 +526,7 @@ public class OpenGLChartsRegion extends JPanel {
 				startX = startY = -1;
 				endX   = endY   = -1;
 				
-				ConfigureView.newChart(x1, y1, x2, y2);
+				ConfigureView.instance.forNewChart(x1, y1, x2, y2);
 				
 			}
 

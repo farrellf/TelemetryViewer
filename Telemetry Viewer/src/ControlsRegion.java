@@ -19,13 +19,15 @@ import javax.swing.border.EmptyBorder;
 @SuppressWarnings("serial")
 public class ControlsRegion extends JPanel {
 	
+	static ControlsRegion instance = new ControlsRegion();
+	
 	JButton openLayoutButton;	
 	CommunicationView communicationView;
 	
 	/**
-	 * Creates the panel of controls and registers their event handlers.
+	 * Private constructor to enforce singleton usage.
 	 */
-	public ControlsRegion(SettingsView settingsView) {
+	private ControlsRegion() {
 		
 		super();
 		communicationView = new CommunicationView();
@@ -33,8 +35,8 @@ public class ControlsRegion extends JPanel {
 		setBorder(new EmptyBorder(5, 5, 5, 5));
 		
 		JToggleButton settingsButton = new JToggleButton("Settings");
-		settingsButton.setSelected(settingsView.isVisible());
-		settingsButton.addActionListener(event -> settingsView.setVisible(settingsButton.isSelected()));
+		settingsButton.setSelected(SettingsView.instance.isVisible());
+		settingsButton.addActionListener(event -> SettingsView.instance.setVisible(settingsButton.isSelected()));
 		
 		openLayoutButton = new JButton("Open Layout");
 		openLayoutButton.addActionListener(event -> {

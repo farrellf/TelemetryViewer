@@ -20,9 +20,14 @@ import javax.swing.border.EmptyBorder;
 @SuppressWarnings("serial")
 public class SettingsView extends JPanel {
 	
+	static SettingsView instance = new SettingsView();
+	
 	Dimension preferredSize;
 	
-	public SettingsView() {
+	/**
+	 * Private constructor to enforce singleton usage.
+	 */
+	private SettingsView() {
 		
 		super();
 		setBorder(new EmptyBorder(Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding));

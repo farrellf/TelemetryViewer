@@ -70,4 +70,12 @@ public abstract class PositionedChart {
 	
 	public abstract String toString();
 	
+	/**
+	 * Charts that cache anything or create OpenGL FBOs/textures must dispose of them when this method is called.
+	 * The chart may be drawn after this call, so the chart must be able to automatically regenerate any needed caches/FBOs/textures.
+	 */
+	public void dispose(GL2 gl) {
+		
+	}
+	
 }

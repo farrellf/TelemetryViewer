@@ -342,7 +342,9 @@ public class PlotMilliseconds extends Plot {
 		               (plotWidth == previousPlotWidth) &&
 		               (plotHeight == previousPlotHeight) &&
 		               (plotDomain == previousPlotDomain) &&
-		               (Theme.lineWidth == previousLineWidth);
+		               (Theme.lineWidth == previousLineWidth) &&
+		               (fbHandle != null) &&
+		               (texHandle != null);
 		
 		// of the samples to display, some might already be in the framebuffer, so determine what subset actually needs to be drawn
 		int firstSampleNumber = minSampleNumber;
@@ -725,6 +727,21 @@ public class PlotMilliseconds extends Plot {
 			return new TooltipInfo(true, closestSampleNumber, label, pixelX);
 			
 		}
+		
+	}
+	
+	/**
+	 * Deletes the off-screen framebuffer and texture.
+	 * 
+	 * @param gl    The OpenGL context.
+	 */
+	public void freeResources(GL2 gl) {
+		
+		gl.glDeleteTextures(1, texHandle, 0);
+		gl.glDeleteFramebuffers(1, fbHandle, 0);
+		
+		texHandle = null;
+		fbHandle = null;
 		
 	}
 

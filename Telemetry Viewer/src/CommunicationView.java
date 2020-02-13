@@ -6,11 +6,9 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
 
 @SuppressWarnings("serial")
 public class CommunicationView extends JPanel {
@@ -115,10 +113,10 @@ public class CommunicationView extends JPanel {
 			connectButton.setEnabled(false);
 			
 			if(connectButton.getText().equals("Connect")) {
-				JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(CommunicationView.this);
-				CommunicationController.connect(parentWindow);
+				CommunicationController.connect(false);
 			} else if(connectButton.getText().equals("Disconnect")) {
 				CommunicationController.disconnect();
+				Main.hideDataStructureGui();
 			} else if(connectButton.getText().equals("Finish")) {
 				CommunicationController.finishImportingFile();
 				connectButton.setText("Finishing...");

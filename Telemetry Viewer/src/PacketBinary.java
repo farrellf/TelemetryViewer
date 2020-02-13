@@ -1,9 +1,10 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Graphics;
-import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -19,20 +20,18 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
-
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
-import javax.swing.JDialog;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.AbstractTableModel;
 
@@ -45,18 +44,18 @@ import net.miginfocom.swing.MigLayout;
  * 
  * 
  * When defined by loading a layout file, Controller.openLayout() will:
- * 1. Call BinaryPacket.clear() to start over fresh.
- * 2. Repeatedly call BinaryPacket.insertField() to define each of the fields.
- * 3. Optionally call BinaryPacket.insertChecksum() if a checksum field is used.
- * 4. Call Controller.connectToSerialPort(), which will call BinaryPacket.startReceivingData().
+ * 1. Call DatasetsController.removeAllDatasets(); to start over fresh.
+ * 2. Repeatedly call Communication.packet.insertField() to define each of the fields.
+ * 3. Optionally call Communication.packet.insertChecksum() if a checksum field is used.
+ * 4. Call CommunicationController.connect(), which will call PacketBinary.instance.startReceivingData().
  * 5. Create the charts.
  * 
  * 
  * When defined by user interaction:
- * 1. The ControlsRegion gets the possible packet types from Controller.getPacketTypes(), and one of them is an object of this class.
- * 2. The user clicks Connect in the ControlsRegion, which calls Controller.connectToSerialPort().
- * 3. If a successful connection occurs, BinaryPacket.showDataStructureWindow() is called.
- * 4. That window lets the user define the binary packet data structure by calling methods of this class:
+ * 1. The CommunicationView gets the possible packet types from CommunicationController.getPacketTypes(), and one of them is "Binary".
+ * 2. The user clicks Connect in the CommunicationView, which calls CommunicationController.connect().
+ * 3. If a successful connection occurs, Communication.packet.getDataStructureGui() is called.
+ * 4. That GUI lets the user define the binary packet data structure by calling methods of this class:
  * 
  *        To modify or query the data structure:
  *            insertField()
@@ -76,29 +75,20 @@ import net.miginfocom.swing.MigLayout;
  *            getBinaryFieldProcessors()
  *            getBinaryChecksumProcessors()
  *     
- * 5. When use user clicks Done in the BinaryDataStructureWindow, Controller.connectToSerialPort() will call BinaryPacket.startReceivingData().
+ * 5. When use user clicks Done in the DataStructureGui, PacketBinary.instance.startReceivingData() will be allowed to parse incoming data.
  * 6. The user can then interactively create the charts.
  */
-public class BinaryPacket extends Packet {
+public class PacketBinary extends Packet {
+	
+	static PacketBinary instance = new PacketBinary();
 
-	private byte syncWord;
-	private int packetSize; // total byte count: includes sync word, fields, and checksum field
-	private Thread thread;
+	private byte syncWord = (byte) 0xAA;
+	private int packetSize = 1; // total byte count: includes sync word, normal fields, and optional checksum field
 	
 	/**
-	 * Creates an object with a default sync word, but no fields, and no checksum processor.
+	 * Private constructor to enforce singleton usage.
 	 */
-	public BinaryPacket() {
-		
-		syncWord = (byte) 0xAA;
-		DatasetsController.removeAllDatasets();
-		checksumProcessor = null;
-		checksumProcessorOffset = -1;
-		packetSize = 1; // the syncWord
-		
-		thread = null;
-		
-	}
+	private PacketBinary() { }
 	
 	/**
 	 * @return    User-friendly name for this packet type.
@@ -363,7 +353,7 @@ public class BinaryPacket extends Packet {
 			else if(column == 1) return dataset.name;
 			else if(column == 2) return "<html><font color=\"rgb(" + dataset.color.getRed() + "," + dataset.color.getGreen() + "," + dataset.color.getBlue() + ")\">\u25B2</font></html>";
 			else if(column == 3) return dataset.isBitfield ? "" : dataset.unit;
-			else if(column == 4) return dataset.isBitfield ? "" : String.format("%3.3f LSBs = %3.3f %s", dataset.conversionFactorA, dataset.conversionFactorB, dataset.unit);
+			else if(column == 4) return dataset.isBitfield ? "" : String.format("%3.3f = %3.3f %s", dataset.conversionFactorA, dataset.conversionFactorB, dataset.unit);
 			else                 return "";
 		}
 		
@@ -532,7 +522,7 @@ public class BinaryPacket extends Packet {
 	
 	/**
 	 * Spawns a new thread that listens for incoming data, processes it, and populates the datasets.
-	 * This method should only be called after the data structure has been defined and a connection has been made.
+	 * This method should only be called after a connection has been made.
 	 * 
 	 * @param stream    The data to process.
 	 */
@@ -543,6 +533,36 @@ public class BinaryPacket extends Packet {
 			byte[] rx_buffer = new byte[packetSize];
 			BufferedInputStream bStream = new BufferedInputStream(stream, 2 * packetSize);
 			
+			// wait for the data structure to be defined
+			while(!dataStructureDefined) {
+				try {
+					Thread.sleep(1);
+				} catch (InterruptedException e) {
+					// stop and end this thread
+					try { bStream.close(); } catch(IOException e2) { }
+					NotificationsController.showVerboseForSeconds("The Binary Packet Processor thread is stopping.", 5, false);
+					return;
+				}
+			}
+			
+			// tell the user we're connected
+			String waitingForTelemetry = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected. Send telemetry." :
+			                             CommunicationController.getPort().equals(Communication.PORT_TCP)      ? "The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort :
+			                             CommunicationController.getPort().equals(Communication.PORT_UDP)      ? "The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort : "";
+			String receivingTelemetry  = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected and receiving telemetry." :
+			                             CommunicationController.getPort().equals(Communication.PORT_TCP)      ? "The TCP server is running and receiving telemetry." :
+			                             CommunicationController.getPort().equals(Communication.PORT_UDP)      ? "The UDP server is running and receiving telemetry." : "";
+			int oldSampleCount = DatasetsController.getSampleCount();
+			Timer t = new Timer(100, event -> {
+				if(DatasetsController.getSampleCount() == oldSampleCount)
+					NotificationsController.showSuccessUntil(waitingForTelemetry, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
+				else
+					NotificationsController.showVerboseForSeconds(receivingTelemetry, 5, true);
+			});
+			t.setRepeats(false);
+			t.start();
+			
+			// parse the telemetry
 			while(true) {
 				
 				try {
@@ -615,14 +635,33 @@ public class BinaryPacket extends Packet {
 	}
 	
 	/**
-	 * Displays a window for the user to interactively define the binary packet's data structure.
-	 * 
-	 * @param parentWindow    Window to center over.
-	 * @param testMode        True for test mode (disables editing), false for normal mode.
+	 * Prepares a GUI for the user to interactively define the binary packet's data structure.
 	 */
-	@Override public void showDataStructureWindow(JFrame parentWindow, boolean testMode) {
+	@Override public JPanel getDataStructureGui() {
 		
-		new BinaryDataStructureWindow(parentWindow, this, testMode);
+		// reset the GUI
+		if(PacketBinary.instance.getFirstAvailableOffset() != -1)
+			BinaryDataStructureGui.instance.offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
+		BinaryDataStructureGui.instance.processorCombobox.setSelectedIndex(0);
+		BinaryDataStructureGui.instance.nameTextfield.setText("");
+		BinaryDataStructureGui.instance.colorButton.setForeground(Controller.getDefaultLineColor());
+		BinaryDataStructureGui.instance.unitTextfield.setText("");
+		BinaryDataStructureGui.instance.conversionFactorAtextfield.setText("1.0");
+		BinaryDataStructureGui.instance.conversionFactorBtextfield.setText("1.0");
+		BinaryDataStructureGui.instance.unitLabel.setText("");
+		if(BinaryDataStructureGui.instance.bitfieldDefinitionInProgress) {
+			for(Component c : BinaryDataStructureGui.instance.getComponents())
+				if(c instanceof BitfieldPanel) {
+					BinaryDataStructureGui.instance.remove(c);
+					break;
+				}
+			BinaryDataStructureGui.instance.add(BinaryDataStructureGui.instance.scrollableDataStructureTable, "grow, span, cell 0 2");
+			BinaryDataStructureGui.instance.bitfieldDefinitionInProgress = false;
+		}
+		
+		BinaryDataStructureGui.instance.updateGui();
+		
+		return BinaryDataStructureGui.instance;
 		
 	}
 
@@ -630,8 +669,11 @@ public class BinaryPacket extends Packet {
 	 * Window where the user defines the binary packet data structure.
 	 */
 	@SuppressWarnings("serial")
-	private class BinaryDataStructureWindow extends JDialog {
+	public static class BinaryDataStructureGui extends JPanel {
 		
+		static BinaryDataStructureGui instance = new BinaryDataStructureGui();
+		
+		JLabel            dsdLabel;
 		JTextField        offsetTextfield;
 		JComboBox<Object> processorCombobox;
 		JTextField        nameTextfield;
@@ -646,41 +688,30 @@ public class BinaryPacket extends Packet {
 		
 		JTable dataStructureTable;
 		JScrollPane scrollableDataStructureTable;
-		JPanel tablePanel;
+		
+		boolean bitfieldDefinitionInProgress;
 		
 		/**
-		 * Creates a new window where the user can define the binary data structure.
-		 * 
-		 * @param parentWindow    The window to center this BinaryDataStructureWindow over.
-		 * @param packet          A BinaryPacket representing the data structure.
-		 * @param testMode        If true, the user will only be able to view, not edit, the data structure.
+		 * Private constructor to enforce singleton usage.
 		 */
-		public BinaryDataStructureWindow(JFrame parentWindow, BinaryPacket packet, boolean testMode) {
+		private BinaryDataStructureGui() {
 			
 			super();
 			
-			setTitle(testMode ? "Binary Packet Data Structure (Not Editable in Test Mode)" : "Binary Packet Data Structure");
-			setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-			setLayout(new BorderLayout());
+			// all JTextFields let the user press enter to add the field
+			ActionListener pressEnterToAddField = event -> addButton.doClick();
 			
-			// all JTextFields let the user press enter to add the row
-			ActionListener pressEnterToAddRow = new ActionListener() {
-				@Override public void actionPerformed(ActionEvent e) {
-					addButton.doClick();
-				}
-			};
-			
-			// user specifies the offset (first byte) of a field
-			offsetTextfield = new JTextField(Integer.toString(packet.getFirstAvailableOffset()), 3);
-			offsetTextfield.addActionListener(pressEnterToAddRow);
+			// offset (first byte) of the field
+			offsetTextfield = new JTextField(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()), 3);
+			offsetTextfield.addActionListener(pressEnterToAddField);
 			offsetTextfield.addFocusListener(new FocusListener() {
 				@Override public void focusLost(FocusEvent fe) {
 					try {
 						offsetTextfield.setText(offsetTextfield.getText().trim());
 						Integer.parseInt(offsetTextfield.getText());
 					} catch(Exception e) {
-						offsetTextfield.setText(Integer.toString(packet.getFirstAvailableOffset()));
-						if(packet.isFull())
+						offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
+						if(PacketBinary.instance.isFull())
 							addButton.setEnabled(false);
 					}
 				}
@@ -689,47 +720,34 @@ public class BinaryPacket extends Packet {
 				}
 			});
 
-			// user specifies the processor of a field (the processor converts raw bytes into numbers, or evaluates checksums) 
+			// processor of the field (the processor converts raw bytes into numbers, or evaluates checksums) 
 			processorCombobox = new JComboBox<Object>();
-			for(BinaryFieldProcessor processor : BinaryPacket.getBinaryFieldProcessors())
+			for(BinaryFieldProcessor processor : PacketBinary.getBinaryFieldProcessors())
 				processorCombobox.addItem(processor);
-			for(BinaryChecksumProcessor processor : BinaryPacket.getBinaryChecksumProcessors())
+			for(BinaryChecksumProcessor processor : PacketBinary.getBinaryChecksumProcessors())
 				processorCombobox.addItem(processor);
-			processorCombobox.addActionListener(event -> {
-				if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield"))
-					updateWidgetsBitfieldMode();
-				else if(processorCombobox.getSelectedItem() instanceof BinaryFieldProcessor)
-					updateWidgetsNormalMode();
-				else if(processorCombobox.getSelectedItem() instanceof BinaryChecksumProcessor)
-					updateWidgetsChecksumMode();
-			});
+			processorCombobox.addActionListener(event -> updateGui());
 			
-			// user specifies the name of a field
+			// name of the field
 			nameTextfield = new JTextField("", 15);
-			nameTextfield.addActionListener(pressEnterToAddRow);
+			nameTextfield.addActionListener(pressEnterToAddField);
 			nameTextfield.addFocusListener(new FocusListener() {
-				@Override public void focusLost(FocusEvent e) {
-					nameTextfield.setText(nameTextfield.getText().trim());
-				}
-				@Override public void focusGained(FocusEvent e) {
-					nameTextfield.selectAll();
-				}
+				@Override public void focusLost(FocusEvent e)   { nameTextfield.setText(nameTextfield.getText().trim()); }
+				@Override public void focusGained(FocusEvent e) { nameTextfield.selectAll(); }
 			});
 			
-			// user specifies the color of a field
+			// color of the field
 			colorButton = new JButton("\u25B2");
 			colorButton.setForeground(Controller.getDefaultLineColor());
-			colorButton.addActionListener(new ActionListener() {
-				@Override public void actionPerformed(ActionEvent e) {
-					Color color = JColorChooser.showDialog(BinaryDataStructureWindow.this, "Pick a Color for " + nameTextfield.getText(), Color.BLACK);
-					if(color != null)
-						colorButton.setForeground(color);
-				}
+			colorButton.addActionListener(event -> {
+				Color color = JColorChooser.showDialog(BinaryDataStructureGui.this, "Pick a Color for " + nameTextfield.getText(), Color.BLACK);
+				if(color != null)
+					colorButton.setForeground(color);
 			});
 			
-			// user specifies the unit of a field
+			// unit of the field
 			unitTextfield = new JTextField("", 15);
-			unitTextfield.addActionListener(pressEnterToAddRow);
+			unitTextfield.addActionListener(pressEnterToAddField);
 			unitTextfield.addFocusListener(new FocusListener() {
 				@Override public void focusLost(FocusEvent arg0) {
 					unitTextfield.setText(unitTextfield.getText().trim());
@@ -748,9 +766,9 @@ public class BinaryPacket extends Packet {
 				@Override public void keyTyped(KeyEvent ke) { }
 			});
 			
-			// user specifies the conversion ratio of a field as "x LSBs = x [Units]"
+			// conversion ratio of the field as "x = x [Units]"
 			conversionFactorAtextfield = new JTextField("1.0", 4);
-			conversionFactorAtextfield.addActionListener(pressEnterToAddRow);
+			conversionFactorAtextfield.addActionListener(pressEnterToAddField);
 			conversionFactorAtextfield.addFocusListener(new FocusListener() {
 				@Override public void focusLost(FocusEvent arg0) {
 					try {
@@ -767,7 +785,7 @@ public class BinaryPacket extends Packet {
 			});
 			
 			conversionFactorBtextfield = new JTextField("1.0", 4);
-			conversionFactorBtextfield.addActionListener(pressEnterToAddRow);
+			conversionFactorBtextfield.addActionListener(pressEnterToAddField);
 			conversionFactorBtextfield.addFocusListener(new FocusListener() {
 				@Override public void focusLost(FocusEvent arg0) {
 					try {
@@ -783,13 +801,12 @@ public class BinaryPacket extends Packet {
 				}
 			});
 			
-			unitLabel = new JLabel("_______________");
-			unitLabel.setMinimumSize(unitLabel.getPreferredSize());
-			unitLabel.setPreferredSize(unitLabel.getPreferredSize());
-			unitLabel.setHorizontalAlignment(JLabel.LEFT);
-			unitLabel.setText("");		
+			unitLabel = new JLabel("", JLabel.LEFT) {
+				@Override public Dimension getMinimumSize()   { return unitTextfield.getPreferredSize(); }
+				@Override public Dimension getPreferredSize() { return unitTextfield.getPreferredSize(); }
+			};	
 			
-			// user clicks Add to insert a new field into the data structure if possible
+			// add button to insert the new field into the data structure (if possible)
 			addButton = new JButton("Add");
 			addButton.addActionListener(event -> {
 					
@@ -804,117 +821,56 @@ public class BinaryPacket extends Packet {
 				if(processor instanceof BinaryFieldProcessor) {
 					
 					if(name.equals("")) {
-						JOptionPane.showMessageDialog(BinaryDataStructureWindow.this, "A name is required.", "Error: Name Required", JOptionPane.ERROR_MESSAGE);
+						JOptionPane.showMessageDialog(BinaryDataStructureGui.this, "A name is required.", "Error: Name Required", JOptionPane.ERROR_MESSAGE);
 						return;
 					}
 					
-					String errorMessage = packet.insertField(location, (BinaryFieldProcessor) processor, name, color, unit, conversionFactorA, conversionFactorB);
-					dataStructureTable.revalidate();
-					dataStructureTable.repaint();
+					String errorMessage = PacketBinary.instance.insertField(location, (BinaryFieldProcessor) processor, name, color, unit, conversionFactorA, conversionFactorB);
+					if(errorMessage != null)
+						JOptionPane.showMessageDialog(BinaryDataStructureGui.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 					
-					if(errorMessage != null) {
-						JOptionPane.showMessageDialog(BinaryDataStructureWindow.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
-						return;
-					}
-					
-					if(((BinaryFieldProcessor) processor).toString().startsWith("Bitfield")) {
+					if(((BinaryFieldProcessor) processor).toString().startsWith("Bitfield") && errorMessage == null) {
 
 						BitfieldPanel bitfieldPanel = new BitfieldPanel(((BinaryFieldProcessor) processor).getByteCount() * 8, DatasetsController.getDatasetByLocation(location));
-						bitfieldPanel.eventHandler = event2 -> {
-							
-							remove(bitfieldPanel);
-							add(tablePanel, BorderLayout.CENTER);
-							dataStructureTable.revalidate();
-							dataStructureTable.repaint();
-							if(packet.isFull())
-								updateWidgetsFullPacket();
-							else
-								updateWidgetsBitfieldMode();
-							revalidate();
-							repaint();
-							
-						};
 						
-						remove(tablePanel);
-						add(bitfieldPanel, BorderLayout.CENTER);
-						updateWidgetsBitfieldInProgress();					
-						
-						revalidate();
-						repaint();
-						return;
+						remove(scrollableDataStructureTable);
+						add(bitfieldPanel, "grow, span, cell 0 2");
+						bitfieldDefinitionInProgress = true;
 						
 					}
-					
-					if(packet.isFull())
-						updateWidgetsFullPacket();
-					else
-						updateWidgetsNormalMode();
 					
 				} else if(processor instanceof BinaryChecksumProcessor) {
 					
-					String errorMessage = packet.insertChecksum(location, (BinaryChecksumProcessor) processor);
-					dataStructureTable.revalidate();
-					dataStructureTable.repaint();
-					
-					if(errorMessage != null) {
-						JOptionPane.showMessageDialog(BinaryDataStructureWindow.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
-						return;
-					}
-					
-					if(packet.isFull())
-						updateWidgetsFullPacket();
-					else
-						updateWidgetsNormalMode();
+					String errorMessage = PacketBinary.instance.insertChecksum(location, (BinaryChecksumProcessor) processor);
+					if(errorMessage != null)
+						JOptionPane.showMessageDialog(BinaryDataStructureGui.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 					
 				}
 				
+				updateGui();
+				
 			});
 			
-			// user clicks Reset to remove all fields from the data structure
+			// reset button to remove all fields from the data structure
 			resetButton = new JButton("Reset");
 			resetButton.addActionListener(event -> {
-				packet.reset();
-				dataStructureTable.revalidate();
-				dataStructureTable.repaint();
-				
-				updateWidgetsNormalMode();
+				PacketBinary.instance.reset();
+				processorCombobox.setSelectedIndex(0);
+				updateGui();
 			});
 			
-			// user clicks Done when the data structure is complete
+			// done button for when the data structure is complete
 			doneButton = new JButton("Done");
 			doneButton.addActionListener(event -> {
-				if(packet.isEmpty())
-					JOptionPane.showMessageDialog(BinaryDataStructureWindow.this, "Error: At least one field is required.", "Error", JOptionPane.ERROR_MESSAGE);
-				else
-					dispose();
+				if(PacketBinary.instance.isEmpty()) {
+					JOptionPane.showMessageDialog(BinaryDataStructureGui.this, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
+				} else {
+					PacketBinary.instance.dataStructureDefined = true;
+					Main.hideDataStructureGui();
+				}
 			});
 			
-			JPanel dataEntryPanel = new JPanel();
-			dataEntryPanel.add(new JLabel("Byte Offset"));
-			dataEntryPanel.add(offsetTextfield);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
-			dataEntryPanel.add(processorCombobox);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
-			dataEntryPanel.add(new JLabel("Name"));
-			dataEntryPanel.add(nameTextfield);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
-			dataEntryPanel.add(new JLabel("Color"));
-			dataEntryPanel.add(colorButton);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
-			dataEntryPanel.add(new JLabel("Unit"));
-			dataEntryPanel.add(unitTextfield);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
-			dataEntryPanel.add(conversionFactorAtextfield);
-			dataEntryPanel.add(new JLabel(" LSBs = "));
-			dataEntryPanel.add(conversionFactorBtextfield);
-			dataEntryPanel.add(unitLabel);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
-			dataEntryPanel.add(addButton);		
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
-			dataEntryPanel.add(resetButton);
-			dataEntryPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
-			dataEntryPanel.add(doneButton);
-			
+			// table to visualize the data structure
 			dataStructureTable = new JTable(new AbstractTableModel() {
 				@Override public String getColumnName(int column) {
 					if(column == 0)      return "Byte Offset, Data Type";
@@ -926,11 +882,11 @@ public class BinaryPacket extends Packet {
 				}
 				
 				@Override public Object getValueAt(int row, int column) {
-					return packet.getCellContents(column, row);
+					return PacketBinary.instance.getCellContents(column, row);
 				}
 				
 				@Override public int getRowCount() {
-					return packet.getRowCount();
+					return PacketBinary.instance.getRowCount();
 				}
 				
 				@Override public int getColumnCount() {
@@ -938,154 +894,178 @@ public class BinaryPacket extends Packet {
 				}
 				
 			});
+			dataStructureTable.setRowHeight((int) dataStructureTable.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight()); // fixes display scaling issue
+			
+			// layout the panel
+			Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
+			setLayout(new MigLayout("fill", Theme.guiPadding + "[][][][][][][][][][][][][][][][][][]push[][][][][][]" + Theme.guiPadding, Theme.guiPadding + "[][][100%]0"));
+			dsdLabel = new JLabel("Data Structure Definition:");
+			dsdLabel.setFont(titleFont);
+			add(dsdLabel, "grow, span");
+			add(new JLabel("Byte Offset"));
+			add(offsetTextfield);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(processorCombobox);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(new JLabel("Name"));
+			add(nameTextfield);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(new JLabel("Color"));
+			add(colorButton);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(new JLabel("Unit"));
+			add(unitTextfield);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
+			add(conversionFactorAtextfield);
+			add(new JLabel(" = "));
+			add(conversionFactorBtextfield);
+			add(unitLabel);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
+			add(addButton);		
+			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(resetButton);
+			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(doneButton, "wrap");
 			scrollableDataStructureTable = new JScrollPane(dataStructureTable);
+			add(scrollableDataStructureTable, "grow, span");
 			
-			tablePanel = new JPanel(new GridLayout(1, 1));
-			tablePanel.setBorder(new EmptyBorder(0, 5, 5, 5));
-			tablePanel.add(scrollableDataStructureTable, BorderLayout.CENTER);
-			dataStructureTable.setRowHeight((int) tablePanel.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight()); // fixes display scaling issue
-			
-			add(dataEntryPanel, BorderLayout.NORTH);
-			add(tablePanel, BorderLayout.CENTER);
-			
-			pack();
+			updateGui();
 			setMinimumSize(new Dimension(getPreferredSize().width, 500));
-			setLocationRelativeTo(parentWindow);
-			
-			nameTextfield.requestFocus();
-			
-			if(packet.isFull())
-				updateWidgetsFullPacket();
-			
-			if(testMode)
-				updateWidgetsTestMode();
-			
-			setModal(true);
 			setVisible(true);
 			
 		}
 		
-		private void updateWidgetsNormalMode() {
+		/**
+		 * Updates the GUI to reflect the current state (enables/disables/configures widgets as needed.)
+		 */
+		private void updateGui() {
 			
-			offsetTextfield.setEnabled(true);
-			processorCombobox.setEnabled(true);
-			nameTextfield.setEnabled(true);
-			colorButton.setEnabled(true);
-			unitTextfield.setEnabled(true);
-			conversionFactorAtextfield.setEnabled(true);
-			conversionFactorBtextfield.setEnabled(true);
-			addButton.setEnabled(true);
-			resetButton.setEnabled(true);
-			doneButton.setEnabled(true);
-			
-			offsetTextfield.setText(Integer.toString(getFirstAvailableOffset()));
-			if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof BinaryChecksumProcessor)
-				processorCombobox.setSelectedIndex(0);
-			
-			nameTextfield.requestFocus();
-			nameTextfield.selectAll();
-			
-		}
-		
-		private void updateWidgetsChecksumMode() {
-			
-			offsetTextfield.setEnabled(true);
-			processorCombobox.setEnabled(true);
-			nameTextfield.setEnabled(false);
-			colorButton.setEnabled(false);
-			unitTextfield.setEnabled(false);
-			conversionFactorAtextfield.setEnabled(false);
-			conversionFactorBtextfield.setEnabled(false);
-			addButton.setEnabled(true);
-			resetButton.setEnabled(true);
-			doneButton.setEnabled(true);
-			
-			nameTextfield.setText("");
-			unitTextfield.setText("");
-			unitLabel.setText("");
-			conversionFactorAtextfield.setText("1.0");
-			conversionFactorBtextfield.setText("1.0");
-			
-			nameTextfield.requestFocus();
-			nameTextfield.selectAll();
-			
-		}
-		
-		private void updateWidgetsBitfieldMode() {
-			
-			offsetTextfield.setEnabled(true);
-			processorCombobox.setEnabled(true);
-			nameTextfield.setEnabled(true);
-			colorButton.setEnabled(true);
-			unitTextfield.setEnabled(false);
-			conversionFactorAtextfield.setEnabled(false);
-			conversionFactorBtextfield.setEnabled(false);
-			addButton.setEnabled(true);
-			resetButton.setEnabled(true);
-			doneButton.setEnabled(true);
-			
-			unitTextfield.setText("");
-			unitLabel.setText("");
-			conversionFactorAtextfield.setText("1.0");
-			conversionFactorBtextfield.setText("1.0");
-			offsetTextfield.setText(Integer.toString(getFirstAvailableOffset()));
-			
-			nameTextfield.requestFocus();
-			nameTextfield.selectAll();
-			
-		}
-		
-		private void updateWidgetsBitfieldInProgress() {
-			
-			offsetTextfield.setEnabled(false);
-			processorCombobox.setEnabled(false);
-			nameTextfield.setEnabled(false);
-			colorButton.setEnabled(false);
-			unitTextfield.setEnabled(false);
-			conversionFactorAtextfield.setEnabled(false);
-			conversionFactorBtextfield.setEnabled(false);
-			addButton.setEnabled(false);
-			resetButton.setEnabled(false);
-			doneButton.setEnabled(false);
-			
-			unitTextfield.setText("");
-			unitLabel.setText("");
-			conversionFactorAtextfield.setText("1.0");
-			conversionFactorBtextfield.setText("1.0");
-			
-		}
-		
-		private void updateWidgetsTestMode() {
-			
-			offsetTextfield.setEnabled(false);
-			processorCombobox.setEnabled(false);
-			nameTextfield.setEnabled(false);
-			colorButton.setEnabled(false);
-			unitTextfield.setEnabled(false);
-			conversionFactorAtextfield.setEnabled(false);
-			conversionFactorBtextfield.setEnabled(false);
-			addButton.setEnabled(false);
-			resetButton.setEnabled(false);
-			doneButton.setEnabled(true);
-
-     		doneButton.requestFocus();
-			
-		}
-		
-		private void updateWidgetsFullPacket() {
+			if(CommunicationController.getPort() == Communication.PORT_TEST) {
 				
-			offsetTextfield.setEnabled(false);
-			processorCombobox.setEnabled(false);
-			nameTextfield.setEnabled(false);
-			colorButton.setEnabled(false);
-			unitTextfield.setEnabled(false);
-			conversionFactorAtextfield.setEnabled(false);
-			conversionFactorBtextfield.setEnabled(false);
-			addButton.setEnabled(false);
-			resetButton.setEnabled(true);
-			doneButton.setEnabled(true);
-
-     		doneButton.requestFocus();
+				dsdLabel.setText("Data Structure Definition: (Not Editable in Test Mode)");
+				offsetTextfield.setEnabled(false);
+				processorCombobox.setEnabled(false);
+				nameTextfield.setEnabled(false);
+				colorButton.setEnabled(false);
+				unitTextfield.setEnabled(false);
+				conversionFactorAtextfield.setEnabled(false);
+				conversionFactorBtextfield.setEnabled(false);
+				addButton.setEnabled(false);
+				resetButton.setEnabled(false);
+				doneButton.setEnabled(true);
+				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
+					doneButton.requestFocus();
+				});
+	     		
+			} else if(bitfieldDefinitionInProgress) {
+				
+				dsdLabel.setText("Data Structure Definition:");
+				offsetTextfield.setEnabled(false);
+				processorCombobox.setEnabled(false);
+				nameTextfield.setEnabled(false);
+				colorButton.setEnabled(false);
+				unitTextfield.setEnabled(false);
+				conversionFactorAtextfield.setEnabled(false);
+				conversionFactorBtextfield.setEnabled(false);
+				addButton.setEnabled(false);
+				resetButton.setEnabled(false);
+				doneButton.setEnabled(false);
+				unitTextfield.setText("");
+				unitLabel.setText("");
+				conversionFactorAtextfield.setText("1.0");
+				conversionFactorBtextfield.setText("1.0");
+				
+			} else if(PacketBinary.instance.isFull()) {
+				
+				dsdLabel.setText("Data Structure Definition:");
+				offsetTextfield.setEnabled(false);
+				processorCombobox.setEnabled(false);
+				nameTextfield.setEnabled(false);
+				colorButton.setEnabled(false);
+				unitTextfield.setEnabled(false);
+				conversionFactorAtextfield.setEnabled(false);
+				conversionFactorBtextfield.setEnabled(false);
+				addButton.setEnabled(false);
+				resetButton.setEnabled(true);
+				doneButton.setEnabled(true);
+				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
+					doneButton.requestFocus();
+				});
+	     		
+			} else if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield")) {
+				
+				dsdLabel.setText("Data Structure Definition:");
+				offsetTextfield.setEnabled(true);
+				processorCombobox.setEnabled(true);
+				nameTextfield.setEnabled(true);
+				colorButton.setEnabled(true);
+				unitTextfield.setEnabled(false);
+				conversionFactorAtextfield.setEnabled(false);
+				conversionFactorBtextfield.setEnabled(false);
+				addButton.setEnabled(true);
+				resetButton.setEnabled(true);
+				doneButton.setEnabled(true);
+				unitTextfield.setText("");
+				unitLabel.setText("");
+				conversionFactorAtextfield.setText("1.0");
+				conversionFactorBtextfield.setText("1.0");
+				offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
+				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
+					nameTextfield.requestFocus();
+					nameTextfield.selectAll();
+				});
+				
+			} else if(processorCombobox.getSelectedItem() instanceof BinaryFieldProcessor) {
+				
+				dsdLabel.setText("Data Structure Definition:");
+				offsetTextfield.setEnabled(true);
+				processorCombobox.setEnabled(true);
+				nameTextfield.setEnabled(true);
+				colorButton.setEnabled(true);
+				unitTextfield.setEnabled(true);
+				conversionFactorAtextfield.setEnabled(true);
+				conversionFactorBtextfield.setEnabled(true);
+				addButton.setEnabled(true);
+				resetButton.setEnabled(true);
+				doneButton.setEnabled(true);
+				offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
+				if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof BinaryChecksumProcessor)
+					processorCombobox.setSelectedIndex(0);
+				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
+					nameTextfield.requestFocus();
+					nameTextfield.selectAll();
+				});
+				
+				
+			} else if(processorCombobox.getSelectedItem() instanceof BinaryChecksumProcessor) {
+				
+				dsdLabel.setText("Data Structure Definition:");
+				offsetTextfield.setEnabled(true);
+				processorCombobox.setEnabled(true);
+				nameTextfield.setEnabled(false);
+				colorButton.setEnabled(false);
+				unitTextfield.setEnabled(false);
+				conversionFactorAtextfield.setEnabled(false);
+				conversionFactorBtextfield.setEnabled(false);
+				addButton.setEnabled(true);
+				resetButton.setEnabled(true);
+				doneButton.setEnabled(true);
+				nameTextfield.setText("");
+				unitTextfield.setText("");
+				unitLabel.setText("");
+				conversionFactorAtextfield.setText("1.0");
+				conversionFactorBtextfield.setText("1.0");
+				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
+					nameTextfield.requestFocus();
+					nameTextfield.selectAll();
+				});
+				
+			}
+			
+			dataStructureTable.revalidate();
+			dataStructureTable.repaint();
+			revalidate();
+			repaint();
 			
 		}
 
@@ -1095,28 +1075,27 @@ public class BinaryPacket extends Packet {
 	 * The GUI for defining a Bitfield Dataset.
 	 */
 	@SuppressWarnings("serial")
-	private class BitfieldPanel extends JPanel {
+	private static class BitfieldPanel extends JPanel {
 		
 		List<Bitfield> fields = new ArrayList<Bitfield>();
 		JPanel widgets = new JPanel(new MigLayout("wrap 2", "[pref][grow]"));
-		Consumer<Integer> eventHandler;
 		
 		public BitfieldPanel(int bitCount, Dataset dataset) {
 			
 			super();
 			setLayout(new BorderLayout());
 			
-			JPanel bottom = new JPanel();
-			bottom.setLayout(new GridLayout(1, 3, 10, 10));
-			bottom.setBorder(new EmptyBorder(5, 5, 5, 5));
-			bottom.add(new JLabel(""));
-			bottom.add(new JLabel(""));
-			JButton doneButton = new JButton("Done");
+			JButton doneButton = new JButton("Done With Bitfield");
 			doneButton.addActionListener(event -> {
 				dataset.setBitfields(fields);
-				if(eventHandler != null)
-					eventHandler.accept(fields.size());
+				BinaryDataStructureGui.instance.remove(this);
+				BinaryDataStructureGui.instance.add(BinaryDataStructureGui.instance.scrollableDataStructureTable, "grow, span, cell 0 2");
+				BinaryDataStructureGui.instance.bitfieldDefinitionInProgress = false;
+				BinaryDataStructureGui.instance.updateGui();
 			});
+			JPanel bottom = new JPanel();
+			bottom.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+			bottom.setBorder(new EmptyBorder(Theme.guiPadding, 0, 0, 0));
 			bottom.add(doneButton);
 			
 			add(new Visualization(bitCount), BorderLayout.NORTH);

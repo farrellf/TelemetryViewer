@@ -1,14 +1,17 @@
 import java.awt.Color;
 import java.io.InputStream;
-import javax.swing.JFrame;
+
+import javax.swing.JPanel;
 
 /**
  * The packet (either BinaryPacket or CsvPacket) manages the data structure and contains the Datasets.
  */
 public abstract class Packet {
 	
+	public volatile boolean dataStructureDefined = false;
 	public BinaryChecksumProcessor checksumProcessor = null;
 	public int checksumProcessorOffset = -1;
+	public Thread thread = null;
 	
 	/**
 	 * Adds a field to the data structure if possible.
@@ -71,7 +74,7 @@ public abstract class Packet {
 		if(checksumProcessor == null)
 			return -1;
 		
-		BinaryChecksumProcessor[] processors = BinaryPacket.getBinaryChecksumProcessors();
+		BinaryChecksumProcessor[] processors = PacketBinary.getBinaryChecksumProcessors();
 		for(int i = 0; i < processors.length; i++)
 			if(checksumProcessor.toString().equals(processors[i].toString()))
 				return i;
@@ -81,7 +84,7 @@ public abstract class Packet {
 		
 	}
 	
-	public abstract void showDataStructureWindow(JFrame parentWindow, boolean testMode);
+	public abstract JPanel getDataStructureGui();
 	public abstract void startReceivingData(InputStream stream);
 	public abstract void stopReceivingData();
 
