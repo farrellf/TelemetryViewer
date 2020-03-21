@@ -1,3 +1,4 @@
+import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 
@@ -415,6 +416,46 @@ public class OpenGL {
 	}
 	
 	/**
+	 * Creates an empty texture.
+	 * The texture is configured for RGB uint8, with min/mag filter set to nearest.
+	 * 
+	 * @param gl               The OpenGL context.
+	 * @param textureHandle    The texture handle will be saved here.
+	 * @param width            Width, in pixels.
+	 * @param height           Height, in pixels.
+	 */
+	public static void createTexture(GL2 gl, int[] textureHandle, int width, int height) {
+		
+		// create and configure a texture
+		gl.glGenTextures(1, textureHandle, 0);
+		gl.glBindTexture(GL2.GL_TEXTURE_2D, textureHandle[0]);
+		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGB, width, height, 0, GL2.GL_RGB, GL2.GL_UNSIGNED_BYTE, null);
+		gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_NEAREST);
+		gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_NEAREST);
+		
+	}
+	
+	/**
+	 * Replaces the existing texture.
+	 * 
+	 * @param gl                 The OpenGL context.
+	 * @param textureHandle      Handle to the texture.
+	 * @param width              Width, in pixels.
+	 * @param height             Height, in pixels.
+	 * @param pixels             ByteBuffer of pixel data.
+	 * @param isBgr              True if the pixels are in BGR format, false if in RGB format.
+	 */
+	public static void replaceTexture(GL2 gl, int[] textureHandle, int width, int height, ByteBuffer pixels, boolean isBgr) {
+
+		// switch to the corresponding texture
+		gl.glBindTexture(GL2.GL_TEXTURE_2D, textureHandle[0]);
+
+		// replace the existing texture
+		gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGB, width, height, 0, isBgr ? GL2.GL_BGR : GL2.GL_RGB, GL2.GL_UNSIGNED_BYTE, pixels);
+		
+	}
+	
+	/**
 	 * Saves the current viewport/scissor/point settings, disables the scissor test,
 	 * switches to the off-screen framebuffer and applies the new matrix.
 	 * 
@@ -480,19 +521,33 @@ public class OpenGL {
 	 * @param height           Height of the quad.
 	 * @param offset           Used to stretch the texture so its pixels are half-way through the left and right edge of the quad.
 	 *                         (This is used by the DFT chart so the first and last bins get centered on the left and right edges.)
+	 * @param rotateTexture    If true, rotate the texture 90 degrees clockwise, and don't use any offset.
 	 */
-	public static void drawTexturedBox(GL2 gl, int[] textureHandle, float lowerLeftX, float lowerLeftY, float width, float height, float offset) {
+	public static void drawTexturedBox(GL2 gl, int[] textureHandle, float lowerLeftX, float lowerLeftY, float width, float height, float offset, boolean rotateTexture) {
 		
-		buffer.rewind();
-		buffer.put(0 + offset);         buffer.put(1);                   // u,v
-		buffer.put(lowerLeftX);         buffer.put(lowerLeftY + height); // x,y
-		buffer.put(0 + offset);         buffer.put(0);
-		buffer.put(lowerLeftX);         buffer.put(lowerLeftY);
-		buffer.put(1 - offset);         buffer.put(1);
-		buffer.put(lowerLeftX + width); buffer.put(lowerLeftY + height);
-		buffer.put(1 - offset);         buffer.put(0);
-		buffer.put(lowerLeftX + width); buffer.put(lowerLeftY);
-		buffer.rewind();
+		if(rotateTexture) {
+			buffer.rewind();
+			buffer.put(1);                  buffer.put(1);                   // u,v
+			buffer.put(lowerLeftX);         buffer.put(lowerLeftY + height); // x,y
+			buffer.put(0);                  buffer.put(1);
+			buffer.put(lowerLeftX);         buffer.put(lowerLeftY);
+			buffer.put(1);                  buffer.put(0);
+			buffer.put(lowerLeftX + width); buffer.put(lowerLeftY + height);
+			buffer.put(0);                  buffer.put(0);
+			buffer.put(lowerLeftX + width); buffer.put(lowerLeftY);
+			buffer.rewind();
+		} else {
+			buffer.rewind();
+			buffer.put(0 + offset);         buffer.put(1);                   // u,v
+			buffer.put(lowerLeftX);         buffer.put(lowerLeftY + height); // x,y
+			buffer.put(0 + offset);         buffer.put(0);
+			buffer.put(lowerLeftX);         buffer.put(lowerLeftY);
+			buffer.put(1 - offset);         buffer.put(1);
+			buffer.put(lowerLeftX + width); buffer.put(lowerLeftY + height);
+			buffer.put(1 - offset);         buffer.put(0);
+			buffer.put(lowerLeftX + width); buffer.put(lowerLeftY);
+			buffer.rewind();
+		}
 		
 		// draw a textured quad on screen, with the texture replacing the color and opacity of the quad
 		gl.glBlendFunc(GL2.GL_ONE, GL2.GL_ONE_MINUS_SRC_ALPHA);

@@ -346,7 +346,7 @@ public class PacketCsv extends Packet {
 		CsvDataStructureGui.instance.conversionFactorAtextfield.setText("1.0");
 		CsvDataStructureGui.instance.conversionFactorBtextfield.setText("1.0");
 		CsvDataStructureGui.instance.unitLabel.setText("");
-		CsvDataStructureGui.instance.updateGui();
+		SwingUtilities.invokeLater(() -> CsvDataStructureGui.instance.updateGui()); // invokeLater to ensure focus isn't taken away
 		
 		return CsvDataStructureGui.instance;
 		

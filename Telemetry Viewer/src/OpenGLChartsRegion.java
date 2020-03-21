@@ -32,6 +32,7 @@ public class OpenGLChartsRegion extends JPanel {
 	static OpenGLChartsRegion instance = new OpenGLChartsRegion();
 	
 	Animator animator;
+	GLCanvas glCanvas;
 	int canvasWidth;
 	int canvasHeight;
 	double dpiScalingFactor = 1;
@@ -48,7 +49,7 @@ public class OpenGLChartsRegion extends JPanel {
 	
 	// time and zoom settings
 	boolean liveView;
-	int nonLiveViewSamplesCount;
+	int nonLiveViewSampleNumber;
 	double zoomLevel;
 	
 	// mouse pointer's current location (pixels, origin at bottom-left)
@@ -103,7 +104,7 @@ public class OpenGLChartsRegion extends JPanel {
 		endY    = -1;
 		
 		liveView = true;
-		nonLiveViewSamplesCount = 0;
+		nonLiveViewSampleNumber = 0;
 		zoomLevel = 1;
 		
 		mouseX = -1;
@@ -120,7 +121,7 @@ public class OpenGLChartsRegion extends JPanel {
 			NotificationsController.showFailureForSeconds("Error: Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\"", 999, false);
 			return;
 		}
-		GLCanvas glCanvas = new GLCanvas(capabilities);
+		glCanvas = new GLCanvas(capabilities);
 		glCanvas.addGLEventListener(new GLEventListener() {
 
 			@Override public void init(GLAutoDrawable drawable) {
@@ -240,7 +241,7 @@ public class OpenGLChartsRegion extends JPanel {
 				if(charts.size() == 0)
 					liveView = true;
 				
-				int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSamplesCount;
+				int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSampleNumber;
 				
 				// ensure active slots don't get flushed to disk
 				int lastSampleNumberOnScreen = lastSampleNumber;
@@ -438,7 +439,7 @@ public class OpenGLChartsRegion extends JPanel {
 				GL2 gl = drawable.getGL().getGL2();
 				
 				for(PositionedChart chart : Controller.getCharts())
-					chart.dispose(gl);
+					chart.dispose();
 				
 				gl.glDeleteQueries(2, gpuQueryHandles, 0);
 				
@@ -599,7 +600,7 @@ public class OpenGLChartsRegion extends JPanel {
 					// no modifiers held down, so we're timeshifting
 					if(liveView == true) {
 						liveView = false;
-						nonLiveViewSamplesCount = (DatasetsController.getSampleCount() - 1);
+						nonLiveViewSampleNumber = (DatasetsController.getSampleCount() - 1);
 					}
 					
 					double delta = scrollAmount * samplesPerScroll * zoomLevel;
@@ -609,13 +610,13 @@ public class OpenGLChartsRegion extends JPanel {
 						delta = -1;
 					else if(delta >= 0)
 						delta = 1;
-					nonLiveViewSamplesCount += delta;
+					nonLiveViewSampleNumber += delta;
 					
-					if(nonLiveViewSamplesCount >= DatasetsController.getSampleCount() - 1)
+					if(nonLiveViewSampleNumber >= DatasetsController.getSampleCount() - 1)
 						liveView = true;
 					
-					if(nonLiveViewSamplesCount < 0)
-						nonLiveViewSamplesCount = -1;
+					if(nonLiveViewSampleNumber < 0)
+						nonLiveViewSampleNumber = -1;
 				
 				} else if(mwe.isControlDown() == true) {
 					

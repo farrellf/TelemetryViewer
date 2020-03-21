@@ -654,9 +654,10 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public void dispose(GL2 gl) {
+	@Override public void flush(GL2 gl) {
 		
-		cache.freeResources(gl);
+		if(gl != null && cache != null)
+			cache.freeResources(gl);
 		cache = null;
 		
 	}

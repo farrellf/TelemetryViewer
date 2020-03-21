@@ -24,10 +24,11 @@ public class Communication {
 			String ips = "";
 			Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
 			while(interfaces.hasMoreElements()) {
-				Enumeration<InetAddress> addresses = interfaces.nextElement().getInetAddresses();
+				NetworkInterface ni = interfaces.nextElement();
+				Enumeration<InetAddress> addresses = ni.getInetAddresses();
 				while(addresses.hasMoreElements()) {
 					InetAddress address = addresses.nextElement();
-					if(address.isSiteLocalAddress())
+					if(address.isSiteLocalAddress() && !ni.getDisplayName().contains("VMware") && !ni.getDisplayName().contains("VPN"))
 						ips += address.getHostAddress() + " or ";
 				}
 			}

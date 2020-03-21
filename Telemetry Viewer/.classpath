@@ -3,39 +3,10 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="resources"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
-	<classpathentry kind="lib" path="lib/commons-math3-3.6.1.jar">
-		<attributes>
-			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/commons-math3-3.6.1-javadoc.jar!/"/>
-		</attributes>
-	</classpathentry>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-amd64.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-armv6.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-armv6hf.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-i586.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-macosx-universal.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-windows-amd64.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt-natives-windows-i586.jar"/>
-	<classpathentry kind="lib" path="lib/gluegen-rt.jar" sourcepath="lib/gluegen-java-src.zip">
-		<attributes>
-			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/gluegen-javadoc.zip!/"/>
-		</attributes>
-	</classpathentry>
 	<classpathentry kind="lib" path="lib/jetty-client-9.4.0.v20161208.jar"/>
 	<classpathentry kind="lib" path="lib/jetty-http-9.4.0.v20161208.jar"/>
 	<classpathentry kind="lib" path="lib/jetty-io-9.4.0.v20161208.jar"/>
 	<classpathentry kind="lib" path="lib/jetty-util-9.4.0.v20161208.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-amd64.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-armv6.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-armv6hf.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-i586.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-macosx-universal.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-amd64.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-i586.jar"/>
-	<classpathentry kind="lib" path="lib/jogl-all.jar" sourcepath="lib/jogl-java-src.zip">
-		<attributes>
-			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/jogl-javadoc.zip!/"/>
-		</attributes>
-	</classpathentry>
 	<classpathentry kind="lib" path="lib/jSerialComm-1.3.11.jar"/>
 	<classpathentry kind="lib" path="lib/websocket-api-9.4.0.v20161208.jar"/>
 	<classpathentry kind="lib" path="lib/websocket-client-9.4.0.v20161208.jar"/>
@@ -45,5 +16,24 @@
 			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/miglayout-4.0-javadoc.jar!/"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="lib/jogamp-fat.jar" sourcepath="lib/jogamp-fat-java-src.zip">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/jogl-javadoc.zip!/jogl/javadoc"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/slf4j-api-1.7.2.jar"/>
+	<classpathentry kind="lib" path="lib/slf4j-nop-1.7.2.jar"/>
+	<classpathentry kind="lib" path="lib/bridj-0.7-20140918.jar"/>
+	<classpathentry kind="lib" path="lib/webcam-capture-0.3.12.jar" sourcepath="lib/webcam-capture-0.3.12-sources.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/webcam-capture-0.3.12-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/commons-math3-3.6.1.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/commons-math3-3.6.1-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/turbojpeg.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

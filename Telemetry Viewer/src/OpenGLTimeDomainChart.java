@@ -405,9 +405,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public void dispose(GL2 gl) {
+	@Override public void flush(GL2 gl) {
 		
-		plot.freeResources(gl);
+		if(gl != null)
+			plot.freeResources(gl);
 		
 	}
 

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -86,7 +87,8 @@ public class Controller {
 			"Frequency Domain Chart",
 			"Histogram Chart",
 			"Dial Chart",
-			"Quaternion Chart"
+			"Quaternion Chart",
+			"Camera"
 		};
 		
 	}
@@ -110,6 +112,7 @@ public class Controller {
 		else if(chartType.equals("Histogram Chart"))        chart = new OpenGLHistogramChart(x1, y1, x2, y2);
 		else if(chartType.equals("Dial Chart"))             chart = new OpenGLDialChart(x1, y1, x2, y2);
 		else if(chartType.equals("Quaternion Chart"))       chart = new OpenGLQuaternionChart(x1, y1, x2, y2);
+		else if(chartType.equals("Camera"))                 chart = new OpenGLCameraChart(x1, y1, x2, y2);
 		
 		if(chart != null)
 			Controller.addChart(chart);
@@ -151,6 +154,8 @@ public class Controller {
 		if(SettingsController.getBenchmarkedChart() == chart)
 			SettingsController.setBenchmarkedChart(null);
 		ConfigureView.instance.closeIfUsedFor(chart);
+		
+		chart.dispose();
 		Model.charts.remove(chart);
 		
 		if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
@@ -225,12 +230,23 @@ public class Controller {
 		CommunicationController.setImportFile(filepath);
 		CommunicationController.connect(true);
 		
+		// check for corresponding camera BIN files
+		for(Camera c : DatasetsController.getExistingCameras()) {
+			try {
+				String files = filepath.substring(0, filepath.length() - 4) + " " + c.name.replaceAll("[^a-zA-Z0-9.-]", "_");
+				if(Files.exists(Paths.get(files + ".bin")) && Files.exists(Paths.get(files + ".mjpg")))
+					c.importFiles(files);
+			} catch(Exception e) {
+				e.printStackTrace();
+			}
+		}
+		
 	}
 	
 	/**
 	 * Exports all samples to a CSV file.
 	 * 
-	 * @param path    Full path with file name.
+	 * @param filepath    Full path with file name.
 	 */
 	static void exportCsvLogFile(String filepath) {
 		
@@ -264,6 +280,9 @@ public class Controller {
 			logFile.close();
 			
 		} catch(Exception e) { }
+		
+		for(Camera camera : DatasetsController.getExistingCameras())
+			camera.exportFiles(filepath.substring(0, filepath.length() - 4));
 		
 	}
 	
@@ -538,9 +557,9 @@ public class Controller {
 			
 		} catch(AssertionError ae) {
 		
+			CommunicationController.disconnect();
 			Controller.removeAllCharts();
 			DatasetsController.removeAllDatasets();
-			CommunicationController.disconnect();
 			
 			NotificationsController.showFailureUntil("<html><center>Error while parsing the layout file:<br>Line " + lines.lineNumber + ": " + ae.getMessage() + "</center></html>", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 			NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);

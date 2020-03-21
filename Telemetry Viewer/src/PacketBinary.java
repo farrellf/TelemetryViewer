@@ -659,7 +659,7 @@ public class PacketBinary extends Packet {
 			BinaryDataStructureGui.instance.bitfieldDefinitionInProgress = false;
 		}
 		
-		BinaryDataStructureGui.instance.updateGui();
+		SwingUtilities.invokeLater(() -> BinaryDataStructureGui.instance.updateGui()); // invokeLater to ensure focus isn't taken away
 		
 		return BinaryDataStructureGui.instance;
 		

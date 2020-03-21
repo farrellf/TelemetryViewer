@@ -501,8 +501,10 @@ public class PlotSampleCount extends Plot {
 	 */
 	public void freeResources(GL2 gl) {
 		
-		gl.glDeleteTextures(1, texHandle, 0);
-		gl.glDeleteFramebuffers(1, fbHandle, 0);
+		if(texHandle != null)
+			gl.glDeleteTextures(1, texHandle, 0);
+		if(fbHandle != null)
+			gl.glDeleteFramebuffers(1, fbHandle, 0);
 		
 		texHandle = null;
 		fbHandle = null;

@@ -8,11 +8,15 @@ import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
+import javax.naming.InvalidNameException;
 
 import com.jogamp.common.nio.Buffers;
 
@@ -209,7 +213,7 @@ public class DatasetsController {
 	}
 	
 	/**
-	 * Removes all charts and Datasets.
+	 * Removes all charts, Datasets and Cameras.
 	 */
 	public static void removeAllDatasets() {
 		
@@ -229,12 +233,16 @@ public class DatasetsController {
 		sampleCount.set(0);
 		firstTimestamp = 0;
 		
+		for(Camera camera : cameras.keySet())
+			camera.dispose();
+		cameras.clear();
+		
 		notifySampleCountListeners();
 		
 	}
 	
 	/**
-	 * Removes all samples and timestamps, but does not remove the Dataset or Chart objects.
+	 * Removes all samples, timestamps and camera images, but does not remove the Dataset, Chart or Camera objects.
 	 */
 	public static void removeAllData() {
 		
@@ -250,6 +258,9 @@ public class DatasetsController {
 		
 		sampleCount.set(0);
 		firstTimestamp = 0;
+		
+		for(Camera camera : cameras.keySet())
+			camera.dispose();
 		
 		notifySampleCountListeners();
 		
@@ -308,6 +319,61 @@ public class DatasetsController {
 		
 	}
 	
+	private static Map<Camera, Boolean> cameras = new HashMap<Camera, Boolean>();
+	
+	/**
+	 * Obtains ownership of a camera, preventing other charts from using it.
+	 * 
+	 * @param name       The camera name or URL.
+	 * @param isMjpeg    True if using MJPEG-over-HTTP.
+	 * @return           The camera object, or null if the camera is already owned or does not exist.
+	 */
+	public static Camera acquireCamera(String name, boolean isMjpeg) {
+		
+		// check if the camera is already known
+		for(Map.Entry<Camera, Boolean> entry : cameras.entrySet())
+			if(entry.getKey().name.equals(name))
+				if(entry.getValue() == false) {
+					entry.setValue(true);
+					return entry.getKey(); // the camera was previously owned but is currently available
+				} else {
+					return null; // the camera is currently owned by another chart
+				}
+		
+		// the camera is not already known
+		try {
+			Camera c = new Camera(name, isMjpeg);
+			cameras.put(c, true);
+			return c; // the camera has been acquired
+		} catch (InvalidNameException e) {
+			return null; // the camera does not exist
+		}
+		
+	}
+	
+	/**
+	 * Releases ownership of a camera, allowing another chart to acquire it.
+	 * 
+	 * @param c    The camera.
+	 */
+	public static void releaseCamera(Camera c) {
+		
+		c.disposeIfEmpty();
+		for(Map.Entry<Camera, Boolean> entry : cameras.entrySet())
+			if(entry.getKey() == c)
+				entry.setValue(false);
+		
+	}
+	
+	/**
+	 * @return    A List of the cameras that are/were used.
+	 */
+	public static Set<Camera> getExistingCameras() {
+		
+		return cameras.keySet();
+		
+	}
+	
 	/**
 	 * @return    The timestamp for sample number 0, or 0 if there are no samples.
 	 */
@@ -324,6 +390,9 @@ public class DatasetsController {
 	 * @return                The corresponding UNIX timestamp.
 	 */
 	public static long getTimestamp(int sampleNumber) {
+		
+		if(sampleNumber < 0)
+			return 0;
 		
 		int slotNumber = sampleNumber / SLOT_SIZE;
 		int slotIndex  = sampleNumber % SLOT_SIZE;

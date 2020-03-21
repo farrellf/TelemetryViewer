@@ -335,7 +335,7 @@ public class OpenGLFrequencyDomainCache {
 		
 		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
-		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 0);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 0, false);
 		
 	}
 	
@@ -417,7 +417,7 @@ public class OpenGLFrequencyDomainCache {
 		
 		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
-		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 1f/xBinCount/2f);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 1f/xBinCount/2f, false);
 		
 	}
 	
@@ -500,7 +500,7 @@ public class OpenGLFrequencyDomainCache {
 		
 		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
-		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 1f/binCount/2f);
+		OpenGL.drawTexturedBox(gl, texHandle, bottomLeftX, bottomLeftY, width, height, 1f/binCount/2f, false);
 		
 	}
 	

@@ -55,7 +55,7 @@ public abstract class PositionedChart {
 		
 	}
 	
-	public final List<String> exportChart() {
+	final public List<String> exportChart() {
 		
 		List<String> lines = new ArrayList<String>();
 		
@@ -70,11 +70,21 @@ public abstract class PositionedChart {
 	
 	public abstract String toString();
 	
+	final public void dispose() {
+		
+		GL2 gl = null;
+		try { gl = OpenGLChartsRegion.instance.glCanvas.getGL().getGL2(); } catch(Exception e) {}
+		flush(gl);
+		
+	}
+	
 	/**
 	 * Charts that cache anything or create OpenGL FBOs/textures must dispose of them when this method is called.
 	 * The chart may be drawn after this call, so the chart must be able to automatically regenerate any needed caches/FBOs/textures.
+	 * 
+	 * @param gl    The OpenGL context. This might be null, in which case there is no need to dispose of OpenGL resources.
 	 */
-	public void dispose(GL2 gl) {
+	public void flush(GL2 gl) {
 		
 	}
 	

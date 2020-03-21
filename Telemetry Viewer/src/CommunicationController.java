@@ -57,7 +57,7 @@ public class CommunicationController {
 		// prepare
 		if(isConnected())
 			disconnect();
-		if(Communication.port == Communication.PORT_TEST && newPort != Communication.PORT_TEST) {
+		if(Communication.port == Communication.PORT_TEST && newPort != Communication.PORT_TEST && newPort != Communication.PORT_FILE) {
 			Controller.removeAllCharts();
 			Communication.packet.reset();
 		}
