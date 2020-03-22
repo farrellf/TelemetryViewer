@@ -252,6 +252,10 @@ public class OpenGLChartsRegion extends JPanel {
 				}
 				DatasetsController.dontFlushRangeOnScreen(firstSampleNumberOnScreen, lastSampleNumberOnScreen);
 				
+				// if the maximized chart was removed, forget about it
+				if(maximizedChart != null && !charts.contains(maximizedChart))
+					maximizedChart = null;
+				
 				// draw the charts
 				//
 				// the modelview matrix is translated so the origin will be at the bottom-left for each chart.
