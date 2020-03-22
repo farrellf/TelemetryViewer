@@ -70,12 +70,12 @@ public class WidgetTextfieldsOptionalMinMax extends Widget {
 		minCheckbox.setSelected(true);
 		minCheckbox.addActionListener(event -> sanityCheck());
 
-		setLayout(new GridLayout(2, 2, Theme.guiPadding, Theme.guiPadding));
+		setLayout(new GridLayout(2, 2, Theme.padding, Theme.padding));
 		
 		JPanel maxPanel = new JPanel();
 		maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
 		maxPanel.add(maxCheckbox);
-		maxPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
+		maxPanel.add(Box.createHorizontalStrut(Theme.padding));
 		maxPanel.add(maxTextfield);
 		
 		add(new JLabel(labelPrefix + " Maximum: "));
@@ -84,7 +84,7 @@ public class WidgetTextfieldsOptionalMinMax extends Widget {
 		JPanel minPanel = new JPanel();
 		minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
 		minPanel.add(minCheckbox);
-		minPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
+		minPanel.add(Box.createHorizontalStrut(Theme.padding));
 		minPanel.add(minTextfield);
 		
 		add(new JLabel(labelPrefix + " Minimum: "));

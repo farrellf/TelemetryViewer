@@ -898,33 +898,31 @@ public class PacketBinary extends Packet {
 			
 			// layout the panel
 			Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
-			setLayout(new MigLayout("fill", Theme.guiPadding + "[][][][][][][][][][][][][][][][][][]push[][][][][][]" + Theme.guiPadding, Theme.guiPadding + "[][][100%]0"));
+			setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][][][]push[][][][]" + Theme.padding, "[][][100%]0"));
 			dsdLabel = new JLabel("Data Structure Definition:");
 			dsdLabel.setFont(titleFont);
 			add(dsdLabel, "grow, span");
 			add(new JLabel("Byte Offset"));
 			add(offsetTextfield);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(processorCombobox);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(new JLabel("Name"));
 			add(nameTextfield);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(new JLabel("Color"));
 			add(colorButton);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(new JLabel("Unit"));
 			add(unitTextfield);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
+			add(Box.createHorizontalStrut(Theme.padding * 4));
 			add(conversionFactorAtextfield);
 			add(new JLabel(" = "));
 			add(conversionFactorBtextfield);
 			add(unitLabel);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
-			add(addButton);		
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding * 4));
+			add(addButton);	
 			add(resetButton);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			add(doneButton, "wrap");
 			scrollableDataStructureTable = new JScrollPane(dataStructureTable);
 			add(scrollableDataStructureTable, "grow, span");
@@ -1078,7 +1076,7 @@ public class PacketBinary extends Packet {
 	private static class BitfieldPanel extends JPanel {
 		
 		List<Bitfield> fields = new ArrayList<Bitfield>();
-		JPanel widgets = new JPanel(new MigLayout("wrap 2", "[pref][grow]"));
+		JPanel widgets = new JPanel(new MigLayout("wrap 2, gap " + Theme.padding, "[pref][grow]"));
 		
 		public BitfieldPanel(int bitCount, Dataset dataset) {
 			
@@ -1095,7 +1093,7 @@ public class PacketBinary extends Packet {
 			});
 			JPanel bottom = new JPanel();
 			bottom.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-			bottom.setBorder(new EmptyBorder(Theme.guiPadding, 0, 0, 0));
+			bottom.setBorder(new EmptyBorder(Theme.padding, 0, 0, 0));
 			bottom.add(doneButton);
 			
 			add(new Visualization(bitCount), BorderLayout.NORTH);
@@ -1144,8 +1142,8 @@ public class PacketBinary extends Packet {
 			
 			int bitCount;
 			
-			final int padding = (int) (2 * Theme.tilePadding); // space inside each button, between the edges and the text label
-			final int spacing = (int) Theme.tilePadding; // space between each button
+			final int padding = Theme.padding * 2; // space inside each button, between the edges and the text label
+			final int spacing = Theme.padding; // space between each button
 			final Color tileColor = new Color(Theme.tileColor[0], Theme.tileColor[1], Theme.tileColor[2], Theme.tileColor[3]);
 			final Color tileSelectedColor = new Color(Theme.tileSelectedColor[0], Theme.tileSelectedColor[1], Theme.tileSelectedColor[2], Theme.tileSelectedColor[3]);
 			
@@ -1167,8 +1165,8 @@ public class PacketBinary extends Packet {
 				textHeight = getFontMetrics(getFont()).getAscent();
 				buttonWidth = padding + maxTextWidth + padding;
 				buttonHeight = padding + textHeight + padding;
-				int totalWidth = (bitCount * buttonWidth) + (spacing * (bitCount + 1));
-				int totalHeight = spacing + buttonHeight + spacing;
+				int totalWidth = (bitCount * buttonWidth) + (spacing * bitCount);
+				int totalHeight = buttonHeight + spacing;
 				Dimension size = new Dimension(totalWidth, totalHeight);
 				setMinimumSize(size);
 				setPreferredSize(size);
@@ -1184,9 +1182,9 @@ public class PacketBinary extends Packet {
 						int x = e.getX();
 						int y = e.getY();
 						for(int i = 0; i < bitCount; i++) {
-							int minX = spacing + (i * (spacing + buttonWidth));
+							int minX = i * (spacing + buttonWidth);
 							int maxX = minX + buttonWidth;
-							int minY = spacing;
+							int minY = 0;
 							int maxY = minY + buttonHeight;
 							if(x >= minX && x <= maxX && y >= minY && y <= maxY) {
 								int bit = bitCount - 1 - i;
@@ -1231,9 +1229,9 @@ public class PacketBinary extends Packet {
 						int x = e.getX();
 						int y = e.getY();
 						for(int i = 0; i < bitCount; i++) {
-							int minX = spacing + (i * (spacing + buttonWidth));
+							int minX = i * (spacing + buttonWidth);
 							int maxX = minX + buttonWidth;
-							int minY = spacing;
+							int minY = 0;
 							int maxY = minY + buttonHeight;
 							if(x >= minX && x <= maxX && y >= minY && y <= maxY) {
 								int bit = bitCount - 1 - i;
@@ -1263,8 +1261,8 @@ public class PacketBinary extends Packet {
 				// draw each button
 				g.setColor(tileColor);
 				for(int i = 0; i < bitCount; i++) {
-					int x = spacing + (i * (spacing + buttonWidth));
-					int y = spacing;
+					int x = i * (spacing + buttonWidth);
+					int y = 0;
 					g.fillRect(x, y, buttonWidth, buttonHeight);
 				}
 				
@@ -1273,8 +1271,8 @@ public class PacketBinary extends Packet {
 				for(Bitfield field : fields) {
 					int width = padding + maxTextWidth + padding + (field.MSBit - field.LSBit) * (spacing + buttonWidth);
 					int height = padding + textHeight + padding;
-					int x = spacing + ((bitCount - 1 - field.MSBit) * (spacing + buttonWidth));
-					int y = spacing;
+					int x = (bitCount - 1 - field.MSBit) * (spacing + buttonWidth);
+					int y = 0;
 					g.fillRect(x, y, width, height);
 				}
 				
@@ -1285,16 +1283,19 @@ public class PacketBinary extends Packet {
 					int LSBit = Integer.min(firstBit, lastBit);
 					int width = padding + maxTextWidth + padding + (MSBit - LSBit) * (spacing + buttonWidth);
 					int height = padding + textHeight + padding;
-					int x = spacing + ((bitCount - 1 - MSBit) * (spacing + buttonWidth));
-					int y = spacing;
+					int x = (bitCount - 1 - MSBit) * (spacing + buttonWidth);
+					int y = 0;
 					g.fillRect(x, y, width, height);
 				}
 				
 				// draw each text label
-				g.setColor(Color.BLACK);
 				for(int i = 0; i < bitCount; i++) {
-					int x = spacing + (i * (spacing + buttonWidth)) + padding;
-					int y = spacing + padding + textHeight;
+					g.setColor(Color.BLACK);
+					for(Bitfield field : fields)
+						if((bitCount - 1 - i) >= field.LSBit && (bitCount - 1 - i) <= field.MSBit)
+							g.setColor(Color.LIGHT_GRAY);
+					int x = i * (spacing + buttonWidth) + padding;
+					int y = padding + textHeight;
 					String text = bitCount - 1 - i + "";
 					x += (maxTextWidth - getFontMetrics(getFont()).stringWidth(text)) / 2; // adjust x to center the text
 					g.drawString(text, x, y);

@@ -30,7 +30,7 @@ public class SettingsView extends JPanel {
 	private SettingsView() {
 		
 		super();
-		setBorder(new EmptyBorder(Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding));
+		setBorder(new EmptyBorder(Theme.padding, Theme.padding, Theme.padding, 0));
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		
 		// tile columns and rows
@@ -70,7 +70,7 @@ public class SettingsView extends JPanel {
 		});
 		
 		JPanel tileColumnsAndRowsPanel = new JPanel();
-		tileColumnsAndRowsPanel.setLayout(new GridLayout(2, 2, 0, Theme.guiPadding));
+		tileColumnsAndRowsPanel.setLayout(new GridLayout(2, 2, 0, Theme.padding));
 		tileColumnsAndRowsPanel.add(new JLabel("Tile Columns: "));
 		tileColumnsAndRowsPanel.add(tileColumnsTextfield);
 		tileColumnsAndRowsPanel.add(new JLabel("Tile Rows: "));
@@ -78,7 +78,7 @@ public class SettingsView extends JPanel {
 		tileColumnsAndRowsPanel.setMaximumSize(new Dimension(tileColumnsAndRowsPanel.getMaximumSize().width, tileColumnsAndRowsPanel.getPreferredSize().height));
 		tileColumnsAndRowsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 		add(tileColumnsAndRowsPanel);
-		add(Box.createVerticalStrut(Theme.guiPadding));
+		add(Box.createVerticalStrut(Theme.padding));
 		
 		// tooltips
 		JCheckBox showTooltipsCheckbox = new JCheckBox("Show Plot Tooltips", SettingsController.getTooltipVisibility());
@@ -88,7 +88,7 @@ public class SettingsView extends JPanel {
 		SettingsController.addTooltipVisibilityListener(newVisibility -> showTooltipsCheckbox.setSelected(newVisibility));
 		
 		add(showTooltipsCheckbox);
-		add(Box.createVerticalStrut(Theme.guiPadding));
+		add(Box.createVerticalStrut(Theme.padding));
 		
 		// logitech smooth scrolling
 		JCheckBox enableSmoothScrollingCheckbox = new JCheckBox("Enable Logitech Smooth Scrolling", SettingsController.getSmoothScrolling());
@@ -98,7 +98,7 @@ public class SettingsView extends JPanel {
 		SettingsController.addSmoothScrollingListener(newState -> enableSmoothScrollingCheckbox.setSelected(newState));
 		
 		add(enableSmoothScrollingCheckbox);
-		add(Box.createVerticalStrut(Theme.guiPadding));
+		add(Box.createVerticalStrut(Theme.padding));
 		
 		// antialiasing
 		JCheckBox enableAntialiasingCheckbox = new JCheckBox("Enable OpenGL Antialiasing", SettingsController.getAntialiasing());
@@ -108,7 +108,7 @@ public class SettingsView extends JPanel {
 		SettingsController.addAntialiasingListener(newState -> enableAntialiasingCheckbox.setSelected(newState));
 		
 		add(enableAntialiasingCheckbox);
-		add(Box.createVerticalStrut(Theme.guiPadding));
+		add(Box.createVerticalStrut(Theme.padding));
 		
 		// FPS
 		JCheckBox showFpsCheckbox = new JCheckBox("Show FPS and Period", SettingsController.getFpsVisibility());
@@ -118,7 +118,7 @@ public class SettingsView extends JPanel {
 		SettingsController.addFpsVisibilityListener(newState -> showFpsCheckbox.setSelected(newState));
 		
 		add(showFpsCheckbox);
-		add(Box.createVerticalStrut(Theme.guiPadding));
+		add(Box.createVerticalStrut(Theme.padding));
 		
 		// CPU and GPU times
 		JCheckBox showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
@@ -139,7 +139,7 @@ public class SettingsView extends JPanel {
 		SettingsController.addBenchmarkedChartListener(newChart -> { showBenchmarksCheckbox.setSelected(newChart != null); showBenchmarksCheckbox.setEnabled(true); });
 		
 		add(showBenchmarksCheckbox);
-		add(Box.createVerticalStrut(Theme.guiPadding));
+		add(Box.createVerticalStrut(Theme.padding));
 		
 		// save the preferred size so this panel can be resized to hide or show
 		preferredSize = getPreferredSize();

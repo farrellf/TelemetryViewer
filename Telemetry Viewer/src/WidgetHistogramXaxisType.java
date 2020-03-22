@@ -96,7 +96,7 @@ public class WidgetHistogramXaxisType extends Widget {
 			@Override public void focusGained(FocusEvent fe) { centerTextfield.selectAll(); }
 		});
 		
-		setLayout(new GridLayout(3, 2, Theme.guiPadding, Theme.guiPadding));
+		setLayout(new GridLayout(3, 2, Theme.padding, Theme.padding));
 		
 		axisTypeCombobox.addActionListener(event -> sanityCheck());
 		

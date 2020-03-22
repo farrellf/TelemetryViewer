@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
+import javax.swing.SwingUtilities;
+
 /**
  * Handles all non-GUI logic and manages access to the Model (the data).
  */
@@ -158,8 +160,11 @@ public class Controller {
 		chart.dispose();
 		Model.charts.remove(chart);
 		
-		if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
-			NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
+		// invokeLater() in case we're changing chart types, because a new chart will be created immediately after removing this chart
+		SwingUtilities.invokeLater(() -> {
+			if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+				NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
+		});
 		
 	}
 	

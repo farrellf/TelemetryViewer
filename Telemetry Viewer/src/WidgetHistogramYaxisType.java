@@ -102,7 +102,7 @@ public class WidgetHistogramYaxisType extends Widget {
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
-		setLayout(new GridLayout(3, 2, Theme.guiPadding, Theme.guiPadding));
+		setLayout(new GridLayout(3, 2, Theme.padding, Theme.padding));
 		
 		add(axisTypeLabel);
 		add(axisTypeCombobox);
@@ -110,7 +110,7 @@ public class WidgetHistogramYaxisType extends Widget {
 		JPanel maxPanel = new JPanel();
 		maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
 		maxPanel.add(maxCheckbox);
-		maxPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
+		maxPanel.add(Box.createHorizontalStrut(Theme.padding));
 		maxPanel.add(maxTextfield);
 		add(maxLabel);
 		add(maxPanel);
@@ -118,7 +118,7 @@ public class WidgetHistogramYaxisType extends Widget {
 		JPanel minPanel = new JPanel();
 		minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
 		minPanel.add(minCheckbox);
-		minPanel.add(Box.createHorizontalStrut(Theme.guiThickPadding));
+		minPanel.add(Box.createHorizontalStrut(Theme.padding));
 		minPanel.add(minTextfield);
 		add(minLabel);
 		add(minPanel);

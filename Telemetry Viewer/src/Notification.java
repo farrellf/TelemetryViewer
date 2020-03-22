@@ -53,7 +53,7 @@ public class Notification extends JPanel {
 		idleColor = interpolate(color, FADE_OUT_COLOR, 0.80f);
 		expireOnDisconnect = autoExpire;
 		
-		setBorder(BorderFactory.createMatteBorder(Theme.guiThickPadding, 0, 0, 0, FADE_OUT_COLOR));
+		setBorder(BorderFactory.createMatteBorder(Theme.padding, 0, 0, 0, FADE_OUT_COLOR));
 		setBackground(color);
 		add(label);
 		

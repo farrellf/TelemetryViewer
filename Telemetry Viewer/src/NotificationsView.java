@@ -16,7 +16,7 @@ public class NotificationsView extends JPanel {
 	private NotificationsView() {
 		
 		super();
-		setBorder(new EmptyBorder(0, Theme.guiThickPadding, 0, Theme.guiThickPadding));
+		setBorder(new EmptyBorder(0, Theme.padding, 0, Theme.padding));
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		
 		// hide until a message needs to be shown

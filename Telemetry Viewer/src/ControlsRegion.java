@@ -32,7 +32,7 @@ public class ControlsRegion extends JPanel {
 		super();
 		communicationView = new CommunicationView();
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-		setBorder(new EmptyBorder(5, 5, 5, 5));
+		setBorder(new EmptyBorder(Theme.padding, Theme.padding, Theme.padding, Theme.padding));
 		
 		JToggleButton settingsButton = new JToggleButton("Settings");
 		settingsButton.setSelected(SettingsView.instance.isVisible());
@@ -93,9 +93,6 @@ public class ControlsRegion extends JPanel {
 		});
 		DatasetsController.addSampleCountListener(haveSamples -> exportCsvLogButton.setEnabled(haveSamples));
 		
-		JButton resetButton = new JButton("Reset");
-		resetButton.addActionListener(event -> Controller.removeAllCharts());
-		
 		JButton helpButton = new JButton("Help");
 		helpButton.addActionListener(event -> {
 			
@@ -141,19 +138,17 @@ public class ControlsRegion extends JPanel {
 		
 		// show the components
 		add(settingsButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(openLayoutButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(saveLayoutButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(importCsvLogButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(exportCsvLogButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
-		add(resetButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(helpButton);
-		add(Box.createHorizontalStrut(Theme.guiPadding));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(Box.createHorizontalGlue());
 		add(communicationView);
 		

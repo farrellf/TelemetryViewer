@@ -52,7 +52,7 @@ public class WidgetCamera extends Widget {
 		mjpegUrlTextfield.addActionListener(event -> notifyHandler());
 		resolutionsCombobox.addActionListener(event -> notifyHandler());
 		
-		setLayout(new GridLayout(2, 2, 10, 10));
+		setLayout(new GridLayout(2, 2, Theme.padding, Theme.padding));
 		
 		handler = eventHandler;
 		notifyHandler();

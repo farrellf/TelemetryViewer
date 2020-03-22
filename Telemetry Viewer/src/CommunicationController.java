@@ -657,7 +657,7 @@ public class CommunicationController {
 			notifyConnectionListeners();
 			
 			if(!quiet)
-				Main.showDataStructureGui();
+				SwingUtilities.invokeLater(() -> Main.showDataStructureGui());
 			
 			// wait for the data structure to be defined
 			while(!Communication.packet.dataStructureDefined)
@@ -795,7 +795,7 @@ public class CommunicationController {
 			notifyConnectionListeners();
 			
 			if(!quiet)
-				Main.showDataStructureGui();
+				SwingUtilities.invokeLater(() -> Main.showDataStructureGui());
 			
 			// wait for the data structure to be defined
 			while(!Communication.packet.dataStructureDefined)

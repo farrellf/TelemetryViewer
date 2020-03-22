@@ -1,15 +1,16 @@
 import java.awt.Dimension;
 import java.awt.GridLayout;
+import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.border.EmptyBorder;
+import javax.swing.JToggleButton;
+import javax.swing.SwingUtilities;
 
 import net.miginfocom.swing.MigLayout;
 
@@ -17,6 +18,11 @@ import net.miginfocom.swing.MigLayout;
 public class ConfigureView extends JPanel {
 	
 	static ConfigureView instance = new ConfigureView();
+	
+	private static JPanel widgetsPanel;
+	private static JPanel buttonsPanel;
+	private static JScrollPane scrollableRegion;
+	private boolean testSizeAgain = true;
 	
 	private static PositionedChart activeChart = null;
 	
@@ -26,7 +32,43 @@ public class ConfigureView extends JPanel {
 	private ConfigureView() {
 		
 		super();
-		setLayout(new MigLayout("insets 0"));
+		
+		widgetsPanel = new JPanel();
+		widgetsPanel.setLayout(new MigLayout("wrap 1, gap 0, insets 0")); // 1 column, no border
+		scrollableRegion = new JScrollPane(widgetsPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		scrollableRegion.setBorder(null);
+		buttonsPanel = new JPanel();
+		buttonsPanel.setLayout(new MigLayout("insets " + (Theme.padding * 2) + " 0 " + Theme.padding + " 0", "[33%!][grow][33%!]")); // border above and below the buttons, 3 equal columns
+		
+		setLayout(new MigLayout("wrap 1, insets " + Theme.padding + " " + Theme.padding + " 0 " + Theme.padding)); // 1 column, border around the top/left/right
+		add(scrollableRegion, "growx");
+		add(buttonsPanel, "growx");
+		
+		setPreferredSize(new Dimension(0, 0));
+		
+	}
+	
+	
+	/**
+	 * Calculate the preferred size of this panel, taking into account the width of the vertical scroll bar.
+	 */
+	@Override public Dimension getPreferredSize() {
+	
+		widgetsPanel.setPreferredSize(null);
+		Dimension size = widgetsPanel.getPreferredSize();
+		
+		// resize the widgets region if the scrollbar is visible
+		if(scrollableRegion.getVerticalScrollBar().isVisible())
+			size.width += scrollableRegion.getVerticalScrollBar().getPreferredSize().width + Theme.padding;
+		widgetsPanel.setPreferredSize(size);
+		
+		// due to the event queue, the scroll bar may be about to appear or disappear, but the above if() can't see the future
+		// work around this by triggering another getPreferredSize() at the end of the event queue.
+		if(testSizeAgain)
+			SwingUtilities.invokeLater(() -> revalidate());
+		testSizeAgain = !testSizeAgain;
+		
+		return super.getPreferredSize();
 		
 	}
 	
@@ -39,36 +81,18 @@ public class ConfigureView extends JPanel {
 		
 		activeChart = chart;
 		
-		// show the GUI
-		JPanel contents = new JPanel();
-		contents.setBorder(new EmptyBorder(Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding));
-		contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
+		widgetsPanel.removeAll();
+		buttonsPanel.removeAll();
 
 		for(Widget widget : chart.widgets) {
-			contents.add(widget != null ? widget : Box.createVerticalStrut(Theme.guiPadding));
-			contents.add(Box.createVerticalStrut(Theme.guiPadding));
+			widgetsPanel.add(widget != null ? widget : Box.createVerticalStrut(Theme.padding), "growx");
+			widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
 		}
-		
-		contents.add(Box.createVerticalStrut(Theme.guiPadding * 4));
 		
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
-		
-		JPanel doneButtonPanel = new JPanel();
-		doneButtonPanel.setLayout(new GridLayout(1, 3, Theme.guiThickPadding, Theme.guiThickPadding));
-		doneButtonPanel.add(new JLabel(""));
-		doneButtonPanel.add(new JLabel(""));
-		doneButtonPanel.add(doneButton);
-		contents.add(doneButtonPanel);
-		
-		// size this panel as needed
-		JScrollPane scroll = new JScrollPane(contents);
-		scroll.setBorder(null);
-		Dimension size = scroll.getPreferredSize();
-		size.width += scroll.getVerticalScrollBar().getPreferredSize().width;
-		scroll.setPreferredSize(size);
-		instance.removeAll();
-		instance.add(scroll);
+		buttonsPanel.add(doneButton, "growx, cell 2 0");
+
 		instance.setPreferredSize(null);
 		instance.revalidate();
 		instance.repaint();
@@ -93,63 +117,57 @@ public class ConfigureView extends JPanel {
 		
 		activeChart = null;
 		
-		// show the GUI
-		JPanel contents = new JPanel();
-		contents.setBorder(new EmptyBorder(Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding, Theme.guiThickPadding));
-		contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
-		
-		JComboBox<String> chartTypeCombobox = new JComboBox<String>(Controller.getChartTypes());
+		widgetsPanel.removeAll();
+		buttonsPanel.removeAll();
 		
 		JPanel chartTypePanel = new JPanel();
-		chartTypePanel.setLayout(new GridLayout(1, 2, Theme.guiThickPadding, Theme.guiThickPadding));
-		chartTypePanel.add(new JLabel("Chart Type: "));
-		chartTypePanel.add(chartTypeCombobox);
+		List<JToggleButton> buttons = new ArrayList<JToggleButton>();
+		
+		ActionListener buttonHandler = event -> {
+			
+			// make all other buttons toggled off
+			JToggleButton clickedButton = buttons.get(buttons.indexOf(event.getSource()));
+			for(JToggleButton button : buttons)
+				if(button != clickedButton)
+					button.setSelected(false);
+				
+			// remove existing chart and widgets, then show the chart type buttons
+			if(activeChart != null)
+				Controller.removeChart(activeChart);
+			widgetsPanel.removeAll();
+			widgetsPanel.add(chartTypePanel, "growx");
+			widgetsPanel.add(Box.createVerticalStrut(Theme.padding * 3));
+			
+			// create the chart and show it's widgets
+			activeChart = Controller.createAndAddChart(clickedButton.getText(), x1, y1, x2, y2);
+			for(Widget widget : activeChart.widgets) {
+				widgetsPanel.add(widget != null ? widget : Box.createVerticalStrut(Theme.padding), "growx");
+				widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
+			}
+			
+			// size the panel as needed
+			instance.setPreferredSize(null);
+			instance.revalidate();
+			instance.repaint();
+				
+		};
+		
+		chartTypePanel.setLayout(new GridLayout(0, 2, Theme.padding, Theme.padding));
+		for(String chartType : Controller.getChartTypes()) {
+			JToggleButton button = new JToggleButton(chartType);
+			buttons.add(button);
+			button.addActionListener(buttonHandler);
+			chartTypePanel.add(button);
+		}
 		
 		JButton cancelButton = new JButton("Cancel");
 		cancelButton.addActionListener(event -> { Controller.removeChart(activeChart); close(); });
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
-		JPanel doneAndCancelPanel = new JPanel();
-		doneAndCancelPanel.setLayout(new GridLayout(1, 3, Theme.guiThickPadding, Theme.guiThickPadding));
-		doneAndCancelPanel.add(cancelButton);
-		doneAndCancelPanel.add(new JLabel(""));
-		doneAndCancelPanel.add(doneButton);
-		
-		chartTypeCombobox.addActionListener(event -> {
-				
-			// remove existing chart and widgets, then show the chart type combobox
-			if(activeChart != null)
-				Controller.removeChart(activeChart);
-			contents.removeAll();
-			contents.add(chartTypePanel);
-			contents.add(Box.createVerticalStrut(Theme.guiPadding * 4));
-			
-			// create the chart and show it's widgets
-			activeChart = Controller.createAndAddChart(chartTypeCombobox.getSelectedItem().toString(), x1, y1, x2, y2);
-			for(Widget widget : activeChart.widgets) {
-				contents.add(widget != null ? widget : Box.createVerticalStrut(Theme.guiPadding));
-				contents.add(Box.createVerticalStrut(10));
-			}
-			
-			// leave some room, then show the done and cancel buttons
-			contents.add(Box.createVerticalStrut(Theme.guiPadding * 4));
-			contents.add(doneAndCancelPanel);
-			
-			// size the panel as needed
-			JScrollPane scroll = new JScrollPane(contents);
-			scroll.setBorder(null);
-			Dimension size = scroll.getPreferredSize();
-			size.width += scroll.getVerticalScrollBar().getPreferredSize().width;
-			scroll.setPreferredSize(size);
-			instance.removeAll();
-			instance.add(scroll);
-			instance.setPreferredSize(null);
-			instance.revalidate();
-			instance.repaint();
-				
-		});
+		buttonsPanel.add(cancelButton, "growx, cell 0 0");
+		buttonsPanel.add(doneButton, "growx, cell 2 0");
 
-		chartTypeCombobox.getActionListeners()[0].actionPerformed(null);
+		buttons.get(0).doClick();
 		
 	}
 	
@@ -171,8 +189,7 @@ public class ConfigureView extends JPanel {
 	public void close() {
 		
 		activeChart = null;
-		instance.removeAll();
-		instance.setPreferredSize(null);
+		instance.setPreferredSize(new Dimension(0, 0));
 		instance.revalidate();
 		instance.repaint();
 		

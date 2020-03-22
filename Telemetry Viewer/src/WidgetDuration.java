@@ -46,11 +46,11 @@ public class WidgetDuration extends Widget {
 		combobox = new JComboBox<String>(new String[] {"Samples", "Seconds", "Minutes", "Hours", "Days"});
 		combobox.addActionListener(event -> sanityCheck());
 		
-		JPanel panel = new JPanel(new GridLayout(1, 2, Theme.guiPadding, Theme.guiPadding));
+		JPanel panel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
 		panel.add(textfield);
 		panel.add(combobox);
 		
-		setLayout(new GridLayout(1, 2, Theme.guiPadding, Theme.guiPadding));
+		setLayout(new GridLayout(1, 2, Theme.padding, Theme.padding));
 		add(new JLabel("Duration: "));
 		add(panel);
 		

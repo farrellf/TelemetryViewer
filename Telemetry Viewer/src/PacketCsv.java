@@ -553,31 +553,29 @@ public class PacketCsv extends Packet {
 			
 			// layout the panel
 			Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
-			setLayout(new MigLayout("fill", Theme.guiPadding + "[][][][][][][][][][][][][][][][]push[][][][][][]" + Theme.guiPadding, Theme.guiPadding + "[][][50%][][][50%]0"));
+			setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][]push[][][][]" + Theme.padding, "[][][50%][][][50%]0"));
 			dsdLabel = new JLabel("Data Structure Definition:");
 			dsdLabel.setFont(titleFont);
 			add(dsdLabel, "grow, span");
 			add(new JLabel("Column Number"));
 			add(columnTextfield);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(new JLabel("Name"));
 			add(nameTextfield);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(new JLabel("Color"));
 			add(colorButton);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
+			add(Box.createHorizontalStrut(Theme.padding));
 			add(new JLabel("Unit"));
 			add(unitTextfield);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
+			add(Box.createHorizontalStrut(Theme.padding * 4));
 			add(conversionFactorAtextfield);
 			add(new JLabel(" = "));
 			add(conversionFactorBtextfield);
 			add(unitLabel);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding * 4));
+			add(Box.createHorizontalStrut(Theme.padding * 4));
 			add(addButton);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			add(resetButton);
-			add(Box.createHorizontalStrut(Theme.guiThickPadding));
 			add(doneButton, "wrap");
 			add(new JScrollPane(dataStructureTable), "grow, span");
 			

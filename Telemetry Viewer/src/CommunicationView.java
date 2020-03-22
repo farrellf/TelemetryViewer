@@ -1,3 +1,4 @@
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -16,6 +17,7 @@ public class CommunicationView extends JPanel {
 	JTextField sampleRateTextfield;
 	JComboBox<String> packetTypeCombobox;
 	JComboBox<String> portCombobox;
+	Component baudRatePadding;
 	JComboBox<String> baudRateCombobox;
 	JComboBox<String> portNumberCombobox;
 	JButton connectButton;
@@ -67,6 +69,7 @@ public class CommunicationView extends JPanel {
 		});
 		
 		// UART baud rate
+		baudRatePadding = Box.createHorizontalStrut(Theme.padding);
 		baudRateCombobox = new JComboBox<String>(CommunicationController.getBaudRateDefaults());
 		baudRateCombobox.setMaximumRowCount(baudRateCombobox.getItemCount());
 		baudRateCombobox.setEditable(true);
@@ -146,22 +149,26 @@ public class CommunicationView extends JPanel {
 		// hide or disable widgets based on the port type
 		CommunicationController.addPortListener(newPort -> {
 			if(newPort.startsWith(Communication.PORT_UART)) {
+				baudRatePadding.setVisible(true);
 				baudRateCombobox.setVisible(true);
 				portNumberCombobox.setVisible(false);
 				sampleRateTextfield.setEditable(true);
 				packetTypeCombobox.setVisible(true);
 			} else if(newPort.equals(Communication.PORT_TEST)) {
+				baudRatePadding.setVisible(false);
 				baudRateCombobox.setVisible(false);
 				portNumberCombobox.setVisible(false);
 				sampleRateTextfield.setText("10000");
 				sampleRateTextfield.setEditable(false);
 				packetTypeCombobox.setVisible(true);
 			} else if(newPort.equals(Communication.PORT_FILE)) {
+				baudRatePadding.setVisible(false);
 				baudRateCombobox.setVisible(false);
 				portNumberCombobox.setVisible(false);
 				sampleRateTextfield.setEditable(false);
 				packetTypeCombobox.setVisible(false);
 			} else {
+				baudRatePadding.setVisible(true);
 				baudRateCombobox.setVisible(false);
 				portNumberCombobox.setVisible(true);
 				sampleRateTextfield.setEditable(true);
@@ -180,18 +187,18 @@ public class CommunicationView extends JPanel {
 		});
 		
 		// show the components
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(new JLabel("Sample Rate (Hz)"));
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(sampleRateTextfield);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(packetTypeCombobox);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(portCombobox);
-		add(Box.createHorizontalStrut(5));
+		add(baudRatePadding);
 		add(baudRateCombobox);
 		add(portNumberCombobox);
-		add(Box.createHorizontalStrut(5));
+		add(Box.createHorizontalStrut(Theme.padding));
 		add(connectButton);
 
 	}

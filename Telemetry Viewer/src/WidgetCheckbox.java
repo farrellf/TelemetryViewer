@@ -29,7 +29,7 @@ public class WidgetCheckbox extends Widget {
 		checkbox.setSelected(isChecked);
 		checkbox.addActionListener(event -> handler.accept(checkbox.isSelected()));
 		
-		setLayout(new GridLayout(1, 2, Theme.guiPadding, Theme.guiPadding));
+		setLayout(new GridLayout(1, 2, 0, 0));
 		add(new JLabel(""));
 		add(checkbox);
 		

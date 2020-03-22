@@ -1,6 +1,6 @@
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.GraphicsEnvironment;
+import java.awt.Dimension;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DropTarget;
@@ -33,31 +33,35 @@ public class Main {
 		
 		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
 		
+		// populate the window
 		window.setLayout(new BorderLayout());
-		
 		window.add(NotificationsView.instance,  BorderLayout.NORTH);
 		window.add(OpenGLChartsRegion.instance, BorderLayout.CENTER);
 		window.add(SettingsView.instance,       BorderLayout.WEST);
 		window.add(ControlsRegion.instance,     BorderLayout.SOUTH);
 		window.add(ConfigureView.instance,      BorderLayout.EAST);
-		
-		window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-		window.setSize( (int) (GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().width * 0.6), (int) (GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().height * 0.6) );
-		window.setLocationRelativeTo(null);
-		
-		window.setMinimumSize(window.getPreferredSize());
-		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		window.setVisible(true);
-		
 		NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
 		
-		LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
+		// size the window
+		int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
+		int dataStructureViewWidth = Integer.max(PacketCsv.instance.getDataStructureGui().getPreferredSize().width, PacketBinary.instance.getDataStructureGui().getPreferredSize().width);
+		int configureViewWidth = ConfigureView.instance.getPreferredSize().width;
+		int notificationHeight = NotificationsView.instance.getPreferredSize().height;
+		int settingsViewHeight = SettingsView.instance.preferredSize.height;
+		int controlsViewHeight = ControlsRegion.instance.getPreferredSize().height;
+		int width  = settingsViewWidth + dataStructureViewWidth + configureViewWidth + (4 * Theme.padding);
+		int height = notificationHeight + settingsViewHeight + controlsViewHeight + (8 * Theme.padding);
+		Dimension size = new Dimension(width, height);
+		window.setSize(size);
+		window.setMinimumSize(size);
+		window.setLocationRelativeTo(null);
+		window.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		
+		// support smooth scrolling
+		LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
 		window.addWindowFocusListener(new WindowFocusListener() {
-			@Override public void windowGainedFocus(WindowEvent we) {
-				mouse.updateScrolling();
-			}
-			@Override public void windowLostFocus(WindowEvent we) { }
+			@Override public void windowGainedFocus(WindowEvent we) { mouse.updateScrolling(); }
+			@Override public void windowLostFocus(WindowEvent we)   { }
 		});
 		
 		// allow the user to drag-n-drop a layout file, or a CSV log file, or both
@@ -96,6 +100,10 @@ public class Main {
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}
 		});
+		
+		// show the window
+		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		window.setVisible(true);
 		
 	}
 	
