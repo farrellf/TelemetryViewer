@@ -19,10 +19,10 @@ public class Dataset {
 	// constants defined at constructor-time
 	final int location;
 	final BinaryFieldProcessor processor;
-	final String name;
-	final Color color;
-	final float[] glColor;
-	final String unit;
+	String name;
+	Color color;
+	float[] glColor;
+	String unit;
 	final float conversionFactorA;
 	final float conversionFactorB;
 	final float conversionFactor;
@@ -163,6 +163,20 @@ public class Dataset {
 		
 		slots = new Slot[DatasetsController.SLOT_COUNT];
 		
+	}
+	
+	/**
+	 * Updates the name, color and unit of this Dataset.
+	 * 
+	 * @param name     The new name.
+	 * @param color    The new color.
+	 * @param unit     The new unit.
+	 */
+	public void setNameColorUnit(String name, Color color, String unit) {
+		this.name    = name;
+		this.color   = color;
+		this.glColor = new float[] {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, 1f};
+		this.unit    = unit;
 	}
 	
 	/**

@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.ActionListener;
@@ -6,6 +7,8 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.font.FontRenderContext;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -28,6 +31,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableCellRenderer;
 
 import net.miginfocom.swing.MigLayout;
 
@@ -346,7 +350,7 @@ public class PacketCsv extends Packet {
 		CsvDataStructureGui.instance.conversionFactorAtextfield.setText("1.0");
 		CsvDataStructureGui.instance.conversionFactorBtextfield.setText("1.0");
 		CsvDataStructureGui.instance.unitLabel.setText("");
-		SwingUtilities.invokeLater(() -> CsvDataStructureGui.instance.updateGui()); // invokeLater to ensure focus isn't taken away
+		SwingUtilities.invokeLater(() -> CsvDataStructureGui.instance.updateGui(true)); // invokeLater to ensure focus isn't taken away
 		
 		return CsvDataStructureGui.instance;
 		
@@ -369,7 +373,6 @@ public class PacketCsv extends Packet {
 		JTextField conversionFactorBtextfield;
 		JLabel     unitLabel;
 		JButton    addButton;
-		JButton    resetButton;
 		JButton    doneButton;
 		
 		JTable dataStructureTable;
@@ -501,15 +504,8 @@ public class PacketCsv extends Packet {
 				if(errorMessage != null)
 					JOptionPane.showMessageDialog(CsvDataStructureGui.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 				
-				updateGui();
+				updateGui(true);
 
-			});
-			
-			// reset button to remove all fields from the data structure
-			resetButton = new JButton("Reset");
-			resetButton.addActionListener(event -> {
-				PacketCsv.instance.reset();
-				updateGui();
 			});
 			
 			// done button for when the data structure is complete
@@ -531,11 +527,12 @@ public class PacketCsv extends Packet {
 					else if(column == 2) return "Color";
 					else if(column == 3) return "Unit";
 					else if(column == 4) return "Conversion Ratio";
+					else if(column == 5) return "";
 					else                 return "Error";
 				}
 				
 				@Override public Object getValueAt(int row, int column) {
-					return PacketCsv.instance.getCellContents(column, row);
+						return column < 5 ? PacketCsv.instance.getCellContents(column, row) : "";
 				}
 				
 				@Override public int getRowCount() {
@@ -543,17 +540,62 @@ public class PacketCsv extends Packet {
 				}
 				
 				@Override public int getColumnCount() {
-					return 5;
+					return 6;
 				}
 			});
-			dataStructureTable.setRowHeight((int) dataStructureTable.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight()); // fixes display scaling issue
+			dataStructureTable.setRowHeight((int) (dataStructureTable.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight() * 1.5));
+			dataStructureTable.getColumn("").setCellRenderer(new TableCellRenderer() {
+				@Override public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+					JButton b = new JButton("Remove");
+					if(CommunicationController.getPort() == Communication.PORT_TEST)
+						b.setEnabled(false);
+					return b;
+				}
+			});
+			dataStructureTable.addMouseListener(new MouseListener() {
+				
+				// ask the user to confirm
+				@Override public void mousePressed(MouseEvent e) {
+					if(CommunicationController.getPort() == Communication.PORT_TEST)
+						return;
+					Dataset dataset = DatasetsController.getDatasetByIndex(dataStructureTable.getSelectedRow());
+					String title = "Remove " + dataset.name + "?";
+					String message = "<html>Remove the " + dataset.name + " dataset?";
+					if(DatasetsController.getSampleCount() > 0)
+						message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
+					boolean remove = JOptionPane.showConfirmDialog(CsvDataStructureGui.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+					if(remove) {
+						columnTextfield.setText(Integer.toString(dataset.location));
+						nameTextfield.setText(dataset.name);
+						colorButton.setForeground(dataset.color);
+						unitTextfield.setText(dataset.unit);
+						unitLabel.setText(dataset.unit);
+						conversionFactorAtextfield.setText(Float.toString(dataset.conversionFactorA));
+						conversionFactorBtextfield.setText(Float.toString(dataset.conversionFactorB));
+						DatasetsController.removeAllData();
+						PacketCsv.instance.removeField(dataset.location);
+					}
+					dataStructureTable.clearSelection();
+					updateGui(false);
+				}
+				
+				// clear the selection again, in case the user click-and-dragged over the table
+				@Override public void mouseReleased(MouseEvent e) {
+					dataStructureTable.clearSelection();
+					updateGui(false);
+				}
+				
+				@Override public void mouseExited(MouseEvent e) { }
+				@Override public void mouseEntered(MouseEvent e) { }
+				@Override public void mouseClicked(MouseEvent e) { }
+			});
 
 			// tabs for displaying example code
 			exampleCodePane = new JTabbedPane();
 			
 			// layout the panel
 			Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
-			setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][]push[][][][]" + Theme.padding, "[][][50%][][][50%]0"));
+			setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][]push[][][]" + Theme.padding, "[][][50%][][][50%]0"));
 			dsdLabel = new JLabel("Data Structure Definition:");
 			dsdLabel.setFont(titleFont);
 			add(dsdLabel, "grow, span");
@@ -575,7 +617,6 @@ public class PacketCsv extends Packet {
 			add(unitLabel);
 			add(Box.createHorizontalStrut(Theme.padding * 4));
 			add(addButton);
-			add(resetButton);
 			add(doneButton, "wrap");
 			add(new JScrollPane(dataStructureTable), "grow, span");
 			
@@ -587,13 +628,13 @@ public class PacketCsv extends Packet {
 			add(efLabel, "grow, span");
 			add(exampleCodePane, "grow, span");
 			
-			updateGui();
+			updateGui(true);
 			setMinimumSize(new Dimension(getPreferredSize().width, 32 * (int) (getFontMetrics(dataStructureTable.getFont())).getHeight()));
 			setVisible(true);
 			
 		}
 		
-		public void updateGui() {
+		public void updateGui(boolean updateColumnNumber) {
 			
 			if(CommunicationController.getPort() == Communication.PORT_TEST) {
 				
@@ -605,7 +646,6 @@ public class PacketCsv extends Packet {
 				conversionFactorAtextfield.setEnabled(false);
 				conversionFactorBtextfield.setEnabled(false);
 				addButton.setEnabled(false);
-				resetButton.setEnabled(false);
 				doneButton.setEnabled(true);
 				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 					doneButton.requestFocus();
@@ -621,11 +661,13 @@ public class PacketCsv extends Packet {
 				conversionFactorAtextfield.setEnabled(true);
 				conversionFactorBtextfield.setEnabled(true);
 				addButton.setEnabled(true);
-				resetButton.setEnabled(true);
 				doneButton.setEnabled(true);
 				
-				int newColumn = PacketCsv.instance.getFirstAvailableColumn();
-				columnTextfield.setText(Integer.toString(newColumn));
+				if(updateColumnNumber) {
+					int newColumn = PacketCsv.instance.getFirstAvailableColumn();
+					columnTextfield.setText(Integer.toString(newColumn));
+				}
+				
 				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 					nameTextfield.requestFocus();
 					nameTextfield.selectAll();

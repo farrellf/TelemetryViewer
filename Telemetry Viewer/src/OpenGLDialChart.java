@@ -1,3 +1,6 @@
+import java.awt.event.MouseEvent;
+import java.util.function.Consumer;
+
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import com.jogamp.opengl.GL2;
 
@@ -150,7 +153,9 @@ public class OpenGLDialChart extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+		
+		Consumer<MouseEvent> clickHandler = null;
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
@@ -160,7 +165,7 @@ public class OpenGLDialChart extends PositionedChart {
 		if(startIndex < 0) startIndex = 0;
 		
 		if(endIndex - startIndex < minDomain)
-			return;
+			return clickHandler;
 		
 		datasets[0].getSamples(startIndex, endIndex, samples);
 		float lastSample = samples.buffer[samples.buffer.length - 1];
@@ -220,7 +225,7 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		// stop if the dial is too small
 		if(circleOuterRadius < 0)
-			return;
+			return clickHandler;
 		
 		if(showReadingLabel) {
 			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets[0].unit;
@@ -247,13 +252,23 @@ public class OpenGLDialChart extends PositionedChart {
 		if(showDatasetLabel) {
 			datasetLabel = datasets[0].name;
 			datasetLabelWidth = FontUtils.xAxisTextWidth(datasetLabel);
-			yDatasetLabelBaseline = showReadingLabel ? yReadingLabelTop + Theme.tickTextPadding : yPlotBottom;
+			yDatasetLabelBaseline = showReadingLabel ? yReadingLabelTop + Theme.tickTextPadding + Theme.legendTextPadding : yPlotBottom;
 			yDatasetLabelTop = yDatasetLabelBaseline + FontUtils.xAxisTextHeight;
 			xDatasetLabelLeft = xCircleCenter - (datasetLabelWidth / 2);
-			datasetLabelRadius = (float) Math.sqrt((datasetLabelWidth / 2) * (datasetLabelWidth / 2) + (yDatasetLabelTop - yCircleCenter) * (yDatasetLabelTop - yCircleCenter));
+			datasetLabelRadius = (float) Math.sqrt((datasetLabelWidth / 2) * (datasetLabelWidth / 2) + (yDatasetLabelTop - yCircleCenter) * (yDatasetLabelTop - yCircleCenter)) + Theme.legendTextPadding;
 			
-			if(datasetLabelRadius + Theme.tickTextPadding < circleInnerRadius)
+			if(datasetLabelRadius + Theme.tickTextPadding < circleInnerRadius) {
 				FontUtils.drawXaxisText(datasetLabel, (int) xDatasetLabelLeft, (int) yDatasetLabelBaseline);
+				float xMouseoverLeft = xDatasetLabelLeft - Theme.legendTextPadding;
+				float xMouseoverRight = xDatasetLabelLeft + datasetLabelWidth + Theme.legendTextPadding;
+				float yMouseoverBottom = yDatasetLabelBaseline - Theme.legendTextPadding;
+				float yMouseoverTop = yDatasetLabelTop + Theme.legendTextPadding;
+				if(mouseX >= xMouseoverLeft && mouseX <= xMouseoverRight && mouseY >= yMouseoverBottom && mouseY <= yMouseoverTop) {
+					OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
+					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
+					clickHandler = event -> ConfigureView.instance.forDataset(datasets[0]);
+				}
+			}
 		}
 		
 		// draw the dial
@@ -278,6 +293,8 @@ public class OpenGLDialChart extends PositionedChart {
 			OpenGL.drawTriangleStrip2D(gl, angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : samples.color, OpenGL.buffer, 4);
 			
 		}
+		
+		return clickHandler;
 		
 	}
 

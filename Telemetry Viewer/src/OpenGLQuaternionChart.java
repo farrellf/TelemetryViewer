@@ -1,5 +1,7 @@
+import java.awt.event.MouseEvent;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.math.Quaternion;
@@ -65,11 +67,11 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// don't draw if there are no samples
 		if(lastSampleNumber < 1)
-			return;
+			return null;
 
 		// get the quaternion values
 		float q0 = datasets[0].getSample(lastSampleNumber);
@@ -159,6 +161,8 @@ public class OpenGLQuaternionChart extends PositionedChart {
 			OpenGL.drawQuad2D(gl, Theme.tileShadowColor, xTextLabelLeft - Theme.tickTextPadding, yTextLabelBaseline - Theme.tickTextPadding, xTextLabelRight + Theme.tickTextPadding, yTextLabelTop + Theme.tickTextPadding);
 			FontUtils.drawXaxisText(textLabel, (int) xTextLabelLeft, (int) yTextLabelBaseline);
 		}
+		
+		return null;
 		
 	}
 

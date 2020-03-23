@@ -7,6 +7,7 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -55,9 +56,7 @@ public class OpenGLChartsRegion extends JPanel {
 	// mouse pointer's current location (pixels, origin at bottom-left)
 	int mouseX;
 	int mouseY;
-	PositionedChart chartToRemoveOnClick;
-	PositionedChart chartToMaximizeOnClick;
-	PositionedChart chartToConfigureOnClick;
+	Consumer<MouseEvent> clickHandler;
 	PositionedChart chartUnderMouse;
 	
 	boolean maximizing;
@@ -262,9 +261,7 @@ public class OpenGLChartsRegion extends JPanel {
 				// the scissor test is used to clip rendering to the region allocated for each chart.
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
-				chartToRemoveOnClick = null;
-				chartToMaximizeOnClick = null;
-				chartToConfigureOnClick = null;
+				clickHandler = null;
 				chartUnderMouse = null;
 				for(PositionedChart chart : charts) {
 					
@@ -371,7 +368,7 @@ public class OpenGLChartsRegion extends JPanel {
 					OpenGL.useMatrix(gl, chartMatrix);
 					
 					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
-					chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
+					Consumer<MouseEvent> eventHandler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl);
 					
 					// draw the cpu/gpu benchmarks for this chart if benchmarking
@@ -394,23 +391,17 @@ public class OpenGLChartsRegion extends JPanel {
 					
 					OpenGL.useMatrix(gl, screenMatrix);
 					gl.glDisable(GL2.GL_SCISSOR_TEST);
-					
-					// draw the chart's configure / maximize / close buttons
+
+					// check if the mouse is over this chart
 					width += (int) Theme.tileShadowOffset;
-					boolean mouseOverCloseButton = drawChartCloseButton(gl, xOffset, yOffset, width, height);
-					if(mouseOverCloseButton)
-						chartToRemoveOnClick = chart;
-					
-					boolean mouseOverMaximimizeButton = drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
-					if(mouseOverMaximimizeButton)
-						chartToMaximizeOnClick = chart;
-					
-					boolean mouseOverConfigureButton = drawChartSettingsButton(gl, xOffset, yOffset, width, height);
-					if(mouseOverConfigureButton)
-						chartToConfigureOnClick = chart;
-					
-					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height)
+					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height) {
 						chartUnderMouse = chart;
+						if(eventHandler != null)
+							clickHandler = eventHandler;
+						drawChartCloseButton(gl, xOffset, yOffset, width, height);
+						drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
+						drawChartSettingsButton(gl, xOffset, yOffset, width, height);
+					}
 					
 				}
 				
@@ -460,7 +451,7 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		glCanvas.addMouseListener(new MouseListener() {
 			
-			// the mouse was pressed, attempting to start a new chart region, or to configure/remove an existing chart
+			// the mouse was pressed, attempting to start a new chart region, or to interact with an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
 				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
@@ -471,28 +462,8 @@ public class OpenGLChartsRegion extends JPanel {
 					return;
 				}
 				
-				if(chartToRemoveOnClick != null) {
-					removing = true;
-					removingChart = chartToRemoveOnClick;
-					removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
-					return;
-				}
-				
-				if(chartToMaximizeOnClick != null) {
-					if(maximizedChart == null) {
-						maximizing = true;
-						maximizedChart = chartToMaximizeOnClick;
-						maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
-						Controller.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
-					} else {
-						demaximizing = true;
-						maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
-					}
-					return;
-				}
-				
-				if(chartToConfigureOnClick != null) {
-					ConfigureView.instance.forExistingChart(chartToConfigureOnClick);
+				if(clickHandler != null) {
+					clickHandler.accept(me);
 					return;
 				}
 				
@@ -714,21 +685,16 @@ public class OpenGLChartsRegion extends JPanel {
 	}
 	
 	/**
-	 * Draws an "X" close chart button for the user to click on if the mouse is over this chart.
+	 * Draws an "X" close chart button for the user to click on.
+	 * If the mouse is over the button, also registers a click handler.
 	 * 
 	 * @param gl         The OpenGL context.
 	 * @param xOffset    Chart region lower-left x location.
 	 * @param yOffset    Chart region lower-left y location.
 	 * @param width      Chart region width.
 	 * @param height     Chart region height.
-	 * @return           True if the mouse cursor is over this button, false if not.
 	 */
-	private boolean drawChartCloseButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
-		
-		// only draw if necessary
-		boolean mouseOverChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
-		if(!mouseOverChart)
-			return false;
+	private void drawChartCloseButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
 		float inset = buttonWidth * 0.2f;
@@ -740,10 +706,8 @@ public class OpenGLChartsRegion extends JPanel {
 		float[] white = new float[] {1, 1, 1, 1};
 		float[] black = new float[] {0, 0, 0, 1};
 		
-		// draw button background
-		OpenGL.drawBox(gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
-		
-		// draw button outline
+		// draw button background and outline
+		OpenGL.drawBox       (gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw the "X"
@@ -755,26 +719,27 @@ public class OpenGLChartsRegion extends JPanel {
 		OpenGL.buffer.rewind();
 		OpenGL.drawLines2D(gl, mouseOverButton ? white : black, OpenGL.buffer, 4);
 		
-		return mouseOverButton;
+		// event handler
+		if(mouseOverButton)
+			clickHandler = event -> {
+				removing = true;
+				removingChart = chartUnderMouse;
+				removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
+			};
 		
 	}
 	
 	/**
-	 * Draws a chart maximize button (rectangle icon) for the user to click on if the mouse is over this chart.
+	 * Draws a chart maximize button (rectangle icon) for the user to click on.
+	 * If the mouse is over the button, also registers a click handler.
 	 * 
 	 * @param gl         The OpenGL context.
 	 * @param xOffset    Chart region lower-left x location.
 	 * @param yOffset    Chart region lower-left y location.
 	 * @param width      Chart region width.
 	 * @param height     Chart region height.
-	 * @return           True if the mouse cursor is over this button, false if not.
 	 */
-	private boolean drawChartMaximizeButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
-		
-		// only draw if necessary
-		boolean mouseOverChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
-		if(!mouseOverChart)
-			return false;
+	private void drawChartMaximizeButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
 		float inset = buttonWidth * 0.2f;
@@ -787,36 +752,41 @@ public class OpenGLChartsRegion extends JPanel {
 		float[] white = new float[] {1, 1, 1, 1};
 		float[] black = new float[] {0, 0, 0, 1};
 		
-		// draw button background
-		OpenGL.drawBox(gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
-		
-		// draw button outline
+		// draw button background and outline
+		OpenGL.drawBox       (gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw the rectangle
 		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft + inset, buttonYbottom + inset, buttonWidth - 2*inset, buttonWidth - 2*inset);
 		OpenGL.drawBox(gl, mouseOverButton ? white : black, buttonXleft + inset, buttonYtop - inset - (inset / 1.5f), buttonWidth - 2*inset, inset / 1.5f);
 		
-		return mouseOverButton;
+		// event handler
+		if(mouseOverButton)
+			clickHandler = event -> {
+				if(maximizedChart == null) {
+					maximizing = true;
+					maximizedChart = chartUnderMouse;
+					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
+					Controller.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
+				} else {
+					demaximizing = true;
+					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
+				}
+			};
 		
 	}
 	
 	/**
-	 * Draws a chart settings button (gear icon) for the user to click on if the mouse is over this chart.
+	 * Draws a chart settings button (gear icon) for the user to click on.
+	 * If the mouse is over the button, also registers a click handler.
 	 * 
 	 * @param gl         The OpenGL context.
 	 * @param xOffset    Chart region lower-left x location.
 	 * @param yOffset    Chart region lower-left y location.
 	 * @param width      Chart region width.
 	 * @param height     Chart region height.
-	 * @return           True if the mouse cursor is over this button, false if not.
 	 */
-	private boolean drawChartSettingsButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
-		
-		// only draw if necessary
-		boolean mouseOverChart = mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height;
-		if(!mouseOverChart)
-			return false;
+	private void drawChartSettingsButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
 		float offset = (buttonWidth + 1) * 2;
@@ -836,10 +806,8 @@ public class OpenGLChartsRegion extends JPanel {
 		float innerRadius = buttonWidth * 0.25f;
 		float holeRadius  = buttonWidth * 0.10f;
 		
-		// draw button background
-		OpenGL.drawBox(gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
-		
-		// draw button outline
+		// draw button background and outline
+		OpenGL.drawBox       (gl, mouseOverButton ? black : white, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		OpenGL.drawBoxOutline(gl, mouseOverButton ? white : black, buttonXleft, buttonYbottom, buttonWidth, buttonWidth);
 		
 		// draw the gear teeth
@@ -864,7 +832,9 @@ public class OpenGLChartsRegion extends JPanel {
 		OpenGL.buffer.rewind();
 		OpenGL.drawLineLoop2D(gl, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
 		
-		return mouseOverButton;
+		// event handler
+		if(mouseOverButton)
+			clickHandler = event -> ConfigureView.instance.forExistingChart(chartUnderMouse);
 		
 	}
 	

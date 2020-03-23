@@ -1,14 +1,22 @@
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.Box;
 import javax.swing.JButton;
+import javax.swing.JColorChooser;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 
@@ -168,6 +176,78 @@ public class ConfigureView extends JPanel {
 		buttonsPanel.add(doneButton, "growx, cell 2 0");
 
 		buttons.get(0).doClick();
+		
+	}
+	
+	/**
+	 * Updates this panel with configuration widgets for a Dataset.
+	 * 
+	 * @param dataset    The dataset to configure.
+	 */
+	public void forDataset(Dataset dataset) {
+		
+		activeChart = null;
+		
+		JTextField nameTextfield = new JTextField(dataset.name, 15);
+		JButton colorButton = new JButton("\u25B2");
+		JTextField unitTextfield = new JTextField(dataset.unit, 15);
+		
+		JButton cancelButton = new JButton("Cancel");
+		cancelButton.addActionListener(event -> close());
+		JButton applyButton = new JButton("Apply");
+		applyButton.addActionListener(event -> {
+			dataset.setNameColorUnit(nameTextfield.getText(), colorButton.getForeground(), unitTextfield.getText());
+			close();
+		});
+		buttonsPanel.removeAll();
+		buttonsPanel.add(cancelButton, "growx, cell 0 0");
+		buttonsPanel.add(applyButton, "growx, cell 2 0");
+
+		ActionListener pressEnterToApply = event -> applyButton.doClick();
+		
+		nameTextfield.addActionListener(pressEnterToApply);
+		nameTextfield.addFocusListener(new FocusListener() {
+			@Override public void focusLost(FocusEvent e)   { nameTextfield.setText(nameTextfield.getText().trim()); }
+			@Override public void focusGained(FocusEvent e) { nameTextfield.selectAll(); }
+		});
+		
+		colorButton.setForeground(dataset.color);
+		colorButton.addActionListener(event -> {
+			Color color = JColorChooser.showDialog(this, "Pick a Color for " + nameTextfield.getText(), dataset.color);
+			if(color != null)
+				colorButton.setForeground(color);
+		});
+		
+		unitTextfield.addActionListener(pressEnterToApply);
+		unitTextfield.addFocusListener(new FocusListener() {
+			@Override public void focusLost(FocusEvent arg0)   { unitTextfield.setText(unitTextfield.getText().trim()); }
+			@Override public void focusGained(FocusEvent arg0) { unitTextfield.selectAll(); }
+		});
+		unitTextfield.addKeyListener(new KeyListener() {
+			@Override public void keyReleased(KeyEvent ke) { unitTextfield.setText(unitTextfield.getText().trim()); }
+			@Override public void keyPressed(KeyEvent ke)  { }
+			@Override public void keyTyped(KeyEvent ke)    { }
+		});
+		
+		JPanel namePanel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
+		namePanel.add(new JLabel("Name: "));
+		namePanel.add(nameTextfield);
+		JPanel colorPanel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
+		colorPanel.add(new JLabel("Color: "));
+		colorPanel.add(colorButton);
+		JPanel unitPanel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
+		unitPanel.add(new JLabel("Unit: "));
+		unitPanel.add(unitTextfield);
+		widgetsPanel.removeAll();
+		widgetsPanel.add(namePanel, "growx");
+		widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
+		widgetsPanel.add(colorPanel, "growx");
+		widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
+		widgetsPanel.add(unitPanel, "growx");
+
+		instance.setPreferredSize(null);
+		instance.revalidate();
+		instance.repaint();
 		
 	}
 	

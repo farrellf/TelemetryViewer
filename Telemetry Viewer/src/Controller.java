@@ -162,7 +162,7 @@ public class Controller {
 		
 		// invokeLater() in case we're changing chart types, because a new chart will be created immediately after removing this chart
 		SwingUtilities.invokeLater(() -> {
-			if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+			if(CommunicationController.isConnected() && Controller.getCharts().isEmpty() && Communication.packet.dataStructureDefined)
 				NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
 		});
 		

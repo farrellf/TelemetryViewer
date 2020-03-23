@@ -1,5 +1,8 @@
 import java.awt.Color;
+import java.awt.event.MouseEvent;
 import java.util.Map;
+import java.util.function.Consumer;
+
 import com.jogamp.opengl.GL2;
 
 /**
@@ -40,6 +43,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float yLegendTextBaseline;
 	float yLegendTextTop;
 	float yLegendBorderTop;
+	float[][] legendMouseoverCoordinates;
 	float[][] legendBoxCoordinates;
 	float[] xLegendNameLeft;
 	float xLegendBorderRight;
@@ -174,7 +178,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public void drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+		
+		Consumer<MouseEvent> clickHandler = null;
 		
 		plot.initialize(lastSampleNumber, zoomLevel, datasets, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode);
 		
@@ -215,12 +221,16 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 			
+			legendMouseoverCoordinates = new float[datasets.length][4];
 			legendBoxCoordinates = new float[datasets.length][4];
 			xLegendNameLeft = new float[datasets.length];
 			
 			float xOffset = xLegendBorderLeft + (Theme.lineWidth / 2) + Theme.legendTextPadding;
 			
-			for(int i = 0; i < datasets.length; i++){
+			for(int i = 0; i < datasets.length; i++) {
+				legendMouseoverCoordinates[i][0] = xOffset - Theme.legendTextPadding;
+				legendMouseoverCoordinates[i][1] = yLegendBorderBottom;
+				
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
 				legendBoxCoordinates[i][2] = xOffset + FontUtils.legendTextHeight;
@@ -229,6 +239,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				xOffset += FontUtils.legendTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
 				xOffset += FontUtils.legendTextWidth(datasets[i].name) + Theme.legendNamesPadding;
+				
+				legendMouseoverCoordinates[i][2] = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding;
+				legendMouseoverCoordinates[i][3] = yLegendBorderTop;
 			}
 			
 			xLegendBorderRight = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding + (Theme.lineWidth / 2);
@@ -288,7 +301,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// stop if the plot is too small
 		if(plotWidth < 1 || plotHeight < 1)
-			return;
+			return clickHandler;
 		
 		// force the plot to be an integer number of pixels
 		xPlotLeft = (int) xPlotLeft;
@@ -352,6 +365,11 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
 			for(int i = 0; i < datasets.length; i++) {
+				if(mouseX >= legendMouseoverCoordinates[i][0] && mouseX <= legendMouseoverCoordinates[i][2] && mouseY >= legendMouseoverCoordinates[i][1] && mouseY <= legendMouseoverCoordinates[i][3]) {
+					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, legendMouseoverCoordinates[i][0], legendMouseoverCoordinates[i][1], legendMouseoverCoordinates[i][2], legendMouseoverCoordinates[i][3]);
+					Dataset d = datasets[i];
+					clickHandler = event -> ConfigureView.instance.forDataset(d);
+				}
 				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
 				FontUtils.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 			}
@@ -402,6 +420,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// draw the plot border
 		OpenGL.drawQuadOutline2D(gl, Theme.plotOutlineColor, xPlotLeft, yPlotBottom, xPlotRight, yPlotTop);
+		
+		return clickHandler;
 		
 	}
 	

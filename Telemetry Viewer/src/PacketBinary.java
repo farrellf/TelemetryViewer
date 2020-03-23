@@ -34,6 +34,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableCellRenderer;
 
 import net.miginfocom.swing.MigLayout;
 
@@ -659,7 +660,7 @@ public class PacketBinary extends Packet {
 			BinaryDataStructureGui.instance.bitfieldDefinitionInProgress = false;
 		}
 		
-		SwingUtilities.invokeLater(() -> BinaryDataStructureGui.instance.updateGui()); // invokeLater to ensure focus isn't taken away
+		SwingUtilities.invokeLater(() -> BinaryDataStructureGui.instance.updateGui(true)); // invokeLater to ensure focus isn't taken away
 		
 		return BinaryDataStructureGui.instance;
 		
@@ -683,7 +684,6 @@ public class PacketBinary extends Packet {
 		JTextField        conversionFactorBtextfield;
 		JLabel            unitLabel;
 		JButton           addButton;
-		JButton           resetButton;
 		JButton           doneButton;
 		
 		JTable dataStructureTable;
@@ -726,7 +726,7 @@ public class PacketBinary extends Packet {
 				processorCombobox.addItem(processor);
 			for(BinaryChecksumProcessor processor : PacketBinary.getBinaryChecksumProcessors())
 				processorCombobox.addItem(processor);
-			processorCombobox.addActionListener(event -> updateGui());
+			processorCombobox.addActionListener(event -> updateGui(true));
 			
 			// name of the field
 			nameTextfield = new JTextField("", 15);
@@ -847,16 +847,8 @@ public class PacketBinary extends Packet {
 					
 				}
 				
-				updateGui();
+				updateGui(true);
 				
-			});
-			
-			// reset button to remove all fields from the data structure
-			resetButton = new JButton("Reset");
-			resetButton.addActionListener(event -> {
-				PacketBinary.instance.reset();
-				processorCombobox.setSelectedIndex(0);
-				updateGui();
 			});
 			
 			// done button for when the data structure is complete
@@ -878,11 +870,12 @@ public class PacketBinary extends Packet {
 					else if(column == 2) return "Color";
 					else if(column == 3) return "Unit";
 					else if(column == 4) return "Conversion Ratio";
+					else if(column == 5) return "";
 					else                 return "Error";
 				}
 				
 				@Override public Object getValueAt(int row, int column) {
-					return PacketBinary.instance.getCellContents(column, row);
+					return column < 5 ? PacketBinary.instance.getCellContents(column, row) : "";
 				}
 				
 				@Override public int getRowCount() {
@@ -890,15 +883,80 @@ public class PacketBinary extends Packet {
 				}
 				
 				@Override public int getColumnCount() {
-					return 5;
+					return 6;
 				}
 				
 			});
-			dataStructureTable.setRowHeight((int) dataStructureTable.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight()); // fixes display scaling issue
+			dataStructureTable.setRowHeight((int) (dataStructureTable.getFont().getStringBounds("Abcdefghijklmnopqrstuvwxyz", new FontRenderContext(null, true, true)).getHeight() * 1.5));
+			dataStructureTable.getColumn("").setCellRenderer(new TableCellRenderer() {
+				@Override public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+					JButton b = new JButton("Remove");
+					if(CommunicationController.getPort() == Communication.PORT_TEST)
+						b.setEnabled(false);
+					return row != 0 ? b : new JLabel("");
+				}
+			});
+			dataStructureTable.addMouseListener(new MouseListener() {
+				
+				// ask the user to confirm
+				@Override public void mousePressed(MouseEvent e) {
+					if(CommunicationController.getPort() == Communication.PORT_TEST)
+						return;
+					int datasetNumber = dataStructureTable.getSelectedRow() - 1; // -1 because of the syncword
+					if(datasetNumber < 0) {
+						// syncword clicked, do nothing
+					} else if(datasetNumber < DatasetsController.getDatasetsCount()) {
+						// remove button for a dataset was clicked
+						Dataset dataset = DatasetsController.getDatasetByIndex(datasetNumber);
+						String title = "Remove " + dataset.name + "?";
+						String message = "<html>Remove the " + dataset.name + " dataset?";
+						if(DatasetsController.getSampleCount() > 0)
+							message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
+						boolean remove = JOptionPane.showConfirmDialog(BinaryDataStructureGui.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+						if(remove) {
+							DatasetsController.removeAllData();
+							PacketBinary.instance.removeField(dataset.location);
+							offsetTextfield.setText(Integer.toString(dataset.location));
+							processorCombobox.setSelectedItem(dataset.processor);
+							nameTextfield.setText(dataset.name);
+							colorButton.setForeground(dataset.color);
+							unitTextfield.setText(dataset.unit);
+							unitLabel.setText(dataset.unit);
+							conversionFactorAtextfield.setText(Float.toString(dataset.conversionFactorA));
+							conversionFactorBtextfield.setText(Float.toString(dataset.conversionFactorB));
+						}
+					} else {
+						// remove button for the checksum was clicked
+						String title = "Remove checksum?";
+						String message = "<html>Remove the " + PacketBinary.instance.checksumProcessor + "?";
+						if(DatasetsController.getSampleCount() > 0)
+							message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
+						boolean remove = JOptionPane.showConfirmDialog(BinaryDataStructureGui.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+						if(remove) {
+							offsetTextfield.setText(Integer.toString(PacketBinary.instance.checksumProcessorOffset));
+							processorCombobox.setSelectedItem(PacketBinary.instance.checksumProcessor);
+							DatasetsController.removeAllData();
+							PacketBinary.instance.removeChecksum();
+						}
+					}
+					dataStructureTable.clearSelection();
+					updateGui(false);
+				}
+				
+				// clear the selection again, in case the user click-and-dragged over the table
+				@Override public void mouseReleased(MouseEvent e) {
+					dataStructureTable.clearSelection();
+					updateGui(false);
+				}
+				
+				@Override public void mouseExited(MouseEvent e) { }
+				@Override public void mouseEntered(MouseEvent e) { }
+				@Override public void mouseClicked(MouseEvent e) { }
+			});
 			
 			// layout the panel
 			Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
-			setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][][][]push[][][][]" + Theme.padding, "[][][100%]0"));
+			setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][][][]push[][][]" + Theme.padding, "[][][100%]0"));
 			dsdLabel = new JLabel("Data Structure Definition:");
 			dsdLabel.setFont(titleFont);
 			add(dsdLabel, "grow, span");
@@ -921,13 +979,12 @@ public class PacketBinary extends Packet {
 			add(conversionFactorBtextfield);
 			add(unitLabel);
 			add(Box.createHorizontalStrut(Theme.padding * 4));
-			add(addButton);	
-			add(resetButton);
+			add(addButton);
 			add(doneButton, "wrap");
 			scrollableDataStructureTable = new JScrollPane(dataStructureTable);
 			add(scrollableDataStructureTable, "grow, span");
 			
-			updateGui();
+			updateGui(true);
 			setMinimumSize(new Dimension(getPreferredSize().width, 500));
 			setVisible(true);
 			
@@ -936,7 +993,7 @@ public class PacketBinary extends Packet {
 		/**
 		 * Updates the GUI to reflect the current state (enables/disables/configures widgets as needed.)
 		 */
-		private void updateGui() {
+		private void updateGui(boolean updateOffsetNumber) {
 			
 			if(CommunicationController.getPort() == Communication.PORT_TEST) {
 				
@@ -949,7 +1006,6 @@ public class PacketBinary extends Packet {
 				conversionFactorAtextfield.setEnabled(false);
 				conversionFactorBtextfield.setEnabled(false);
 				addButton.setEnabled(false);
-				resetButton.setEnabled(false);
 				doneButton.setEnabled(true);
 				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 					doneButton.requestFocus();
@@ -966,7 +1022,6 @@ public class PacketBinary extends Packet {
 				conversionFactorAtextfield.setEnabled(false);
 				conversionFactorBtextfield.setEnabled(false);
 				addButton.setEnabled(false);
-				resetButton.setEnabled(false);
 				doneButton.setEnabled(false);
 				unitTextfield.setText("");
 				unitLabel.setText("");
@@ -984,7 +1039,6 @@ public class PacketBinary extends Packet {
 				conversionFactorAtextfield.setEnabled(false);
 				conversionFactorBtextfield.setEnabled(false);
 				addButton.setEnabled(false);
-				resetButton.setEnabled(true);
 				doneButton.setEnabled(true);
 				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 					doneButton.requestFocus();
@@ -1001,13 +1055,13 @@ public class PacketBinary extends Packet {
 				conversionFactorAtextfield.setEnabled(false);
 				conversionFactorBtextfield.setEnabled(false);
 				addButton.setEnabled(true);
-				resetButton.setEnabled(true);
 				doneButton.setEnabled(true);
 				unitTextfield.setText("");
 				unitLabel.setText("");
 				conversionFactorAtextfield.setText("1.0");
 				conversionFactorBtextfield.setText("1.0");
-				offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
+				if(updateOffsetNumber)
+					offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
 				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 					nameTextfield.requestFocus();
 					nameTextfield.selectAll();
@@ -1024,11 +1078,12 @@ public class PacketBinary extends Packet {
 				conversionFactorAtextfield.setEnabled(true);
 				conversionFactorBtextfield.setEnabled(true);
 				addButton.setEnabled(true);
-				resetButton.setEnabled(true);
 				doneButton.setEnabled(true);
-				offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
-				if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof BinaryChecksumProcessor)
-					processorCombobox.setSelectedIndex(0);
+				if(updateOffsetNumber) {
+					offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
+					if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof BinaryChecksumProcessor)
+						processorCombobox.setSelectedIndex(0);
+				}
 				SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 					nameTextfield.requestFocus();
 					nameTextfield.selectAll();
@@ -1046,7 +1101,6 @@ public class PacketBinary extends Packet {
 				conversionFactorAtextfield.setEnabled(false);
 				conversionFactorBtextfield.setEnabled(false);
 				addButton.setEnabled(true);
-				resetButton.setEnabled(true);
 				doneButton.setEnabled(true);
 				nameTextfield.setText("");
 				unitTextfield.setText("");
@@ -1089,7 +1143,7 @@ public class PacketBinary extends Packet {
 				BinaryDataStructureGui.instance.remove(this);
 				BinaryDataStructureGui.instance.add(BinaryDataStructureGui.instance.scrollableDataStructureTable, "grow, span, cell 0 2");
 				BinaryDataStructureGui.instance.bitfieldDefinitionInProgress = false;
-				BinaryDataStructureGui.instance.updateGui();
+				BinaryDataStructureGui.instance.updateGui(true);
 			});
 			JPanel bottom = new JPanel();
 			bottom.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
