@@ -1,5 +1,6 @@
 import java.awt.Color;
 import java.awt.Font;
+import java.text.SimpleDateFormat;
 
 import javax.swing.JPanel;
 
@@ -54,6 +55,8 @@ public class Theme {
 	
 	// space between swing components, etc.
 	public static int padding = 10;
+	public static SimpleDateFormat timestampFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+	public static boolean          timestampAsTwoLines = true;
 	
 	/**
 	 * Called by the Controller when the display scaling factor changes.

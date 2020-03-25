@@ -1,7 +1,4 @@
 import java.awt.Dimension;
-import java.awt.event.MouseEvent;
-import java.util.function.Consumer;
-
 import com.jogamp.opengl.GL2;
 
 /**
@@ -99,7 +96,7 @@ public class OpenGLCameraChart extends PositionedChart {
 		
 	}
 
-	@Override public Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 
 		// get the image
 		Camera.GLframe f = null;

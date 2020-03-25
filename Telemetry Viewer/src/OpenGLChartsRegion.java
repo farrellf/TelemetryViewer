@@ -7,8 +7,6 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
-
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -56,7 +54,7 @@ public class OpenGLChartsRegion extends JPanel {
 	// mouse pointer's current location (pixels, origin at bottom-left)
 	int mouseX;
 	int mouseY;
-	Consumer<MouseEvent> clickHandler;
+	EventHandler eventHandler;
 	PositionedChart chartUnderMouse;
 	
 	boolean maximizing;
@@ -261,7 +259,7 @@ public class OpenGLChartsRegion extends JPanel {
 				// the scissor test is used to clip rendering to the region allocated for each chart.
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
 				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
-				clickHandler = null;
+				eventHandler = null;
 				chartUnderMouse = null;
 				for(PositionedChart chart : charts) {
 					
@@ -368,7 +366,7 @@ public class OpenGLChartsRegion extends JPanel {
 					OpenGL.useMatrix(gl, chartMatrix);
 					
 					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
-					Consumer<MouseEvent> eventHandler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
+					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					FontUtils.drawQueuedText(gl);
 					
 					// draw the cpu/gpu benchmarks for this chart if benchmarking
@@ -396,8 +394,8 @@ public class OpenGLChartsRegion extends JPanel {
 					width += (int) Theme.tileShadowOffset;
 					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height) {
 						chartUnderMouse = chart;
-						if(eventHandler != null)
-							clickHandler = eventHandler;
+						if(handler != null)
+							eventHandler = handler;
 						drawChartCloseButton(gl, xOffset, yOffset, width, height);
 						drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
 						drawChartSettingsButton(gl, xOffset, yOffset, width, height);
@@ -462,8 +460,8 @@ public class OpenGLChartsRegion extends JPanel {
 					return;
 				}
 				
-				if(clickHandler != null) {
-					clickHandler.accept(me);
+				if(eventHandler != null && eventHandler.forPressEvent) {
+					eventHandler.handle(me);
 					return;
 				}
 				
@@ -527,6 +525,14 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
+				
+				mouseX = (int) (me.getX() * dpiScalingFactor);
+				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * dpiScalingFactor);
+				
+				if(eventHandler != null && eventHandler.forDragEvent) {
+					eventHandler.handle(me);
+					return;
+				}
 				
 				if(endX == -1 || endY == -1)
 					return;
@@ -629,6 +635,15 @@ public class OpenGLChartsRegion extends JPanel {
 		
 	}
 	
+	public boolean isLiveView() { return liveView; }
+	public void setLiveView()   { liveView = true; }
+	public void setNonLiveView(int sampleNumber) {
+		
+		liveView = false;
+		nonLiveViewSampleNumber = sampleNumber;
+		
+	}
+	
 	/**
 	 * Implements the smoothstep algorithm, with a "left edge" of 0 and a "right edge" of 1.
 	 * 
@@ -721,11 +736,11 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		// event handler
 		if(mouseOverButton)
-			clickHandler = event -> {
+			eventHandler = EventHandler.onPress(event -> {
 				removing = true;
 				removingChart = chartUnderMouse;
 				removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
-			};
+			});
 		
 	}
 	
@@ -762,7 +777,7 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		// event handler
 		if(mouseOverButton)
-			clickHandler = event -> {
+			eventHandler = EventHandler.onPress(event -> {
 				if(maximizedChart == null) {
 					maximizing = true;
 					maximizedChart = chartUnderMouse;
@@ -772,7 +787,7 @@ public class OpenGLChartsRegion extends JPanel {
 					demaximizing = true;
 					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
 				}
-			};
+			});
 		
 	}
 	
@@ -834,7 +849,7 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		// event handler
 		if(mouseOverButton)
-			clickHandler = event -> ConfigureView.instance.forExistingChart(chartUnderMouse);
+			eventHandler = EventHandler.onPress(event -> ConfigureView.instance.forExistingChart(chartUnderMouse));
 		
 	}
 	

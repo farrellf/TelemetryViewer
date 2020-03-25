@@ -2,6 +2,7 @@ import java.awt.Color;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -270,6 +271,116 @@ public class ChartUtils {
 		}
 		
 		return xValues;
+		
+	}
+	
+	/**
+	 * Determines the best timestamp values to use for horizontal divisions.
+	 * 
+	 * @param width           Number of horizontal pixels available for displaying divisions.
+	 * @param minTimestamp    Timestamp at the left edge (milliseconds since 1970-01-01).
+	 * @param maxTimestamp    Timestamp at the right edge (milliseconds since 1970-01-01).
+	 * @return                A Map of divisions: keys are Float pixelX locations, and values are formatted Strings.
+	 */
+	@SuppressWarnings("deprecation")
+	public static Map<Float, String> getTimestampDivisions(float width, long minTimestamp, long maxTimestamp) {
+		
+		Map<Float, String> divisions = new HashMap<Float, String>();
+		
+		// sanity check
+		if(width < 1 || minTimestamp > maxTimestamp)
+			return divisions;
+		
+		// determine how many divisions can fit on screen
+		String leftLabel  = Theme.timestampFormatter.format(new Date(minTimestamp));
+		String rightLabel = Theme.timestampFormatter.format(new Date(maxTimestamp));
+		float maxLabelWidth = 0;
+		if(Theme.timestampAsTwoLines) {
+			String[] leftLine = leftLabel.split(" ");
+			String[] rightLine = rightLabel.split(" ");
+			float leftMax  = Float.max(FontUtils.tickTextWidth(leftLine[0]),  FontUtils.tickTextWidth(leftLine[1]));
+			float rightMax = Float.max(FontUtils.tickTextWidth(rightLine[0]), FontUtils.tickTextWidth(rightLine[1]));
+			maxLabelWidth = Float.max(leftMax, rightMax);
+		} else {
+			maxLabelWidth = Float.max(FontUtils.tickTextWidth(leftLabel), FontUtils.tickTextWidth(rightLabel));
+		}
+		float padding = maxLabelWidth / 2f;
+		int divisionCount = (int) (width / (maxLabelWidth + padding));
+		
+		// determine how many milliseconds between divisions
+		long millisecondsOnScreen = maxTimestamp - minTimestamp;
+		long millisecondsPerDivision = (long) Math.ceil((double) millisecondsOnScreen / (double) divisionCount);
+		
+		Date minDate = new Date(minTimestamp);
+		long firstDivisionTimestamp = minTimestamp;
+		if(millisecondsPerDivision < 1000) {
+			// <1s per div, so use 1/2/5/10/20/50/100/200/250/500/1000ms per div, relative to the nearest second
+			millisecondsPerDivision = (millisecondsPerDivision <= 1)   ? 1 :
+			                          (millisecondsPerDivision <= 2)   ? 2 :
+			                          (millisecondsPerDivision <= 5)   ? 5 :
+			                          (millisecondsPerDivision <= 10)  ? 10 :
+			                          (millisecondsPerDivision <= 20)  ? 20 :
+			                          (millisecondsPerDivision <= 50)  ? 50 :
+			                          (millisecondsPerDivision <= 100) ? 100 :
+			                          (millisecondsPerDivision <= 200) ? 200 :
+			                          (millisecondsPerDivision <= 250) ? 250 :
+			                          (millisecondsPerDivision <= 500) ? 500 :
+			                                                             1000;
+			firstDivisionTimestamp = new Date(minDate.getYear(), minDate.getMonth(), minDate.getDate(), minDate.getHours(), minDate.getMinutes(), minDate.getSeconds()).getTime() - 1000;
+		} else if(millisecondsPerDivision < 60000) {
+			// <1m per div, so use 1/2/5/10/15/20/30/60s per div, relative to the nearest minute
+			millisecondsPerDivision = (millisecondsPerDivision <= 1000)  ? 1000 :
+			                          (millisecondsPerDivision <= 2000)  ? 2000 :
+			                          (millisecondsPerDivision <= 5000)  ? 5000 :
+			                          (millisecondsPerDivision <= 10000) ? 10000 :
+			                          (millisecondsPerDivision <= 15000) ? 15000 :
+			                          (millisecondsPerDivision <= 20000) ? 20000 :
+			                          (millisecondsPerDivision <= 30000) ? 30000 :
+			                                                               60000;
+			firstDivisionTimestamp = new Date(minDate.getYear(), minDate.getMonth(), minDate.getDate(), minDate.getHours(), minDate.getMinutes(), 0).getTime() - 60000;
+		} else if(millisecondsPerDivision < 3600000) {
+			// <1h per div, so use 1/2/5/10/15/20/30/60m per div, relative to the nearest hour
+			millisecondsPerDivision = (millisecondsPerDivision <= 60000)   ? 60000 :
+			                          (millisecondsPerDivision <= 120000)  ? 120000 :
+			                          (millisecondsPerDivision <= 300000)  ? 300000 :
+			                          (millisecondsPerDivision <= 600000)  ? 600000 :
+			                          (millisecondsPerDivision <= 900000)  ? 900000 :
+			                          (millisecondsPerDivision <= 1200000) ? 1200000 :
+			                          (millisecondsPerDivision <= 1800000) ? 1800000 :
+			                                                                 3600000;
+			firstDivisionTimestamp = new Date(minDate.getYear(), minDate.getMonth(), minDate.getDate(), minDate.getHours(), 0, 0).getTime() - 3600000;
+		} else if(millisecondsPerDivision < 86400000) {
+			// <1d per div, so use 1/2/3/4/6/8/12/24 hours per div, relative to the nearest day
+			millisecondsPerDivision = (millisecondsPerDivision <= 3600000)  ? 3600000 :
+			                          (millisecondsPerDivision <= 7200000)  ? 7200000 :
+			                          (millisecondsPerDivision <= 10800000) ? 10800000 :
+			                          (millisecondsPerDivision <= 14400000) ? 14400000 :
+			                          (millisecondsPerDivision <= 21600000) ? 21600000 :
+			                          (millisecondsPerDivision <= 28800000) ? 28800000 :
+			                          (millisecondsPerDivision <= 43200000) ? 43200000 :
+			                                                                  86400000;
+			firstDivisionTimestamp = new Date(minDate.getYear(), minDate.getMonth(), minDate.getDate(), 0, 0, 0).getTime() - 86400000;
+		} else {
+			// >=1d per div, so use an integer number of days, relative to the nearest day
+			if(millisecondsPerDivision != 86400000)
+				millisecondsPerDivision += 86400000 - (millisecondsPerDivision % 86400000);
+			firstDivisionTimestamp = new Date(minDate.getYear(), minDate.getMonth(), 1, 0, 0, 0).getTime() - 86400000;
+		}
+		while(firstDivisionTimestamp < minTimestamp)
+			firstDivisionTimestamp += millisecondsPerDivision;
+		
+		// populate the Map
+		for(int divisionN = 0; divisionN < divisionCount; divisionN++) {
+			long timestampN = firstDivisionTimestamp + (divisionN * millisecondsPerDivision);
+			float pixelX = (float) (timestampN - minTimestamp) / (float) millisecondsOnScreen * width;
+			String label = Theme.timestampFormatter.format(new Date(timestampN));
+			if(pixelX <= width)
+				divisions.put(pixelX, label);
+			else
+				break;
+		}
+		
+		return divisions;
 		
 	}
 	
@@ -826,7 +937,7 @@ public class ChartUtils {
 	 * 
 	 * @param gl              The OpenGL context.
 	 * @param text            Array of text to show.
-	 * @param colors          Corresponding array of colors to show at the left of each line of text.
+	 * @param colors          Corresponding array of colors to show at the left of each line of text, or null to not show any colors.
 	 * @param anchorX         X location to point to.
 	 * @param anchorY         Y location to point to.
 	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
@@ -854,6 +965,8 @@ public class ChartUtils {
 		float textHeight = FontUtils.tickTextHeight;
 		
 		float boxWidth = textHeight + Theme.tooltipTextPadding + maxTextWidth + (2 * padding);
+		if(colors == null)
+			boxWidth -= textHeight + Theme.tooltipTextPadding;
 		float boxHeight = text.length * (textHeight + padding) + padding;
 		
 		// decide which orientation to draw the tooltip in, or return if there is not enough space
@@ -891,9 +1004,10 @@ public class ChartUtils {
 			return;
 		}
 		
-		float[][] glColors = new float[colors.length][];
-		for(int i = 0; i < colors.length; i++)
-			glColors[i] = new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1};
+		float[][] glColors = new float[colors == null ? 0 : colors.length][];
+		if(colors != null)
+			for(int i = 0; i < colors.length; i++)
+				glColors[i] = new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1};
 		
 		// draw the tooltip
 		if(orientation == NORTH) {
@@ -918,10 +1032,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX - (boxWidth / 2f) + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == SOUTH) {
@@ -946,10 +1063,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX - (boxWidth / 2f) + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == WEST) {
@@ -974,10 +1094,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX - boxWidth + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX - padding - boxWidth + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == EAST) {
@@ -1002,10 +1125,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX + (2f * padding) + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX + padding + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == NORTH_WEST) {
@@ -1028,10 +1154,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX - boxWidth + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == NORTH_EAST) {
@@ -1054,10 +1183,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == SOUTH_WEST) {
@@ -1080,10 +1212,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX - boxWidth + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		} else if(orientation == SOUTH_EAST) {
@@ -1106,10 +1241,13 @@ public class ChartUtils {
 			// draw the text and color boxes
 			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
+				if(colors == null)
+					textX = anchorX + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
-				OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
-				                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
+				if(colors != null)
+					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
+					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
 			
 		}

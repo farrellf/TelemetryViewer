@@ -90,7 +90,8 @@ public class Controller {
 			"Histogram Chart",
 			"Dial Chart",
 			"Quaternion Chart",
-			"Camera"
+			"Camera",
+			"Timeline"
 		};
 		
 	}
@@ -115,6 +116,7 @@ public class Controller {
 		else if(chartType.equals("Dial Chart"))             chart = new OpenGLDialChart(x1, y1, x2, y2);
 		else if(chartType.equals("Quaternion Chart"))       chart = new OpenGLQuaternionChart(x1, y1, x2, y2);
 		else if(chartType.equals("Camera"))                 chart = new OpenGLCameraChart(x1, y1, x2, y2);
+		else if(chartType.equals("Timeline"))               chart = new OpenGLTimelineChart(x1, y1, x2, y2);
 		
 		if(chart != null)
 			Controller.addChart(chart);

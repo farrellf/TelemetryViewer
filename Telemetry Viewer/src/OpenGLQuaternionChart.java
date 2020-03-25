@@ -1,8 +1,5 @@
-import java.awt.event.MouseEvent;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
-import java.util.function.Consumer;
-
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.math.Quaternion;
 
@@ -67,7 +64,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		
 	}
 	
-	@Override public Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// don't draw if there are no samples
 		if(lastSampleNumber < 1)

@@ -1,8 +1,5 @@
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
-
 import com.jogamp.opengl.GL2;
 
 public abstract class PositionedChart {
@@ -48,7 +45,7 @@ public abstract class PositionedChart {
 		
 	}
 	
-	public abstract Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
+	public abstract EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
 	
 	public final void importChart(Controller.QueueOfLines lines) {
 

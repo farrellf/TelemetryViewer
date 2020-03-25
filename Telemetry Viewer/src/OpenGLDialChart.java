@@ -1,6 +1,3 @@
-import java.awt.event.MouseEvent;
-import java.util.function.Consumer;
-
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import com.jogamp.opengl.GL2;
 
@@ -153,9 +150,9 @@ public class OpenGLDialChart extends PositionedChart {
 		
 	}
 	
-	@Override public Consumer<MouseEvent> drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
-		Consumer<MouseEvent> clickHandler = null;
+		EventHandler handler = null;
 		
 		// get the samples
 		int endIndex = lastSampleNumber;
@@ -165,7 +162,7 @@ public class OpenGLDialChart extends PositionedChart {
 		if(startIndex < 0) startIndex = 0;
 		
 		if(endIndex - startIndex < minDomain)
-			return clickHandler;
+			return handler;
 		
 		datasets[0].getSamples(startIndex, endIndex, samples);
 		float lastSample = samples.buffer[samples.buffer.length - 1];
@@ -225,7 +222,7 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		// stop if the dial is too small
 		if(circleOuterRadius < 0)
-			return clickHandler;
+			return handler;
 		
 		if(showReadingLabel) {
 			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets[0].unit;
@@ -266,7 +263,7 @@ public class OpenGLDialChart extends PositionedChart {
 				if(mouseX >= xMouseoverLeft && mouseX <= xMouseoverRight && mouseY >= yMouseoverBottom && mouseY <= yMouseoverTop) {
 					OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
 					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
-					clickHandler = event -> ConfigureView.instance.forDataset(datasets[0]);
+					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(datasets[0]));
 				}
 			}
 		}
@@ -294,7 +291,7 @@ public class OpenGLDialChart extends PositionedChart {
 			
 		}
 		
-		return clickHandler;
+		return handler;
 		
 	}
 
