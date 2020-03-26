@@ -530,9 +530,6 @@ public class PacketBinary extends Packet {
 	@Override public void startReceivingData(InputStream stream) {
 		
 		thread = new Thread(() -> {
-				
-			byte[] rx_buffer = new byte[packetSize];
-			BufferedInputStream bStream = new BufferedInputStream(stream, 2 * packetSize);
 			
 			// wait for the data structure to be defined
 			while(!dataStructureDefined) {
@@ -540,11 +537,13 @@ public class PacketBinary extends Packet {
 					Thread.sleep(1);
 				} catch (InterruptedException e) {
 					// stop and end this thread
-					try { bStream.close(); } catch(IOException e2) { }
 					NotificationsController.showVerboseForSeconds("The Binary Packet Processor thread is stopping.", 5, false);
 					return;
 				}
 			}
+				
+			byte[] rx_buffer = new byte[packetSize];
+			BufferedInputStream bStream = new BufferedInputStream(stream, 2 * packetSize);
 			
 			// tell the user we're connected
 			String waitingForTelemetry = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected. Send telemetry." :
