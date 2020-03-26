@@ -27,8 +27,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import javax.imageio.ImageIO;
-import javax.naming.InvalidNameException;
-
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJDecompressor;
@@ -72,27 +70,15 @@ public class Camera {
 	 * 
 	 * @param name                     The camera name or URL.
 	 * @param isMjpeg                  True if using MJPEG-over-HTTP.
-	 * @throws InvalidNameException    If the local camera does not exist or if the MJPEG URL is invalid.
 	 */
-	public Camera(String name, boolean isMjpeg) throws InvalidNameException {
+	public Camera(String name, boolean isMjpeg) {
 		
 		this.name = name;
 		this.isMjpeg = isMjpeg;
-		
-		// sanity check
-		if(isMjpeg) {
-			try {
-				new URL(name).toURI();
-			} catch(Exception e) {
-				throw new InvalidNameException("MJPEG-over-HTTP URL is invalid.");
-			}
-		} else {
+		if(!isMjpeg)
 			for(Webcam cam : WidgetCamera.cameras)
 				if(cam.getName().equals(name))
 					camera = cam;
-			if(camera == null)
-				throw new InvalidNameException("Camera does not exist.");
-		}
 		
 		// create the cache file
 		try {
@@ -228,6 +214,12 @@ public class Camera {
 			thread = new Thread(() -> {
 				
 				liveImage = new GLframe(null, true, 1, 1, "[connecting...]", 0);
+				
+				// check if the camera exists
+				if(camera == null) {
+					liveImage = new GLframe(null, true, 1, 1, "[camera does not exist]", 0);
+					return;
+				}
 				
 				// check if the camera is already being used
 				if(camera.isOpen()) {

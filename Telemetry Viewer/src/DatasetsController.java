@@ -16,8 +16,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import javax.naming.InvalidNameException;
-
 import com.jogamp.common.nio.Buffers;
 
 public class DatasetsController {
@@ -341,13 +339,9 @@ public class DatasetsController {
 				}
 		
 		// the camera is not already known
-		try {
-			Camera c = new Camera(name, isMjpeg);
-			cameras.put(c, true);
-			return c; // the camera has been acquired
-		} catch (InvalidNameException e) {
-			return null; // the camera does not exist
-		}
+		Camera c = new Camera(name, isMjpeg);
+		cameras.put(c, true);
+		return c; // the camera has been acquired
 		
 	}
 	
