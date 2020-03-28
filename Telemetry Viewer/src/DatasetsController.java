@@ -181,9 +181,10 @@ public class DatasetsController {
 		
 		PositionedChart[] charts = Controller.getCharts().toArray(new PositionedChart[0]);
 		for(PositionedChart chart : charts)
-			for(Dataset dataset : chart.datasets)
-				if(dataset.location == location)
-					Controller.removeChart(chart);
+			if(chart.datasets != null)
+				for(Dataset dataset : chart.datasets)
+					if(dataset.location == location)
+						Controller.removeChart(chart);
 		
 		Dataset removedDataset = datasets.remove(location);
 		if(removedDataset != null)

@@ -330,24 +330,15 @@ public class Controller {
 			
 			for(Dataset dataset : DatasetsController.getAllDatasets()) {
 				
-				int processorIndex = -1;
-				
-				if(Communication.packet instanceof PacketBinary) {
-					BinaryFieldProcessor[] processors = PacketBinary.getBinaryFieldProcessors();
-					for(int i = 0; i < processors.length; i++)
-						if(dataset.processor.toString().equals(processors[i].toString()))
-							processorIndex = i;
-				}
-				
 				outputFile.println("");
 				outputFile.println("\tlocation = " + dataset.location);
-				outputFile.println("\tprocessor index = " + processorIndex);
+				outputFile.println("\tbinary processor = " + (dataset.processor == null ? "null" : dataset.processor.toString()));
 				outputFile.println("\tname = " + dataset.name);
 				outputFile.println("\tcolor = " + String.format("0x%02X%02X%02X", dataset.color.getRed(), dataset.color.getGreen(), dataset.color.getBlue()));
 				outputFile.println("\tunit = " + dataset.unit);
 				outputFile.println("\tconversion factor a = " + dataset.conversionFactorA);
 				outputFile.println("\tconversion factor b = " + dataset.conversionFactorB);
-				if(processorIndex != -1 && dataset.processor.toString().startsWith("Bitfield"))
+				if(dataset.processor != null && dataset.processor.toString().startsWith("Bitfield"))
 					for(Bitfield bitfield : dataset.bitfields) {
 						outputFile.print("\t[" + bitfield.MSBit + ":" + bitfield.LSBit + "] = " + bitfield.names[0]);
 						for(int i = 1; i < bitfield.names.length; i++)
@@ -361,7 +352,7 @@ public class Controller {
 			outputFile.println("Checksum:");
 			outputFile.println("");
 			outputFile.println("\tlocation = " +                 Communication.packet.getChecksumProcessorLocation());
-			outputFile.println("\tchecksum processor index = " + Communication.packet.getChecksumProcessorIndex());
+			outputFile.println("\tchecksum processor = " + (Communication.packet.checksumProcessor == null ? "null" : Communication.packet.checksumProcessor.toString()));
 			
 			outputFile.println("");
 			outputFile.println(Model.charts.size() + " Charts:");
@@ -455,7 +446,7 @@ public class Controller {
 			for(int i = 0; i < locationsCount; i++) {
 				
 				int location            = ChartUtils.parseInteger(lines.remove(), "location = %d");
-				int processorIndex      = ChartUtils.parseInteger(lines.remove(), "processor index = %d");
+				String processorName    = ChartUtils.parseString (lines.remove(), "binary processor = %s");
 				String name             = ChartUtils.parseString (lines.remove(), "name = %s");
 				String colorText        = ChartUtils.parseString (lines.remove(), "color = 0x%s");
 				String unit             = ChartUtils.parseString (lines.remove(), "unit = %s");
@@ -463,7 +454,10 @@ public class Controller {
 				float conversionFactorB = ChartUtils.parseFloat  (lines.remove(), "conversion factor b = %f");
 				
 				Color color = new Color(Integer.parseInt(colorText, 16));
-				BinaryFieldProcessor processor = (processorIndex >= 0) ? PacketBinary.getBinaryFieldProcessors()[processorIndex] : null;
+				BinaryFieldProcessor processor = null;
+				for(BinaryFieldProcessor p : PacketBinary.getBinaryFieldProcessors())
+					if(p.toString().equals(processorName))
+						processor = p;
 				
 				Communication.packet.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
@@ -498,10 +492,13 @@ public class Controller {
 			ChartUtils.parseExact(lines.remove(), "Checksum:");
 			ChartUtils.parseExact(lines.remove(), "");
 			int checksumOffset = ChartUtils.parseInteger(lines.remove(), "location = %d");
-			int checksumIndex  = ChartUtils.parseInteger(lines.remove(), "checksum processor index = %d");
+			String checksumName  = ChartUtils.parseString(lines.remove(), "checksum processor = %s");
 			
-			if(checksumOffset >= 1 && checksumIndex >= 0) {
-				BinaryChecksumProcessor processor = PacketBinary.getBinaryChecksumProcessors()[checksumIndex];
+			if(checksumOffset >= 1 && !checksumName.equals("null")) {
+				BinaryChecksumProcessor processor = null;
+				for(BinaryChecksumProcessor p : PacketBinary.getBinaryChecksumProcessors())
+					if(p.toString().equals(checksumName))
+						processor = p;
 				Communication.packet.insertChecksum(checksumOffset, processor);
 			}
 			

@@ -270,6 +270,7 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		// draw the dial
 		float dialPercentage = (lastSample - dialMin) / range;
+		OpenGL.buffer.rewind();
 		for(float angle = 0; angle < Math.PI; angle += Math.PI / dialResolution) {
 			
 			float x1 = -1f * circleOuterRadius *                       (float) Math.cos(angle)                            + xCircleCenter; // top-left
@@ -281,15 +282,18 @@ public class OpenGLDialChart extends PositionedChart {
 			float x3 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
 			float y3 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
 			
-			OpenGL.buffer.rewind();
-			OpenGL.buffer.put(x1); OpenGL.buffer.put(y1);
-			OpenGL.buffer.put(x4); OpenGL.buffer.put(y4);
-			OpenGL.buffer.put(x2); OpenGL.buffer.put(y2);
-			OpenGL.buffer.put(x3); OpenGL.buffer.put(y3);
-			OpenGL.buffer.rewind();
-			OpenGL.drawTriangleStrip2D(gl, angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : samples.color, OpenGL.buffer, 4);
+			float[] color = angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : samples.color;
+			OpenGL.buffer.put(x1); OpenGL.buffer.put(y1); OpenGL.buffer.put(color);
+			OpenGL.buffer.put(x2); OpenGL.buffer.put(y2); OpenGL.buffer.put(color);
+			OpenGL.buffer.put(x4); OpenGL.buffer.put(y4); OpenGL.buffer.put(color);
+			
+			OpenGL.buffer.put(x4); OpenGL.buffer.put(y4); OpenGL.buffer.put(color);
+			OpenGL.buffer.put(x2); OpenGL.buffer.put(y2); OpenGL.buffer.put(color);
+			OpenGL.buffer.put(x3); OpenGL.buffer.put(y3); OpenGL.buffer.put(color);
 			
 		}
+		OpenGL.buffer.rewind();
+		OpenGL.drawColoredTriangles2D(gl, OpenGL.buffer, 6 * dialResolution);
 		
 		return handler;
 		

@@ -411,7 +411,7 @@ public class PacketBinary extends Packet {
 	 */
 	static public BinaryFieldProcessor[] getBinaryFieldProcessors() {
 		
-		BinaryFieldProcessor[] processors = new BinaryFieldProcessor[6];
+		BinaryFieldProcessor[] processors = new BinaryFieldProcessor[8];
 		
 		processors[0] = new BinaryFieldProcessor() {
 			
@@ -433,6 +433,24 @@ public class PacketBinary extends Packet {
 		
 		processors[2] = new BinaryFieldProcessor() {
 			
+			@Override public String toString()                   { return "int16 LSB First"; }
+			@Override public int getByteCount()                  { return 2; }
+			@Override public float extractValue(byte[] rawBytes) { return (float)(short) (((0xFF & rawBytes[0]) << 0) |
+					                                                                      ((0xFF & rawBytes[1]) << 8));}
+			
+		};
+		
+		processors[3] = new BinaryFieldProcessor() {
+			
+			@Override public String toString()                   { return "int16 MSB First"; }
+			@Override public int getByteCount()                  { return 2; }
+			@Override public float extractValue(byte[] rawBytes) { return (float)(short) (((0xFF & rawBytes[1]) << 0) |
+			                                                                              ((0xFF & rawBytes[0]) << 8));}
+			
+		};
+		
+		processors[4] = new BinaryFieldProcessor() {
+			
 			@Override public String toString()                { return "float32 LSB First"; }
 			@Override public int getByteCount()               { return 4; }
 			@Override public float extractValue(byte[] bytes) { return Float.intBitsToFloat(((0xFF & bytes[0]) <<  0) |
@@ -442,7 +460,7 @@ public class PacketBinary extends Packet {
 			
 		};
 		
-		processors[3] = new BinaryFieldProcessor() {
+		processors[5] = new BinaryFieldProcessor() {
 			
 			@Override public String toString()                { return "float32 MSB First"; }
 			@Override public int getByteCount()               { return 4; }
@@ -453,7 +471,7 @@ public class PacketBinary extends Packet {
 			
 		};
 		
-		processors[4] = new BinaryFieldProcessor() {
+		processors[6] = new BinaryFieldProcessor() {
 			
 			@Override public String toString()                { return "Bitfield: 8 Bits"; }
 			@Override public int getByteCount()               { return 1; }
@@ -461,7 +479,7 @@ public class PacketBinary extends Packet {
 			
 		};
 		
-		processors[5] = new BinaryFieldProcessor() {
+		processors[7] = new BinaryFieldProcessor() {
 			
 			@Override public String toString()                { return "uint8"; }
 			@Override public int getByteCount()               { return 1; }
@@ -913,8 +931,6 @@ public class PacketBinary extends Packet {
 							message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
 						boolean remove = JOptionPane.showConfirmDialog(BinaryDataStructureGui.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 						if(remove) {
-							DatasetsController.removeAllData();
-							PacketBinary.instance.removeField(dataset.location);
 							offsetTextfield.setText(Integer.toString(dataset.location));
 							processorCombobox.setSelectedItem(dataset.processor);
 							nameTextfield.setText(dataset.name);
@@ -923,6 +939,8 @@ public class PacketBinary extends Packet {
 							unitLabel.setText(dataset.unit);
 							conversionFactorAtextfield.setText(Float.toString(dataset.conversionFactorA));
 							conversionFactorBtextfield.setText(Float.toString(dataset.conversionFactorB));
+							DatasetsController.removeAllData();
+							PacketBinary.instance.removeField(dataset.location);
 						}
 					} else {
 						// remove button for the checksum was clicked

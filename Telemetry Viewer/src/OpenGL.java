@@ -9,7 +9,7 @@ import com.jogamp.opengl.GL4;
 public class OpenGL {
 	
 	// buffer for anyone to use
-	public static FloatBuffer buffer = Buffers.newDirectFloatBuffer(2048); // hopefully big enough for most things
+	public static FloatBuffer buffer = Buffers.newDirectFloatBuffer(32768); // hopefully big enough for most things
 	
 	/**
 	 * Draws (x,y) vertices as GL_POINTS.
@@ -251,6 +251,22 @@ public class OpenGL {
 		enableProgramForVboOfXyrgba(gl, currentMatrix);
 		gl.glBufferData(GL4.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer.position(0), GL4.GL_STATIC_DRAW);
 		gl.glDrawArrays(GL2.GL_TRIANGLE_STRIP, 0, vertexCount);
+		disableProgram(gl);
+		
+	}
+	
+	/**
+	 * Draws (x,y,r,g,b,a) vertices as GL_TRIANGLES.
+	 * 
+	 * @param gl             The OpenGL context.
+	 * @param buffer         Vertex buffer containing (x1,y1,r1,g1,b1,a1,...)
+	 * @param vertexCount    Number of vertices in the buffer.
+	 */
+	public static void drawColoredTriangles2D(GL2 gl, FloatBuffer buffer, int vertexCount) {
+		
+		enableProgramForVboOfXyrgba(gl, currentMatrix);
+		gl.glBufferData(GL4.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer.position(0), GL4.GL_STATIC_DRAW);
+		gl.glDrawArrays(GL2.GL_TRIANGLES, 0, vertexCount);
 		disableProgram(gl);
 		
 	}
