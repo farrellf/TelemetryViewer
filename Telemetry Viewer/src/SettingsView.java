@@ -1,16 +1,15 @@
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.GridLayout;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 
 import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.border.EmptyBorder;
+import net.miginfocom.swing.MigLayout;
 
 /**
  * The Settings / SettingsView / SettingsController classes form the MVC that manage GUI-related settings.
@@ -22,6 +21,16 @@ public class SettingsView extends JPanel {
 	
 	static SettingsView instance = new SettingsView();
 	
+	JTextField tileColumnsTextfield;
+	JTextField tileRowsTextfield;
+	JComboBox<String> timeFormatCombobox;
+	JCheckBox timeFormat24hoursCheckbox;
+	JCheckBox showTooltipsCheckbox;
+	JCheckBox enableSmoothScrollingCheckbox;
+	JCheckBox enableAntialiasingCheckbox;
+	JCheckBox showFpsCheckbox;
+	JCheckBox showBenchmarksCheckbox;
+	
 	Dimension preferredSize;
 	
 	/**
@@ -30,11 +39,10 @@ public class SettingsView extends JPanel {
 	private SettingsView() {
 		
 		super();
-		setBorder(new EmptyBorder(Theme.padding, Theme.padding, Theme.padding, 0));
-		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+		setLayout(new MigLayout("wrap 2, gap " + Theme.padding));
 		
 		// tile columns and rows
-		JTextField tileColumnsTextfield = new JTextField(Integer.toString(SettingsController.getTileColumns()));
+		tileColumnsTextfield = new JTextField(Integer.toString(SettingsController.getTileColumns()));
 		tileColumnsTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe) {
 				try {
@@ -49,7 +57,7 @@ public class SettingsView extends JPanel {
 			}
 		});
 		
-		JTextField tileRowsTextfield = new JTextField(Integer.toString(SettingsController.getTileRows()));
+		tileRowsTextfield = new JTextField(Integer.toString(SettingsController.getTileRows()));
 		tileRowsTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe) {
 				try {
@@ -64,64 +72,70 @@ public class SettingsView extends JPanel {
 			}
 		});
 		
-		SettingsController.addTileCountListener((columns, rows) -> {
-			tileColumnsTextfield.setText(Integer.toString(columns));
-			tileRowsTextfield.setText(Integer.toString(rows));
-		});
+		add(new JLabel("Tile Columns: "));
+		add(tileColumnsTextfield, "grow x");
+		add(new JLabel("Tile Rows: "));
+		add(tileRowsTextfield, "grow x");
+		add(Box.createVerticalStrut(2 * Theme.padding), "span 2");
 		
-		JPanel tileColumnsAndRowsPanel = new JPanel();
-		tileColumnsAndRowsPanel.setLayout(new GridLayout(2, 2, 0, Theme.padding));
-		tileColumnsAndRowsPanel.add(new JLabel("Tile Columns: "));
-		tileColumnsAndRowsPanel.add(tileColumnsTextfield);
-		tileColumnsAndRowsPanel.add(new JLabel("Tile Rows: "));
-		tileColumnsAndRowsPanel.add(tileRowsTextfield);
-		tileColumnsAndRowsPanel.setMaximumSize(new Dimension(tileColumnsAndRowsPanel.getMaximumSize().width, tileColumnsAndRowsPanel.getPreferredSize().height));
-		tileColumnsAndRowsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-		add(tileColumnsAndRowsPanel);
-		add(Box.createVerticalStrut(Theme.padding));
+		// time format
+		timeFormatCombobox = new JComboBox<String>(new String[] {
+			"YYYY-MM-DD HH:MM:SS.SSS",
+			"YYYY-MM-DD HH:MM:SS",
+			"YYYY-MM-DD HH:MM",
+			"MM-DD-YYYY HH:MM:SS.SSS",
+			"MM-DD-YYYY HH:MM:SS",
+			"MM-DD-YYYY HH:MM",
+			"DD-MM-YYYY HH:MM:SS.SSS",
+			"DD-MM-YYYY HH:MM:SS",
+			"DD-MM-YYYY HH:MM",
+			"HH:MM:SS.SSS",
+			"HH:MM:SS",
+			"HH:MM",
+		});
+		String format = SettingsController.getTimeFormat();
+		for(int i = 0; i < timeFormatCombobox.getItemCount(); i++)
+			if(timeFormatCombobox.getItemAt(i).equals(format))
+				timeFormatCombobox.setSelectedIndex(i);
+		timeFormatCombobox.addActionListener(event -> SettingsController.setTimeFormat(timeFormatCombobox.getSelectedItem().toString()));
+		timeFormat24hoursCheckbox = new JCheckBox("Show 24-Hour Time", SettingsController.getTimeFormat24hours());
+		timeFormat24hoursCheckbox.addActionListener(event -> SettingsController.setTimeFormat24hours(timeFormat24hoursCheckbox.isSelected()));
+		
+		add(new JLabel("Time Format: "));
+		add(timeFormatCombobox);
+		add(timeFormat24hoursCheckbox, "span 2");
+		add(Box.createVerticalStrut(2 * Theme.padding), "span 2");
 		
 		// tooltips
-		JCheckBox showTooltipsCheckbox = new JCheckBox("Show Plot Tooltips", SettingsController.getTooltipVisibility());
+		showTooltipsCheckbox = new JCheckBox("Show Plot Tooltips", SettingsController.getTooltipVisibility());
 		showTooltipsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showTooltipsCheckbox.addActionListener(event -> SettingsController.setTooltipVisibility(showTooltipsCheckbox.isSelected()));
 		
-		SettingsController.addTooltipVisibilityListener(newVisibility -> showTooltipsCheckbox.setSelected(newVisibility));
-		
-		add(showTooltipsCheckbox);
-		add(Box.createVerticalStrut(Theme.padding));
+		add(showTooltipsCheckbox, "span 2");
 		
 		// logitech smooth scrolling
-		JCheckBox enableSmoothScrollingCheckbox = new JCheckBox("Enable Logitech Smooth Scrolling", SettingsController.getSmoothScrolling());
+		enableSmoothScrollingCheckbox = new JCheckBox("Enable Logitech Smooth Scrolling", SettingsController.getSmoothScrolling());
 		enableSmoothScrollingCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		enableSmoothScrollingCheckbox.addActionListener(event -> SettingsController.setSmoothScrolling(enableSmoothScrollingCheckbox.isSelected()));
 		
-		SettingsController.addSmoothScrollingListener(newState -> enableSmoothScrollingCheckbox.setSelected(newState));
-		
-		add(enableSmoothScrollingCheckbox);
-		add(Box.createVerticalStrut(Theme.padding));
+		add(enableSmoothScrollingCheckbox, "span 2");
 		
 		// antialiasing
-		JCheckBox enableAntialiasingCheckbox = new JCheckBox("Enable OpenGL Antialiasing", SettingsController.getAntialiasing());
+		enableAntialiasingCheckbox = new JCheckBox("Enable OpenGL Antialiasing", SettingsController.getAntialiasing());
 		enableAntialiasingCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		enableAntialiasingCheckbox.addActionListener(event -> SettingsController.setAntialiasing(enableAntialiasingCheckbox.isSelected()));
 		
-		SettingsController.addAntialiasingListener(newState -> enableAntialiasingCheckbox.setSelected(newState));
-		
-		add(enableAntialiasingCheckbox);
-		add(Box.createVerticalStrut(Theme.padding));
+		add(enableAntialiasingCheckbox, "span 2");
 		
 		// FPS
-		JCheckBox showFpsCheckbox = new JCheckBox("Show FPS and Period", SettingsController.getFpsVisibility());
+		showFpsCheckbox = new JCheckBox("Show FPS and Period", SettingsController.getFpsVisibility());
 		showFpsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showFpsCheckbox.addActionListener(event -> SettingsController.setFpsVisibility(showFpsCheckbox.isSelected()));
 		
-		SettingsController.addFpsVisibilityListener(newState -> showFpsCheckbox.setSelected(newState));
-		
-		add(showFpsCheckbox);
-		add(Box.createVerticalStrut(Theme.padding));
+		add(showFpsCheckbox, "span 2");
 		
 		// CPU and GPU times
-		JCheckBox showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
+		showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
 		showBenchmarksCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showBenchmarksCheckbox.addActionListener(event -> {
 			if(Controller.getCharts().isEmpty()) {
@@ -136,10 +150,7 @@ public class SettingsView extends JPanel {
 			}
 		});
 		
-		SettingsController.addBenchmarkedChartListener(newChart -> { showBenchmarksCheckbox.setSelected(newChart != null); showBenchmarksCheckbox.setEnabled(true); });
-		
-		add(showBenchmarksCheckbox);
-		add(Box.createVerticalStrut(Theme.padding));
+		add(showBenchmarksCheckbox, "span 2");
 		
 		// save the preferred size so this panel can be resized to hide or show
 		preferredSize = getPreferredSize();

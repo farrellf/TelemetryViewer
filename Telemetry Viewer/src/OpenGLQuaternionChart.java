@@ -87,9 +87,9 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		if(showTextLabel) {
 			textLabel = String.format("Quaternion (%+1.3f,%+1.3f,%+1.3f,%+1.3f)", q0, q1, q2, q3);
 			yTextLabelBaseline = Theme.tilePadding;
-			yTextLabelTop = yTextLabelBaseline + FontUtils.xAxisTextHeight;
-			xTextLabelLeft = (width / 2f) - (FontUtils.xAxisTextWidth(textLabel) / 2f);
-			xTextLabelRight = xTextLabelLeft + FontUtils.xAxisTextWidth(textLabel);
+			yTextLabelTop = yTextLabelBaseline + Theme.xAxisTextHeight;
+			xTextLabelLeft = (width / 2f) - (Theme.xAxisTextWidth(textLabel) / 2f);
+			xTextLabelRight = xTextLabelLeft + Theme.xAxisTextWidth(textLabel);
 		
 			yPlotBottom = yTextLabelTop + Theme.tickTextPadding;
 			yPlotTop = height - Theme.tilePadding;
@@ -154,9 +154,9 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		OpenGL.useMatrix(gl, chartMatrix);
 
 		// draw the text, on top of a background quad, if there is room
-		if(showTextLabel && FontUtils.xAxisTextWidth(textLabel) < width - Theme.tilePadding * 2) {
+		if(showTextLabel && Theme.xAxisTextWidth(textLabel) < width - Theme.tilePadding * 2) {
 			OpenGL.drawQuad2D(gl, Theme.tileShadowColor, xTextLabelLeft - Theme.tickTextPadding, yTextLabelBaseline - Theme.tickTextPadding, xTextLabelRight + Theme.tickTextPadding, yTextLabelTop + Theme.tickTextPadding);
-			FontUtils.drawXaxisText(textLabel, (int) xTextLabelLeft, (int) yTextLabelBaseline);
+			Theme.drawXaxisText(textLabel, (int) xTextLabelLeft, (int) yTextLabelBaseline);
 		}
 		
 		return null;

@@ -30,8 +30,8 @@ public class ChartUtils {
 			return yValues;
 		
 		// calculate the best vertical division size
-		float minSpacingBetweenText = 2.0f * FontUtils.tickTextHeight;
-		float maxDivisionsCount = plotHeight / (FontUtils.tickTextHeight + minSpacingBetweenText) + 1.0f;
+		float minSpacingBetweenText = 2.0f * Theme.tickTextHeight;
+		float maxDivisionsCount = plotHeight / (Theme.tickTextHeight + minSpacingBetweenText) + 1.0f;
 		float divisionSize = (maxY - minY) / maxDivisionsCount;
 		float closestDivSize1 = (float) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/1.0))) * 1.0f; // closest (10^n)*1 that is >= divisionSize, such as 1,10,100,1000
 		float closestDivSize2 = (float) Math.pow(10.0, Math.ceil(Math.log10(divisionSize/2.0))) * 2.0f; // closest (10^n)*2 that is >= divisionSize, such as 2,20,200,2000
@@ -98,8 +98,8 @@ public class ChartUtils {
 			return yValues;
 		
 		// calculate the best vertical division size
-		float minSpacingBetweenText = 2.0f * FontUtils.tickTextHeight;
-		float maxDivisionsCount = plotHeight / (FontUtils.tickTextHeight + minSpacingBetweenText) + 1.0f;
+		float minSpacingBetweenText = 2.0f * Theme.tickTextHeight;
+		float maxDivisionsCount = plotHeight / (Theme.tickTextHeight + minSpacingBetweenText) + 1.0f;
 		float divisionSize = (maxY - minY) / maxDivisionsCount;
 		float divSize1 = 1.0f; // 1W, 100mW, 10mW, 1mW, 100uW, ...
 		float divSize3 = 3.0f; // 1W, 1mW, 1uW, ...
@@ -154,7 +154,7 @@ public class ChartUtils {
 			return xValues;
 		
 		// calculate the best horizontal division size
-		int textWidth = (int) Float.max(FontUtils.tickTextWidth(Integer.toString(maxX)), FontUtils.tickTextWidth(Integer.toString(minX)));
+		int textWidth = (int) Float.max(Theme.tickTextWidth(Integer.toString(maxX)), Theme.tickTextWidth(Integer.toString(minX)));
 		int minSpacingBetweenText = textWidth;
 		float maxDivisionsCount = plotWidth / (textWidth + minSpacingBetweenText);
 		int divisionSize = (int) Math.ceil((maxX - minX) / maxDivisionsCount);
@@ -260,7 +260,7 @@ public class ChartUtils {
 			// calculate how much width is taken up by the text
 			float width = 0;
 			for(String s : proposedXvalues.values())
-				width += FontUtils.tickTextWidth(s);
+				width += Theme.tickTextWidth(s);
 			
 			// stop and don't use this iteration if we're using more than half of the width
 			if(width > plotWidth / 2.0f)
@@ -295,14 +295,14 @@ public class ChartUtils {
 		String leftLabel  = Theme.timestampFormatter.format(new Date(minTimestamp));
 		String rightLabel = Theme.timestampFormatter.format(new Date(maxTimestamp));
 		float maxLabelWidth = 0;
-		if(Theme.timestampAsTwoLines) {
-			String[] leftLine = leftLabel.split(" ");
-			String[] rightLine = rightLabel.split(" ");
-			float leftMax  = Float.max(FontUtils.tickTextWidth(leftLine[0]),  FontUtils.tickTextWidth(leftLine[1]));
-			float rightMax = Float.max(FontUtils.tickTextWidth(rightLine[0]), FontUtils.tickTextWidth(rightLine[1]));
+		if(leftLabel.contains("\n")) {
+			String[] leftLine = leftLabel.split("\n");
+			String[] rightLine = rightLabel.split("\n");
+			float leftMax  = Float.max(Theme.tickTextWidth(leftLine[0]),  Theme.tickTextWidth(leftLine[1]));
+			float rightMax = Float.max(Theme.tickTextWidth(rightLine[0]), Theme.tickTextWidth(rightLine[1]));
 			maxLabelWidth = Float.max(leftMax, rightMax);
 		} else {
-			maxLabelWidth = Float.max(FontUtils.tickTextWidth(leftLabel), FontUtils.tickTextWidth(rightLabel));
+			maxLabelWidth = Float.max(Theme.tickTextWidth(leftLabel), Theme.tickTextWidth(rightLabel));
 		}
 		float padding = maxLabelWidth / 2f;
 		int divisionCount = (int) (width / (maxLabelWidth + padding));
@@ -310,6 +310,10 @@ public class ChartUtils {
 		// determine how many milliseconds between divisions
 		long millisecondsOnScreen = maxTimestamp - minTimestamp;
 		long millisecondsPerDivision = (long) Math.ceil((double) millisecondsOnScreen / (double) divisionCount);
+		if(millisecondsPerDivision < 1000 && !Theme.timestampFormatter.toPattern().contains("SSS"))
+			millisecondsPerDivision = 1000; // can't display milliseconds resolution
+		if(millisecondsPerDivision < 60000 && !Theme.timestampFormatter.toPattern().contains("ss"))
+			millisecondsPerDivision = 60000; // can't display seconds resolution
 		
 		Date minDate = new Date(minTimestamp);
 		long firstDivisionTimestamp = minTimestamp;
@@ -671,11 +675,11 @@ public class ChartUtils {
 		for(BitfieldEvents.EventsAtSampleNumber marker : markers) {
 			
 			// calculate the box size
-			float maxTextWidth = FontUtils.tickTextWidth("Sample " + marker.sampleNumber);
+			float maxTextWidth = Theme.tickTextWidth("Sample " + marker.sampleNumber);
 			for(int i = 0; i < marker.names.size(); i++)
-				if(FontUtils.tickTextWidth(marker.names.get(i)) > maxTextWidth)
-					maxTextWidth = FontUtils.tickTextWidth(marker.names.get(i));
-			float textHeight = FontUtils.tickTextHeight;
+				if(Theme.tickTextWidth(marker.names.get(i)) > maxTextWidth)
+					maxTextWidth = Theme.tickTextWidth(marker.names.get(i));
+			float textHeight = Theme.tickTextHeight;
 			
 			float boxWidth = textHeight + Theme.tooltipTextPadding + maxTextWidth + (2 * padding);
 			float boxHeight = (marker.names.size() + 1) * (textHeight + padding) + padding;
@@ -737,10 +741,10 @@ public class ChartUtils {
 				// draw the text and color boxes
 				float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				FontUtils.drawMarkerText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				Theme.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
+					Theme.drawTickText(marker.names.get(i), (int) textX, (int) textY);
 					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
@@ -775,10 +779,10 @@ public class ChartUtils {
 				// draw the text and color boxes
 				float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				FontUtils.drawMarkerText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				Theme.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
+					Theme.drawTickText(marker.names.get(i), (int) textX, (int) textY);
 					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
@@ -813,10 +817,10 @@ public class ChartUtils {
 				// draw the text and color boxes
 				float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				FontUtils.drawMarkerText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
+				Theme.drawTickText("Sample " + marker.sampleNumber, (int) textX, (int) textY);
 				for(int i = 0; i < marker.names.size(); i++) {
 					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					FontUtils.drawMarkerText(marker.names.get(i), (int) textX, (int) textY);
+					Theme.drawTickText(marker.names.get(i), (int) textX, (int) textY);
 					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
@@ -869,17 +873,17 @@ public class ChartUtils {
 			OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
 			
 			String text = "Insufficent Room for All Markers";
-			float textWidth = FontUtils.tickTextWidth(text);
+			float textWidth = Theme.tickTextWidth(text);
 			float textLeftX = (bottomRightX - topLeftX) / 2f + topLeftX - (textWidth / 2f);
 			float textRightX = (bottomRightX - topLeftX) / 2f + topLeftX + (textWidth / 2f);
 			float textBottomY = bottomRightY + padding;
-			float textTopY = textBottomY + FontUtils.tickTextHeight;
+			float textTopY = textBottomY + Theme.tickTextHeight;
 			
 			// text background
 			OpenGL.drawQuad2D(gl, red, textLeftX - padding,  textBottomY - padding,
 			                           textRightX + padding, textTopY + padding);
 			
-			FontUtils.drawMarkerText(text, (int) textLeftX, (int) textBottomY); 
+			Theme.drawTickText(text, (int) textLeftX, (int) textBottomY); 
 						
 		}
 		
@@ -958,11 +962,11 @@ public class ChartUtils {
 		
 		float padding = 6f * Controller.getDisplayScalingFactor();
 		
-		float maxTextWidth = FontUtils.tickTextWidth(text[0]);
+		float maxTextWidth = Theme.tickTextWidth(text[0]);
 		for(int i = 1; i < text.length; i++)
-			if(FontUtils.tickTextWidth(text[i]) > maxTextWidth)
-				maxTextWidth = FontUtils.tickTextWidth(text[i]);
-		float textHeight = FontUtils.tickTextHeight;
+			if(Theme.tickTextWidth(text[i]) > maxTextWidth)
+				maxTextWidth = Theme.tickTextWidth(text[i]);
+		float textHeight = Theme.tickTextHeight;
 		
 		float boxWidth = textHeight + Theme.tooltipTextPadding + maxTextWidth + (2 * padding);
 		if(colors == null)
@@ -1033,9 +1037,9 @@ public class ChartUtils {
 			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX - (boxWidth / 2f) + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX - (boxWidth / 2f) + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1064,9 +1068,9 @@ public class ChartUtils {
 			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX - (boxWidth / 2f) + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX - (boxWidth / 2f) + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1095,9 +1099,9 @@ public class ChartUtils {
 			float textX = anchorX - boxWidth + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX - padding - boxWidth + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX - padding - boxWidth + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1126,9 +1130,9 @@ public class ChartUtils {
 			float textX = anchorX + (2f * padding) + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX + padding + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX + padding + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1155,9 +1159,9 @@ public class ChartUtils {
 			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX - boxWidth + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX - boxWidth + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1184,9 +1188,9 @@ public class ChartUtils {
 			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1213,9 +1217,9 @@ public class ChartUtils {
 			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX - boxWidth + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX - boxWidth + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
@@ -1242,9 +1246,9 @@ public class ChartUtils {
 			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
 				if(colors == null)
-					textX = anchorX + (boxWidth - FontUtils.tickTextWidth(text[i])) / 2;
+					textX = anchorX + (boxWidth - Theme.tickTextWidth(text[i])) / 2;
 				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
-				FontUtils.drawTickText(text[i], (int) textX, (int) textY);
+				Theme.drawTickText(text[i], (int) textX, (int) textY);
 				if(colors != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);

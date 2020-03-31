@@ -18,7 +18,6 @@ import com.jogamp.opengl.GLEventListener;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.util.Animator;
-import com.jogamp.opengl.util.awt.TextRenderer;
 
 /**
  * Manages the grid region and all charts on the screen.
@@ -34,11 +33,12 @@ public class OpenGLChartsRegion extends JPanel {
 	GLCanvas glCanvas;
 	int canvasWidth;
 	int canvasHeight;
-	double dpiScalingFactor = 1;
+	float displayScalingFactorJava9 = 1;
+	float displayScalingFactor = 1;
 	
 	// grid size
-	int columnCount;
-	int rowCount;
+	int tileColumns;
+	int tileRows;
 	
 	// grid locations for the opposite corners of where a new chart will be placed
 	int startX;
@@ -92,8 +92,8 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		super();
 		
-		columnCount = SettingsController.getTileColumns();
-		rowCount    = SettingsController.getTileRows();
+		tileColumns = SettingsController.getTileColumns();
+		tileRows    = SettingsController.getTileRows();
 		
 		startX  = -1;
 		startY  = -1;
@@ -147,19 +147,8 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				OpenGL.makeAllPrograms(gl);
 				
-				// FIXME this is a dirty hack to work around the display-scaling-before-first-chart causes an exception problem
-				// should probably do the FontUtil field init'ing in here instead
-				System.out.println(FontUtils.tickTextHeight);
-				
-				FontUtils.tickTextRenderer   = new TextRenderer(Theme.tickFont, true, true);
-				FontUtils.tickTextHeight     = Theme.tickFont.createGlyphVector(FontUtils.tickTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.tickTextRenderer.getFontRenderContext(), 0, 0).height;
-				FontUtils.legendTextRenderer = new TextRenderer(Theme.legendFont, true, true);
-				FontUtils.legendTextHeight   = Theme.legendFont.createGlyphVector(FontUtils.legendTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.legendTextRenderer.getFontRenderContext(), 0, 0).height;
-				FontUtils.xAxisTextRenderer  = new TextRenderer(Theme.xAxisFont, true, true);
-				FontUtils.xAxisTextHeight    = Theme.xAxisFont.createGlyphVector(FontUtils.xAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.xAxisTextRenderer.getFontRenderContext(), 0, 0).height;
-				FontUtils.yAxisTextRenderer  = new TextRenderer(Theme.yAxisFont, true, true);
-				FontUtils.yAxisTextHeight    = Theme.yAxisFont.createGlyphVector(FontUtils.yAxisTextRenderer.getFontRenderContext(), "Test").getPixelBounds(FontUtils.yAxisTextRenderer.getFontRenderContext(), 0, 0).height;
-				
+				displayScalingFactor = Controller.getDisplayScalingFactor();
+				Theme.initialize(displayScalingFactor);
 			}
 						
 			@Override public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
@@ -167,9 +156,9 @@ public class OpenGLChartsRegion extends JPanel {
 				GL2 gl = drawable.getGL().getGL2();
 				
 				// work around java 9+ dpi scaling problem with JOGL
-				dpiScalingFactor = ((Graphics2D) getGraphics()).getTransform().getScaleX();
-				width = (int) (width * dpiScalingFactor);
-				height = (int) (height * dpiScalingFactor);
+				displayScalingFactorJava9 = (float) ((Graphics2D) getGraphics()).getTransform().getScaleX();
+				width = (int) (width * displayScalingFactorJava9);
+				height = (int) (height * displayScalingFactorJava9);
 				gl.glViewport(0, 0, width, height);
 				
 				OpenGL.makeOrthoMatrix(screenMatrix, 0, width, 0, height, -100000, 100000);
@@ -178,15 +167,22 @@ public class OpenGLChartsRegion extends JPanel {
 				canvasWidth = width;
 				canvasHeight = height;
 				
-				Controller.setDisplayScalingFactorJava9((float) dpiScalingFactor);
+				Controller.setDisplayScalingFactorJava9(displayScalingFactorJava9);
 				
 			}
 
 			@Override public void display(GLAutoDrawable drawable) {
 				
-				int tileWidth   = canvasWidth  / columnCount;
-				int tileHeight  = canvasHeight / rowCount;
-				int tilesYoffset = canvasHeight - (tileHeight * rowCount);
+				int tileWidth   = canvasWidth  / tileColumns;
+				int tileHeight  = canvasHeight / tileRows;
+				int tilesYoffset = canvasHeight - (tileHeight * tileRows);
+				
+				// update the theme if the display scaling factor has changed
+				float newDisplayScalingFactor = Controller.getDisplayScalingFactor();
+				if(displayScalingFactor != newDisplayScalingFactor) {
+					Theme.initialize(newDisplayScalingFactor);
+					displayScalingFactor = newDisplayScalingFactor;
+				}
 				
 				// prepare OpenGL
 				GL2 gl = drawable.getGL().getGL2();
@@ -217,8 +213,8 @@ public class OpenGLChartsRegion extends JPanel {
 					return;
 				
 				// draw every tile
-				for(int column = 0; column < columnCount; column++) {
-					for(int row = 0; row < rowCount; row++) {
+				for(int column = 0; column < tileColumns; column++) {
+					for(int row = 0; row < tileRows; row++) {
 						int lowerLeftX = tileWidth * column;
 						int lowerLeftY = tileHeight * row + tilesYoffset;
 						drawTile(gl, lowerLeftX, lowerLeftY, tileWidth, tileHeight);
@@ -300,8 +296,8 @@ public class OpenGLChartsRegion extends JPanel {
 						double animationPosition = 1.0 - (double) (maximizingAnimationEndTime - System.currentTimeMillis()) / maximizingAnimationDuration;
 						animationPosition = smoothstep(animationPosition);
 						
-						int maximizedWidth = tileWidth * columnCount;
-						int maximizedHeight = tileHeight * rowCount;
+						int maximizedWidth = tileWidth * tileColumns;
+						int maximizedHeight = tileHeight * tileRows;
 						int maximizedXoffset = 0;
 						int maximizedYoffset = canvasHeight - maximizedHeight;
 
@@ -365,9 +361,8 @@ public class OpenGLChartsRegion extends JPanel {
 					OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
 					OpenGL.useMatrix(gl, chartMatrix);
 					
-					FontUtils.setOffsets(xOffset, yOffset, canvasWidth, canvasHeight);
+					Theme.setChartOffset(xOffset, yOffset, canvasWidth, canvasHeight);
 					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
-					FontUtils.drawQueuedText(gl);
 					
 					// draw the cpu/gpu benchmarks for this chart if benchmarking
 					if(chart == SettingsController.getBenchmarkedChart()) {
@@ -378,12 +373,11 @@ public class OpenGLChartsRegion extends JPanel {
 						OpenGL.useMatrix(gl, chartMatrix);
 						String line1 = String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
 						String line2 = String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds);
-						float textHeight = 2 * FontUtils.tickTextHeight + Theme.tickTextPadding;
-						float textWidth = Float.max(FontUtils.tickTextWidth(line1), FontUtils.tickTextWidth(line2));
+						float textHeight = 2 * Theme.tickTextHeight + Theme.tickTextPadding;
+						float textWidth = Float.max(Theme.tickTextWidth(line1), Theme.tickTextWidth(line2));
 						OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
-						FontUtils.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + FontUtils.tickTextHeight));
-						FontUtils.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
-						FontUtils.drawQueuedText(gl);
+						Theme.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + Theme.tickTextHeight));
+						Theme.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
 						NotificationsController.showVerboseForSeconds(line1 + ", " + line2, 1, false);
 					}
 					
@@ -416,14 +410,16 @@ public class OpenGLChartsRegion extends JPanel {
 				if(SettingsController.getFpsVisibility()) {
 					String text = String.format("%2.1fFPS, %dms", animator.getLastFPS(), animator.getLastFPSPeriod());
 					int padding = 10;
-					float textHeight = FontUtils.xAxisTextHeight;
-					float textWidth = FontUtils.xAxisTextWidth(text);
+					float textHeight = Theme.xAxisTextHeight;
+					float textWidth = Theme.xAxisTextWidth(text);
 					OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + padding*2, textHeight + padding*2);
-					FontUtils.setOffsets(0, 0, canvasWidth, canvasHeight);
-					FontUtils.drawXaxisText(text, padding, padding);
-					FontUtils.drawQueuedText(gl);
+					Theme.setChartOffset(0, 0, canvasWidth, canvasHeight);
+					Theme.drawXaxisText(text, padding, padding);
 					NotificationsController.showVerboseForSeconds(text, 1, false);
 				}
+				
+				// work around a memory leak
+				Theme.fixMemoryLeak();
 				
 			}
 			
@@ -465,10 +461,10 @@ public class OpenGLChartsRegion extends JPanel {
 					return;
 				}
 				
-				int proposedStartX = me.getX() * columnCount / getWidth();
-				int proposedStartY = me.getY() * rowCount / getHeight();
+				int proposedStartX = me.getX() * tileColumns / getWidth();
+				int proposedStartY = me.getY() * tileRows / getHeight();
 				
-				if(proposedStartX < columnCount && proposedStartY < rowCount && Controller.gridRegionAvailable(proposedStartX, proposedStartY, proposedStartX, proposedStartY)) {
+				if(proposedStartX < tileColumns && proposedStartY < tileRows && Controller.gridRegionAvailable(proposedStartX, proposedStartY, proposedStartX, proposedStartY)) {
 					startX = endX = proposedStartX;
 					startY = endY = proposedStartY;
 				}
@@ -484,10 +480,10 @@ public class OpenGLChartsRegion extends JPanel {
 				if(endX == -1 || endY == -1)
 					return;
 			
-				int proposedEndX = me.getX() * columnCount / getWidth();
-				int proposedEndY = me.getY() * rowCount / getHeight();
+				int proposedEndX = me.getX() * tileColumns / getWidth();
+				int proposedEndY = me.getY() * tileRows / getHeight();
 				
-				if(proposedEndX < columnCount && proposedEndY < rowCount && Controller.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
+				if(proposedEndX < tileColumns && proposedEndY < tileRows && Controller.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
 					endX = proposedEndX;
 					endY = proposedEndY;
 				}
@@ -526,8 +522,8 @@ public class OpenGLChartsRegion extends JPanel {
 				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 				
-				mouseX = (int) (me.getX() * dpiScalingFactor);
-				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * dpiScalingFactor);
+				mouseX = (int) (me.getX() * displayScalingFactorJava9);
+				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * displayScalingFactorJava9);
 				
 				if(eventHandler != null && eventHandler.forDragEvent) {
 					eventHandler.handle(me);
@@ -537,10 +533,10 @@ public class OpenGLChartsRegion extends JPanel {
 				if(endX == -1 || endY == -1)
 					return;
 				
-				int proposedEndX = me.getX() * columnCount / getWidth();
-				int proposedEndY = me.getY() * rowCount / getHeight();
+				int proposedEndX = me.getX() * tileColumns / getWidth();
+				int proposedEndY = me.getY() * tileRows / getHeight();
 				
-				if(proposedEndX < columnCount && proposedEndY < rowCount && Controller.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
+				if(proposedEndX < tileColumns && proposedEndY < tileRows && Controller.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
 					endX = proposedEndX;
 					endY = proposedEndY;
 				}
@@ -553,8 +549,8 @@ public class OpenGLChartsRegion extends JPanel {
 				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
 					return;
 				
-				mouseX = (int) (me.getX() * dpiScalingFactor);
-				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * dpiScalingFactor);
+				mouseX = (int) (me.getX() * displayScalingFactorJava9);
+				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * displayScalingFactorJava9);
 				
 			}
 			
@@ -619,12 +615,6 @@ public class OpenGLChartsRegion extends JPanel {
 				
 			}
 			
-		});
-		
-		// update the column and row counts when they change
-		SettingsController.addTileCountListener((columns, rows) -> {
-			columnCount = columns;
-			rowCount = rows;
 		});
 		
 		// switch back to live view when samples are removed

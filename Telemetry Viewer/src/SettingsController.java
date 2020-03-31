@@ -1,7 +1,5 @@
-import java.util.ArrayList;
+import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * The Settings / SettingsView / SettingsController classes form the MVC that manage GUI-related settings.
@@ -10,41 +8,14 @@ import java.util.function.Consumer;
  */
 public class SettingsController {
 	
-	static List<BiConsumer<Integer, Integer>> tileCountListeners = new ArrayList<BiConsumer<Integer, Integer>>();
-	static List<Consumer<Boolean>> tooltipVisibilityListeners = new ArrayList<Consumer<Boolean>>();
-	static List<Consumer<Boolean>> smoothScrollingListeners = new ArrayList<Consumer<Boolean>>();
-	static List<Consumer<Boolean>> antialiasingListeners = new ArrayList<Consumer<Boolean>>();
-	static List<Consumer<Boolean>> fpsVisibilityListeners = new ArrayList<Consumer<Boolean>>();
-	static List<Consumer<PositionedChart>> benchmarkedChartListeners = new ArrayList<Consumer<PositionedChart>>();
-
 	/**
-	 * Registers a listener that will be notified when the number of tile rows or columns in the ChartsRegion changes.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addTileCountListener(BiConsumer<Integer, Integer> listener) {
-		
-		tileCountListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new ChartsRegion tile count.
-	 */
-	private static void notifyTileCountListeners() {
-		
-		for(BiConsumer<Integer, Integer> listener : tileCountListeners)
-			listener.accept(Settings.tileColumns, Settings.tileRows);
-		
-	}
-	
-	/**
-	 * Changes the ChartsRegion tile column count if it is within the allowed range and would not obscure part of an existing chart.
+	 * Changes the OpenGLChartsRegion tile column count if it is within the allowed range and would not obscure part of an existing chart.
 	 * 
 	 * @param value    The new column count.
 	 */
 	public static void setTileColumns(int value) {
 		
+		// sanity check
 		boolean chartsObscured = false;
 		for(PositionedChart chart : Model.charts)
 			if(chart.regionOccupied(value, 0, Settings.tileColumns, Settings.tileRows))
@@ -53,12 +24,16 @@ public class SettingsController {
 		if(value >= Settings.tileColumnsMinimum && value <= Settings.tileColumnsMaximum && !chartsObscured)
 			Settings.tileColumns = value;
 
-		notifyTileCountListeners();
+		// apply change
+		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
+		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
+		OpenGLChartsRegion.instance.tileColumns = Settings.tileColumns;
+		OpenGLChartsRegion.instance.tileRows = Settings.tileRows;
 		
 	}
 	
 	/**
-	 * @return    The current ChartsRegion tile column count.
+	 * @return    The current OpenGLChartsRegion tile column count.
 	 */
 	public static int getTileColumns() {
 		
@@ -67,12 +42,13 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Changes the ChartsRegion tile row count if it is within the allowed range and would not obscure part of an existing chart.
+	 * Changes the OpenGLChartsRegion tile row count if it is within the allowed range and would not obscure part of an existing chart.
 	 * 
 	 * @param value    The new row count.
 	 */
 	public static void setTileRows(int value) {
 		
+		// sanity check
 		boolean chartsObscured = false;
 		for(PositionedChart chart : Model.charts)
 			if(chart.regionOccupied(0, value, Settings.tileColumns, Settings.tileRows))
@@ -81,12 +57,16 @@ public class SettingsController {
 		if(value >= Settings.tileRowsMinimum && value <= Settings.tileRowsMaximum && !chartsObscured)
 			Settings.tileRows = value;
 
-		notifyTileCountListeners();
+		// apply change
+		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
+		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
+		OpenGLChartsRegion.instance.tileColumns = Settings.tileColumns;
+		OpenGLChartsRegion.instance.tileRows = Settings.tileRows;
 		
 	}
 	
 	/**
-	 * @return    The current ChartsRegion tile row count.
+	 * @return    The current OpenGLChartsRegion tile row count.
 	 */
 	public static int getTileRows() {
 		
@@ -95,23 +75,101 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when tooltip visibility changes.
+	 * Changes the format used to display the date and time.
+	 * Tooltips will always show the time with millisecond resolution.
 	 * 
-	 * @param listener    The listener to be notified.
+	 * @param format    One of the combobox options from SettingsView.timeFormatCombobox.
 	 */
-	public static void addTooltipVisibilityListener(Consumer<Boolean> listener) {
+	public static void setTimeFormat(String format) {
 		
-		tooltipVisibilityListeners.add(listener);
+		Settings.timeFormat = format;
+		
+		if(format.equals("YYYY-MM-DD HH:MM:SS.SSS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(0);
+		} else if(format.equals("YYYY-MM-DD HH:MM:SS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss"     : "yyyy-MM-dd\nhh:mm:ss a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(1);
+		} else if(format.equals("YYYY-MM-DD HH:MM")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm"        : "yyyy-MM-dd\nhh:mm a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(2);
+		} else if(format.equals("MM-DD-YYYY HH:MM:SS.SSS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(3);
+		} else if(format.equals("MM-DD-YYYY HH:MM:SS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss"     : "MM-dd-yyyy\nhh:mm:ss a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(4);
+		} else if(format.equals("MM-DD-YYYY HH:MM")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm"        : "MM-dd-yyyy\nhh:mm a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(5);
+		} else if(format.equals("DD-MM-YYYY HH:MM:SS.SSS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(6);
+		} else if(format.equals("DD-MM-YYYY HH:MM:SS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss"     : "dd-MM-yyyy\nhh:mm:ss a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(7);
+		} else if(format.equals("DD-MM-YYYY HH:MM")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm"        : "dd-MM-yyyy\nhh:mm a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(8);
+		} else if(format.equals("HH:MM:SS.SSS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(9);
+		} else if(format.equals("HH:MM:SS")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss"                : "hh:mm:ss a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(10);
+		} else if(format.equals("HH:MM")) {
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm"                   : "hh:mm a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(11);
+		} else {
+			Settings.timeFormat = "YYYY-MM-DD HH:MM:SS.SSS";
+			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(0);
+		}
 		
 	}
 	
 	/**
-	 * Notifies all registered listeners about a new tooltip visibility.
+	 * @return    The format used to display the date and time.
 	 */
-	private static void notifyTooltipVisibilityListeners() {
+	public static String getTimeFormat() {
 		
-		for(Consumer<Boolean> listener : tooltipVisibilityListeners)
-			listener.accept(Settings.tooltipVisibility);
+		return Settings.timeFormat;
+		
+	}
+	
+	/**
+	 * Enables or disables 24-hour mode for displayed time.
+	 * 
+	 * @param value    True for 24-hour mode, false for AM/PM mode.
+	 */
+	public static void setTimeFormat24hours(boolean value) {
+		
+		Settings.timeFormat24hours = value;
+		SettingsView.instance.timeFormat24hoursCheckbox.setSelected(value);
+		
+		setTimeFormat(Settings.timeFormat);
+		
+	}
+	
+	/**
+	 * @return    True if the displayed time should use a 24-hour clock.
+	 */
+	public static boolean getTimeFormat24hours() {
+		
+		return Settings.timeFormat24hours;
 		
 	}
 	
@@ -123,7 +181,7 @@ public class SettingsController {
 	public static void setTooltipVisibility(boolean value) {
 		
 		Settings.tooltipVisibility = value;
-		notifyTooltipVisibilityListeners();
+		SettingsView.instance.showTooltipsCheckbox.setSelected(value);
 		
 	}
 	
@@ -137,27 +195,6 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when Logitech smooth scrolling is enabled or disabled.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addSmoothScrollingListener(Consumer<Boolean> listener) {
-		
-		smoothScrollingListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new state for Logitech smooth scrolling.
-	 */
-	private static void notifySmoothScrollingListeners() {
-		
-		for(Consumer<Boolean> listener : smoothScrollingListeners)
-			listener.accept(Settings.smoothScrolling);
-		
-	}
-	
-	/**
 	 * Enables or disables Logitech smooth scrolling.
 	 * 
 	 * @param value    True to enable, false to disable.
@@ -165,7 +202,8 @@ public class SettingsController {
 	public static void setSmoothScrolling(boolean value) {
 		
 		Settings.smoothScrolling = value;
-		notifySmoothScrollingListeners();
+		SettingsView.instance.enableSmoothScrollingCheckbox.setSelected(Settings.smoothScrolling);
+		Main.mouse.updateScrolling();
 		
 	}
 	
@@ -179,27 +217,6 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when antialiasing is enabled or disabled.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addAntialiasingListener(Consumer<Boolean> listener) {
-		
-		antialiasingListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new state for antialiasing.
-	 */
-	private static void notifyAntialiasingListeners() {
-		
-		for(Consumer<Boolean> listener : antialiasingListeners)
-			listener.accept(Settings.antialiasing);
-		
-	}
-	
-	/**
 	 * Enables or disables antialiasing.
 	 * 
 	 * @param value    True to enable, false to disable.
@@ -207,7 +224,7 @@ public class SettingsController {
 	public static void setAntialiasing(boolean value) {
 		
 		Settings.antialiasing = value;
-		notifyAntialiasingListeners();
+		SettingsView.instance.enableAntialiasingCheckbox.setSelected(value);
 		
 	}
 	
@@ -221,27 +238,6 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when FPS/period visibility changes.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addFpsVisibilityListener(Consumer<Boolean> listener) {
-		
-		fpsVisibilityListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new visibility for FPS/period.
-	 */
-	private static void notifyFpsVisibilityListeners() {
-		
-		for(Consumer<Boolean> listener : fpsVisibilityListeners)
-			listener.accept(Settings.fpsVisibility);
-		
-	}
-	
-	/**
 	 * Changes the FPS/period visibility.
 	 * 
 	 * @param value    True to enable, false to disable.
@@ -249,7 +245,7 @@ public class SettingsController {
 	public static void setFpsVisibility(boolean value) {
 		
 		Settings.fpsVisibility = value;
-		notifyFpsVisibilityListeners();
+		SettingsView.instance.showFpsCheckbox.setSelected(value);
 		
 	}
 	
@@ -259,27 +255,6 @@ public class SettingsController {
 	public static boolean getFpsVisibility() {
 		
 		return Settings.fpsVisibility;
-		
-	}
-	
-	/**
-	 * Registers a listener that will be notified when chart benchmarking changes.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addBenchmarkedChartListener(Consumer<PositionedChart> listener) {
-		
-		benchmarkedChartListeners.add(listener);
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about a new chart that will be benchmarked (or null if benchmarking is disabled.)
-	 */
-	private static void notifyBenchmarkedChartListeners() {
-		
-		for(Consumer<PositionedChart> listener : benchmarkedChartListeners)
-			listener.accept(Settings.chartForBenchmarks);
 		
 	}
 	
@@ -310,7 +285,9 @@ public class SettingsController {
 		
 		Settings.chartForBenchmarks = chart;
 		Settings.awaitingChartForBenchmark = false;
-		notifyBenchmarkedChartListeners();
+
+		SettingsView.instance.showBenchmarksCheckbox.setSelected(chart != null);
+		SettingsView.instance.showBenchmarksCheckbox.setEnabled(true);
 		
 	}
 	

@@ -200,9 +200,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
-			yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
+			yXaxisTitleTextTop = yXaxisTitleTextBasline + Theme.xAxisTextHeight;
 			xAxisTitle = plot.getTitle();
-			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
 			if(yPlotBottom < temp) {
@@ -215,7 +215,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			xLegendBorderLeft = Theme.tilePadding;
 			yLegendBorderBottom = Theme.tilePadding;
 			yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
-			yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
+			yLegendTextTop = yLegendTextBaseline + Theme.legendTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 			
 			legendMouseoverCoordinates = new float[datasets.length][4];
@@ -230,12 +230,12 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
-				legendBoxCoordinates[i][2] = xOffset + FontUtils.legendTextHeight;
+				legendBoxCoordinates[i][2] = xOffset + Theme.legendTextHeight;
 				legendBoxCoordinates[i][3] = yLegendTextTop;
 				
-				xOffset += FontUtils.legendTextHeight + Theme.legendTextPadding;
+				xOffset += Theme.legendTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
-				xOffset += FontUtils.legendTextWidth(datasets[i].name) + Theme.legendNamesPadding;
+				xOffset += Theme.legendTextWidth(datasets[i].name) + Theme.legendNamesPadding;
 				
 				legendMouseoverCoordinates[i][2] = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][3] = yLegendBorderTop;
@@ -243,7 +243,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			
 			xLegendBorderRight = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding + (Theme.lineWidth / 2);
 			if(showXaxisTitle)
-				xXaxisTitleTextLeft = xLegendBorderRight + ((xPlotRight - xLegendBorderRight) / 2) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xLegendBorderRight + ((xPlotRight - xLegendBorderRight) / 2) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yLegendBorderTop + Theme.legendTextPadding;
 			if(yPlotBottom < temp) {
@@ -254,7 +254,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		if(showXaxisScale) {
 			yXaxisTickTextBaseline = yPlotBottom;
-			yXaxisTickTextTop = yXaxisTickTextBaseline + FontUtils.tickTextHeight;
+			yXaxisTickTextTop = yXaxisTickTextBaseline + Theme.tickTextHeight;
 			yXaxisTickBottom = yXaxisTickTextTop + Theme.tickTextPadding;
 			yXaxisTickTop = yXaxisTickBottom + Theme.tickLength;
 			
@@ -264,22 +264,22 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		if(showYaxisTitle) {
 			xYaxisTitleTextTop = xPlotLeft;
-			xYaxisTitleTextBaseline = xYaxisTitleTextTop + FontUtils.yAxisTextHeight;
+			xYaxisTitleTextBaseline = xYaxisTitleTextTop + Theme.yAxisTextHeight;
 			yAxisTitle = haveDatasets ? datasets[0].unit : "";
-			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (FontUtils.yAxisTextWidth(yAxisTitle) / 2.0f);
+			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (Theme.yAxisTextWidth(yAxisTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
 			plotWidth = xPlotRight - xPlotLeft;
 			
 			if(showXaxisTitle && !showLegend)
-				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 		}
 		
 		if(showYaxisScale) {
 			yDivisions = ChartUtils.getYdivisions125(plotHeight, plotMinY, plotMaxY);
 			float maxTextWidth = 0;
 			for(String text : yDivisions.values()) {
-				float textWidth = FontUtils.tickTextWidth(text);
+				float textWidth = Theme.tickTextWidth(text);
 				if(textWidth > maxTextWidth)
 					maxTextWidth = textWidth;
 					
@@ -293,7 +293,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			plotWidth = xPlotRight - xPlotLeft;
 			
 			if(showXaxisTitle && !showLegend)
-				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 		}
 		
 		// stop if the plot is too small
@@ -329,9 +329,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : divisions.entrySet()) {
-				float x = entry.getKey() + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
+				float x = entry.getKey() + xPlotLeft - (Theme.tickTextWidth(entry.getValue()) / 2.0f);
 				float y = yXaxisTickTextBaseline;
-				FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+				Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 			}
 		}
 		
@@ -351,9 +351,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : yDivisions.entrySet()) {
-				float x = xYaxisTickTextRight - FontUtils.tickTextWidth(entry.getValue());
-				float y = (entry.getKey() - plotMinY) / plotRange * plotHeight + yPlotBottom - (FontUtils.tickTextHeight / 2.0f);
-				FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+				float x = xYaxisTickTextRight - Theme.tickTextWidth(entry.getValue());
+				float y = (entry.getKey() - plotMinY) / plotRange * plotHeight + yPlotBottom - (Theme.tickTextHeight / 2.0f);
+				Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 			}
 		}
 		
@@ -368,18 +368,18 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(d));
 				}
 				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-				FontUtils.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
+				Theme.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 			}
 		}
 		
 		// draw the x-axis title, if space is available
 		if(showXaxisTitle)
 			if((!showLegend && xXaxisTitleTextLeft > xPlotLeft) || (showLegend && xXaxisTitleTextLeft > xLegendBorderRight + Theme.legendTextPadding))
-				FontUtils.drawXaxisText(xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline);
+				Theme.drawXaxisText(xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline);
 		
 		// draw the y-axis title, if space is available
 		if(showYaxisTitle && yYaxisTitleTextLeft > yPlotBottom)
-			FontUtils.drawYaxisText(yAxisTitle, (int) xYaxisTitleTextBaseline, (int) yYaxisTitleTextLeft, 90);
+			Theme.drawYaxisText(gl, yAxisTitle, (int) xYaxisTitleTextBaseline, (int) yYaxisTitleTextLeft, 90);
 		
 		// acquire the samples
 		plot.acquireSamples(plotMinY, plotMaxY, (int) plotWidth, (int) plotHeight);

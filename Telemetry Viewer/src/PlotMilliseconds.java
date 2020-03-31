@@ -163,8 +163,8 @@ public class PlotMilliseconds extends Plot {
 			showMinutes = true;
 		if(!showHours && !showMinutes && rightMillisecondsElapsed >= 10000)
 			showTensOfSeconds = true;
-		xAxisTitle = showHours ?   "Time Elapsed (HH:MM:SS.sss)" :
-		             showMinutes ? "Time Elapsed (MM:SS.sss)" :
+		xAxisTitle = showHours ?   "Time Elapsed (HH:MM:SS.SSS)" :
+		             showMinutes ? "Time Elapsed (MM:SS.SSS)" :
 		                           "Time Elapsed (Seconds)";
 		
 	}
@@ -212,7 +212,7 @@ public class PlotMilliseconds extends Plot {
 		                    showMinutes ? String.format("%02d:%02d.%03d",             minutes, seconds, milliseconds) :
 		                                  String.format("%02d.%03d",                           seconds, milliseconds);
 		
-		float maxLabelWidth = Float.max(FontUtils.tickTextWidth(leftLabel), FontUtils.tickTextWidth(rightLabel));
+		float maxLabelWidth = Float.max(Theme.tickTextWidth(leftLabel), Theme.tickTextWidth(rightLabel));
 		float padding = maxLabelWidth / 2f;
 		int divisionCount = (int) (plotWidth / (maxLabelWidth + padding));
 		
@@ -666,7 +666,7 @@ public class PlotMilliseconds extends Plot {
 		if(datasets.length > 0 && plotSampleCount >= 2) {
 			List<BitfieldEvents.EventsAtSampleNumber> list = events.get();
 			for(BitfieldEvents.EventsAtSampleNumber event : list)
-				event.pixelX = (event.sampleNumber - plotMinX) / (float) plotDomain * plotWidth;
+				event.pixelX = (DatasetsController.getTimestamp(event.sampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
 			ChartUtils.drawMarkers(gl, list, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom);
 		}
 		

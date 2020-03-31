@@ -366,9 +366,9 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
-			yXaxisTitleTextTop = yXaxisTitleTextBasline + FontUtils.xAxisTextHeight;
+			yXaxisTitleTextTop = yXaxisTitleTextBasline + Theme.xAxisTextHeight;
 			xAxisTitle = haveDatasets ? datasets[0].unit + " (" + sampleCount + " Samples)" : "";
-			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
 			if(yPlotBottom < temp) {
@@ -381,7 +381,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			xLegendBorderLeft = Theme.tilePadding;
 			yLegendBorderBottom = Theme.tilePadding;
 			yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
-			yLegendTextTop = yLegendTextBaseline + FontUtils.legendTextHeight;
+			yLegendTextTop = yLegendTextBaseline + Theme.legendTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 
 			legendMouseoverCoordinates = new float[datasets.length][4];
@@ -396,12 +396,12 @@ public class OpenGLHistogramChart extends PositionedChart {
 				
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
-				legendBoxCoordinates[i][2] = xOffset + FontUtils.legendTextHeight;
+				legendBoxCoordinates[i][2] = xOffset + Theme.legendTextHeight;
 				legendBoxCoordinates[i][3] = yLegendTextTop;
 				
-				xOffset += FontUtils.legendTextHeight + Theme.legendTextPadding;
+				xOffset += Theme.legendTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
-				xOffset += FontUtils.legendTextWidth(datasets[i].name) + Theme.legendNamesPadding;
+				xOffset += Theme.legendTextWidth(datasets[i].name) + Theme.legendNamesPadding;
 				
 				legendMouseoverCoordinates[i][2] = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][3] = yLegendBorderTop;
@@ -409,7 +409,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			
 			xLegendBorderRight = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding + (Theme.lineWidth / 2);
 			if(showXaxisTitle)
-				xXaxisTitleTextLeft = xLegendBorderRight + ((xPlotRight - xLegendBorderRight) / 2) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xLegendBorderRight + ((xPlotRight - xLegendBorderRight) / 2) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			float temp = yLegendBorderTop + Theme.legendTextPadding;
 			if(yPlotBottom < temp) {
@@ -420,7 +420,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 		if(showXaxisScale) {
 			yXaxisTickTextBaseline = yPlotBottom;
-			yXaxisTickTextTop = yXaxisTickTextBaseline + FontUtils.tickTextHeight;
+			yXaxisTickTextTop = yXaxisTickTextBaseline + Theme.tickTextHeight;
 			yXaxisTickBottom = yXaxisTickTextTop + Theme.tickTextPadding;
 			yXaxisTickTop = yXaxisTickBottom + Theme.tickLength;
 			
@@ -435,28 +435,28 @@ public class OpenGLHistogramChart extends PositionedChart {
 		if(showYaxisTitle) {
 			// the left y-axis is for Relative Frequency unless only Frequency will be shown
 			xYaxisLeftTitleTextTop = xPlotLeft;
-			xYaxisLeftTitleTextBaseline = xYaxisLeftTitleTextTop + FontUtils.yAxisTextHeight;
+			xYaxisLeftTitleTextBaseline = xYaxisLeftTitleTextTop + Theme.yAxisTextHeight;
 			yAxisLeftTitle = yAxisShowsRelativeFrequency ? "Relative Frequency" : "Frequency";
-			yYaxisLeftTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (FontUtils.yAxisTextWidth(yAxisLeftTitle) / 2.0f);
+			yYaxisLeftTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (Theme.yAxisTextWidth(yAxisLeftTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisLeftTitleTextBaseline + Theme.tickTextPadding;
 			plotWidth = xPlotRight - xPlotLeft;
 			
 			if(showXaxisTitle && !showLegend)
-				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			// the right y-axis is always for Frequency
 			if(yAxisShowsRelativeFrequency && yAxisShowsFrequency) {
 				xYaxisRightTitleTextTop = xPlotRight;
-				xYaxisRightTitleTextBaseline = xYaxisRightTitleTextTop - FontUtils.yAxisTextHeight;
+				xYaxisRightTitleTextBaseline = xYaxisRightTitleTextTop - Theme.yAxisTextHeight;
 				yAxisRightTitle = "Frequency";
-				yYaxisRightTitleTextLeft = yPlotTop - (plotHeight / 2.0f) + (FontUtils.yAxisTextWidth(yAxisRightTitle) / 2.0f);
+				yYaxisRightTitleTextLeft = yPlotTop - (plotHeight / 2.0f) + (Theme.yAxisTextWidth(yAxisRightTitle) / 2.0f);
 				
 				xPlotRight = xYaxisRightTitleTextBaseline - Theme.tickTextPadding;
 				plotWidth = xPlotRight - xPlotLeft;
 				
 				if(showXaxisTitle && !showLegend)
-					xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+					xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			}
 		}
 		
@@ -464,7 +464,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			// the left y-axis is for Relative Frequency unless only Frequency will be shown
 			float maxTextWidth = 0;
 			for(String text : yAxisShowsRelativeFrequency ? yDivisionsRelativeFrequency.values() : yDivisionsFrequency.values()) {
-				float textWidth = FontUtils.tickTextWidth(text);
+				float textWidth = Theme.tickTextWidth(text);
 				if(textWidth > maxTextWidth)
 					maxTextWidth = textWidth;
 					
@@ -478,13 +478,13 @@ public class OpenGLHistogramChart extends PositionedChart {
 			plotWidth = xPlotRight - xPlotLeft;
 			
 			if(showXaxisTitle && !showLegend)
-				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			
 			// the right y-axis is always for Frequency
 			if(yAxisShowsRelativeFrequency && yAxisShowsFrequency) {
 				float MaxTextWidth = 0;
 				for(String text : yDivisionsFrequency.values()) {
-					float textWidth = FontUtils.tickTextWidth(text);
+					float textWidth = Theme.tickTextWidth(text);
 					if(textWidth > MaxTextWidth)
 						MaxTextWidth = textWidth;
 						
@@ -498,7 +498,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 				plotWidth = xPlotRight - xPlotLeft;
 				
 				if(showXaxisTitle && !showLegend)
-					xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (FontUtils.xAxisTextWidth(xAxisTitle)  / 2.0f);
+					xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
 			}
 		}
 		
@@ -528,9 +528,9 @@ public class OpenGLHistogramChart extends PositionedChart {
 			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : xDivisions.entrySet()) {
-				float x = ((entry.getKey() - minX) / range * plotWidth) + xPlotLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
+				float x = ((entry.getKey() - minX) / range * plotWidth) + xPlotLeft - (Theme.tickTextWidth(entry.getValue()) / 2.0f);
 				float y = yXaxisTickTextBaseline;
-				FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+				Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 			}
 		}
 		
@@ -554,8 +554,8 @@ public class OpenGLHistogramChart extends PositionedChart {
 	
 				for(Map.Entry<Float,String> entry : yDivisionsFrequency.entrySet()) {
 					float x = xYaxisRightTickTextLeft;
-					float y = (entry.getKey() - minYfreq) / yFreqRange * plotHeight + yPlotBottom - (FontUtils.tickTextHeight / 2.0f);
-					FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+					float y = (entry.getKey() - minYfreq) / yFreqRange * plotHeight + yPlotBottom - (Theme.tickTextHeight / 2.0f);
+					Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 				}
 				
 			}
@@ -577,9 +577,9 @@ public class OpenGLHistogramChart extends PositionedChart {
 				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 				
 				for(Map.Entry<Float,String> entry : yDivisionsRelativeFrequency.entrySet()) {
-					float x = xYaxisLeftTickTextRight - FontUtils.tickTextWidth(entry.getValue());
-					float y = (entry.getKey() - minYrelFreq) / yRelFreqRange * plotHeight + yPlotBottom - (FontUtils.tickTextHeight / 2.0f);
-					FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+					float x = xYaxisLeftTickTextRight - Theme.tickTextWidth(entry.getValue());
+					float y = (entry.getKey() - minYrelFreq) / yRelFreqRange * plotHeight + yPlotBottom - (Theme.tickTextHeight / 2.0f);
+					Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 				}
 			
 			} else {
@@ -598,9 +598,9 @@ public class OpenGLHistogramChart extends PositionedChart {
 				OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
 				
 				for(Map.Entry<Float,String> entry : yDivisionsFrequency.entrySet()) {
-					float x = xYaxisLeftTickTextRight - FontUtils.tickTextWidth(entry.getValue());
-					float y = (entry.getKey() - minYfreq) / yFreqRange * plotHeight + yPlotBottom - (FontUtils.tickTextHeight / 2.0f);
-					FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+					float x = xYaxisLeftTickTextRight - Theme.tickTextWidth(entry.getValue());
+					float y = (entry.getKey() - minYfreq) / yFreqRange * plotHeight + yPlotBottom - (Theme.tickTextHeight / 2.0f);
+					Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 				}
 				
 			}
@@ -618,22 +618,22 @@ public class OpenGLHistogramChart extends PositionedChart {
 					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(d));
 				}
 				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-				FontUtils.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
+				Theme.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
 			}
 		}
 					
 		// draw the x-axis title, if space is available
 		if(showXaxisTitle)
 			if((!showLegend && xXaxisTitleTextLeft > xPlotLeft) || (showLegend && xXaxisTitleTextLeft > xLegendBorderRight + Theme.legendTextPadding))
-				FontUtils.drawXaxisText(xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline);
+				Theme.drawXaxisText(xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline);
 		
 		// draw the left y-axis title, if space is available
 		if(showYaxisTitle && yYaxisLeftTitleTextLeft >= yPlotBottom)
-			FontUtils.drawYaxisText(yAxisLeftTitle, (int) xYaxisLeftTitleTextBaseline, (int) yYaxisLeftTitleTextLeft, 90);
+			Theme.drawYaxisText(gl, yAxisLeftTitle, (int) xYaxisLeftTitleTextBaseline, (int) yYaxisLeftTitleTextLeft, 90);
 		
 		// draw the right y-axis title, if applicable, and if space is available
 		if(showYaxisTitle && yAxisShowsRelativeFrequency && yAxisShowsFrequency && yYaxisRightTitleTextLeft <= yPlotTop)
-			FontUtils.drawYaxisText(yAxisRightTitle, (int) xYaxisRightTitleTextBaseline, (int) yYaxisRightTitleTextLeft, -90);
+			Theme.drawYaxisText(gl, yAxisRightTitle, (int) xYaxisRightTitleTextBaseline, (int) yYaxisRightTitleTextLeft, -90);
 
 		// clip to the plot region
 		int[] originalScissorArgs = new int[4];

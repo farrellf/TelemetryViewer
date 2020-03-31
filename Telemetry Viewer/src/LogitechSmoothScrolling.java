@@ -68,8 +68,6 @@ public class LogitechSmoothScrolling {
 
 		}
 		
-		SettingsController.addSmoothScrollingListener(event -> updateScrolling());
-		
 	}
 
 	/**

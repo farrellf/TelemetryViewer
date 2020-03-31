@@ -46,9 +46,6 @@ public class Controller {
 		
 		Model.dpiScalingFactorUser = newFactor;
 		
-		Theme.displayingScalingFactorChanged(getDisplayScalingFactor());
-		FontUtils.displayingScalingFactorChanged(getDisplayScalingFactor());
-		
 	}
 	
 	/**
@@ -64,9 +61,6 @@ public class Controller {
 		
 		Model.dpiScalingFactorJava9 = newFactor;
 		Model.dpiScalingFactorJava8 = 1; // only use the Java9 scaling factor
-		
-		Theme.displayingScalingFactorChanged(getDisplayScalingFactor());
-		FontUtils.displayingScalingFactorChanged(getDisplayScalingFactor());
 		
 	}
 	
@@ -310,6 +304,8 @@ public class Controller {
 			outputFile.println("");
 			outputFile.println("\ttile column count = " +          SettingsController.getTileColumns());
 			outputFile.println("\ttile row count = " +             SettingsController.getTileRows());
+			outputFile.println("\ttime format = " +                SettingsController.getTimeFormat());
+			outputFile.println("\tshow 24-hour time = " +          SettingsController.getTimeFormat24hours());
 			outputFile.println("\tshow plot tooltips = " +         SettingsController.getTooltipVisibility());
 			outputFile.println("\tsmooth scrolling = " +           SettingsController.getSmoothScrolling());
 			outputFile.println("\topengl antialiasing = " +        SettingsController.getAntialiasing());
@@ -351,7 +347,7 @@ public class Controller {
 			outputFile.println("");
 			outputFile.println("Checksum:");
 			outputFile.println("");
-			outputFile.println("\tlocation = " +                 Communication.packet.getChecksumProcessorLocation());
+			outputFile.println("\tlocation = " + Communication.packet.getChecksumProcessorLocation());
 			outputFile.println("\tchecksum processor = " + (Communication.packet.checksumProcessor == null ? "null" : Communication.packet.checksumProcessor.toString()));
 			
 			outputFile.println("");
@@ -408,6 +404,8 @@ public class Controller {
 			
 			int tileColumns           = ChartUtils.parseInteger(lines.remove(), "tile column count = %d");
 			int tileRows              = ChartUtils.parseInteger(lines.remove(), "tile row count = %d");
+			String timeFormat         = ChartUtils.parseString (lines.remove(), "time format = %s");
+			boolean timeFormat24hours = ChartUtils.parseBoolean(lines.remove(), "show 24-hour time = %b");
 			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
 			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
 			boolean antialiasing      = ChartUtils.parseBoolean(lines.remove(), "opengl antialiasing = %b");
@@ -417,6 +415,8 @@ public class Controller {
 			
 			SettingsController.setTileColumns(tileColumns);
 			SettingsController.setTileRows(tileRows);
+			SettingsController.setTimeFormat(timeFormat);
+			SettingsController.setTimeFormat24hours(timeFormat24hours);
 			SettingsController.setTooltipVisibility(tooltipVisibility);
 			SettingsController.setSmoothScrolling(smoothScrolling);
 			SettingsController.setAntialiasing(antialiasing);

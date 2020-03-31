@@ -17,6 +17,10 @@ public class Settings {
 	final static int tileRowsMaximum = 15;
 	static int tileRows = tileRowsDefault;
 	
+	// how the date/time should be drawn
+	static String timeFormat = "YYYY-MM-DD HH:MM:SS.SSS";
+	static boolean timeFormat24hours = false;
+	
 	// if plot tooltips should be drawn
 	static boolean tooltipVisibility = true;
 	

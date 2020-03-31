@@ -21,6 +21,7 @@ import javax.swing.UIManager;
 public class Main {
 
 	static JFrame window = new JFrame("Telemetry Viewer v0.6");
+	static LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
 	
 	/**
 	 * Entry point for the program.
@@ -58,7 +59,6 @@ public class Main {
 		window.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		
 		// support smooth scrolling
-		LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
 		window.addWindowFocusListener(new WindowFocusListener() {
 			@Override public void windowGainedFocus(WindowEvent we) { mouse.updateScrolling(); }
 			@Override public void windowLostFocus(WindowEvent we)   { }

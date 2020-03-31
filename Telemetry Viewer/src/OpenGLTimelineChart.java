@@ -66,12 +66,13 @@ public class OpenGLTimelineChart extends PositionedChart {
 		EventHandler handler = null;
 		
 		int trueLastSampleNumber = DatasetsController.getSampleCount() - 1;
+		boolean twoLineTimestamps = Theme.timestampFormatter.toPattern().contains("\n");
 		
 		// x and y locations of the timeline
 		yTimelineTextBaseline = Theme.tilePadding;
-		yTimelineTextTop = yTimelineTextBaseline + FontUtils.tickTextHeight;
-		if(Theme.timestampAsTwoLines)
-			yTimelineTextTop += 1.3 * FontUtils.tickTextHeight;
+		yTimelineTextTop = yTimelineTextBaseline + Theme.tickTextHeight;
+		if(twoLineTimestamps)
+			yTimelineTextTop += 1.3 * Theme.tickTextHeight;
 		yTimelineTickBottom = yTimelineTextTop + Theme.tickTextPadding;
 		yTimelineTickTop = yTimelineTickBottom + Theme.tickLength;
 		xTimelineLeft = Theme.tilePadding;
@@ -82,54 +83,53 @@ public class OpenGLTimelineChart extends PositionedChart {
 		timelineHeight = yTimelineTop - yTimelineBottom;
 		markerWidth = 6 * Controller.getDisplayScalingFactor();
 		
-		// x and y locations of the time label
-		// if the timeline is shown, the time label is at the top of the chart region
-		// if the timeline is hidden, the time label is centered in the chart region
-		String timeText = Theme.timestampFormatter.format(new Date(DatasetsController.getTimestamp(lastSampleNumber)));
-		String[] timeTextLine = timeText.split(" ");
-		boolean useTwoLines = Theme.timestampAsTwoLines && FontUtils.xAxisTextWidth(timeText) > (width - 2*Theme.tilePadding);
-		yTimeTop = height - Theme.tilePadding;
-		if(!showTimeline && useTwoLines)
-			yTimeTop = (height / 2) + (FontUtils.xAxisTextHeight * 2.3f / 2);
-		else if(!showTimeline && !useTwoLines)
-			yTimeTop = (height / 2) + (FontUtils.xAxisTextHeight / 2);
-		yTimeBaseline1 = yTimeTop - FontUtils.xAxisTextHeight;
-		yTimeBaseline2 = useTwoLines ? yTimeBaseline1 - (1.3f * FontUtils.xAxisTextHeight) : yTimeBaseline1;
-		timeHeight = useTwoLines ? yTimelineTop - yTimeBaseline2 : yTimelineTop - yTimeBaseline1;
-		if(useTwoLines) {
-			xTimeLeft1 = (width / 2) - (FontUtils.xAxisTextWidth(timeTextLine[0]) / 2);
-			xTimeLeft2 = (width / 2) - (FontUtils.xAxisTextWidth(timeTextLine[1]) / 2);
-		} else {
-			xTimeLeft1 = (width / 2) - (FontUtils.xAxisTextWidth(timeText) / 2);
+		// draw the time label if enabled, and if space is available
+		if(showTime) {
+			String timeText = Theme.timestampFormatter.format(new Date(DatasetsController.getTimestamp(lastSampleNumber)));
+			String[] timeTextLine = timeText.split("\n");
+			boolean useTwoLines = twoLineTimestamps && Theme.xAxisTextWidth(timeText.replace('\n', ' ')) > (width - 2*Theme.tilePadding);
+			if(showTimeline)
+				yTimeTop = height - Theme.tilePadding; // label at the top of the chart region
+			else if(useTwoLines)
+				yTimeTop = (height / 2) + (Theme.xAxisTextHeight * 2.3f / 2); // 2 line label centered in the chart region
+			else
+				yTimeTop = (height / 2) + (Theme.xAxisTextHeight / 2); // 1 line label centered in the chart region
+			yTimeBaseline1 = yTimeTop - Theme.xAxisTextHeight;
+			yTimeBaseline2 = useTwoLines ? yTimeBaseline1 - (1.3f * Theme.xAxisTextHeight) : yTimeBaseline1;
+			timeHeight = useTwoLines ? yTimelineTop - yTimeBaseline2 : yTimelineTop - yTimeBaseline1;
+			if(useTwoLines) {
+				xTimeLeft1 = (width / 2) - (Theme.xAxisTextWidth(timeTextLine[0]) / 2);
+				xTimeLeft2 = (width / 2) - (Theme.xAxisTextWidth(timeTextLine[1]) / 2);
+				timeWidth = Float.max(Theme.xAxisTextWidth(timeTextLine[0]), Theme.xAxisTextWidth(timeTextLine[1]));
+			} else {
+				timeText = timeText.replace('\n', ' ');
+				xTimeLeft1 = (width / 2) - (Theme.xAxisTextWidth(timeText) / 2);
+				timeWidth = Theme.xAxisTextWidth(timeText);
+			}
+			boolean roomForTimeLineAndTimestamp = yTimeBaseline2 > yTimelineTop + Theme.tickTextPadding + 2*markerWidth && timeWidth < width - 2*Theme.tilePadding;
+			boolean roomForTimestampOnly = yTimeBaseline2 > Theme.tilePadding && timeWidth < width - 2*Theme.tilePadding;
+			if((showTimeline && roomForTimeLineAndTimestamp) || (!showTimeline && roomForTimestampOnly)) {
+				if(useTwoLines) {
+					Theme.drawXaxisText(timeTextLine[0], (int) xTimeLeft1, (int) yTimeBaseline1);
+					Theme.drawXaxisText(timeTextLine[1], (int) xTimeLeft2, (int) yTimeBaseline2);
+				} else {
+					Theme.drawXaxisText(timeText, (int) xTimeLeft1, (int) yTimeBaseline1);
+				}
+			}
 		}
-		timeWidth = useTwoLines ? Float.max(FontUtils.xAxisTextWidth(timeTextLine[0]), FontUtils.xAxisTextWidth(timeTextLine[1])) : FontUtils.xAxisTextWidth(timeText);
 		
 		// x and y locations of the live view button
 		boolean showLiveViewButton = !OpenGLChartsRegion.instance.isLiveView();
 		String buttonText = "\u23ED";
-		float xButtonText = width - Theme.tilePadding - FontUtils.xAxisTextWidth(buttonText) - Theme.legendTextPadding;
+		float xButtonText = width - Theme.tilePadding - Theme.xAxisTextWidth(buttonText) - Theme.legendTextPadding;
 		float yButtonText = Theme.tilePadding + Theme.legendTextPadding;
 		if(showTimeline)
 			yButtonText += yTimelineTop;
 		float xButtonLeft = xButtonText - Theme.legendTextPadding;
 		float xButtonRight = width - Theme.tilePadding;
 		float yButtonBottom = yButtonText - Theme.legendTextPadding;
-		float yButtonTop = yButtonBottom + FontUtils.xAxisTextHeight + 2*Theme.legendTextPadding;
+		float yButtonTop = yButtonBottom + Theme.xAxisTextHeight + 2*Theme.legendTextPadding;
 		boolean mouseOverButton = mouseX >= xButtonLeft && mouseX <= xButtonRight && mouseY >= yButtonBottom && mouseY <= yButtonTop;
-		
-		// draw the time label if enabled, and if space is available
-		if(showTime) {
-			boolean roomForTimeLineAndTimestamp = yTimeBaseline2 > yTimelineTop + Theme.tickTextPadding + 2*markerWidth && timeWidth < width - 2*Theme.tilePadding;
-			boolean roomForTimestampOnly = yTimeBaseline2 > Theme.tilePadding && timeWidth < width - 2*Theme.tilePadding;
-			if((showTimeline && roomForTimeLineAndTimestamp) || (!showTimeline && roomForTimestampOnly)) {
-				if(useTwoLines) {
-					FontUtils.drawXaxisText(timeTextLine[0], (int) xTimeLeft1, (int) yTimeBaseline1);
-					FontUtils.drawXaxisText(timeTextLine[1], (int) xTimeLeft2, (int) yTimeBaseline2);
-				} else {
-					FontUtils.drawXaxisText(timeText, (int) xTimeLeft1, (int) yTimeBaseline1);
-				}
-			}
-		}
 		
 		// draw the timeline if enabled, and if space is available
 		if(showTimeline && timelineWidth > 0) {
@@ -152,19 +152,19 @@ public class OpenGLTimelineChart extends PositionedChart {
 			
 			// draw the tick text
 			for(Map.Entry<Float,String> entry : divisions.entrySet()) {
-				if(Theme.timestampAsTwoLines) {
+				if(twoLineTimestamps) {
 					String text = entry.getValue();
-					String[] tickLine = text.split(" ");
-					float x1 = entry.getKey() + xTimelineLeft - (FontUtils.tickTextWidth(tickLine[0]) / 2.0f);
-					float x2 = entry.getKey() + xTimelineLeft - (FontUtils.tickTextWidth(tickLine[1]) / 2.0f);
-					float y1 = yTimelineTextBaseline + 1.3f * FontUtils.tickTextHeight;
+					String[] tickLine = text.split("\n");
+					float x1 = entry.getKey() + xTimelineLeft - (Theme.tickTextWidth(tickLine[0]) / 2.0f);
+					float x2 = entry.getKey() + xTimelineLeft - (Theme.tickTextWidth(tickLine[1]) / 2.0f);
+					float y1 = yTimelineTextBaseline + 1.3f * Theme.tickTextHeight;
 					float y2 = yTimelineTextBaseline;
-					FontUtils.drawTickText(tickLine[0], (int) x1, (int) y1);
-					FontUtils.drawTickText(tickLine[1], (int) x2, (int) y2);
+					Theme.drawTickText(tickLine[0], (int) x1, (int) y1);
+					Theme.drawTickText(tickLine[1], (int) x2, (int) y2);
 				} else {
-					float x = entry.getKey() + xTimelineLeft - (FontUtils.tickTextWidth(entry.getValue()) / 2.0f);
+					float x = entry.getKey() + xTimelineLeft - (Theme.tickTextWidth(entry.getValue()) / 2.0f);
 					float y = yTimelineTextBaseline;
-					FontUtils.drawTickText(entry.getValue(), (int) x, (int) y);
+					Theme.drawTickText(entry.getValue(), (int) x, (int) y);
 				}
 			}
 			
@@ -195,14 +195,14 @@ public class OpenGLTimelineChart extends PositionedChart {
 					
 					mouseTimestamp = DatasetsController.getTimestamp(closestSampleNumber);
 					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
-					String[] text = new String[Theme.timestampAsTwoLines ? 3 : 2];
+					String[] text = new String[twoLineTimestamps ? 3 : 2];
 					text[0] = "Sample " + closestSampleNumber;
-					if(Theme.timestampAsTwoLines) {
-						String[] timestampLine = Theme.timestampFormatter.format(new Date(mouseTimestamp)).split(" ");
+					if(twoLineTimestamps) {
+						String[] timestampLine = Theme.tooltipTimestampFormatter.format(new Date(mouseTimestamp)).split("\n");
 						text[1] = timestampLine[0];
 						text[2] = timestampLine[1];
 					} else {
-						text[1] = Theme.timestampFormatter.format(new Date(mouseTimestamp));
+						text[1] = Theme.tooltipTimestampFormatter.format(new Date(mouseTimestamp));
 					}
 					ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
 				}
@@ -217,7 +217,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 				OpenGL.drawBoxOutline(gl, Theme.tickLinesColor, xButtonLeft, yButtonBottom, (xButtonRight - xButtonLeft), (yButtonTop - yButtonBottom));
 				handler = EventHandler.onPress(event -> OpenGLChartsRegion.instance.setLiveView());
 			}
-			FontUtils.drawXaxisText(buttonText, (int) xButtonText, (int) yButtonText);
+			Theme.drawXaxisText(buttonText, (int) xButtonText, (int) yButtonText);
 		}
 		
 		return handler;

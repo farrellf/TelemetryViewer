@@ -189,14 +189,14 @@ public class OpenGLDialChart extends PositionedChart {
 			meanText    = "Mean: " +    ChartUtils.formattedNumber(stats.getMean(), 6);
 			stdDevText  = "Std Dev: " + ChartUtils.formattedNumber(stats.getStandardDeviation(), 6);
 			
-			statsTextWidth = FontUtils.tickTextWidth(meanText) + Theme.tickTextPadding + FontUtils.tickTextWidth(stdDevText);
+			statsTextWidth = Theme.tickTextWidth(meanText) + Theme.tickTextPadding + Theme.tickTextWidth(stdDevText);
 			xMeanTextLeft = xPlotLeft;
-			xStdDevTextLeft = xPlotRight - FontUtils.tickTextWidth(stdDevText);
-			yStatsTextBaseline = yPlotTop - FontUtils.tickTextHeight;
+			xStdDevTextLeft = xPlotRight - Theme.tickTextWidth(stdDevText);
+			yStatsTextBaseline = yPlotTop - Theme.tickTextHeight;
 			
 			if(statsTextWidth < plotWidth) {
-				FontUtils.drawTickText(meanText,   (int) xMeanTextLeft,   (int) yStatsTextBaseline);
-				FontUtils.drawTickText(stdDevText, (int) xStdDevTextLeft, (int) yStatsTextBaseline);
+				Theme.drawTickText(meanText,   (int) xMeanTextLeft,   (int) yStatsTextBaseline);
+				Theme.drawTickText(stdDevText, (int) xStdDevTextLeft, (int) yStatsTextBaseline);
 			}
 			
 			yPlotTop = yStatsTextBaseline - Theme.tickTextPadding;
@@ -205,11 +205,11 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		if(showMinMaxLabels) {
 			yMinMaxLabelsBaseline = Theme.tilePadding;
-			yMinMaxLabelsTop = yMinMaxLabelsBaseline + FontUtils.tickTextHeight;
+			yMinMaxLabelsTop = yMinMaxLabelsBaseline + Theme.tickTextHeight;
 			minLabel = ChartUtils.formattedNumber(dialMin, 6);
 			maxLabel = ChartUtils.formattedNumber(dialMax, 6);
-			minLabelWidth = FontUtils.tickTextWidth(minLabel);
-			maxLabelWidth = FontUtils.tickTextWidth(maxLabel);
+			minLabelWidth = Theme.tickTextWidth(minLabel);
+			maxLabelWidth = Theme.tickTextWidth(maxLabel);
 			
 			yPlotBottom = yMinMaxLabelsTop + Theme.tickTextPadding;
 			plotHeight = yPlotTop - yPlotBottom;
@@ -226,14 +226,14 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		if(showReadingLabel) {
 			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets[0].unit;
-			readingLabelWidth = FontUtils.xAxisTextWidth(readingLabel);
+			readingLabelWidth = Theme.xAxisTextWidth(readingLabel);
 			xReadingLabelLeft = xCircleCenter - (readingLabelWidth / 2);
 			yReadingLabelBaseline = yPlotBottom;
-			yReadingLabelTop = yReadingLabelBaseline + FontUtils.xAxisTextHeight;
+			yReadingLabelTop = yReadingLabelBaseline + Theme.xAxisTextHeight;
 			readingLabelRadius = (float) Math.sqrt((readingLabelWidth / 2) * (readingLabelWidth / 2) + (yReadingLabelTop - yCircleCenter) * (yReadingLabelTop - yCircleCenter));
 			
 			if(readingLabelRadius + Theme.tickTextPadding < circleInnerRadius)
-				FontUtils.drawXaxisText(readingLabel, (int) xReadingLabelLeft, (int) yReadingLabelBaseline);
+				Theme.drawXaxisText(readingLabel, (int) xReadingLabelLeft, (int) yReadingLabelBaseline);
 		}
 		
 		if(showMinMaxLabels) {
@@ -241,21 +241,21 @@ public class OpenGLDialChart extends PositionedChart {
 			xMaxLabelLeft = xCircleCenter + circleOuterRadius - maxLabelWidth;
 			
 			if(xMinLabelLeft + minLabelWidth + Theme.tickTextPadding < xMaxLabelLeft - Theme.tickTextPadding) {
-				FontUtils.drawTickText(minLabel, (int) xMinLabelLeft, (int) yMinMaxLabelsBaseline);
-				FontUtils.drawTickText(maxLabel, (int) xMaxLabelLeft, (int) yMinMaxLabelsBaseline);
+				Theme.drawTickText(minLabel, (int) xMinLabelLeft, (int) yMinMaxLabelsBaseline);
+				Theme.drawTickText(maxLabel, (int) xMaxLabelLeft, (int) yMinMaxLabelsBaseline);
 			}
 		}
 		
 		if(showDatasetLabel) {
 			datasetLabel = datasets[0].name;
-			datasetLabelWidth = FontUtils.xAxisTextWidth(datasetLabel);
+			datasetLabelWidth = Theme.xAxisTextWidth(datasetLabel);
 			yDatasetLabelBaseline = showReadingLabel ? yReadingLabelTop + Theme.tickTextPadding + Theme.legendTextPadding : yPlotBottom;
-			yDatasetLabelTop = yDatasetLabelBaseline + FontUtils.xAxisTextHeight;
+			yDatasetLabelTop = yDatasetLabelBaseline + Theme.xAxisTextHeight;
 			xDatasetLabelLeft = xCircleCenter - (datasetLabelWidth / 2);
 			datasetLabelRadius = (float) Math.sqrt((datasetLabelWidth / 2) * (datasetLabelWidth / 2) + (yDatasetLabelTop - yCircleCenter) * (yDatasetLabelTop - yCircleCenter)) + Theme.legendTextPadding;
 			
 			if(datasetLabelRadius + Theme.tickTextPadding < circleInnerRadius) {
-				FontUtils.drawXaxisText(datasetLabel, (int) xDatasetLabelLeft, (int) yDatasetLabelBaseline);
+				Theme.drawXaxisText(datasetLabel, (int) xDatasetLabelLeft, (int) yDatasetLabelBaseline);
 				float xMouseoverLeft = xDatasetLabelLeft - Theme.legendTextPadding;
 				float xMouseoverRight = xDatasetLabelLeft + datasetLabelWidth + Theme.legendTextPadding;
 				float yMouseoverBottom = yDatasetLabelBaseline - Theme.legendTextPadding;

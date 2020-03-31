@@ -118,9 +118,9 @@ public class OpenGLCameraChart extends PositionedChart {
 		displayHeight = yDisplayTop - yDisplayBottom;
 
 		if(showLabel) {
-			labelWidth = FontUtils.xAxisTextWidth(f.label);
+			labelWidth = Theme.xAxisTextWidth(f.label);
 			yLabelBaseline = Theme.tilePadding;
-			yLabelTop = yLabelBaseline + FontUtils.xAxisTextHeight;
+			yLabelTop = yLabelBaseline + Theme.xAxisTextHeight;
 			xLabelLeft = (width / 2f) - (labelWidth / 2f);
 			xLabelRight = xLabelLeft + labelWidth;
 		
@@ -170,7 +170,7 @@ public class OpenGLCameraChart extends PositionedChart {
 		// draw the label, on top of a background quad, if there is room
 		if(showLabel && labelWidth < width - Theme.tilePadding * 2) {
 			OpenGL.drawQuad2D(gl, Theme.tileShadowColor, xLabelLeft - Theme.tickTextPadding, yLabelBaseline - Theme.tickTextPadding, xLabelRight + Theme.tickTextPadding, yLabelTop + Theme.tickTextPadding);
-			FontUtils.drawXaxisText(f.label, (int) xLabelLeft, (int) yLabelBaseline);
+			Theme.drawXaxisText(f.label, (int) xLabelLeft, (int) yLabelBaseline);
 		}
 		
 		return null;
