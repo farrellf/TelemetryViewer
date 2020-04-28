@@ -1,5 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * An object to store all bitfield events that will be displayed on a chart.
@@ -7,7 +9,7 @@ import java.util.List;
  */
 public class BitfieldEvents {
 	
-	List<EventsAtSampleNumber> events = new ArrayList<EventsAtSampleNumber>();
+	Map<Integer, EventsAtSampleNumber> events = new TreeMap<Integer, EventsAtSampleNumber>();
 	
 	/**
 	 * Adds a new event to the list.
@@ -19,24 +21,24 @@ public class BitfieldEvents {
 	public void add(int sampleNumber, String name, float[] glColor) {
 		
 		// check if an object already exists for this sample number
-		for(EventsAtSampleNumber event : events)
-			if(event.sampleNumber == sampleNumber) {
-				event.names.add(name);
-				event.glColors.add(glColor);
-				return;
-			}
+		if(events.containsKey(sampleNumber)) {
+			EventsAtSampleNumber event = events.get(sampleNumber);
+			event.names.add(name);
+			event.glColors.add(glColor);
+			return;
+		}
 		
 		// an object does not exist, so create a new one
-		events.add(new EventsAtSampleNumber(sampleNumber, name, glColor));
+		events.put(sampleNumber, new EventsAtSampleNumber(sampleNumber, name, glColor));
 		
 	}
 	
 	/**
-	 * @return    A List of all the events.
+	 * @return    A Collection of all the events.
 	 */
 	public List<EventsAtSampleNumber> get() {
 		
-		return events;
+		return new ArrayList<EventsAtSampleNumber>(events.values());
 		
 	}
 
