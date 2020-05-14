@@ -4,7 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 public class PlotMilliseconds extends Plot {
 	
@@ -172,10 +173,11 @@ public class PlotMilliseconds extends Plot {
 	/**
 	 * Step 4: Get the x-axis divisions.
 	 * 
+	 * @param gl           The OpenGL context.
 	 * @param plotWidth    The width of the plot region, in pixels.
 	 * @return             A Map where each value is a string to draw on screen, and each key is the pixelX location for it (0 = left edge of the plot)
 	 */
-	@Override public Map<Float, String> getXdivisions(float plotWidth) {
+	@Override public Map<Float, String> getXdivisions(GL2ES3 gl, float plotWidth) {
 			
 		Map<Float, String> divisions = new HashMap<Float, String>();
 		
@@ -212,7 +214,7 @@ public class PlotMilliseconds extends Plot {
 		                    showMinutes ? String.format("%02d:%02d.%03d",             minutes, seconds, milliseconds) :
 		                                  String.format("%02d.%03d",                           seconds, milliseconds);
 		
-		float maxLabelWidth = Float.max(Theme.tickTextWidth(leftLabel), Theme.tickTextWidth(rightLabel));
+		float maxLabelWidth = Float.max(OpenGL.smallTextWidth(gl, leftLabel), OpenGL.smallTextWidth(gl, rightLabel));
 		float padding = maxLabelWidth / 2f;
 		int divisionCount = (int) (plotWidth / (maxLabelWidth + padding));
 		
@@ -509,13 +511,13 @@ public class PlotMilliseconds extends Plot {
 	 * @param plotMinY       Y-axis value at the bottom of the plot.
 	 * @param plotMaxY       Y-axis value at the top of the plot.
 	 */
-	@Override public void drawNonCachedMode(GL2 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
+	@Override public void drawNonCachedMode(GL2ES3 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
 		
 		float plotRange = plotMaxY - plotMinY;
 		
 		// clip to the plot region
 		int[] originalScissorArgs = new int[4];
-		gl.glGetIntegerv(GL2.GL_SCISSOR_BOX, originalScissorArgs, 0);
+		gl.glGetIntegerv(GL3.GL_SCISSOR_BOX, originalScissorArgs, 0);
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, plotWidth, plotHeight);
 		
 		float[] plotMatrix = Arrays.copyOf(chartMatrix, 16);
@@ -535,14 +537,14 @@ public class PlotMilliseconds extends Plot {
 				if(datasets[i].isBitfield)
 					continue;
 				
-				OpenGL.drawLineStrip1D1D(gl, datasets[i].glColor, bufferX, buffersY[i], plotSampleCount);
+				OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets[i].glColor, bufferX, buffersY[i], plotSampleCount);
 				
 				// also draw points if there are relatively few samples on screen
 				float occupiedPlotWidthPercentage = (float) (DatasetsController.getTimestamp(maxSampleNumber) - DatasetsController.getTimestamp(minSampleNumber)) / (float) plotDomain;
 				float occupiedPlotWidth = plotWidth * occupiedPlotWidthPercentage;
-				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointSize);
+				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointWidth);
 				if(fewSamplesOnScreen)
-					OpenGL.drawPoints1D1D(gl, datasets[i].glColor, bufferX, buffersY[i], plotSampleCount);
+					OpenGL.drawPointsX_Y(gl, datasets[i].glColor, bufferX, buffersY[i], plotSampleCount);
 				
 			}
 		}
@@ -562,7 +564,7 @@ public class PlotMilliseconds extends Plot {
 		
 	}
 	
-	@Override public void drawCachedMode(GL2 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
+	@Override public void drawCachedMode(GL2ES3 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
 		
 		// create the off-screen framebuffer if this is the first draw call
 		if(fbHandle == null) {
@@ -582,26 +584,26 @@ public class PlotMilliseconds extends Plot {
 		// erase the invalid parts of the framebuffer
 		if(plotMinX < DatasetsController.getFirstTimestamp()) {
 			// if x<0 is on screen, we need to erase the x<0 region because it may have old data on it
-			gl.glEnable(GL2.GL_SCISSOR_TEST);
+			gl.glEnable(GL3.GL_SCISSOR_TEST);
 			int[] args = calculateScissorArgs(plotMaxX, plotMaxX + plotDomain, plotWidth, plotHeight);
 			gl.glScissor(args[0], args[1], args[2], args[3]);
 			gl.glClearColor(0, 0, 0, 0);
-			gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
-			gl.glDisable(GL2.GL_SCISSOR_TEST);
+			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			gl.glDisable(GL3.GL_SCISSOR_TEST);
 		}
 		if(draw1.enabled) {
-			gl.glEnable(GL2.GL_SCISSOR_TEST);
+			gl.glEnable(GL3.GL_SCISSOR_TEST);
 			gl.glScissor(draw1.scissorArgs[0], draw1.scissorArgs[1], draw1.scissorArgs[2], draw1.scissorArgs[3]);
 			gl.glClearColor(0, 0, 0, 0);
-			gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
-			gl.glDisable(GL2.GL_SCISSOR_TEST);
+			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			gl.glDisable(GL3.GL_SCISSOR_TEST);
 		}
 		if(draw2.enabled) {
-			gl.glEnable(GL2.GL_SCISSOR_TEST);
+			gl.glEnable(GL3.GL_SCISSOR_TEST);
 			gl.glScissor(draw2.scissorArgs[0], draw2.scissorArgs[1], draw2.scissorArgs[2], draw2.scissorArgs[3]);
 			gl.glClearColor(0, 0, 0, 0);
-			gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
-			gl.glDisable(GL2.GL_SCISSOR_TEST);
+			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			gl.glDisable(GL3.GL_SCISSOR_TEST);
 		}
 		
 		// adjust so: x = (x - plotMinX) / domain * plotWidth;
@@ -622,24 +624,24 @@ public class PlotMilliseconds extends Plot {
 				
 				float occupiedPlotWidthPercentage = (float) (DatasetsController.getTimestamp(maxSampleNumber) - DatasetsController.getTimestamp(minSampleNumber)) / (float) plotDomain;
 				float occupiedPlotWidth = plotWidth * occupiedPlotWidthPercentage;
-				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointSize);
+				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointWidth);
 				
 				if(draw1.enabled) {
-					gl.glEnable(GL2.GL_SCISSOR_TEST);
+					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(draw1.scissorArgs[0], draw1.scissorArgs[1], draw1.scissorArgs[2], draw1.scissorArgs[3]);
-					OpenGL.drawLineStrip1D1D(gl, datasets[i].glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
+					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets[i].glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
 					if(fewSamplesOnScreen)
-						OpenGL.drawPoints1D1D(gl, datasets[i].glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
-					gl.glDisable(GL2.GL_SCISSOR_TEST);
+						OpenGL.drawPointsX_Y(gl, datasets[i].glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
+					gl.glDisable(GL3.GL_SCISSOR_TEST);
 				}
 				
 				if(draw2.enabled) {
-					gl.glEnable(GL2.GL_SCISSOR_TEST);
+					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(draw2.scissorArgs[0], draw2.scissorArgs[1], draw2.scissorArgs[2], draw2.scissorArgs[3]);
-					OpenGL.drawLineStrip1D1D(gl, datasets[i].glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
+					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets[i].glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
 					if(fewSamplesOnScreen)
-						OpenGL.drawPoints1D1D(gl, datasets[i].glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
-					gl.glDisable(GL2.GL_SCISSOR_TEST);
+						OpenGL.drawPointsX_Y(gl, datasets[i].glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
+					gl.glDisable(GL3.GL_SCISSOR_TEST);
 				}
 				
 			}
@@ -735,7 +737,7 @@ public class PlotMilliseconds extends Plot {
 	 * 
 	 * @param gl    The OpenGL context.
 	 */
-	public void freeResources(GL2 gl) {
+	public void freeResources(GL2ES3 gl) {
 		
 		if(texHandle != null)
 			gl.glDeleteTextures(1, texHandle, 0);

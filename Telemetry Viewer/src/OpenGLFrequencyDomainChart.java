@@ -1,6 +1,7 @@
 import java.awt.Color;
 import java.util.Map;
-import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 /**
  * Renders a frequency domain chart, using one of three possible visualizations: Live View, Waveform View, or Waterfall View.
@@ -206,7 +207,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
@@ -273,7 +274,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			xLegendBorderLeft = Theme.tilePadding;
 			yLegendBorderBottom = Theme.tilePadding;
 			yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
-			yLegendTextTop = yLegendTextBaseline + Theme.legendTextHeight;
+			yLegendTextTop = yLegendTextBaseline + OpenGL.mediumTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 
 			legendMouseoverCoordinates = new float[datasets.length][4];
@@ -288,12 +289,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				
 				legendBoxCoordinates[i][0] = xOffset;
 				legendBoxCoordinates[i][1] = yLegendTextBaseline;
-				legendBoxCoordinates[i][2] = xOffset + Theme.legendTextHeight;
+				legendBoxCoordinates[i][2] = xOffset + OpenGL.mediumTextHeight;
 				legendBoxCoordinates[i][3] = yLegendTextTop;
 				
-				xOffset += Theme.legendTextHeight + Theme.legendTextPadding;
+				xOffset += OpenGL.mediumTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
-				xOffset += Theme.legendTextWidth(datasets[i].name) + Theme.legendNamesPadding;
+				xOffset += OpenGL.mediumTextWidth(gl, datasets[i].name) + Theme.legendNamesPadding;
 				
 				legendMouseoverCoordinates[i][2] = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][3] = yLegendBorderTop;
@@ -313,11 +314,11 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				
 				dftWindowLengthText = dftWindowLength + " sample rectangular window";
 				yDftWindowLengthTextBaseline = Theme.tilePadding;
-				xDftWindowLenghtTextLeft = width - Theme.tilePadding - Theme.tickTextWidth(dftWindowLengthText);
+				xDftWindowLenghtTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowLengthText);
 				
 				xDftInfoTextLeft = xDftWindowLenghtTextLeft;
 				
-				float temp = yDftWindowLengthTextBaseline + Theme.tickTextHeight + Theme.tickTextPadding;
+				float temp = yDftWindowLengthTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
 				if(yPlotBottom < temp) {
 					yPlotBottom = temp;
 					plotHeight = yPlotTop - yPlotBottom;
@@ -329,15 +330,15 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				int trueTotalSampleCount = windowCount * dftWindowLength;
 				dftWindowCountText = windowCount + " windows (total of " + trueTotalSampleCount + " samples)";
 				yDftWindowCountTextBaseline = Theme.tilePadding;
-				xDftWindowCountTextLeft = width - Theme.tilePadding - Theme.tickTextWidth(dftWindowCountText);
+				xDftWindowCountTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowCountText);
 				
 				dftWindowLengthText = dftWindowLength + " sample rectangular window";
-				yDftWindowLengthTextBaseline = yDftWindowCountTextBaseline + Theme.tickTextHeight + Theme.tickTextPadding;
-				xDftWindowLenghtTextLeft = width - Theme.tilePadding - Theme.tickTextWidth(dftWindowLengthText);
+				yDftWindowLengthTextBaseline = yDftWindowCountTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
+				xDftWindowLenghtTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowLengthText);
 				
 				xDftInfoTextLeft = Float.min(xDftWindowCountTextLeft, xDftWindowLenghtTextLeft);
 				
-				float temp = yDftWindowLengthTextBaseline + Theme.tickTextHeight + Theme.tickTextPadding;
+				float temp = yDftWindowLengthTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
 				if(yPlotBottom < temp) {
 					yPlotBottom = temp;
 					plotHeight = yPlotTop - yPlotBottom;
@@ -348,26 +349,26 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				minPowerText = "Power Range: 1e" + Math.round(plotMinPower);
 				maxPowerText = "1e" + Math.round(plotMaxPower);
 				yPowerTextBaseline = Theme.tilePadding;
-				yPowerTextTop = yPowerTextBaseline + Theme.tickTextHeight;
-				xMaxPowerTextLeft = width - Theme.tilePadding - Theme.tickTextWidth(maxPowerText);
+				yPowerTextTop = yPowerTextBaseline + OpenGL.smallTextHeight;
+				xMaxPowerTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, maxPowerText);
 				xPowerScaleRight = xMaxPowerTextLeft - Theme.tickTextPadding;
 				xPowerScaleLeft = xPowerScaleRight - (100 * Controller.getDisplayScalingFactor());
-				xMinPowerTextLeft = xPowerScaleLeft - Theme.tickTextPadding - Theme.tickTextWidth(minPowerText);
+				xMinPowerTextLeft = xPowerScaleLeft - Theme.tickTextPadding - OpenGL.smallTextWidth(gl, minPowerText);
 				
 				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);
 				int trueTotalSampleCount = windowCount * dftWindowLength;
 				dftWindowCountText = windowCount + " windows (total of " + trueTotalSampleCount + " samples)";
 				yDftWindowCountTextBaseline = yPowerTextTop + Theme.tickTextPadding;
-				xDftWindowCountTextLeft = width - Theme.tilePadding - Theme.tickTextWidth(dftWindowCountText);
+				xDftWindowCountTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowCountText);
 				
 				dftWindowLengthText = dftWindowLength + " sample rectangular window";
-				yDftWindowLengthTextBaseline = yDftWindowCountTextBaseline + Theme.tickTextHeight + Theme.tickTextPadding;
-				xDftWindowLenghtTextLeft = width - Theme.tilePadding - Theme.tickTextWidth(dftWindowLengthText);
+				yDftWindowLengthTextBaseline = yDftWindowCountTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
+				xDftWindowLenghtTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowLengthText);
 				
 				xDftInfoTextLeft = Float.min(xDftWindowCountTextLeft, xDftWindowLenghtTextLeft);
 				xDftInfoTextLeft = Float.min(xMinPowerTextLeft, xDftInfoTextLeft);
 				
-				float temp = yDftWindowLengthTextBaseline + Theme.tickTextHeight + Theme.tickTextPadding;
+				float temp = yDftWindowLengthTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
 				if(yPlotBottom < temp) {
 					yPlotBottom = temp;
 					plotHeight = yPlotTop - yPlotBottom;
@@ -378,9 +379,9 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		if(showYaxisTitle) {
 			xYaxisTitleTextTop = xPlotLeft;
-			xYaxisTitleTextBaseline = xYaxisTitleTextTop + Theme.yAxisTextHeight;
+			xYaxisTitleTextBaseline = xYaxisTitleTextTop + OpenGL.largeTextHeight;
 			yAxisTitle = chartType.equals("Waterfall View") ? "Time (Seconds)" : "Power (Watts)";
-			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (Theme.yAxisTextWidth(yAxisTitle) / 2.0f);
+			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (OpenGL.largeTextWidth(gl, yAxisTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
 			plotWidth = xPlotRight - xPlotLeft;
@@ -388,44 +389,44 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
-			yXaxisTitleTextTop = yXaxisTitleTextBasline + Theme.xAxisTextHeight;
+			yXaxisTitleTextTop = yXaxisTitleTextBasline + OpenGL.largeTextHeight;
 			xAxisTitle = "Frequency (Hertz)";
 			
 			if(!showLegend && !showDftInfo)
-				xXaxisTitleTextLeft = xPlotLeft + (plotWidth / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + (plotWidth / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			else if(showLegend && showDftInfo)
-				xXaxisTitleTextLeft = xLegendBorderRight + ((xDftInfoTextLeft - xLegendBorderRight) / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xLegendBorderRight + ((xDftInfoTextLeft - xLegendBorderRight) / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			else if(showLegend)
-				xXaxisTitleTextLeft = xLegendBorderRight + ((width - Theme.tilePadding - xLegendBorderRight)  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xLegendBorderRight + ((width - Theme.tilePadding - xLegendBorderRight)  / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			else if(showDftInfo)
-				xXaxisTitleTextLeft = xPlotLeft + ((xDftInfoTextLeft - xPlotLeft) / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + ((xDftInfoTextLeft - xPlotLeft) / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
 			if(yPlotBottom < temp) {
 				yPlotBottom = temp;
 				plotHeight = yPlotTop - yPlotBottom;
 				if(showYaxisTitle)
-					yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (Theme.yAxisTextWidth(yAxisTitle) / 2.0f);
+					yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (OpenGL.largeTextWidth(gl, yAxisTitle) / 2.0f);
 			}
 		}
 		
 		if(showXaxisScale) {
 			yXaxisTickTextBaseline = yPlotBottom;
-			yXaxisTickTextTop = yXaxisTickTextBaseline + Theme.tickTextHeight;
+			yXaxisTickTextTop = yXaxisTickTextBaseline + OpenGL.smallTextHeight;
 			yXaxisTickBottom = yXaxisTickTextTop + Theme.tickTextPadding;
 			yXaxisTickTop = yXaxisTickBottom + Theme.tickLength;
 			
 			yPlotBottom = yXaxisTickTop;
 			plotHeight = yPlotTop - yPlotBottom;
 			if(showYaxisTitle)
-				yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (Theme.yAxisTextWidth(yAxisTitle) / 2.0f);
+				yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (OpenGL.largeTextWidth(gl, yAxisTitle) / 2.0f);
 		}
 		
 		if(showYaxisScale) {
 			yDivisions = chartType.equals("Waterfall View") ? ChartUtils.getYdivisions125(plotHeight, plotMinY, plotMaxY) : ChartUtils.getLogYdivisions(plotHeight, plotMinY, plotMaxY);
 			float maxTextWidth = 0;
 			for(String text : yDivisions.values()) {
-				float textWidth = Theme.tickTextWidth(text);
+				float textWidth = OpenGL.smallTextWidth(gl, text);
 				if(textWidth > maxTextWidth)
 					maxTextWidth = textWidth;
 			}
@@ -438,17 +439,17 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			plotWidth = xPlotRight - xPlotLeft;
 			
 			if(showXaxisTitle && !showLegend && !showDftInfo)
-				xXaxisTitleTextLeft = xPlotLeft + (plotWidth / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + (plotWidth / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			else if(showXaxisTitle && showLegend && showDftInfo)
-				xXaxisTitleTextLeft = xLegendBorderRight + ((xDftInfoTextLeft - xLegendBorderRight) / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xLegendBorderRight + ((xDftInfoTextLeft - xLegendBorderRight) / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			else if(showXaxisTitle && showLegend)
-				xXaxisTitleTextLeft = xLegendBorderRight + ((width - Theme.tilePadding - xLegendBorderRight)  / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xLegendBorderRight + ((width - Theme.tilePadding - xLegendBorderRight)  / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			else if(showXaxisTitle && showDftInfo)
-				xXaxisTitleTextLeft = xPlotLeft + ((xDftInfoTextLeft - xPlotLeft) / 2.0f) - (Theme.xAxisTextWidth(xAxisTitle)  / 2.0f);
+				xXaxisTitleTextLeft = xPlotLeft + ((xDftInfoTextLeft - xPlotLeft) / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 		}
 		
 		// get the x divisions now that we know the final plot width
-		xDivisions = ChartUtils.getFloatXdivisions125(plotWidth, plotMinX, plotMaxX);
+		xDivisions = ChartUtils.getFloatXdivisions125(gl, plotWidth, plotMinX, plotMaxX);
 		
 		// stop if the plot is too small
 		if(plotWidth < 1 || plotHeight < 1)
@@ -470,12 +471,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			}
 			OpenGL.buffer.rewind();
 			int vertexCount = xDivisions.keySet().size() * 4;
-			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
+			OpenGL.drawLinesXyrgba(gl, GL3.GL_LINES, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : xDivisions.entrySet()) {
-				float x = (entry.getKey() - plotMinX) / domain * plotWidth + xPlotLeft - (Theme.tickTextWidth(entry.getValue()) / 2.0f);
+				float x = (entry.getKey() - plotMinX) / domain * plotWidth + xPlotLeft - (OpenGL.smallTextWidth(gl, entry.getValue()) / 2.0f);
 				float y = yXaxisTickTextBaseline;
-				Theme.drawTickText(entry.getValue(), (int) x, (int) y);
+				OpenGL.drawSmallText(gl, entry.getValue(), (int) x, (int) y, 0);
 			}
 		}
 		
@@ -492,12 +493,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			}
 			OpenGL.buffer.rewind();
 			int vertexCount = yDivisions.keySet().size() * 4;
-			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
+			OpenGL.drawLinesXyrgba(gl, GL3.GL_LINES, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : yDivisions.entrySet()) {
-				float x = xYaxisTickTextRight - Theme.tickTextWidth(entry.getValue());
-				float y = (entry.getKey() - plotMinY) / plotRange * plotHeight + yPlotBottom - (Theme.tickTextHeight / 2.0f);
-				Theme.drawTickText(entry.getValue(), (int) x, (int) y);
+				float x = xYaxisTickTextRight - OpenGL.smallTextWidth(gl, entry.getValue());
+				float y = (entry.getKey() - plotMinY) / plotRange * plotHeight + yPlotBottom - (OpenGL.smallTextHeight / 2.0f);
+				OpenGL.drawSmallText(gl, entry.getValue(), (int) x, (int) y, 0);
 			}
 		}
 		
@@ -512,7 +513,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(d));
 				}
 				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-				Theme.drawLegendText(datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline);
+				OpenGL.drawMediumText(gl, datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline, 0);
 			}
 		}
 		
@@ -521,19 +522,19 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		if(showDftInfo && spaceForDftInfoText && haveDatasets) {
 			if(chartType.equals("Live View")) {
 				
-				Theme.drawTickText(dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline);
+				OpenGL.drawSmallText(gl, dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline, 0);
 				
 			} else if(chartType.equals("Waveform View")) {
 				
-				Theme.drawTickText(dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline);
-				Theme.drawTickText(dftWindowCountText, (int) xDftWindowCountTextLeft, (int) yDftWindowCountTextBaseline);
+				OpenGL.drawSmallText(gl, dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline, 0);
+				OpenGL.drawSmallText(gl, dftWindowCountText, (int) xDftWindowCountTextLeft, (int) yDftWindowCountTextBaseline, 0);
 				
 			} else if(chartType.equals("Waterfall View")) {
 				
-				Theme.drawTickText(dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline);
-				Theme.drawTickText(dftWindowCountText, (int) xDftWindowCountTextLeft, (int) yDftWindowCountTextBaseline);
-				Theme.drawTickText(minPowerText, (int) xMinPowerTextLeft, (int) yPowerTextBaseline);
-				Theme.drawTickText(maxPowerText, (int) xMaxPowerTextLeft, (int) yPowerTextBaseline);
+				OpenGL.drawSmallText(gl, dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline, 0);
+				OpenGL.drawSmallText(gl, dftWindowCountText, (int) xDftWindowCountTextLeft, (int) yDftWindowCountTextBaseline, 0);
+				OpenGL.drawSmallText(gl, minPowerText, (int) xMinPowerTextLeft, (int) yPowerTextBaseline, 0);
+				OpenGL.drawSmallText(gl, maxPowerText, (int) xMaxPowerTextLeft, (int) yPowerTextBaseline, 0);
 				
 				OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPowerScaleLeft, yPowerTextBaseline, xPowerScaleRight, yPowerTextTop);
 				
@@ -549,7 +550,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					OpenGL.buffer.put(xPowerScaleRight); OpenGL.buffer.put(top);    OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(1);
 					OpenGL.buffer.put(xPowerScaleRight); OpenGL.buffer.put(bottom); OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(1);
 					OpenGL.buffer.rewind();
-					OpenGL.drawColoredTriangleStrip2D(gl, OpenGL.buffer, 4);
+					OpenGL.drawTrianglesXYRGBA(gl, GL3.GL_TRIANGLE_STRIP, OpenGL.buffer, 4);
 				}
 				
 				OpenGL.drawQuadOutline2D(gl, Theme.legendBackgroundColor, xPowerScaleLeft, yPowerTextBaseline, xPowerScaleRight, yPowerTextTop);
@@ -560,11 +561,11 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// draw the x-axis title if space is available
 		if(showXaxisTitle)
 			if((!showLegend && xXaxisTitleTextLeft > xPlotLeft) || (showLegend && xXaxisTitleTextLeft > xLegendBorderRight + Theme.legendTextPadding))
-				Theme.drawXaxisText(xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline);
+				OpenGL.drawLargeText(gl, xAxisTitle, (int) xXaxisTitleTextLeft, (int) yXaxisTitleTextBasline, 0);
 		
 		// draw the y-axis title if space is available
 		if(showYaxisTitle && yYaxisTitleTextLeft > yPlotBottom)
-			Theme.drawYaxisText(gl, yAxisTitle, (int) xYaxisTitleTextBaseline, (int) yYaxisTitleTextLeft, 90);
+			OpenGL.drawLargeText(gl, yAxisTitle, (int) xYaxisTitleTextBaseline, (int) yYaxisTitleTextLeft, 90);
 		
 		
 		// draw the DFTs
@@ -656,7 +657,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotTop);
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotBottom);
 					OpenGL.buffer.rewind();
-					OpenGL.drawLines2D(gl, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
+					OpenGL.drawLinesXy(gl, GL3.GL_LINES, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				} else {
 					ChartUtils.drawTooltip(gl, text, colors, (int) anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
@@ -671,9 +672,9 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public void flush(GL2 gl) {
+	@Override public void disposeGpu(GL2ES3 gl) {
 		
-		if(gl != null && cache != null)
+		if(cache != null)
 			cache.freeResources(gl);
 		cache = null;
 		

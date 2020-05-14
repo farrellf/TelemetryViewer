@@ -1,6 +1,8 @@
 import java.nio.FloatBuffer;
 import java.util.Arrays;
-import com.jogamp.opengl.GL2;
+
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 import com.jogamp.opengl.math.Quaternion;
 
 /**
@@ -64,7 +66,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		// don't draw if there are no samples
 		if(lastSampleNumber < 1)
@@ -87,9 +89,9 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		if(showTextLabel) {
 			textLabel = String.format("Quaternion (%+1.3f,%+1.3f,%+1.3f,%+1.3f)", q0, q1, q2, q3);
 			yTextLabelBaseline = Theme.tilePadding;
-			yTextLabelTop = yTextLabelBaseline + Theme.xAxisTextHeight;
-			xTextLabelLeft = (width / 2f) - (Theme.xAxisTextWidth(textLabel) / 2f);
-			xTextLabelRight = xTextLabelLeft + Theme.xAxisTextWidth(textLabel);
+			yTextLabelTop = yTextLabelBaseline + OpenGL.largeTextHeight;
+			xTextLabelLeft = (width / 2f) - (OpenGL.largeTextWidth(gl, textLabel) / 2f);
+			xTextLabelRight = xTextLabelLeft + OpenGL.largeTextWidth(gl, textLabel);
 		
 			yPlotBottom = yTextLabelTop + Theme.tickTextPadding;
 			yPlotTop = height - Theme.tilePadding;
@@ -133,30 +135,16 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		// swap x and z axes
 		OpenGL.rotateMatrix(modelMatrix, 90, 0, 0, 1);
 		
-		OpenGL.useMatrix(gl, modelMatrix);
-		
-		// setup the lights
-		gl.glEnable(GL2.GL_LIGHTING);
-		gl.glEnable(GL2.GL_LIGHT0);
-		gl.glEnable(GL2.GL_LIGHT1);
-		gl.glEnable(GL2.GL_LIGHT2);
-		gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_DIFFUSE,  new float[] {plotWidth/2, 0, 0, 1}, 0); // light0 diffuse color (red) and intensity
-		gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_POSITION, new float[] {0, -plotWidth, 0, 1}, 0);  // light0 at the front edge of the plot
-		gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_DIFFUSE,  new float[] {0, plotWidth/2, 0, 1}, 0); // light1 diffuse color (green) and intensity
-		gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, new float[] {plotWidth, 0, 0, 1}, 0);   // light1 at the right edge of the plot
-		gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_DIFFUSE,  new float[] {0, 0, plotWidth/2, 1}, 0); // light2 diffuse color (blue) and intensity
-		gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_POSITION, new float[] {0, 0, plotWidth, 1}, 0);   // light2 at the top edge of the plot
-
 		// draw the monkey
-		OpenGL.drawTriangles3D(gl, shape, shape.capacity() / 6);
-		gl.glDisable(GL2.GL_LIGHTING);
+		OpenGL.useMatrix(gl, modelMatrix);
+		OpenGL.drawTrianglesXYZUVW(gl, GL3.GL_TRIANGLES, shape, shape.capacity() / 6);
 		
 		OpenGL.useMatrix(gl, chartMatrix);
 
 		// draw the text, on top of a background quad, if there is room
-		if(showTextLabel && Theme.xAxisTextWidth(textLabel) < width - Theme.tilePadding * 2) {
+		if(showTextLabel && OpenGL.largeTextWidth(gl, textLabel) < width - Theme.tilePadding * 2) {
 			OpenGL.drawQuad2D(gl, Theme.tileShadowColor, xTextLabelLeft - Theme.tickTextPadding, yTextLabelBaseline - Theme.tickTextPadding, xTextLabelRight + Theme.tickTextPadding, yTextLabelTop + Theme.tickTextPadding);
-			Theme.drawXaxisText(textLabel, (int) xTextLabelLeft, (int) yTextLabelBaseline);
+			OpenGL.drawLargeText(gl, textLabel, (int) xTextLabelLeft, (int) yTextLabelBaseline, 0);
 		}
 		
 		return null;

@@ -1,5 +1,6 @@
 import java.awt.Dimension;
-import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 /**
  * Displays images from a camera.
@@ -81,7 +82,13 @@ public class OpenGLCameraChart extends PositionedChart {
 	
 	private void configureCamera(String name, boolean isMjpeg, Dimension requestedResolution) {
 		
-		// just reconnect if using the same camera as before
+		// if already connected, and nothing changed, do nothing
+		if(c != null && c.name.equals(name) && c.isConnected() && isMjpeg)
+			return;
+		if(c != null && c.name.equals(name) && c.isConnected() && !isMjpeg && c.getRequestedResolution().equals(requestedResolution))
+			return;
+		
+		// reconnect if using the same camera
 		if(c != null && c.name.equals(name)) {
 			c.connect(requestedResolution);
 			return;
@@ -96,7 +103,7 @@ public class OpenGLCameraChart extends PositionedChart {
 		
 	}
 
-	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 
 		// get the image
 		Camera.GLframe f = null;
@@ -118,9 +125,9 @@ public class OpenGLCameraChart extends PositionedChart {
 		displayHeight = yDisplayTop - yDisplayBottom;
 
 		if(showLabel) {
-			labelWidth = Theme.xAxisTextWidth(f.label);
+			labelWidth = OpenGL.largeTextWidth(gl, f.label);
 			yLabelBaseline = Theme.tilePadding;
-			yLabelTop = yLabelBaseline + Theme.xAxisTextHeight;
+			yLabelTop = yLabelBaseline + OpenGL.largeTextHeight;
 			xLabelLeft = (width / 2f) - (labelWidth / 2f);
 			xLabelRight = xLabelLeft + labelWidth;
 		
@@ -152,40 +159,44 @@ public class OpenGLCameraChart extends PositionedChart {
 		// draw the image
 		if(texHandle == null) {
 			texHandle = new int[1];
-			OpenGL.createTexture(gl, texHandle, f.width, f.height);
-			OpenGL.replaceTexture(gl, texHandle, f.width, f.height, f.buffer, f.isBgr);
+			OpenGL.createTexture(gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, true);
+			OpenGL.writeTexture (gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, f.buffer);
 			previousFrameTimestamp = f.timestamp;
 			cameraWidget.notifyHandler();
 		} else if(f.timestamp != previousFrameTimestamp) {
 			// only replace the texture if a new image is available
-			OpenGL.replaceTexture(gl, texHandle, f.width, f.height, f.buffer, f.isBgr);
+			OpenGL.writeTexture(gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, f.buffer);
 			previousFrameTimestamp = f.timestamp;
 		}
 		
-		     if(!mirrorX && !mirrorY) OpenGL.drawTexturedBox(gl, texHandle, xDisplayLeft,  yDisplayTop,     displayWidth, -displayHeight, 0, rotateClockwise);
-		else if( mirrorX && !mirrorY) OpenGL.drawTexturedBox(gl, texHandle, xDisplayRight, yDisplayTop,    -displayWidth, -displayHeight, 0, rotateClockwise);
-		else if(!mirrorX &&  mirrorY) OpenGL.drawTexturedBox(gl, texHandle, xDisplayLeft,  yDisplayBottom,  displayWidth,  displayHeight, 0, rotateClockwise);
-		else if( mirrorX &&  mirrorY) OpenGL.drawTexturedBox(gl, texHandle, xDisplayRight, yDisplayBottom, -displayWidth,  displayHeight, 0, rotateClockwise);
+		     if(!mirrorX && !mirrorY) OpenGL.drawTexturedBox(gl, texHandle, false, xDisplayLeft,  yDisplayTop,     displayWidth, -displayHeight, 0, rotateClockwise);
+		else if( mirrorX && !mirrorY) OpenGL.drawTexturedBox(gl, texHandle, false, xDisplayRight, yDisplayTop,    -displayWidth, -displayHeight, 0, rotateClockwise);
+		else if(!mirrorX &&  mirrorY) OpenGL.drawTexturedBox(gl, texHandle, false, xDisplayLeft,  yDisplayBottom,  displayWidth,  displayHeight, 0, rotateClockwise);
+		else if( mirrorX &&  mirrorY) OpenGL.drawTexturedBox(gl, texHandle, false, xDisplayRight, yDisplayBottom, -displayWidth,  displayHeight, 0, rotateClockwise);
 		
 		// draw the label, on top of a background quad, if there is room
 		if(showLabel && labelWidth < width - Theme.tilePadding * 2) {
 			OpenGL.drawQuad2D(gl, Theme.tileShadowColor, xLabelLeft - Theme.tickTextPadding, yLabelBaseline - Theme.tickTextPadding, xLabelRight + Theme.tickTextPadding, yLabelTop + Theme.tickTextPadding);
-			Theme.drawXaxisText(f.label, (int) xLabelLeft, (int) yLabelBaseline);
+			OpenGL.drawLargeText(gl, f.label, (int) xLabelLeft, (int) yLabelBaseline, 0);
 		}
 		
 		return null;
 		
 	}
 	
-	@Override public void flush(GL2 gl) {
+	@Override public void disposeNonGpu() {
 		
 		// disconnect from the camera
 		if(c != null)
 			DatasetsController.releaseCamera(c);
 		c = null;
 		
+	}
+	
+	@Override public void disposeGpu(GL2ES3 gl) {
+		
 		// free the texture
-		if(gl != null && texHandle != null)
+		if(texHandle != null)
 			gl.glDeleteTextures(1, texHandle, 0);
 		texHandle = null;
 		

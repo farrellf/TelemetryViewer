@@ -1,6 +1,8 @@
 import java.util.Date;
 import java.util.Map;
-import com.jogamp.opengl.GL2;
+
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 /**
  * Renders the label showing the date, and/or an interactive timeline.
@@ -61,7 +63,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
@@ -70,9 +72,9 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 		// x and y locations of the timeline
 		yTimelineTextBaseline = Theme.tilePadding;
-		yTimelineTextTop = yTimelineTextBaseline + Theme.tickTextHeight;
+		yTimelineTextTop = yTimelineTextBaseline + OpenGL.smallTextHeight;
 		if(twoLineTimestamps)
-			yTimelineTextTop += 1.3 * Theme.tickTextHeight;
+			yTimelineTextTop += 1.3 * OpenGL.smallTextHeight;
 		yTimelineTickBottom = yTimelineTextTop + Theme.tickTextPadding;
 		yTimelineTickTop = yTimelineTickBottom + Theme.tickLength;
 		xTimelineLeft = Theme.tilePadding;
@@ -87,33 +89,33 @@ public class OpenGLTimelineChart extends PositionedChart {
 		if(showTime) {
 			String timeText = Theme.timestampFormatter.format(new Date(DatasetsController.getTimestamp(lastSampleNumber)));
 			String[] timeTextLine = timeText.split("\n");
-			boolean useTwoLines = twoLineTimestamps && Theme.xAxisTextWidth(timeText.replace('\n', ' ')) > (width - 2*Theme.tilePadding);
+			boolean useTwoLines = twoLineTimestamps && OpenGL.largeTextWidth(gl, timeText.replace('\n', ' ')) > (width - 2*Theme.tilePadding);
 			if(showTimeline)
 				yTimeTop = height - Theme.tilePadding; // label at the top of the chart region
 			else if(useTwoLines)
-				yTimeTop = (height / 2) + (Theme.xAxisTextHeight * 2.3f / 2); // 2 line label centered in the chart region
+				yTimeTop = (height / 2) + (OpenGL.largeTextHeight * 2.3f / 2); // 2 line label centered in the chart region
 			else
-				yTimeTop = (height / 2) + (Theme.xAxisTextHeight / 2); // 1 line label centered in the chart region
-			yTimeBaseline1 = yTimeTop - Theme.xAxisTextHeight;
-			yTimeBaseline2 = useTwoLines ? yTimeBaseline1 - (1.3f * Theme.xAxisTextHeight) : yTimeBaseline1;
+				yTimeTop = (height / 2) + (OpenGL.largeTextHeight / 2); // 1 line label centered in the chart region
+			yTimeBaseline1 = yTimeTop - OpenGL.largeTextHeight;
+			yTimeBaseline2 = useTwoLines ? yTimeBaseline1 - (1.3f * OpenGL.largeTextHeight) : yTimeBaseline1;
 			timeHeight = useTwoLines ? yTimelineTop - yTimeBaseline2 : yTimelineTop - yTimeBaseline1;
 			if(useTwoLines) {
-				xTimeLeft1 = (width / 2) - (Theme.xAxisTextWidth(timeTextLine[0]) / 2);
-				xTimeLeft2 = (width / 2) - (Theme.xAxisTextWidth(timeTextLine[1]) / 2);
-				timeWidth = Float.max(Theme.xAxisTextWidth(timeTextLine[0]), Theme.xAxisTextWidth(timeTextLine[1]));
+				xTimeLeft1 = (width / 2) - (OpenGL.largeTextWidth(gl, timeTextLine[0]) / 2);
+				xTimeLeft2 = (width / 2) - (OpenGL.largeTextWidth(gl, timeTextLine[1]) / 2);
+				timeWidth = Float.max(OpenGL.largeTextWidth(gl, timeTextLine[0]), OpenGL.largeTextWidth(gl, timeTextLine[1]));
 			} else {
 				timeText = timeText.replace('\n', ' ');
-				xTimeLeft1 = (width / 2) - (Theme.xAxisTextWidth(timeText) / 2);
-				timeWidth = Theme.xAxisTextWidth(timeText);
+				xTimeLeft1 = (width / 2) - (OpenGL.largeTextWidth(gl, timeText) / 2);
+				timeWidth = OpenGL.largeTextWidth(gl, timeText);
 			}
 			boolean roomForTimeLineAndTimestamp = yTimeBaseline2 > yTimelineTop + Theme.tickTextPadding + 2*markerWidth && timeWidth < width - 2*Theme.tilePadding;
 			boolean roomForTimestampOnly = yTimeBaseline2 > Theme.tilePadding && timeWidth < width - 2*Theme.tilePadding;
 			if((showTimeline && roomForTimeLineAndTimestamp) || (!showTimeline && roomForTimestampOnly)) {
 				if(useTwoLines) {
-					Theme.drawXaxisText(timeTextLine[0], (int) xTimeLeft1, (int) yTimeBaseline1);
-					Theme.drawXaxisText(timeTextLine[1], (int) xTimeLeft2, (int) yTimeBaseline2);
+					OpenGL.drawLargeText(gl, timeTextLine[0], (int) xTimeLeft1, (int) yTimeBaseline1, 0);
+					OpenGL.drawLargeText(gl, timeTextLine[1], (int) xTimeLeft2, (int) yTimeBaseline2, 0);
 				} else {
-					Theme.drawXaxisText(timeText, (int) xTimeLeft1, (int) yTimeBaseline1);
+					OpenGL.drawLargeText(gl, timeText, (int) xTimeLeft1, (int) yTimeBaseline1, 0);
 				}
 			}
 		}
@@ -121,14 +123,14 @@ public class OpenGLTimelineChart extends PositionedChart {
 		// x and y locations of the live view button
 		boolean showLiveViewButton = !OpenGLChartsRegion.instance.isLiveView();
 		String buttonText = "\u23ED";
-		float xButtonText = width - Theme.tilePadding - Theme.xAxisTextWidth(buttonText) - Theme.legendTextPadding;
+		float xButtonText = width - Theme.tilePadding - OpenGL.largeTextWidth(gl, buttonText) - Theme.legendTextPadding;
 		float yButtonText = Theme.tilePadding + Theme.legendTextPadding;
 		if(showTimeline)
 			yButtonText += yTimelineTop;
 		float xButtonLeft = xButtonText - Theme.legendTextPadding;
 		float xButtonRight = width - Theme.tilePadding;
 		float yButtonBottom = yButtonText - Theme.legendTextPadding;
-		float yButtonTop = yButtonBottom + Theme.xAxisTextHeight + 2*Theme.legendTextPadding;
+		float yButtonTop = yButtonBottom + OpenGL.largeTextHeight + 2*Theme.legendTextPadding;
 		boolean mouseOverButton = mouseX >= xButtonLeft && mouseX <= xButtonRight && mouseY >= yButtonBottom && mouseY <= yButtonTop;
 		
 		// draw the timeline if enabled, and if space is available
@@ -137,7 +139,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 			// get the divisions
 			long minTimestamp = DatasetsController.getFirstTimestamp();
 			long maxTimestamp = DatasetsController.getTimestamp(trueLastSampleNumber);
-			Map<Float, String> divisions = ChartUtils.getTimestampDivisions(timelineWidth, minTimestamp, maxTimestamp);
+			Map<Float, String> divisions = ChartUtils.getTimestampDivisions(gl, timelineWidth, minTimestamp, maxTimestamp);
 			
 			// draw the tick lines
 			OpenGL.buffer.rewind();
@@ -148,23 +150,23 @@ public class OpenGLTimelineChart extends PositionedChart {
 			}
 			OpenGL.buffer.rewind();
 			int vertexCount = divisions.keySet().size() * 2;
-			OpenGL.drawColoredLines2D(gl, OpenGL.buffer, vertexCount);
+			OpenGL.drawLinesXyrgba(gl, GL3.GL_LINES, OpenGL.buffer, vertexCount);
 			
 			// draw the tick text
 			for(Map.Entry<Float,String> entry : divisions.entrySet()) {
 				if(twoLineTimestamps) {
 					String text = entry.getValue();
 					String[] tickLine = text.split("\n");
-					float x1 = entry.getKey() + xTimelineLeft - (Theme.tickTextWidth(tickLine[0]) / 2.0f);
-					float x2 = entry.getKey() + xTimelineLeft - (Theme.tickTextWidth(tickLine[1]) / 2.0f);
-					float y1 = yTimelineTextBaseline + 1.3f * Theme.tickTextHeight;
+					float x1 = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, tickLine[0]) / 2.0f);
+					float x2 = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, tickLine[1]) / 2.0f);
+					float y1 = yTimelineTextBaseline + 1.3f * OpenGL.smallTextHeight;
 					float y2 = yTimelineTextBaseline;
-					Theme.drawTickText(tickLine[0], (int) x1, (int) y1);
-					Theme.drawTickText(tickLine[1], (int) x2, (int) y2);
+					OpenGL.drawSmallText(gl, tickLine[0], (int) x1, (int) y1, 0);
+					OpenGL.drawSmallText(gl, tickLine[1], (int) x2, (int) y2, 0);
 				} else {
-					float x = entry.getKey() + xTimelineLeft - (Theme.tickTextWidth(entry.getValue()) / 2.0f);
+					float x = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, entry.getValue()) / 2.0f);
 					float y = yTimelineTextBaseline;
-					Theme.drawTickText(entry.getValue(), (int) x, (int) y);
+					OpenGL.drawSmallText(gl, entry.getValue(), (int) x, (int) y, 0);
 				}
 			}
 			
@@ -217,7 +219,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 				OpenGL.drawBoxOutline(gl, Theme.tickLinesColor, xButtonLeft, yButtonBottom, (xButtonRight - xButtonLeft), (yButtonTop - yButtonBottom));
 				handler = EventHandler.onPress(event -> OpenGLChartsRegion.instance.setLiveView());
 			}
-			Theme.drawXaxisText(buttonText, (int) xButtonText, (int) yButtonText);
+			OpenGL.drawLargeText(gl, buttonText, (int) xButtonText, (int) yButtonText, 0);
 		}
 		
 		return handler;

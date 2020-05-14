@@ -16,11 +16,6 @@
 			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/miglayout-4.0-javadoc.jar!/"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/jogamp-fat.jar" sourcepath="lib/jogamp-fat-java-src.zip">
-		<attributes>
-			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/jogl-javadoc.zip!/jogl/javadoc"/>
-		</attributes>
-	</classpathentry>
 	<classpathentry kind="lib" path="lib/slf4j-api-1.7.2.jar"/>
 	<classpathentry kind="lib" path="lib/slf4j-nop-1.7.2.jar"/>
 	<classpathentry kind="lib" path="lib/bridj-0.7-20140918.jar"/>
@@ -35,5 +30,29 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/turbojpeg.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-aarch64.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-armv6hf.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-linux-i586.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-windows-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-windows-i586.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/gluegen-javadoc.zip!/gluegen/javadoc"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-aarch64.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-armv6hf.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-linux-i586.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-i586.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all.jar" sourcepath="lib/jogamp-fat-java-src.zip">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/Telemetry%20Viewer/lib/jogl-javadoc.zip!/jogl/javadoc"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

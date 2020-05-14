@@ -2,12 +2,14 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.util.Hashtable;
 
 import javax.swing.Box;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.JTextField;
 import net.miginfocom.swing.MigLayout;
 
@@ -27,7 +29,7 @@ public class SettingsView extends JPanel {
 	JCheckBox timeFormat24hoursCheckbox;
 	JCheckBox showTooltipsCheckbox;
 	JCheckBox enableSmoothScrollingCheckbox;
-	JCheckBox enableAntialiasingCheckbox;
+	JSlider   antialiasingLevelSlider;
 	JCheckBox showFpsCheckbox;
 	JCheckBox showBenchmarksCheckbox;
 	
@@ -120,13 +122,6 @@ public class SettingsView extends JPanel {
 		
 		add(enableSmoothScrollingCheckbox, "span 2");
 		
-		// antialiasing
-		enableAntialiasingCheckbox = new JCheckBox("Enable OpenGL Antialiasing", SettingsController.getAntialiasing());
-		enableAntialiasingCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		enableAntialiasingCheckbox.addActionListener(event -> SettingsController.setAntialiasing(enableAntialiasingCheckbox.isSelected()));
-		
-		add(enableAntialiasingCheckbox, "span 2");
-		
 		// FPS
 		showFpsCheckbox = new JCheckBox("Show FPS and Period", SettingsController.getFpsVisibility());
 		showFpsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -151,6 +146,24 @@ public class SettingsView extends JPanel {
 		});
 		
 		add(showBenchmarksCheckbox, "span 2");
+		
+		// antialiasing
+		antialiasingLevelSlider = new JSlider(0, 5, (int) (Math.log(SettingsController.getAntialiasingLevel()) / Math.log(2)));
+		Hashtable<Integer, JLabel> labels = new Hashtable<Integer, JLabel>();
+		labels.put(0, new JLabel("1"));
+		labels.put(1, new JLabel("2"));
+		labels.put(2, new JLabel("4"));
+		labels.put(3, new JLabel("8"));
+		labels.put(4, new JLabel("16"));
+		labels.put(5, new JLabel("32"));
+		antialiasingLevelSlider.setLabelTable(labels);
+		antialiasingLevelSlider.setMajorTickSpacing(1);
+		antialiasingLevelSlider.setPaintTicks(true);
+		antialiasingLevelSlider.setPaintLabels(true);
+		antialiasingLevelSlider.addChangeListener(event -> SettingsController.setAntialiasingLevel((int) Math.pow(2, antialiasingLevelSlider.getValue())));
+		
+		add(new JLabel("Antialiasing: "));
+		add(antialiasingLevelSlider, "width 100%");
 		
 		// save the preferred size so this panel can be resized to hide or show
 		preferredSize = getPreferredSize();

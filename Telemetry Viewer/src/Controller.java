@@ -125,6 +125,7 @@ public class Controller {
 	public static void addChart(PositionedChart chart) {
 		
 		Model.charts.add(chart);
+		updateTileOccupancy(null);
 		
 	}
 	
@@ -155,6 +156,7 @@ public class Controller {
 		
 		chart.dispose();
 		Model.charts.remove(chart);
+		updateTileOccupancy(null);
 		
 		// invokeLater() in case we're changing chart types, because a new chart will be created immediately after removing this chart
 		SwingUtilities.invokeLater(() -> {
@@ -207,6 +209,41 @@ public class Controller {
 				return false;
 		
 		return true;
+		
+	}
+	
+	private static boolean[][] tileOccupied = new boolean[SettingsController.getTileColumns()][SettingsController.getTileRows()];
+	
+	/**
+	 * Updates the array that tracks which tiles in the OpenGLChartsRegion are occupied by charts.
+	 * 
+	 * @param removingChart    If not null, pretend this chart does not exist, so the tiles behind it will be drawn while this chart fades away.
+	 */
+	public static void updateTileOccupancy(PositionedChart removingChart) {
+		
+		int columns = SettingsController.getTileColumns();
+		int rows = SettingsController.getTileRows();
+		
+		tileOccupied = new boolean[columns][rows];
+		for(PositionedChart chart : getCharts()) {
+			for(int x = chart.topLeftX; x <= chart.bottomRightX; x++)
+				for(int y = chart.topLeftY; y <= chart.bottomRightY; y++)
+					tileOccupied[x][rows - y - 1] = true;
+		}
+		
+		if(removingChart != null)
+			for(int x = removingChart.topLeftX; x <= removingChart.bottomRightX; x++)
+				for(int y = removingChart.topLeftY; y <= removingChart.bottomRightY; y++)
+					tileOccupied[x][rows - y - 1] = false;
+		
+	}
+	
+	/**
+	 * @return    An array indicating which tiles in the OpenGLChartsRegion are occupied.
+	 */
+	public static boolean[][] getTileOccupancy() {
+		
+		return tileOccupied;
 		
 	}
 	
@@ -308,9 +345,9 @@ public class Controller {
 			outputFile.println("\tshow 24-hour time = " +          SettingsController.getTimeFormat24hours());
 			outputFile.println("\tshow plot tooltips = " +         SettingsController.getTooltipVisibility());
 			outputFile.println("\tsmooth scrolling = " +           SettingsController.getSmoothScrolling());
-			outputFile.println("\topengl antialiasing = " +        SettingsController.getAntialiasing());
 			outputFile.println("\tshow fps and period = " +        SettingsController.getFpsVisibility());
 			outputFile.println("\tchart index for benchmarks = " + SettingsController.getBenchmarkedChartIndex());
+			outputFile.println("\tantialiasing level = "         +  SettingsController.getAntialiasingLevel());
 			outputFile.println("");
 			
 			outputFile.println("Communication Settings:");
@@ -408,9 +445,9 @@ public class Controller {
 			boolean timeFormat24hours = ChartUtils.parseBoolean(lines.remove(), "show 24-hour time = %b");
 			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
 			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
-			boolean antialiasing      = ChartUtils.parseBoolean(lines.remove(), "opengl antialiasing = %b");
 			boolean fpsVisibility     = ChartUtils.parseBoolean(lines.remove(), "show fps and period = %b");
 			int chartIndex            = ChartUtils.parseInteger(lines.remove(), "chart index for benchmarks = %d");
+			int antialiasingLevel     = ChartUtils.parseInteger(lines.remove(), "antialiasing level = %d");
 			ChartUtils.parseExact(lines.remove(), "");
 			
 			SettingsController.setTileColumns(tileColumns);
@@ -419,8 +456,8 @@ public class Controller {
 			SettingsController.setTimeFormat24hours(timeFormat24hours);
 			SettingsController.setTooltipVisibility(tooltipVisibility);
 			SettingsController.setSmoothScrolling(smoothScrolling);
-			SettingsController.setAntialiasing(antialiasing);
 			SettingsController.setFpsVisibility(fpsVisibility);
+			SettingsController.setAntialiasingLevel(antialiasingLevel);
 
 			ChartUtils.parseExact(lines.remove(), "Communication Settings:");
 			ChartUtils.parseExact(lines.remove(), "");

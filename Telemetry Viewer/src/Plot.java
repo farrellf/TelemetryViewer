@@ -1,6 +1,6 @@
 import java.util.Map;
 
-import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES3;
 
 public abstract class Plot {
 	
@@ -45,10 +45,11 @@ public abstract class Plot {
 	/**
 	 * Step 4: Get the x-axis divisions.
 	 * 
+	 * @param gl           The OpenGL context.
 	 * @param plotWidth    The width of the plot region, in pixels.
 	 * @return             A Map where each value is a string to draw on screen, and each key is the pixelX location for it (0 = left edge of the plot)
 	 */
-	abstract Map<Float, String> getXdivisions(float plotWidth);
+	abstract Map<Float, String> getXdivisions(GL2ES3 gl, float plotWidth);
 	
 	/**
 	 * Step 5: Acquire the samples.
@@ -85,7 +86,7 @@ public abstract class Plot {
 	 * @param plotMinY       Y-axis value at the bottom of the plot.
 	 * @param plotMaxY       Y-axis value at the top of the plot.
 	 */
-	final void draw(GL2 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
+	final void draw(GL2ES3 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
 		
 		if(plotSampleCount < 2)
 			return;
@@ -96,8 +97,8 @@ public abstract class Plot {
 			drawNonCachedMode(gl, chartMatrix, xPlotLeft, yPlotBottom, plotWidth, plotHeight, plotMinY, plotMaxY);
 		
 	}
-	abstract void drawCachedMode   (GL2 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY);
-	abstract void drawNonCachedMode(GL2 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY);
+	abstract void drawCachedMode   (GL2ES3 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY);
+	abstract void drawNonCachedMode(GL2ES3 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY);
 	
 	/**
 	 * Step 7: Check if a tooltip should be drawn for the mouse's current location.
@@ -126,6 +127,6 @@ public abstract class Plot {
 		
 	}
 	
-	abstract public void freeResources(GL2 gl);
+	abstract public void freeResources(GL2ES3 gl);
 
 }

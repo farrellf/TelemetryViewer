@@ -1,5 +1,6 @@
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 /**
  * Renders a dial showing the value of the most recent sample.
@@ -150,7 +151,7 @@ public class OpenGLDialChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
@@ -189,14 +190,14 @@ public class OpenGLDialChart extends PositionedChart {
 			meanText    = "Mean: " +    ChartUtils.formattedNumber(stats.getMean(), 6);
 			stdDevText  = "Std Dev: " + ChartUtils.formattedNumber(stats.getStandardDeviation(), 6);
 			
-			statsTextWidth = Theme.tickTextWidth(meanText) + Theme.tickTextPadding + Theme.tickTextWidth(stdDevText);
+			statsTextWidth = OpenGL.smallTextWidth(gl, meanText) + Theme.tickTextPadding + OpenGL.smallTextWidth(gl, stdDevText);
 			xMeanTextLeft = xPlotLeft;
-			xStdDevTextLeft = xPlotRight - Theme.tickTextWidth(stdDevText);
-			yStatsTextBaseline = yPlotTop - Theme.tickTextHeight;
+			xStdDevTextLeft = xPlotRight - OpenGL.smallTextWidth(gl, stdDevText);
+			yStatsTextBaseline = yPlotTop - OpenGL.smallTextHeight;
 			
 			if(statsTextWidth < plotWidth) {
-				Theme.drawTickText(meanText,   (int) xMeanTextLeft,   (int) yStatsTextBaseline);
-				Theme.drawTickText(stdDevText, (int) xStdDevTextLeft, (int) yStatsTextBaseline);
+				OpenGL.drawSmallText(gl, meanText,   (int) xMeanTextLeft,   (int) yStatsTextBaseline, 0);
+				OpenGL.drawSmallText(gl, stdDevText, (int) xStdDevTextLeft, (int) yStatsTextBaseline, 0);
 			}
 			
 			yPlotTop = yStatsTextBaseline - Theme.tickTextPadding;
@@ -205,11 +206,11 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		if(showMinMaxLabels) {
 			yMinMaxLabelsBaseline = Theme.tilePadding;
-			yMinMaxLabelsTop = yMinMaxLabelsBaseline + Theme.tickTextHeight;
+			yMinMaxLabelsTop = yMinMaxLabelsBaseline + OpenGL.smallTextHeight;
 			minLabel = ChartUtils.formattedNumber(dialMin, 6);
 			maxLabel = ChartUtils.formattedNumber(dialMax, 6);
-			minLabelWidth = Theme.tickTextWidth(minLabel);
-			maxLabelWidth = Theme.tickTextWidth(maxLabel);
+			minLabelWidth = OpenGL.smallTextWidth(gl, minLabel);
+			maxLabelWidth = OpenGL.smallTextWidth(gl, maxLabel);
 			
 			yPlotBottom = yMinMaxLabelsTop + Theme.tickTextPadding;
 			plotHeight = yPlotTop - yPlotBottom;
@@ -226,14 +227,14 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		if(showReadingLabel) {
 			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets[0].unit;
-			readingLabelWidth = Theme.xAxisTextWidth(readingLabel);
+			readingLabelWidth = OpenGL.largeTextWidth(gl, readingLabel);
 			xReadingLabelLeft = xCircleCenter - (readingLabelWidth / 2);
 			yReadingLabelBaseline = yPlotBottom;
-			yReadingLabelTop = yReadingLabelBaseline + Theme.xAxisTextHeight;
+			yReadingLabelTop = yReadingLabelBaseline + OpenGL.largeTextHeight;
 			readingLabelRadius = (float) Math.sqrt((readingLabelWidth / 2) * (readingLabelWidth / 2) + (yReadingLabelTop - yCircleCenter) * (yReadingLabelTop - yCircleCenter));
 			
 			if(readingLabelRadius + Theme.tickTextPadding < circleInnerRadius)
-				Theme.drawXaxisText(readingLabel, (int) xReadingLabelLeft, (int) yReadingLabelBaseline);
+				OpenGL.drawLargeText(gl, readingLabel, (int) xReadingLabelLeft, (int) yReadingLabelBaseline, 0);
 		}
 		
 		if(showMinMaxLabels) {
@@ -241,21 +242,20 @@ public class OpenGLDialChart extends PositionedChart {
 			xMaxLabelLeft = xCircleCenter + circleOuterRadius - maxLabelWidth;
 			
 			if(xMinLabelLeft + minLabelWidth + Theme.tickTextPadding < xMaxLabelLeft - Theme.tickTextPadding) {
-				Theme.drawTickText(minLabel, (int) xMinLabelLeft, (int) yMinMaxLabelsBaseline);
-				Theme.drawTickText(maxLabel, (int) xMaxLabelLeft, (int) yMinMaxLabelsBaseline);
+				OpenGL.drawSmallText(gl, minLabel, (int) xMinLabelLeft, (int) yMinMaxLabelsBaseline, 0);
+				OpenGL.drawSmallText(gl, maxLabel, (int) xMaxLabelLeft, (int) yMinMaxLabelsBaseline, 0);
 			}
 		}
 		
 		if(showDatasetLabel) {
 			datasetLabel = datasets[0].name;
-			datasetLabelWidth = Theme.xAxisTextWidth(datasetLabel);
+			datasetLabelWidth = OpenGL.largeTextWidth(gl, datasetLabel);
 			yDatasetLabelBaseline = showReadingLabel ? yReadingLabelTop + Theme.tickTextPadding + Theme.legendTextPadding : yPlotBottom;
-			yDatasetLabelTop = yDatasetLabelBaseline + Theme.xAxisTextHeight;
+			yDatasetLabelTop = yDatasetLabelBaseline + OpenGL.largeTextHeight;
 			xDatasetLabelLeft = xCircleCenter - (datasetLabelWidth / 2);
 			datasetLabelRadius = (float) Math.sqrt((datasetLabelWidth / 2) * (datasetLabelWidth / 2) + (yDatasetLabelTop - yCircleCenter) * (yDatasetLabelTop - yCircleCenter)) + Theme.legendTextPadding;
 			
 			if(datasetLabelRadius + Theme.tickTextPadding < circleInnerRadius) {
-				Theme.drawXaxisText(datasetLabel, (int) xDatasetLabelLeft, (int) yDatasetLabelBaseline);
 				float xMouseoverLeft = xDatasetLabelLeft - Theme.legendTextPadding;
 				float xMouseoverRight = xDatasetLabelLeft + datasetLabelWidth + Theme.legendTextPadding;
 				float yMouseoverBottom = yDatasetLabelBaseline - Theme.legendTextPadding;
@@ -265,6 +265,7 @@ public class OpenGLDialChart extends PositionedChart {
 					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
 					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(datasets[0]));
 				}
+				OpenGL.drawLargeText(gl, datasetLabel, (int) xDatasetLabelLeft, (int) yDatasetLabelBaseline, 0);
 			}
 		}
 		
@@ -293,7 +294,7 @@ public class OpenGLDialChart extends PositionedChart {
 			
 		}
 		OpenGL.buffer.rewind();
-		OpenGL.drawColoredTriangles2D(gl, OpenGL.buffer, 6 * dialResolution);
+		OpenGL.drawTrianglesXYRGBA(gl, GL3.GL_TRIANGLES, OpenGL.buffer, 6 * dialResolution);
 		
 		return handler;
 		

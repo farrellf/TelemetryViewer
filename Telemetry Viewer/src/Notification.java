@@ -9,6 +9,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
+import net.miginfocom.swing.MigLayout;
+
 /**
  * A JPanel that shows a message. A background color is used to indicate the type of message, and the message briefly blinks to draw the user's attention.
  */
@@ -55,7 +57,8 @@ public class Notification extends JPanel {
 		
 		setBorder(BorderFactory.createMatteBorder(Theme.padding, 0, 0, 0, FADE_OUT_COLOR));
 		setBackground(color);
-		add(label);
+		setLayout(new MigLayout("", "[grow]"));
+		add(label, "align center");
 		
 		// animate a short blink of color to get the user's attention
 		blinkCount = 0;

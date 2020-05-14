@@ -47,6 +47,7 @@ public class Camera {
 	public String name;
 	private boolean isMjpeg;
 	private Webcam camera;
+	private Dimension requestedResolution;
 	
 	// images in memory
 	private volatile GLframe liveImage = new GLframe(null, true, 1, 1, "[waiting]", 0);
@@ -131,6 +132,8 @@ public class Camera {
 			thread = new Thread(() -> {
 				
 				try {
+					
+					this.requestedResolution = null;
 					
 					// connect to the stream
 					liveImage = new GLframe(null, true, 1, 1, "[connecting...]", 0);
@@ -227,6 +230,9 @@ public class Camera {
 					return;
 				}
 				
+				// save the requested resolution so it can be queried in the future
+				this.requestedResolution = requestedResolution;
+				
 				try {
 					// the webcam library requires the requested resolution to be one of the predefined "custom view sizes"
 					// so we must predefine all of the options shown by WidgetCamera
@@ -289,6 +295,27 @@ public class Camera {
 		}
 		
 		liveImage = new GLframe(null, true, 1, 1, "[stopped]", 0);
+		
+	}
+	
+	/**
+	 * @return    True if the camera is connected or in the process of connecting.
+	 */
+	public boolean isConnected() {
+		
+		return thread.isAlive();
+		
+	}
+	
+	/**
+	 * Gets the resolution that the user requested. This may be different from the resolution provided from the camera.
+	 * Call this method to check if you need to disconnect/reconnect because the user is requesting a different resolution.
+	 * 
+	 * @return    The resolution requested by the user the last time connect() was called.
+	 */
+	public Dimension getRequestedResolution() {
+		
+		return requestedResolution;
 		
 	}
 	
@@ -392,7 +419,7 @@ public class Camera {
 			tjd.close();
 			oldImage = new GLframe(bgrBytes, true, width, height, label, info.timestamp);
 			return oldImage;
-		} catch(Exception e) {
+		} catch(Error | Exception e) {
 			// fallback to the JRE library
 			try {
 				BufferedImage bi = ImageIO.read(new ByteArrayInputStream(jpegBytes));
@@ -554,7 +581,7 @@ public class Camera {
 					bgrBytes = new byte[width * height * 3];
 					tjd.decompress(bgrBytes, 0, 0, width, 0, height, TJ.PF_BGR, 0);
 					tjd.close();
-				} catch(Exception e) {
+				} catch(Error | Exception e) {
 					// fallback to the JRE library
 					BufferedImage bi = ImageIO.read(new ByteArrayInputStream(jpegBytes));
 					width = bi.getWidth();
@@ -611,7 +638,7 @@ public class Camera {
 				jpegBytes = tjc.compress(0);
 				jpegBytesLength = tjc.getCompressedSize();
 				tjc.close();
-			} catch(Exception e) {
+			} catch(Error | Exception e) {
 				// fallback to the JRE library
 				try {
 					// convert rgb to bgr

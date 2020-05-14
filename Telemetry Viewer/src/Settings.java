@@ -27,8 +27,8 @@ public class Settings {
 	// if logitech smooth scrolling should be enabled
 	static boolean smoothScrolling = true;
 	
-	// if the OpenGL stuff should be antialiased
-	static boolean antialiasing = true;
+	// OpenGL multisample (MSAA) level, use 1 to disable antialiasing
+	static int antialiasingLevel = 16;
 	
 	// if the FPS and period should be drawn
 	static boolean fpsVisibility = false;

@@ -1,6 +1,8 @@
 import java.text.SimpleDateFormat;
 import java.util.List;
 
+import javax.swing.SwingUtilities;
+
 /**
  * The Settings / SettingsView / SettingsController classes form the MVC that manage GUI-related settings.
  * Settings can be changed when the user interacts with the GUI or opens a Layout file.
@@ -27,6 +29,7 @@ public class SettingsController {
 		// apply change
 		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
 		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
+		Controller.updateTileOccupancy(null);
 		OpenGLChartsRegion.instance.tileColumns = Settings.tileColumns;
 		OpenGLChartsRegion.instance.tileRows = Settings.tileRows;
 		
@@ -60,6 +63,7 @@ public class SettingsController {
 		// apply change
 		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
 		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
+		Controller.updateTileOccupancy(null);
 		OpenGLChartsRegion.instance.tileColumns = Settings.tileColumns;
 		OpenGLChartsRegion.instance.tileRows = Settings.tileRows;
 		
@@ -217,27 +221,6 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Enables or disables antialiasing.
-	 * 
-	 * @param value    True to enable, false to disable.
-	 */
-	public static void setAntialiasing(boolean value) {
-		
-		Settings.antialiasing = value;
-		SettingsView.instance.enableAntialiasingCheckbox.setSelected(value);
-		
-	}
-	
-	/**
-	 * @return    True if antialiasing is enabled.
-	 */
-	public static boolean getAntialiasing() {
-		
-		return Settings.antialiasing;
-		
-	}
-	
-	/**
 	 * Changes the FPS/period visibility.
 	 * 
 	 * @param value    True to enable, false to disable.
@@ -322,6 +305,30 @@ public class SettingsController {
 				return i;
 		
 		return -1;
+		
+	}
+	
+	/**
+	 * Sets the OpenGL multisample (MSAA) level.
+	 * 
+	 * @param level    MSAA level, use 1 to disable antialiasing.
+	 */
+	public static void setAntialiasingLevel(int level) {
+		
+		if(Settings.antialiasingLevel != level)
+			SwingUtilities.invokeLater(() -> OpenGLChartsRegion.regenerate());
+		
+		Settings.antialiasingLevel = level;
+		SettingsView.instance.antialiasingLevelSlider.setValue((int) (Math.log(level) / Math.log(2)));
+		
+	}
+	
+	/**
+	 * @return    True if antialiasing is enabled.
+	 */
+	public static int getAntialiasingLevel() {
+		
+		return Settings.antialiasingLevel;
 		
 	}
 	

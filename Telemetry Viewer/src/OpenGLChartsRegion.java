@@ -1,17 +1,20 @@
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
-import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLEventListener;
@@ -28,6 +31,10 @@ import com.jogamp.opengl.util.Animator;
 public class OpenGLChartsRegion extends JPanel {
 	
 	static OpenGLChartsRegion instance = new OpenGLChartsRegion();
+	
+	static boolean firstRun = true;
+	
+	List<PositionedChart> chartsToDispose = new ArrayList<PositionedChart>();
 	
 	Animator animator;
 	GLCanvas glCanvas;
@@ -82,8 +89,6 @@ public class OpenGLChartsRegion extends JPanel {
 	int[] gpuQueryHandles = new int[2];
 	long[] gpuTimes = new long[2];
 	
-	boolean antialiasing;
-	
 	JFrame parentWindow;
 	
 	float[] screenMatrix = new float[16];
@@ -107,53 +112,90 @@ public class OpenGLChartsRegion extends JPanel {
 		mouseX = -1;
 		mouseY = -1;
 		
-		antialiasing = false;
-		
 		parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
 		
+		System.out.println(GLProfile.glAvailabilityToString());
+//		System.setProperty("jogl.debug.GLSLCode", "");
+//		System.setProperty("jogl.debug.DebugGL", "");
 		GLCapabilities capabilities = null;
 		try {
-			capabilities = new GLCapabilities(GLProfile.get(GLProfile.GL2));
-		} catch(Exception | InternalError e) {
-			NotificationsController.showFailureForSeconds("Error: Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\"", 999, false);
-			return;
+			// try to get normal OpenGL
+			capabilities = new GLCapabilities(GLProfile.get(GLProfile.GL3));
+			if(SettingsController.getAntialiasingLevel() > 1) {
+				capabilities.setSampleBuffers(true);
+				capabilities.setNumSamples(SettingsController.getAntialiasingLevel());
+			}
+		} catch(Error | Exception e) {
+			try {
+				// fall back to OpenGL ES
+				capabilities = new GLCapabilities(GLProfile.get(GLProfile.GLES3));
+				if(SettingsController.getAntialiasingLevel() > 1) {
+					capabilities.setSampleBuffers(true);
+					capabilities.setNumSamples(SettingsController.getAntialiasingLevel());
+				}
+			} catch(Error | Exception e2) {
+				NotificationsController.showFailureForSeconds("Error: Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\n\n" + e2.getMessage() + "\"", 999, false);
+				return;
+			}
 		}
 		glCanvas = new GLCanvas(capabilities);
 		glCanvas.addGLEventListener(new GLEventListener() {
 
 			@Override public void init(GLAutoDrawable drawable) {
 				
-				GL2 gl = drawable.getGL().getGL2();
+				GL2ES3 gl = drawable.getGL().getGL2ES3();
 			
-				gl.glEnable(GL2.GL_BLEND);
-				gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+				gl.glEnable(GL3.GL_BLEND);
+				gl.glBlendFunc(GL3.GL_SRC_ALPHA, GL3.GL_ONE_MINUS_SRC_ALPHA);
 				
-				if(SettingsController.getAntialiasing()) {
-					gl.glEnable(GL2.GL_POINT_SMOOTH);
-				    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
-					gl.glEnable(GL2.GL_LINE_SMOOTH);
-				    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
-				    antialiasing = true;
+				// ensure the requested AA level is supported 
+				if(SettingsController.getAntialiasingLevel() > 1) {
+					int[] number = new int[1];
+					gl.glGetIntegerv(GL3.GL_MAX_SAMPLES, number, 0);
+					if(number[0] < SettingsController.getAntialiasingLevel())
+						SettingsController.setAntialiasingLevel(number[0]);
 				}
-			    
-				gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
-			    
-				gl.glLineWidth(Theme.lineWidth);
-				gl.glPointSize(Theme.pointSize);
 				
 				gl.setSwapInterval(1);
 				
 				gl.glGenQueries(2, gpuQueryHandles, 0);
+				// insert both queries to prevent a warning on the first time they are read
+				gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
+				gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
 				
 				OpenGL.makeAllPrograms(gl);
 				
 				displayScalingFactor = Controller.getDisplayScalingFactor();
-				Theme.initialize(displayScalingFactor);
+				Theme.initialize(gl, displayScalingFactor);
+				
+//				if(firstRun) {
+//					
+//					firstRun = false;
+//					int[] number = new int[2];
+//					StringBuilder text = new StringBuilder(65536);
+//					                                                               text.append("GL_VENDOR                    = " + gl.glGetString(GL3.GL_VENDOR) + "\n");
+//					                                                               text.append("GL_RENDERER                  = " + gl.glGetString(GL3.GL_RENDERER) + "\n");
+//					                                                               text.append("GL_VERSION                   = " + gl.glGetString(GL3.GL_VERSION) + "\n");
+//					                                                               text.append("GL_SHADING_LANGUAGE_VERSION  = " + gl.glGetString(GL3.GL_SHADING_LANGUAGE_VERSION) + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAJOR_VERSION, number, 0);             text.append("GL_MAJOR_VERSION             = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MINOR_VERSION, number, 0);             text.append("GL_MINOR_VERSION             = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAX_SAMPLES, number, 0);               text.append("GL_MAX_SAMPLES               = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAX_TEXTURE_SIZE, number, 0);          text.append("GL_MAX_TEXTURE_SIZE          = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAX_RENDERBUFFER_SIZE, number, 0);     text.append("GL_MAX_RENDERBUFFER_SIZE     = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAX_VIEWPORT_DIMS, number, 0);         text.append("GL_MAX_VIEWPORT_DIMS         = " + number[0] + " x " + number[1] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAX_DRAW_BUFFERS, number, 0);          text.append("GL_MAX_DRAW_BUFFERS          = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_MAX_COLOR_TEXTURE_SAMPLES, number, 0); text.append("GL_MAX_COLOR_TEXTURE_SAMPLES = " + number[0] + "\n");
+//					gl.glGetIntegerv(GL3.GL_NUM_EXTENSIONS, number, 0);            text.append(number[0] + " EXTENSIONS: " + gl.glGetStringi(GL3.GL_EXTENSIONS, 0));
+//					for(int i = 1; i < number[0]; i++)                             text.append(", " + gl.glGetStringi(GL3.GL_EXTENSIONS, i));
+//					NotificationsController.showVerboseForSeconds("OpenGL Information:\n" + text.toString(), 999, true);
+//					
+//				}
+				
 			}
 						
 			@Override public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
 				
-				GL2 gl = drawable.getGL().getGL2();
+				GL2ES3 gl = drawable.getGL().getGL2ES3();
 				
 				// work around java 9+ dpi scaling problem with JOGL
 				displayScalingFactorJava9 = (float) ((Graphics2D) getGraphics()).getTransform().getScaleX();
@@ -177,47 +219,50 @@ public class OpenGLChartsRegion extends JPanel {
 				int tileHeight  = canvasHeight / tileRows;
 				int tilesYoffset = canvasHeight - (tileHeight * tileRows);
 				
-				// update the theme if the display scaling factor has changed
-				float newDisplayScalingFactor = Controller.getDisplayScalingFactor();
-				if(displayScalingFactor != newDisplayScalingFactor) {
-					Theme.initialize(newDisplayScalingFactor);
-					displayScalingFactor = newDisplayScalingFactor;
-				}
-				
 				// prepare OpenGL
-				GL2 gl = drawable.getGL().getGL2();
+				GL2ES3 gl = drawable.getGL().getGL2ES3();
 				OpenGL.useMatrix(gl, screenMatrix);
 				
 				gl.glClearColor(Theme.neutralColor[0], Theme.neutralColor[1], Theme.neutralColor[2], Theme.neutralColor[3]);
-				gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
+				gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
 				
-				gl.glLineWidth(Theme.lineWidth);
-				gl.glPointSize(Theme.pointSize);
+				// dispose of any charts that were just removed
+				for(PositionedChart chart : chartsToDispose)
+					chart.disposeGpu(gl);
+				chartsToDispose.clear();
 				
-				// enable or disable antialiasing as needed
-				if(antialiasing != SettingsController.getAntialiasing()) {
-					antialiasing = SettingsController.getAntialiasing();
-					if(antialiasing) {
-						gl.glEnable(GL2.GL_POINT_SMOOTH);
-					    gl.glHint(GL2.GL_POINT_SMOOTH_HINT, GL2.GL_FASTEST);
-						gl.glEnable(GL2.GL_LINE_SMOOTH);
-					    gl.glHint(GL2.GL_LINE_SMOOTH_HINT, GL2.GL_FASTEST);
-					} else {
-						gl.glDisable(GL2.GL_POINT_SMOOTH);
-						gl.glDisable(GL2.GL_LINE_SMOOTH);
-					}
+				// update the theme if the display scaling factor has changed
+				float newDisplayScalingFactor = Controller.getDisplayScalingFactor();
+				if(displayScalingFactor != newDisplayScalingFactor) {
+					Theme.initialize(gl, newDisplayScalingFactor);
+					displayScalingFactor = newDisplayScalingFactor;
 				}
 				
+				List<PositionedChart> charts = Controller.getCharts();
+				
 				// if there is no connection and no charts, we're done, do not draw any tiles
-				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+				if(!CommunicationController.isConnected() && charts.isEmpty())
 					return;
 				
-				// draw every tile
-				for(int column = 0; column < tileColumns; column++) {
-					for(int row = 0; row < tileRows; row++) {
-						int lowerLeftX = tileWidth * column;
-						int lowerLeftY = tileHeight * row + tilesYoffset;
-						drawTile(gl, lowerLeftX, lowerLeftY, tileWidth, tileHeight);
+				// if there are no charts, ensure we switch back to live view
+				if(charts.isEmpty())
+					liveView = true;
+				
+				// if the maximized chart was removed, forget about it
+				if(maximizedChart != null && !charts.contains(maximizedChart))
+					maximizedChart = null;
+				
+				// draw empty tiles if necessary
+				if(maximizing || demaximizing || maximizedChart == null) {
+					boolean[][] tileOccupied = Controller.getTileOccupancy();
+					for(int column = 0; column < tileColumns; column++) {
+						for(int row = 0; row < tileRows; row++) {
+							if(!tileOccupied[column][row]) {
+								int lowerLeftX = tileWidth * column;
+								int lowerLeftY = tileHeight * row + tilesYoffset;
+								drawTile(gl, lowerLeftX, lowerLeftY, tileWidth, tileHeight);
+							}
+						}
 					}
 				}
 				
@@ -229,11 +274,6 @@ public class OpenGLChartsRegion extends JPanel {
 				               (Math.abs(endX - startX) + 1) * tileWidth,
 				               (Math.abs(endY - startY) + 1) * tileHeight);
 				
-				// if there are no charts, ensure we switch back to live view
-				List<PositionedChart> charts = Controller.getCharts();
-				if(charts.size() == 0)
-					liveView = true;
-				
 				int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSampleNumber;
 				
 				// ensure active slots don't get flushed to disk
@@ -244,10 +284,6 @@ public class OpenGLChartsRegion extends JPanel {
 						firstSampleNumberOnScreen = lastSampleNumberOnScreen - c.sampleCount;
 				}
 				DatasetsController.dontFlushRangeOnScreen(firstSampleNumberOnScreen, lastSampleNumberOnScreen);
-				
-				// if the maximized chart was removed, forget about it
-				if(maximizedChart != null && !charts.contains(maximizedChart))
-					maximizedChart = null;
 				
 				// draw the charts
 				//
@@ -266,8 +302,8 @@ public class OpenGLChartsRegion extends JPanel {
 					// calculate cpu/gpu benchmarks for this chart if benchmarking
 					if(chart == SettingsController.getBenchmarkedChart()) {
 						previousCpuMilliseconds = (cpuStopNanoseconds - cpuStartNanoseconds) / 1000000.0;
-						gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL2.GL_QUERY_RESULT, gpuTimes, 0);
-						gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL2.GL_QUERY_RESULT, gpuTimes, 1);
+						gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL3.GL_QUERY_RESULT, gpuTimes, 0);
+						gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL3.GL_QUERY_RESULT, gpuTimes, 1);
 						previousGpuMilliseconds = (gpuTimes[1] - gpuTimes[0]) / 1000000.0;
 						if(count < SAMPLE_COUNT) {
 							cpuMillisecondsAccumulator += previousCpuMilliseconds;
@@ -281,10 +317,10 @@ public class OpenGLChartsRegion extends JPanel {
 							count = 0;
 						}
 						cpuStartNanoseconds = System.nanoTime();
-						gl.glQueryCounter(gpuQueryHandles[0], GL2.GL_TIMESTAMP);
+						gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
 					}
 					
-					// draw the tile
+					// size the chart
 					int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
 					int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
 					int xOffset = chart.topLeftX * tileWidth;
@@ -354,35 +390,37 @@ public class OpenGLChartsRegion extends JPanel {
 					width  -= 2 * Theme.tilePadding;
 					height -= 2 * Theme.tilePadding;
 					
-					gl.glEnable(GL2.GL_SCISSOR_TEST);
+					if(width < 1 || height < 1)
+						continue;
+					
+					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(xOffset, yOffset, width, height);
 					
 					float[] chartMatrix = Arrays.copyOf(screenMatrix, 16);
 					OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
 					OpenGL.useMatrix(gl, chartMatrix);
 					
-					Theme.setChartOffset(xOffset, yOffset, canvasWidth, canvasHeight);
 					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					
 					// draw the cpu/gpu benchmarks for this chart if benchmarking
 					if(chart == SettingsController.getBenchmarkedChart()) {
 						cpuStopNanoseconds = System.nanoTime();
-						gl.glQueryCounter(gpuQueryHandles[1], GL2.GL_TIMESTAMP);
+						gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
 						gl.glScissor((int) (xOffset - Theme.tilePadding), (int) (yOffset - Theme.tilePadding), (int) (width + 2 * Theme.tilePadding), (int) (height + 2 * Theme.tilePadding));
 						OpenGL.translateMatrix(chartMatrix, 0, -Theme.tilePadding, 0);
 						OpenGL.useMatrix(gl, chartMatrix);
 						String line1 = String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
 						String line2 = String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds);
-						float textHeight = 2 * Theme.tickTextHeight + Theme.tickTextPadding;
-						float textWidth = Float.max(Theme.tickTextWidth(line1), Theme.tickTextWidth(line2));
+						float textHeight = 2 * OpenGL.smallTextHeight + Theme.tickTextPadding;
+						float textWidth = Float.max(OpenGL.smallTextWidth(gl, line1), OpenGL.smallTextWidth(gl, line2));
 						OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
-						Theme.drawTickText(line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding - Theme.tilePadding + Theme.tickTextHeight));
-						Theme.drawTickText(line2, (int) Theme.tickTextPadding, (int) (Theme.tickTextPadding - Theme.tilePadding));
+						OpenGL.drawSmallText(gl, line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding + OpenGL.smallTextHeight), 0);
+						OpenGL.drawSmallText(gl, line2, (int) Theme.tickTextPadding, (int) Theme.tickTextPadding, 0);
 						NotificationsController.showVerboseForSeconds(line1 + ", " + line2, 1, false);
 					}
 					
 					OpenGL.useMatrix(gl, screenMatrix);
-					gl.glDisable(GL2.GL_SCISSOR_TEST);
+					gl.glDisable(GL3.GL_SCISSOR_TEST);
 
 					// check if the mouse is over this chart
 					width += (int) Theme.tileShadowOffset;
@@ -410,25 +448,21 @@ public class OpenGLChartsRegion extends JPanel {
 				if(SettingsController.getFpsVisibility()) {
 					String text = String.format("%2.1fFPS, %dms", animator.getLastFPS(), animator.getLastFPSPeriod());
 					int padding = 10;
-					float textHeight = Theme.xAxisTextHeight;
-					float textWidth = Theme.xAxisTextWidth(text);
+					float textHeight = OpenGL.largeTextHeight;
+					float textWidth = OpenGL.largeTextWidth(gl, text);
 					OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + padding*2, textHeight + padding*2);
-					Theme.setChartOffset(0, 0, canvasWidth, canvasHeight);
-					Theme.drawXaxisText(text, padding, padding);
+					OpenGL.drawLargeText(gl, text, padding, padding, 0);
 					NotificationsController.showVerboseForSeconds(text, 1, false);
 				}
-				
-				// work around a memory leak
-				Theme.fixMemoryLeak();
 				
 			}
 			
 			@Override public void dispose(GLAutoDrawable drawable) {
 				
-				GL2 gl = drawable.getGL().getGL2();
+				GL2ES3 gl = drawable.getGL().getGL2ES3();
 				
 				for(PositionedChart chart : Controller.getCharts())
-					chart.dispose();
+					chart.disposeGpu(gl);
 				
 				gl.glDeleteQueries(2, gpuQueryHandles, 0);
 				
@@ -625,6 +659,42 @@ public class OpenGLChartsRegion extends JPanel {
 		
 	}
 	
+	/**
+	 * Replaces the glCanvas. This method must be called when the antialiasing level changes.
+	 */
+	public static void regenerate() {
+		
+		boolean updateWindow = false;
+		for(Component c : Main.window.getContentPane().getComponents())
+			if(c == instance)
+				updateWindow = true;
+		
+		if(updateWindow)
+			Main.window.remove(instance);
+		
+		// save state
+		boolean liveView = instance.liveView;
+		int nonLiveViewSampleNumber = instance.nonLiveViewSampleNumber;
+		double zoomLevel = instance.zoomLevel;
+		PositionedChart maximizedChart = instance.maximizedChart;
+
+		// regenerate
+		instance = new OpenGLChartsRegion();
+		
+		// restore state
+		instance.liveView = liveView;
+		instance.nonLiveViewSampleNumber = nonLiveViewSampleNumber;
+		instance.zoomLevel = zoomLevel;
+		instance.maximizedChart = maximizedChart;
+		
+		if(updateWindow) {
+			Main.window.add(instance, BorderLayout.CENTER);
+			Main.window.revalidate();
+			Main.window.repaint();
+		}
+		
+	}
+	
 	public boolean isLiveView() { return liveView; }
 	public void setLiveView()   { liveView = true; }
 	public void setNonLiveView(int sampleNumber) {
@@ -661,15 +731,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 * @param width         Total region width, including the tile, drop-shadow and margin.
 	 * @param height        Total region height, including the tile, drop-shadow and margin.
 	 */
-	private void drawTile(GL2 gl, int lowerLeftX, int lowerLeftY, int width, int height) {
-		
-		// draw the background (margin)
-		OpenGL.drawBox(gl,
-		               Theme.neutralColor,
-		               lowerLeftX,
-		               lowerLeftY,
-		               width,
-		               height);
+	private void drawTile(GL2ES3 gl, int lowerLeftX, int lowerLeftY, int width, int height) {
 		
 		// draw the tile's drop-shadow
 		OpenGL.drawBox(gl,
@@ -699,7 +761,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 * @param width      Chart region width.
 	 * @param height     Chart region height.
 	 */
-	private void drawChartCloseButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
+	private void drawChartCloseButton(GL2ES3 gl, int xOffset, int yOffset, int width, int height) {
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
 		float inset = buttonWidth * 0.2f;
@@ -722,7 +784,7 @@ public class OpenGLChartsRegion extends JPanel {
 		OpenGL.buffer.put(buttonXleft  + inset); OpenGL.buffer.put(buttonYbottom + inset);
 		OpenGL.buffer.put(buttonXright - inset); OpenGL.buffer.put(buttonYtop    - inset);
 		OpenGL.buffer.rewind();
-		OpenGL.drawLines2D(gl, mouseOverButton ? white : black, OpenGL.buffer, 4);
+		OpenGL.drawLinesXy(gl, GL3.GL_LINES, mouseOverButton ? white : black, OpenGL.buffer, 4);
 		
 		// event handler
 		if(mouseOverButton)
@@ -730,6 +792,7 @@ public class OpenGLChartsRegion extends JPanel {
 				removing = true;
 				removingChart = chartUnderMouse;
 				removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
+				Controller.updateTileOccupancy(removingChart);
 			});
 		
 	}
@@ -744,7 +807,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 * @param width      Chart region width.
 	 * @param height     Chart region height.
 	 */
-	private void drawChartMaximizeButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
+	private void drawChartMaximizeButton(GL2ES3 gl, int xOffset, int yOffset, int width, int height) {
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
 		float inset = buttonWidth * 0.2f;
@@ -791,7 +854,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 * @param width      Chart region width.
 	 * @param height     Chart region height.
 	 */
-	private void drawChartSettingsButton(GL2 gl, int xOffset, int yOffset, int width, int height) {
+	private void drawChartSettingsButton(GL2ES3 gl, int xOffset, int yOffset, int width, int height) {
 		
 		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
 		float offset = (buttonWidth + 1) * 2;
@@ -824,7 +887,7 @@ public class OpenGLChartsRegion extends JPanel {
 			OpenGL.buffer.put(y);
 		}
 		OpenGL.buffer.rewind();
-		OpenGL.drawLineLoop2D(gl, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
+		OpenGL.drawLinesXy(gl, GL3.GL_LINE_LOOP, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
 		
 		// draw the hole
 		OpenGL.buffer.rewind();
@@ -835,7 +898,7 @@ public class OpenGLChartsRegion extends JPanel {
 			OpenGL.buffer.put(y);
 		}
 		OpenGL.buffer.rewind();
-		OpenGL.drawLineLoop2D(gl, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
+		OpenGL.drawLinesXy(gl, GL3.GL_LINE_LOOP, mouseOverButton ? white : black, OpenGL.buffer, vertexCount);
 		
 		// event handler
 		if(mouseOverButton)
