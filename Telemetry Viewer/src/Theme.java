@@ -14,8 +14,9 @@ import com.jogamp.opengl.GL2ES3;
 public class Theme {
 
 	// general swing
-	public static Color jpanelColor = new JPanel().getBackground();
-	public static int   padding     = Integer.parseInt(System.getProperty("java.version").split("\\.")[0]) >= 9 ? 5 : (int) (5 * Controller.getDisplayScalingFactor());
+	public static Color jpanelColor         = new JPanel().getBackground();
+	public static int   padding             = Integer.parseInt(System.getProperty("java.version").split("\\.")[0]) >= 9 ? 5 : (int) (5 * ChartsController.getDisplayScalingFactor());
+	public static Color defaultDatasetColor = Color.RED;
 	
 	// general opengl
 	public static float lineWidth = 1.0f;

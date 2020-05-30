@@ -153,7 +153,7 @@ public class WidgetTextfieldsOptionalMinMax extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(Controller.QueueOfLines lines) {
+	@Override public void importState(CommunicationController.QueueOfLines lines) {
 
 		// parse the text
 		boolean autoscaleMin = ChartUtils.parseBoolean(lines.remove(), "autoscale " + prefix.trim().toLowerCase() + " minimum = %b");

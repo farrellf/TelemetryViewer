@@ -7,22 +7,17 @@ import java.io.ObjectOutputStream;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-
 import com.jogamp.common.nio.Buffers;
 
 public class DatasetsController {
 
 	private static Map<Integer, Dataset> datasets = new TreeMap<Integer, Dataset>();
 	private static AtomicInteger sampleCount = new AtomicInteger(0);
-	private static List<Consumer<Boolean>> sampleCountListeners = new ArrayList<Consumer<Boolean>>(); // true = (sampleCount >= 1)
 	
 	public static final int SLOT_SIZE = 1048576; // 1M values
 	public static final int SLOT_COUNT = Integer.MAX_VALUE / SLOT_SIZE + 1; // +1 to round up
@@ -105,28 +100,6 @@ public class DatasetsController {
 	private static int maximumSampleNumberExporting = -1;
 	
 	/**
-	 * Registers a listener that will be notified when the sample count is set to 1 or 0, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addSampleCountListener(Consumer<Boolean> listener) {
-		
-		sampleCountListeners.add(listener);
-		notifySampleCountListeners();
-		
-	}
-	
-	/**
-	 * Notifies all registered listeners about the sample count.
-	 */
-	private static void notifySampleCountListeners() {
-		
-		for(Consumer<Boolean> listener : sampleCountListeners)
-			listener.accept(sampleCount.get() >= 1);
-		
-	}
-	
-	/**
 	 * @return    The number of fields in the data structure.
 	 */
 	public static int getDatasetsCount() {
@@ -179,12 +152,12 @@ public class DatasetsController {
 	 */
 	public static boolean removeDataset(int location) {
 		
-		PositionedChart[] charts = Controller.getCharts().toArray(new PositionedChart[0]);
+		PositionedChart[] charts = ChartsController.getCharts().toArray(new PositionedChart[0]);
 		for(PositionedChart chart : charts)
 			if(chart.datasets != null)
 				for(Dataset dataset : chart.datasets)
 					if(dataset.location == location)
-						Controller.removeChart(chart);
+						ChartsController.removeChart(chart);
 		
 		Dataset removedDataset = datasets.remove(location);
 		if(removedDataset != null)
@@ -201,7 +174,8 @@ public class DatasetsController {
 			sampleCount.set(0);
 			firstTimestamp = 0;
 			
-			notifySampleCountListeners();
+			CommunicationView.instance.allowExporting(false);
+			OpenGLChartsView.instance.switchToLiveView();
 		}
 		
 		if(removedDataset == null)
@@ -216,7 +190,7 @@ public class DatasetsController {
 	 */
 	public static void removeAllDatasets() {
 		
-		Controller.removeAllCharts();
+		ChartsController.removeAllCharts();
 		
 		for(Dataset dataset : getAllDatasets())
 			for(Dataset.Slot slot : dataset.slots)
@@ -236,7 +210,8 @@ public class DatasetsController {
 			camera.dispose();
 		cameras.clear();
 		
-		notifySampleCountListeners();
+		CommunicationView.instance.allowExporting(false);
+		OpenGLChartsView.instance.switchToLiveView();
 		
 	}
 	
@@ -261,7 +236,8 @@ public class DatasetsController {
 		for(Camera camera : cameras.keySet())
 			camera.dispose();
 		
-		notifySampleCountListeners();
+		CommunicationView.instance.allowExporting(false);
+		OpenGLChartsView.instance.switchToLiveView();
 		
 	}
 	
@@ -291,7 +267,8 @@ public class DatasetsController {
 		int newSampleCount = sampleCount.incrementAndGet();
 		if(newSampleCount == 1) {
 			firstTimestamp = timestamps[0].getValue(0);
-			notifySampleCountListeners();
+			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
+				CommunicationView.instance.allowExporting(true);
 		}
 		
 	}
@@ -313,7 +290,8 @@ public class DatasetsController {
 		int newSampleCount = sampleCount.incrementAndGet();
 		if(newSampleCount == 1) {
 			firstTimestamp = timestamps[0].getValue(0);
-			notifySampleCountListeners();
+			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
+				CommunicationView.instance.allowExporting(true);
 		}
 		
 	}

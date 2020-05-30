@@ -1,4 +1,5 @@
 import java.awt.Dimension;
+
 import com.jogamp.opengl.GL2ES3;
 import com.jogamp.opengl.GL3;
 
@@ -109,12 +110,12 @@ public class OpenGLCameraChart extends PositionedChart {
 		Camera.GLframe f = null;
 		if(c == null)
 			f = new Camera.GLframe(null, true, 1, 1, "[camera unavailable]", 0);
-		else if(OpenGLChartsRegion.instance.liveView && !CommunicationController.getPort().equals(Communication.PORT_FILE))
+		else if(OpenGLChartsView.instance.liveView && !CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
 			f = c.getLiveImage();
-		else if(OpenGLChartsRegion.instance.liveView && CommunicationController.getPort().equals(Communication.PORT_FILE))
+		else if(OpenGLChartsView.instance.liveView && CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
 			f = c.getImageBeforeTimestamp(DatasetsController.getTimestamp(lastSampleNumber));
 		else
-			f = c.getImageBeforeTimestamp(DatasetsController.getTimestamp(OpenGLChartsRegion.instance.nonLiveViewSampleNumber));
+			f = c.getImageBeforeTimestamp(DatasetsController.getTimestamp(OpenGLChartsView.instance.nonLiveViewSampleNumber));
 		
 		// calculate x and y positions of everything
 		xDisplayLeft = Theme.tilePadding;

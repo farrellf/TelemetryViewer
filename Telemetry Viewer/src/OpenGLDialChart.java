@@ -92,7 +92,7 @@ public class OpenGLDialChart extends PositionedChart {
 	
 	@Override public String toString() {
 		
-		return "Dial Chart";
+		return "Dial";
 		
 	}
 	

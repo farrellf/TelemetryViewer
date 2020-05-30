@@ -38,7 +38,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 	
 	@Override public String toString() {
 		
-		return "Quaternion Chart";
+		return "Quaternion";
 		
 	}
 	

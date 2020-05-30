@@ -28,9 +28,9 @@ import com.jogamp.opengl.util.Animator;
  * Users can click-and-drag in this region to create new charts or interact with existing charts.
  */
 @SuppressWarnings("serial")
-public class OpenGLChartsRegion extends JPanel {
+public class OpenGLChartsView extends JPanel {
 	
-	static OpenGLChartsRegion instance = new OpenGLChartsRegion();
+	static OpenGLChartsView instance = new OpenGLChartsView();
 	
 	static boolean firstRun = true;
 	
@@ -93,7 +93,7 @@ public class OpenGLChartsRegion extends JPanel {
 	
 	float[] screenMatrix = new float[16];
 	
-	private OpenGLChartsRegion() {
+	private OpenGLChartsView() {
 		
 		super();
 		
@@ -114,7 +114,7 @@ public class OpenGLChartsRegion extends JPanel {
 		
 		parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
 		
-		System.out.println(GLProfile.glAvailabilityToString());
+//		System.out.println(GLProfile.glAvailabilityToString());
 //		System.setProperty("jogl.debug.GLSLCode", "");
 //		System.setProperty("jogl.debug.DebugGL", "");
 		GLCapabilities capabilities = null;
@@ -134,7 +134,7 @@ public class OpenGLChartsRegion extends JPanel {
 					capabilities.setNumSamples(SettingsController.getAntialiasingLevel());
 				}
 			} catch(Error | Exception e2) {
-				NotificationsController.showFailureForSeconds("Error: Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\n\n" + e2.getMessage() + "\"", 999, false);
+				NotificationsController.showFailureForSeconds("Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\n\n" + e2.getMessage() + "\"", 999, false);
 				return;
 			}
 		}
@@ -165,7 +165,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				OpenGL.makeAllPrograms(gl);
 				
-				displayScalingFactor = Controller.getDisplayScalingFactor();
+				displayScalingFactor = ChartsController.getDisplayScalingFactor();
 				Theme.initialize(gl, displayScalingFactor);
 				
 //				if(firstRun) {
@@ -209,7 +209,7 @@ public class OpenGLChartsRegion extends JPanel {
 				canvasWidth = width;
 				canvasHeight = height;
 				
-				Controller.setDisplayScalingFactorJava9(displayScalingFactorJava9);
+				ChartsController.setDisplayScalingFactorJava9(displayScalingFactorJava9);
 				
 			}
 
@@ -232,16 +232,16 @@ public class OpenGLChartsRegion extends JPanel {
 				chartsToDispose.clear();
 				
 				// update the theme if the display scaling factor has changed
-				float newDisplayScalingFactor = Controller.getDisplayScalingFactor();
+				float newDisplayScalingFactor = ChartsController.getDisplayScalingFactor();
 				if(displayScalingFactor != newDisplayScalingFactor) {
 					Theme.initialize(gl, newDisplayScalingFactor);
 					displayScalingFactor = newDisplayScalingFactor;
 				}
 				
-				List<PositionedChart> charts = Controller.getCharts();
+				List<PositionedChart> charts = ChartsController.getCharts();
 				
 				// if there is no connection and no charts, we're done, do not draw any tiles
-				if(!CommunicationController.isConnected() && charts.isEmpty())
+				if(!(CommunicationController.isConnected() && CommunicationController.isDataStructureDefined()) && charts.isEmpty())
 					return;
 				
 				// if there are no charts, ensure we switch back to live view
@@ -254,7 +254,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				// draw empty tiles if necessary
 				if(maximizing || demaximizing || maximizedChart == null) {
-					boolean[][] tileOccupied = Controller.getTileOccupancy();
+					boolean[][] tileOccupied = ChartsController.getTileOccupancy();
 					for(int column = 0; column < tileColumns; column++) {
 						for(int row = 0; row < tileRows; row++) {
 							if(!tileOccupied[column][row]) {
@@ -279,7 +279,7 @@ public class OpenGLChartsRegion extends JPanel {
 				// ensure active slots don't get flushed to disk
 				int lastSampleNumberOnScreen = lastSampleNumber;
 				int firstSampleNumberOnScreen = lastSampleNumberOnScreen;
-				for(PositionedChart c : Controller.getCharts()) {
+				for(PositionedChart c : ChartsController.getCharts()) {
 					if(lastSampleNumberOnScreen - c.sampleCount < firstSampleNumberOnScreen)
 						firstSampleNumberOnScreen = lastSampleNumberOnScreen - c.sampleCount;
 				}
@@ -437,7 +437,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				// remove a chart if necessary
 				if(removing && removingAnimationEndTime <= System.currentTimeMillis()) {
-					Controller.removeChart(removingChart);
+					ChartsController.removeChart(removingChart);
 					if(maximizedChart == removingChart)
 						maximizedChart = null;
 					removingChart = null;
@@ -461,7 +461,7 @@ public class OpenGLChartsRegion extends JPanel {
 				
 				GL2ES3 gl = drawable.getGL().getGL2ES3();
 				
-				for(PositionedChart chart : Controller.getCharts())
+				for(PositionedChart chart : ChartsController.getCharts())
 					chart.disposeGpu(gl);
 				
 				gl.glDeleteQueries(2, gpuQueryHandles, 0);
@@ -482,7 +482,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// the mouse was pressed, attempting to start a new chart region, or to interact with an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
 					return;
 				
 				if(SettingsController.awaitingBenchmarkedChart()) {
@@ -498,7 +498,7 @@ public class OpenGLChartsRegion extends JPanel {
 				int proposedStartX = me.getX() * tileColumns / getWidth();
 				int proposedStartY = me.getY() * tileRows / getHeight();
 				
-				if(proposedStartX < tileColumns && proposedStartY < tileRows && Controller.gridRegionAvailable(proposedStartX, proposedStartY, proposedStartX, proposedStartY)) {
+				if(proposedStartX < tileColumns && proposedStartY < tileRows && ChartsController.gridRegionAvailable(proposedStartX, proposedStartY, proposedStartX, proposedStartY)) {
 					startX = endX = proposedStartX;
 					startY = endY = proposedStartY;
 				}
@@ -508,7 +508,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// the mouse was released, attempting to create a new chart
 			@Override public void mouseReleased(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
 					return;
 
 				if(endX == -1 || endY == -1)
@@ -517,7 +517,7 @@ public class OpenGLChartsRegion extends JPanel {
 				int proposedEndX = me.getX() * tileColumns / getWidth();
 				int proposedEndY = me.getY() * tileRows / getHeight();
 				
-				if(proposedEndX < tileColumns && proposedEndY < tileRows && Controller.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
+				if(proposedEndX < tileColumns && proposedEndY < tileRows && ChartsController.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
 					endX = proposedEndX;
 					endY = proposedEndY;
 				}
@@ -553,7 +553,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// the mouse was dragged while attempting to create a new chart
 			@Override public void mouseDragged(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
 					return;
 				
 				mouseX = (int) (me.getX() * displayScalingFactorJava9);
@@ -570,7 +570,7 @@ public class OpenGLChartsRegion extends JPanel {
 				int proposedEndX = me.getX() * tileColumns / getWidth();
 				int proposedEndY = me.getY() * tileRows / getHeight();
 				
-				if(proposedEndX < tileColumns && proposedEndY < tileRows && Controller.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
+				if(proposedEndX < tileColumns && proposedEndY < tileRows && ChartsController.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
 					endX = proposedEndX;
 					endY = proposedEndY;
 				}
@@ -580,7 +580,7 @@ public class OpenGLChartsRegion extends JPanel {
 			// log the mouse position so a chart close icon can be drawn
 			@Override public void mouseMoved(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && Controller.getCharts().isEmpty())
+				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
 					return;
 				
 				mouseX = (int) (me.getX() * displayScalingFactorJava9);
@@ -600,7 +600,7 @@ public class OpenGLChartsRegion extends JPanel {
 				double zoomPerScroll = 0.1;
 				float  displayScalingPerScroll = 0.1f;
 				
-				if(Controller.getCharts().size() == 0 && mwe.isShiftDown() == false)
+				if(ChartsController.getCharts().size() == 0 && mwe.isShiftDown() == false)
 					return;
 				
 				if(scrollAmount == 0)
@@ -642,8 +642,8 @@ public class OpenGLChartsRegion extends JPanel {
 				} else if(mwe.isShiftDown() == true) {
 					
 					// shift is down, so we're adjusting the display scaling factor
-					float newFactor = Controller.getDisplayScalingFactorUser() * (1 - ((float)scrollAmount * displayScalingPerScroll));
-					Controller.setDisplayScalingFactorUser(newFactor);
+					float newFactor = ChartsController.getDisplayScalingFactorUser() * (1 - ((float)scrollAmount * displayScalingPerScroll));
+					ChartsController.setDisplayScalingFactorUser(newFactor);
 					
 				}
 				
@@ -651,11 +651,14 @@ public class OpenGLChartsRegion extends JPanel {
 			
 		});
 		
-		// switch back to live view when samples are removed
-		DatasetsController.addSampleCountListener(haveSamples -> {
-			if(!haveSamples)
-				liveView = true;
-		});
+	}
+	
+	/**
+	 * Called by DatasetsController when all data is removed.
+	 */
+	public void switchToLiveView() {
+		
+		liveView = true;
 		
 	}
 	
@@ -679,7 +682,7 @@ public class OpenGLChartsRegion extends JPanel {
 		PositionedChart maximizedChart = instance.maximizedChart;
 
 		// regenerate
-		instance = new OpenGLChartsRegion();
+		instance = new OpenGLChartsView();
 		
 		// restore state
 		instance.liveView = liveView;
@@ -763,7 +766,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 */
 	private void drawChartCloseButton(GL2ES3 gl, int xOffset, int yOffset, int width, int height) {
 		
-		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
+		float buttonWidth = 15f * ChartsController.getDisplayScalingFactor();
 		float inset = buttonWidth * 0.2f;
 		float buttonXleft = xOffset + width - buttonWidth;
 		float buttonXright = xOffset + width;
@@ -792,7 +795,7 @@ public class OpenGLChartsRegion extends JPanel {
 				removing = true;
 				removingChart = chartUnderMouse;
 				removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
-				Controller.updateTileOccupancy(removingChart);
+				ChartsController.updateTileOccupancy(removingChart);
 			});
 		
 	}
@@ -809,7 +812,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 */
 	private void drawChartMaximizeButton(GL2ES3 gl, int xOffset, int yOffset, int width, int height) {
 		
-		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
+		float buttonWidth = 15f * ChartsController.getDisplayScalingFactor();
 		float inset = buttonWidth * 0.2f;
 		float offset = buttonWidth + 1;
 		float buttonXleft = xOffset + width - buttonWidth - offset;
@@ -835,7 +838,7 @@ public class OpenGLChartsRegion extends JPanel {
 					maximizing = true;
 					maximizedChart = chartUnderMouse;
 					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
-					Controller.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
+					ChartsController.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
 				} else {
 					demaximizing = true;
 					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
@@ -856,7 +859,7 @@ public class OpenGLChartsRegion extends JPanel {
 	 */
 	private void drawChartSettingsButton(GL2ES3 gl, int xOffset, int yOffset, int width, int height) {
 		
-		float buttonWidth = 15f * Controller.getDisplayScalingFactor();
+		float buttonWidth = 15f * ChartsController.getDisplayScalingFactor();
 		float offset = (buttonWidth + 1) * 2;
 		float buttonXleft = xOffset + width - buttonWidth - offset;
 		float buttonXright = xOffset + width - offset;

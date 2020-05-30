@@ -141,13 +141,13 @@ public class ConfigureView extends JPanel {
 				
 			// remove existing chart and widgets, then show the chart type buttons
 			if(activeChart != null)
-				Controller.removeChart(activeChart);
+				ChartsController.removeChart(activeChart);
 			widgetsPanel.removeAll();
 			widgetsPanel.add(chartTypePanel, "growx");
 			widgetsPanel.add(Box.createVerticalStrut(Theme.padding * 3));
 			
 			// create the chart and show it's widgets
-			activeChart = Controller.createAndAddChart(clickedButton.getText(), x1, y1, x2, y2);
+			activeChart = ChartsController.createAndAddChart(clickedButton.getText(), x1, y1, x2, y2);
 			for(Widget widget : activeChart.widgets) {
 				widgetsPanel.add(widget != null ? widget : Box.createVerticalStrut(Theme.padding), "growx");
 				widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
@@ -161,7 +161,7 @@ public class ConfigureView extends JPanel {
 		};
 		
 		chartTypePanel.setLayout(new GridLayout(0, 2, Theme.padding, Theme.padding));
-		for(String chartType : Controller.getChartTypes()) {
+		for(String chartType : ChartsController.getChartTypes()) {
 			JToggleButton button = new JToggleButton(chartType);
 			buttons.add(button);
 			button.addActionListener(buttonHandler);
@@ -169,7 +169,7 @@ public class ConfigureView extends JPanel {
 		}
 		
 		JButton cancelButton = new JButton("Cancel");
-		cancelButton.addActionListener(event -> { Controller.removeChart(activeChart); close(); });
+		cancelButton.addActionListener(event -> { ChartsController.removeChart(activeChart); close(); });
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
 		buttonsPanel.add(cancelButton, "growx, cell 0 0");

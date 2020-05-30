@@ -564,12 +564,12 @@ public class PacketBinary extends Packet {
 			BufferedInputStream bStream = new BufferedInputStream(stream, 2 * packetSize);
 			
 			// tell the user we're connected
-			String waitingForTelemetry = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected. Send telemetry." :
-			                             CommunicationController.getPort().equals(Communication.PORT_TCP)      ? "The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort :
-			                             CommunicationController.getPort().equals(Communication.PORT_UDP)      ? "The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort : "";
-			String receivingTelemetry  = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected and receiving telemetry." :
-			                             CommunicationController.getPort().equals(Communication.PORT_TCP)      ? "The TCP server is running and receiving telemetry." :
-			                             CommunicationController.getPort().equals(Communication.PORT_UDP)      ? "The UDP server is running and receiving telemetry." : "";
+			String waitingForTelemetry = CommunicationController.getPort().startsWith(CommunicationController.PORT_UART) ? CommunicationController.getPort().substring(6) + " is connected. Send telemetry." :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_TCP)      ? "The TCP server is running. Send telemetry to " + CommunicationController.getLoclIpAddress() :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_UDP)      ? "The UDP server is running. Send telemetry to " + CommunicationController.getLoclIpAddress() : "";
+			String receivingTelemetry  = CommunicationController.getPort().startsWith(CommunicationController.PORT_UART) ? CommunicationController.getPort().substring(6) + " is connected and receiving telemetry." :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_TCP)      ? "The TCP server is running and receiving telemetry." :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_UDP)      ? "The UDP server is running and receiving telemetry." : "";
 			int oldSampleCount = DatasetsController.getSampleCount();
 			Timer t = new Timer(100, event -> {
 				if(DatasetsController.getSampleCount() == oldSampleCount)
@@ -662,7 +662,7 @@ public class PacketBinary extends Packet {
 			BinaryDataStructureGui.instance.offsetTextfield.setText(Integer.toString(PacketBinary.instance.getFirstAvailableOffset()));
 		BinaryDataStructureGui.instance.processorCombobox.setSelectedIndex(0);
 		BinaryDataStructureGui.instance.nameTextfield.setText("");
-		BinaryDataStructureGui.instance.colorButton.setForeground(Controller.getDefaultLineColor());
+		BinaryDataStructureGui.instance.colorButton.setForeground(Theme.defaultDatasetColor);
 		BinaryDataStructureGui.instance.unitTextfield.setText("");
 		BinaryDataStructureGui.instance.conversionFactorAtextfield.setText("1.0");
 		BinaryDataStructureGui.instance.conversionFactorBtextfield.setText("1.0");
@@ -755,7 +755,7 @@ public class PacketBinary extends Packet {
 			
 			// color of the field
 			colorButton = new JButton("\u25B2");
-			colorButton.setForeground(Controller.getDefaultLineColor());
+			colorButton.setForeground(Theme.defaultDatasetColor);
 			colorButton.addActionListener(event -> {
 				Color color = JColorChooser.showDialog(BinaryDataStructureGui.this, "Pick a Color for " + nameTextfield.getText(), Color.BLACK);
 				if(color != null)
@@ -875,6 +875,8 @@ public class PacketBinary extends Packet {
 					JOptionPane.showMessageDialog(BinaryDataStructureGui.this, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
 				} else {
 					PacketBinary.instance.dataStructureDefined = true;
+					if(ChartsController.getCharts().isEmpty())
+						NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
 					Main.hideDataStructureGui();
 				}
 			});
@@ -908,7 +910,7 @@ public class PacketBinary extends Packet {
 			dataStructureTable.getColumn("").setCellRenderer(new TableCellRenderer() {
 				@Override public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 					JButton b = new JButton("Remove");
-					if(CommunicationController.getPort() == Communication.PORT_TEST)
+					if(CommunicationController.getPort().equals(CommunicationController.PORT_TEST))
 						b.setEnabled(false);
 					return row != 0 ? b : new JLabel("");
 				}
@@ -917,7 +919,7 @@ public class PacketBinary extends Packet {
 				
 				// ask the user to confirm
 				@Override public void mousePressed(MouseEvent e) {
-					if(CommunicationController.getPort() == Communication.PORT_TEST)
+					if(CommunicationController.getPort().equals(CommunicationController.PORT_TEST))
 						return;
 					int datasetNumber = dataStructureTable.getSelectedRow() - 1; // -1 because of the syncword
 					if(datasetNumber < 0) {
@@ -1012,7 +1014,7 @@ public class PacketBinary extends Packet {
 		 */
 		private void updateGui(boolean updateOffsetNumber) {
 			
-			if(CommunicationController.getPort() == Communication.PORT_TEST) {
+			if(CommunicationController.getPort().equals(CommunicationController.PORT_TEST)) {
 				
 				dsdLabel.setText("Data Structure Definition: (Not Editable in Test Mode)");
 				offsetTextfield.setEnabled(false);

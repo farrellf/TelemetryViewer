@@ -141,7 +141,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 	
 	@Override public String toString() {
 		
-		return "Histogram Chart";
+		return "Histogram";
 		
 	}
 	

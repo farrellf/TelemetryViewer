@@ -14,7 +14,7 @@ public abstract class Widget extends JPanel {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	public abstract void importState(Controller.QueueOfLines lines);
+	public abstract void importState(CommunicationController.QueueOfLines lines);
 	
 	/**
 	 * Saves the current state to one or more lines of text.

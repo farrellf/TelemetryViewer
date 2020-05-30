@@ -1,73 +1,106 @@
 import java.awt.Color;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.function.Consumer;
 
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import com.fazecast.jSerialComm.SerialPort;
 
 public class CommunicationController {
-
-	static List<Consumer<String>>  portListeners =           new ArrayList<Consumer<String>>();
-	static List<Consumer<String>>  packetTypeListeners =     new ArrayList<Consumer<String>>();
-	static List<Consumer<Integer>> sampleRateListeners =     new ArrayList<Consumer<Integer>>();
-	static List<Consumer<Integer>> baudRateListeners =       new ArrayList<Consumer<Integer>>();
-	static List<Consumer<Integer>> portNumberListeners =     new ArrayList<Consumer<Integer>>(); // TCP/UDP port
-	static List<Consumer<Boolean>> connectionListeners =     new ArrayList<Consumer<Boolean>>(); // true = connected or listening
 	
-	/**
-	 * Registers a listener that will be notified when the port changes, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addPortListener(Consumer<String> listener) {
-		
-		portListeners.add(listener);
-		setPort(Communication.port);
-		
+	public final static String PORT_UART = "UART"; // the DUT sends data over a serial port
+	public final static String PORT_TCP  = "TCP";  // the DUT is a TCP client, so we spawn a TCP server
+	public final static String PORT_UDP  = "UDP";  // the DUT sends UDP packets, so we listen for them
+	public final static String PORT_TEST = "Test"; // dummy mode that generates test waveforms
+	public final static String PORT_FILE = "File"; // dummy mode for importing CSV log files
+	
+	// volatile fields shared with threads
+	private static volatile boolean connected = false;
+	private static volatile String importFilePath = null;
+	
+	private static String port = PORT_UART;
+	private static String portUsedBeforeImport = null;
+	private static Packet packet = PacketCsv.instance;
+	private static int    sampleRate = 10000;
+	private static int    uartBaudRate = 9600;
+	private static int    tcpUdpPort = 8080;
+	private final static int MAX_TCP_IDLE_MILLISECONDS = 10000; // if connected but no new samples after than much time, disconnect and wait for a new connection
+	private final static int MAX_UDP_PACKET_SIZE = 65507; // 65535 - (8byte UDP header) - (20byte IP header)
+	
+	private static String localIp = "[Local IP Address Unknown]";
+	static {
+		try { 
+			String ips = "";
+			Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+			while(interfaces.hasMoreElements()) {
+				NetworkInterface ni = interfaces.nextElement();
+				Enumeration<InetAddress> addresses = ni.getInetAddresses();
+				while(addresses.hasMoreElements()) {
+					InetAddress address = addresses.nextElement();
+					if(address.isSiteLocalAddress() && !ni.getDisplayName().contains("VMware") && !ni.getDisplayName().contains("VPN"))
+						ips += address.getHostAddress() + " or ";
+				}
+			}
+			if(ips.length() > 0)
+				localIp = ips.substring(0, ips.length() - 4);
+		} catch(Exception e) {}
 	}
 	
 	/**
-	 * Changes the port and notifies any listeners.
+	 * Sets the port and updates the GUI.
 	 * If a connection currently exists, it will be closed first.
 	 * 
 	 * @param newPort    Communication.PORT_UART + ": port name" or .PORT_TCP or .PORT_UDP or .PORT_TEST or .PORT_FILE
 	 */
 	public static void setPort(String newPort) {
 		
+		// ignore if unchanged
+		if(newPort.equals(port))
+			return;
+		
 		// sanity check
-		if(!newPort.startsWith(Communication.PORT_UART + ": ") &&
-		   !newPort.equals(Communication.PORT_TCP) &&
-		   !newPort.equals(Communication.PORT_UDP) &&
-		   !newPort.equals(Communication.PORT_TEST) &&
-		   !newPort.equals(Communication.PORT_FILE))
+		if(!newPort.startsWith(PORT_UART + ": ") &&
+		   !newPort.equals(PORT_TCP) &&
+		   !newPort.equals(PORT_UDP) &&
+		   !newPort.equals(PORT_TEST) &&
+		   !newPort.equals(PORT_FILE))
 			return;
 		
 		// prepare
 		if(isConnected())
-			disconnect();
-		if(Communication.port == Communication.PORT_TEST && newPort != Communication.PORT_TEST && newPort != Communication.PORT_FILE) {
-			Controller.removeAllCharts();
-			Communication.packet.reset();
+			disconnect(null);
+		if(port == PORT_TEST && newPort != PORT_TEST && newPort != PORT_FILE) {
+			ChartsController.removeAllCharts();
+			packet.reset();
 		}
 		
-		// set and notify
-		if(Communication.port != Communication.PORT_FILE && newPort.equals(Communication.PORT_FILE))
-			Communication.portUsedBeforeImport = Communication.port;
-		Communication.port = newPort;
-		for(Consumer<String> listener : portListeners)
-			listener.accept(Communication.port);
+		// set
+		if(port != PORT_FILE && newPort.equals(PORT_FILE))
+			portUsedBeforeImport = port;
+		port = newPort;
+		CommunicationView.instance.setPort(newPort);
 		
 	}
 	
@@ -76,13 +109,12 @@ public class CommunicationController {
 	 */
 	public static String getPort() {
 		
-		return Communication.port;
+		return port;
 		
 	}
 	
 	/**
 	 * Gets names for every supported port (every serial port + TCP + UDP + Test)
-	 * These should be listed in a dropdown box for the user to choose from.
 	 *  
 	 * @return    A String[] of port names.
 	 */
@@ -94,36 +126,28 @@ public class CommunicationController {
 		for(int i = 0; i < ports.length; i++)
 			names[i] = "UART: " + ports[i].getSystemPortName();
 		
-		names[names.length - 3] = Communication.PORT_TCP;
-		names[names.length - 2] = Communication.PORT_UDP;
-		names[names.length - 1] = Communication.PORT_TEST;
+		names[names.length - 3] = PORT_TCP;
+		names[names.length - 2] = PORT_UDP;
+		names[names.length - 1] = PORT_TEST;
 		
-		Communication.port = names[0];
+		port = names[0];
 		
 		return names;
 		
 	}
 	
 	/**
-	 * Registers a listener that will be notified when the packet type changes, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addPacketTypeListener(Consumer<String> listener) {
-		
-		packetTypeListeners.add(listener);
-		setPacketType(Communication.packet.toString());
-		
-	}
-	
-	/**
-	 * Changes the packet type, empties the packet, and notifies any listeners.
+	 * Sets the packet type, empties the packet, and updates the GUI.
 	 * If a connection currently exists, it will be closed first.
 	 * Any existing charts and datasets will be removed.
 	 * 
 	 * @param newType    One of the options from getPacketTypes().
 	 */
 	public static void setPacketType(String newType) {
+		
+		// ignore if unchanged
+		if((newType.equals("CSV") && packet == PacketCsv.instance) || (newType.equals("Binary") && packet == PacketBinary.instance))
+			return;
 		
 		// sanity check
 		if(!newType.equals("CSV") &&
@@ -132,15 +156,12 @@ public class CommunicationController {
 		
 		// prepare
 		if(isConnected())
-			disconnect();
-		Controller.removeAllCharts();
+			disconnect(null);
 		
-		// set and notify
-		Communication.packet = newType.equals("CSV") ? PacketCsv.instance : PacketBinary.instance;
-		Communication.packet.reset();
-		
-		for(Consumer<String> listener : packetTypeListeners)
-			listener.accept(Communication.packet.toString());
+		// set
+		packet = newType.equals("CSV") ? PacketCsv.instance : PacketBinary.instance;
+		packet.reset();
+		CommunicationView.instance.setPacketType(newType);
 		
 	}
 	
@@ -149,7 +170,7 @@ public class CommunicationController {
 	 */
 	public static String getPacketType() {
 		
-		return Communication.packet.toString();
+		return packet.toString();
 		
 	}
 	
@@ -163,32 +184,33 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when the sample rate changes, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
+	 * @return    The GUI for defining the data structure.
 	 */
-	public static void addSampleRateListener(Consumer<Integer> listener) {
+	public static JPanel getDataStructureGui() {
 		
-		sampleRateListeners.add(listener);
-		setSampleRate(Communication.sampleRate);
+		return packet.getDataStructureGui();
 		
 	}
 	
 	/**
-	 * Changes the sample rate, and notifies any listeners. The rate will be clipped to a minimum of 1.
+	 * Sets the sample rate, and updates the GUI.
+	 * The rate will be clipped to a minimum of 1.
 	 * 
 	 * @param newRate    Sample rate, in Hertz.
 	 */
 	public static void setSampleRate(int newRate) {
 		
+		// ignore if unchanged
+		if(newRate == sampleRate)
+			return;
+		
 		// sanity check
 		if(newRate < 1)
 			newRate = 1;
 		
-		// set and notify
-		Communication.sampleRate = newRate;
-		for(Consumer<Integer> listener : sampleRateListeners)
-			listener.accept(Communication.sampleRate);
+		// set
+		sampleRate = newRate;
+		CommunicationView.instance.setSampleRate(newRate);
 		
 	}
 	
@@ -197,29 +219,22 @@ public class CommunicationController {
 	 */
 	public static int getSampleRate() {
 		
-		return Communication.sampleRate;
+		return sampleRate;
 		
 	}
 	
 	/**
-	 * Registers a listener that will be notified when the UART baud rate changes, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addBaudRateListener(Consumer<Integer> listener) {
-		
-		baudRateListeners.add(listener);
-		setBaudRate(Communication.uartBaudRate);
-		
-	}
-	
-	/**
-	 * Changes the UART baud rate, and notifies any listeners. The rate will be clipped to a minimum of 1.
+	 * Sets the UART baud rate, and updates the GUI.
+	 * The rate will be clipped to a minimum of 1.
 	 * If a connection currently exists, it will be closed first.
 	 * 
 	 * @param newBaud    Baud rate.
 	 */
 	public static void setBaudRate(int newBaud) {
+		
+		// ignore if unchanged
+		if(newBaud == uartBaudRate)
+			return;
 		
 		// sanity check
 		if(newBaud < 1)
@@ -227,12 +242,11 @@ public class CommunicationController {
 		
 		// prepare
 		if(isConnected())
-			disconnect();
+			disconnect(null);
 		
-		// set and notify
-		Communication.uartBaudRate = newBaud;		
-		for(Consumer<Integer> listener : baudRateListeners)
-			listener.accept(Communication.uartBaudRate);
+		// set
+		uartBaudRate = newBaud;
+		CommunicationView.instance.setBaudRate(newBaud);
 		
 	}
 	
@@ -241,7 +255,7 @@ public class CommunicationController {
 	 */
 	public static int getBaudRate() {
 		
-		return Communication.uartBaudRate;
+		return uartBaudRate;
 		
 	}
 	
@@ -255,35 +269,17 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Specifies the CSV log file to import.
-	 * 
-	 * @param path    The CSV log file.
-	 */
-	public static void setImportFile(String path) {
-		
-		Communication.importFilePath = path;
-		
-	}
-	
-	/**
-	 * Registers a listener that will be notified when the TCP/UDP port number changes, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
-	 */
-	public static void addPortNumberListener(Consumer<Integer> listener) {
-		
-		portNumberListeners.add(listener);
-		setPortNumber(Communication.tcpUdpPort);
-		
-	}
-	
-	/**
-	 * Changes the TCP/UDP port number, and notifies any listeners. The number will be clipped if it is outside the 0-65535 range.
+	 * Sets the TCP/UDP port number and updates the GUI.
+	 * The number will be clipped if it is outside the 0-65535 range.
 	 * If a connection currently exists, it will be closed first.
 	 * 
 	 * @param newPort    Port number.
 	 */
 	public static void setPortNumber(int newPort) {
+		
+		// ignore if unchanged
+		if(newPort == tcpUdpPort)
+			return;
 		
 		// sanity check
 		if(newPort < 0)
@@ -293,12 +289,11 @@ public class CommunicationController {
 		
 		// prepare
 		if(isConnected())
-			disconnect();
+			disconnect(null);
 		
-		// set and notify
-		Communication.tcpUdpPort = newPort;		
-		for(Consumer<Integer> listener : portNumberListeners)
-			listener.accept(Communication.tcpUdpPort);
+		// set
+		tcpUdpPort = newPort;
+		CommunicationView.instance.setPortNumber(newPort);
 		
 	}
 	
@@ -307,7 +302,7 @@ public class CommunicationController {
 	 */
 	public static int getPortNumber() {
 		
-		return Communication.tcpUdpPort;
+		return tcpUdpPort;
 		
 	}
 	
@@ -321,42 +316,29 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Registers a listener that will be notified when a connection is made or closed, and triggers an event to ensure the GUI is in sync.
-	 * 
-	 * @param listener    The listener to be notified.
+	 * @return    The possible local IP addresses, with the port number appended.
 	 */
-	public static void addConnectionListener(Consumer<Boolean> listener) {
+	public static String getLoclIpAddress() {
 		
-		connectionListeners.add(listener);
-		notifyConnectionListeners();
+		return localIp + ":" + tcpUdpPort;
 		
 	}
 	
 	/**
-	 * Notifies all registered listeners about the connection state.
-	 */
-	private static void notifyConnectionListeners() {
-		
-		for(Consumer<Boolean> listener : connectionListeners)
-			if(Communication.port.startsWith(Communication.PORT_UART))  listener.accept(Communication.uartConnected);
-			else if(Communication.port.equals(Communication.PORT_TCP))  listener.accept(Communication.tcpConnected);
-			else if(Communication.port.equals(Communication.PORT_UDP))  listener.accept(Communication.udpConnected);
-			else if(Communication.port.equals(Communication.PORT_TEST)) listener.accept(Communication.testConnected);
-			else if(Communication.port.equals(Communication.PORT_FILE)) listener.accept(Communication.fileConnected);
-		
-	}
-	
-	/**
-	 * @return    True if a connection exists.
+	 * @return    True if currently connected.
 	 */
 	public static boolean isConnected() {
 		
-		if(Communication.port.startsWith(Communication.PORT_UART))  return Communication.uartConnected;
-		else if(Communication.port.equals(Communication.PORT_TCP))  return Communication.tcpConnected;
-		else if(Communication.port.equals(Communication.PORT_UDP))  return Communication.udpConnected;
-		else if(Communication.port.equals(Communication.PORT_TEST)) return Communication.testConnected;
-		else if(Communication.port.equals(Communication.PORT_FILE)) return Communication.fileConnected;
-		else                                                        return false;
+		return connected;
+		
+	}
+	
+	/**
+	 * @return    True if the data structure has been defined.
+	 */
+	public static boolean isDataStructureDefined() {
+		
+		return packet.dataStructureDefined;
 		
 	}
 	
@@ -367,45 +349,48 @@ public class CommunicationController {
 	 */
 	public static void connect(boolean quiet) {
 		
-		Communication.packet.dataStructureDefined = false;
+		NotificationsController.removeIfConnectionRelated();
 		
-		if(Communication.port.startsWith(Communication.PORT_UART + ": "))
-			connectToUart(quiet);
-		else if(Communication.port.equals(Communication.PORT_TCP))
-			startTcpServer(quiet);
-		else if(Communication.port.equals(Communication.PORT_UDP))
-			startUdpServer(quiet);
-		else if(Communication.port.equals(Communication.PORT_TEST))
-			conntectToTester(quiet);
-		else if(Communication.port.equals(Communication.PORT_FILE))
-			connectToFile();
+		packet.dataStructureDefined = false;
+		
+		     if(port.startsWith(PORT_UART + ": ")) connectToUart(quiet);
+		else if(port.equals(PORT_TCP))             startTcpServer(quiet);
+		else if(port.equals(PORT_UDP))             startUdpServer(quiet);
+		else if(port.equals(PORT_TEST))            conntectToTester(quiet);
+		else if(port.equals(PORT_FILE))            connectToFile();
 		
 	}
 	
 	/**
-	 * Disconnects from the device and removes any visible Notifications.
+	 * Disconnects from the device and removes any connection-related Notifications.
+	 * This method blocks until disconnected, so it should not be called directly from a connection thread.
+	 * 
+	 * @param errorMessage    If not null, show this as a Notification until a connection is made. 
 	 */
-	public static void disconnect() {
+	public static void disconnect(String errorMessage) {
 		
 		boolean wasConnected = isConnected();
+		connected = false;
 		
-		if(Communication.port.startsWith(Communication.PORT_UART + ": "))
-			disconnectFromUart();
-		else if(Communication.port.equals(Communication.PORT_TCP))
-			stopTcpServer();
-		else if(Communication.port.equals(Communication.PORT_UDP))
-			stopUdpServer();
-		else if(Communication.port.equals(Communication.PORT_TEST))
-			disconnectFromTester();
-		else if(Communication.port.equals(Communication.PORT_FILE))
-			disconnectFromFile();
+		NotificationsController.removeIfConnectionRelated();
+		if(errorMessage != null)
+			NotificationsController.showFailureUntil(errorMessage, () -> false, true);
+		CommunicationView.instance.setConnected(false);
+		Main.hideDataStructureGui();
 		
-		NotificationsController.removeAll();
-
+		if(DatasetsController.getSampleCount() > 0)
+			CommunicationView.instance.allowExporting(true);
+		
 		if(wasConnected) {
+			     if(port.startsWith(PORT_UART + ": ")) disconnectFromUart();
+			else if(port.equals(PORT_TCP))             stopTcpServer();
+			else if(port.equals(PORT_UDP))             stopUdpServer();
+			else if(port.equals(PORT_TEST))            disconnectFromTester();
+			else if(port.equals(PORT_FILE))            disconnectFromFile();
+
 			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
-				if(Controller.getCharts().isEmpty() && !CommunicationController.isConnected())
-					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+				if(ChartsController.getCharts().isEmpty() && !CommunicationController.isConnected())
+					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> !ChartsController.getCharts().isEmpty(), true);
 			});
 		}
 		
@@ -414,48 +399,49 @@ public class CommunicationController {
 	private static Thread fileImportThread = null;
 	
 	/**
-	 * Imports samples from a CSV Log file.
+	 * Imports samples from a CSV file.
 	 */
 	private static void connectToFile() {
 		
+		CommunicationView.instance.allowImporting(false);
+		CommunicationView.instance.allowExporting(false);
 		DatasetsController.removeAllData();
+		importingAllowed = false;
 		
 		fileImportThread = new Thread(() -> {
 			
 			try {
 				
+				// track approximate progress (assuming each char is 1 byte, and EOL is 2 bytes)
+				long totalByteCount = Files.size(Paths.get(importFilePath));
+				long readByteCount = 0;
+				
 				// open the file
-				Scanner file = new Scanner(new FileInputStream(Communication.importFilePath), "UTF-8");
+				Scanner file = new Scanner(new FileInputStream(importFilePath), "UTF-8");
+				
+				CommunicationView.instance.setConnected(true);
+				connected = true;
 				
 				// sanity checks
 				if(!file.hasNextLine()) {
-					SwingUtilities.invokeLater(() -> {
-						disconnect();
-						NotificationsController.showFailureUntil("CSV Log file is empty.", () -> false, true);
-						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
-					});
+					SwingUtilities.invokeLater(() -> disconnect("The CSV file is empty."));
 					file.close();
 					return;
 				}
 				
 				String header = file.nextLine();
+				readByteCount += header.length() + 2;
 				String[] tokens = header.split(",");
 				int columnCount = tokens.length;
 				if(columnCount != DatasetsController.getDatasetsCount() + 2) {
-					SwingUtilities.invokeLater(() -> {
-						disconnect();
-						NotificationsController.showFailureUntil("CSV Log file header does not match the current data structure.", () -> false, true);
-						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
-					});
+					SwingUtilities.invokeLater(() -> disconnect("The CSV file header does not match the current data structure."));
 					file.close();
 					return;
 				}
 				
 				boolean correctColumnLabels = true;
-				if(!tokens[0].startsWith("Sample Number"))
-					correctColumnLabels = false;
-				if(!tokens[1].startsWith("UNIX Timestamp"))
-					correctColumnLabels = false;
+				if(!tokens[0].startsWith("Sample Number"))  correctColumnLabels = false;
+				if(!tokens[1].startsWith("UNIX Timestamp")) correctColumnLabels = false;
 				for(int i = 0; i < DatasetsController.getDatasetsCount(); i++) {
 					Dataset d = DatasetsController.getDatasetByIndex(i);
 					String expectedLabel = d.name + " (" + d.unit + ")";
@@ -463,32 +449,23 @@ public class CommunicationController {
 						correctColumnLabels = false;
 				}
 				if(!correctColumnLabels) {
-					SwingUtilities.invokeLater(() -> {
-						disconnect();
-						NotificationsController.showFailureUntil("CSV Log file header does not match the current data structure.", () -> false, true);
-						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
-					});
+					SwingUtilities.invokeLater(() -> disconnect("The CSV file header does not match the current data structure."));
 					file.close();
 					return;
 				}
 
 				if(!file.hasNextLine()) {
-					SwingUtilities.invokeLater(() -> {
-						disconnect();
-						NotificationsController.showFailureUntil("CSV Log file does not contain any samples.", () -> false, true);
-						NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
-					});
+					SwingUtilities.invokeLater(() -> disconnect("The CSV file does not contain any samples."));
 					file.close();
 					return;
 				}
-
-				SwingUtilities.invokeLater(() -> {
-					Communication.fileConnected = true;
-					notifyConnectionListeners();
-				});
 				
-				// parse and input the lines of data
+				NotificationsController.showProgressBar("Importing...");
+				NotificationsController.setProgress(0);
+				
+				// parse the lines of data
 				String line = file.nextLine();
+				readByteCount += line.length() + 2;
 				long startTimeThread = System.currentTimeMillis();
 				long startTimeFile = Long.parseLong(line.split(",")[1]);
 				boolean realtimeImporting = true;
@@ -502,45 +479,45 @@ public class CommunicationController {
 							if(delay > 0)
 								try { Thread.sleep(delay); } catch(Exception e) { realtimeImporting = false; }
 						}
+					} else if(Thread.interrupted()) {
+						break; // not real-time, and interrupted again, so abort
 					}
 					for(int columnN = 2; columnN < columnCount; columnN++)
 						DatasetsController.getDatasetByIndex(columnN - 2).addConverted(Float.parseFloat(tokens[columnN]));
 					DatasetsController.incrementSampleCountWithTimestamp(Long.parseLong(tokens[1]));
 					
-					if(file.hasNextLine())
+					if(file.hasNextLine()) {
 						line = file.nextLine();
-					else
+						readByteCount += line.length() + 2;
+						NotificationsController.setProgress((double)readByteCount / (double) totalByteCount);
+					} else {
 						break;
+					}
 				}
 				
 				// done
-				SwingUtilities.invokeLater(() -> {
-					disconnect();
-				});
+				NotificationsController.setProgress(-1);
+				SwingUtilities.invokeLater(() -> disconnect(null));
 				file.close();
 				
 			} catch (IOException e) {
-				SwingUtilities.invokeLater(() -> {
-					disconnect();
-					NotificationsController.showFailureUntil("Unable to open the CSV Log file.", () -> false, true);
-					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);	
-				});
+				NotificationsController.setProgress(-1);
+				SwingUtilities.invokeLater(() -> disconnect("Unable to open the CSV Log file."));
 			} catch (Exception e) {
-				SwingUtilities.invokeLater(() -> {
-					disconnect();
-					NotificationsController.showFailureUntil("Unable to parse the CSV Log file.", () -> false, true);
-				NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
-				});
+				NotificationsController.setProgress(-1);
+				SwingUtilities.invokeLater(() -> disconnect("Unable to parse the CSV Log file."));
 			}
 			
 		});
 		
+		fileImportThread.setPriority(Thread.MAX_PRIORITY);
+		fileImportThread.setName("File Import Thread");
 		fileImportThread.start();
 		
 	}
 	
 	/**
-	 * Stops the file import thread, and notifies any listeners that the connection has been closed.
+	 * Stops the file import thread, and updates the GUI.
 	 */
 	private static void disconnectFromFile() {
 			
@@ -549,11 +526,11 @@ public class CommunicationController {
 			while(fileImportThread.isAlive()); // wait
 		}
 
-		Communication.fileConnected = false;
-		notifyConnectionListeners();
+		CommunicationView.instance.allowImporting(true);
+		importingAllowed = true;
 		
-		// switch back to the original port, so "File" is removed from the combobox
-		setPort(Communication.portUsedBeforeImport);
+		// switch back to the original port, so "File" is removed from the port combobox
+		setPort(portUsedBeforeImport);
 		
 	}
 	
@@ -579,31 +556,30 @@ public class CommunicationController {
 		if(uartPort != null && uartPort.isOpen())
 			uartPort.closePort();
 			
-		uartPort = SerialPort.getCommPort(Communication.port.substring(6)); // trim the leading "UART: "
-		uartPort.setBaudRate(Communication.uartBaudRate);
-		if(Communication.packet == PacketCsv.instance)
+		uartPort = SerialPort.getCommPort(port.substring(6)); // trim the leading "UART: "
+		uartPort.setBaudRate(uartBaudRate);
+		if(packet == PacketCsv.instance)
 			uartPort.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
-		else if(Communication.packet == PacketBinary.instance)
+		else if(packet == PacketBinary.instance)
 			uartPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
 		
 		// try 3 times before giving up
 		if(!uartPort.openPort()) {
 			if(!uartPort.openPort()) {
 				if(!uartPort.openPort()) {
-					NotificationsController.showFailureForSeconds("Unable to connect to " + Communication.port + ".", 5, false);
-					disconnect();
+					disconnect("Unable to connect to " + port + ".");
 					return;
 				}
 			}
 		}
 		
-		Communication.uartConnected = true;
-		notifyConnectionListeners();
+		CommunicationView.instance.setConnected(true);
+		connected = true;
 
 		if(!quiet)
 			Main.showDataStructureGui();
 		
-		Communication.packet.startReceivingData(uartPort.getInputStream());
+		packet.startReceivingData(uartPort.getInputStream());
 		
 	}
 	
@@ -612,15 +588,11 @@ public class CommunicationController {
 	 */
 	private static void disconnectFromUart() {	
 		
-		if(Communication.packet != null)
-			Communication.packet.stopReceivingData();
+		packet.stopReceivingData();
 		
 		if(uartPort != null && uartPort.isOpen())
 			uartPort.closePort();
 		uartPort = null;
-		
-		Communication.uartConnected = false;
-		notifyConnectionListeners();
 		
 	}
 	
@@ -642,25 +614,24 @@ public class CommunicationController {
 			
 			// start the TCP server
 			try {
-				tcpServer = new ServerSocket(Communication.tcpUdpPort);
+				tcpServer = new ServerSocket(tcpUdpPort);
 				tcpServer.setSoTimeout(1000);
 				stream = new PipedOutputStream();
 				inputStream = new PipedInputStream(stream);
 			} catch (Exception e) {
-				NotificationsController.showFailureForSeconds("Unable to start the TCP server. Make sure another program is not already using port " + Communication.tcpUdpPort + ".", 5, false);
 				try { tcpServer.close(); stream.close(); inputStream.close(); } catch(Exception e2) {}
-				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+				SwingUtilities.invokeLater(() -> disconnect("Unable to start the TCP server. Make sure another program is not already using port " + tcpUdpPort + "."));
 				return;
 			}
 			
-			Communication.tcpConnected = true;
-			notifyConnectionListeners();
+			CommunicationView.instance.setConnected(true);
+			connected = true;
 			
 			if(!quiet)
-				SwingUtilities.invokeLater(() -> Main.showDataStructureGui());
+				Main.showDataStructureGui();
 			
 			// wait for the data structure to be defined
-			while(!Communication.packet.dataStructureDefined)
+			while(!packet.dataStructureDefined)
 				try {
 					Thread.sleep(1);
 				} catch(Exception e) {
@@ -672,7 +643,7 @@ public class CommunicationController {
 					return;
 				}
 			
-			Communication.packet.startReceivingData(inputStream);
+			packet.startReceivingData(inputStream);
 			
 			// listen for a connection
 			while(true) {
@@ -705,7 +676,7 @@ public class CommunicationController {
 						if(sampleNumber > previousSampleNumber) {
 							previousSampleNumber = sampleNumber;
 							previousTimestamp = timestamp;
-						} else if(previousTimestamp < timestamp - Communication.MAX_TCP_IDLE_MILLISECONDS) {
+						} else if(previousTimestamp < timestamp - MAX_TCP_IDLE_MILLISECONDS) {
 							NotificationsController.showFailureForSeconds("The TCP connection was idle for too long. It has been closed so another device can connect.", 5, true);
 							tcpSocket.close();
 							break;
@@ -720,10 +691,9 @@ public class CommunicationController {
 				} catch(IOException ioe) {
 					
 					// problem while accepting the socket connection, or getting the input stream, or reading from the input stream
-					NotificationsController.showFailureForSeconds("TCP connection failed.", 5, false);
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
-					SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+					SwingUtilities.invokeLater(() -> disconnect("TCP connection failed."));
 					return;
 					
 				}  catch(InterruptedException ie) {
@@ -756,10 +726,7 @@ public class CommunicationController {
 			while(tcpServerThread.isAlive()); // wait
 		}
 		
-		Communication.packet.stopReceivingData();
-
-		Communication.tcpConnected = false;
-		notifyConnectionListeners();
+		packet.stopReceivingData();
 		
 	}
 	
@@ -780,25 +747,24 @@ public class CommunicationController {
 			
 			// start the UDP server
 			try {
-				udpServer = new DatagramSocket(Communication.tcpUdpPort);
+				udpServer = new DatagramSocket(tcpUdpPort);
 				udpServer.setSoTimeout(1000);
 				stream = new PipedOutputStream();
 				inputStream = new PipedInputStream(stream);
 			} catch (Exception e) {
-				NotificationsController.showFailureForSeconds("Unable to start the UDP server. Make sure another program is not already using port " + Communication.tcpUdpPort + ".", 5, false);
 				try { udpServer.close(); stream.close(); inputStream.close(); } catch(Exception e2) {}
-				SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+				SwingUtilities.invokeLater(() -> disconnect("Unable to start the UDP server. Make sure another program is not already using port " + tcpUdpPort + "."));
 				return;
 			}
 			
-			Communication.udpConnected = true;
-			notifyConnectionListeners();
+			CommunicationView.instance.setConnected(true);
+			connected = true;
 			
 			if(!quiet)
 				SwingUtilities.invokeLater(() -> Main.showDataStructureGui());
 			
 			// wait for the data structure to be defined
-			while(!Communication.packet.dataStructureDefined)
+			while(!packet.dataStructureDefined)
 				try {
 					Thread.sleep(1);
 				} catch(Exception e) {
@@ -810,10 +776,10 @@ public class CommunicationController {
 					return;
 				}
 			
-			Communication.packet.startReceivingData(inputStream);
+			packet.startReceivingData(inputStream);
 			
 			// listen for packets
-			byte[] rx_buffer = new byte[Communication.MAX_UDP_PACKET_SIZE];
+			byte[] rx_buffer = new byte[MAX_UDP_PACKET_SIZE];
 			DatagramPacket udpPacket = new DatagramPacket(rx_buffer, rx_buffer.length);
 			while(true) {
 
@@ -835,11 +801,10 @@ public class CommunicationController {
 				} catch(IOException ioe) {
 					
 					// problem while reading from the socket, or while putting data into the stream
-					NotificationsController.showFailureForSeconds("UDP packet error.", 5, false);
 					try { inputStream.close(); } catch(Exception e) {}
 					try { stream.close(); }      catch(Exception e) {}
 					try { udpServer.close(); }   catch(Exception e) {}
-					SwingUtilities.invokeLater(() -> disconnect()); // invokeLater to prevent a deadlock
+					SwingUtilities.invokeLater(() -> disconnect("UDP packet error."));
 					return;
 					
 				}  catch(InterruptedException ie) {
@@ -873,10 +838,7 @@ public class CommunicationController {
 			while(udpServerThread.isAlive()); // wait
 		}
 		
-		Communication.packet.stopReceivingData();
-		
-		Communication.udpConnected = false;
-		notifyConnectionListeners();
+		packet.stopReceivingData();
 		
 	}
 	
@@ -946,9 +908,9 @@ public class CommunicationController {
 		testerThread.setPriority(Thread.MAX_PRIORITY);
 		testerThread.setName("Test Transmitter");
 		testerThread.start();
-
-		Communication.testConnected = true;
-		notifyConnectionListeners();
+		
+		CommunicationView.instance.setConnected(true);
+		connected = true;
 		
 		// show the data structure window
 		if(!quiet)
@@ -966,9 +928,540 @@ public class CommunicationController {
 			while(testerThread.isAlive()); // wait
 		}
 		
-		Communication.testConnected = false;
-		notifyConnectionListeners();
+	}
+	
+	/**
+	 * Imports a settings file, log file, and/or camera files.
+	 * The user will be notified if there is a problem with any of the files.
+	 * 
+	 * @param filepaths    A String[] of absolute file paths.
+	 */
+	public static void importFiles(String[] filepaths) {
 		
+		if(!importingAllowed) {
+			NotificationsController.showFailureForSeconds("Unable to import more files while importing or exporting is in progress.", 20, true);
+			return;
+		}
+		
+		int settingsFileCount = 0;
+		int csvFileCount = 0;
+		int cameraMjpgFileCount = 0;
+		int cameraBinFileCount = 0;
+		int invalidFileCount = 0;
+		
+		// sanity check
+		for(String filepath : filepaths)
+			if(filepath.endsWith(".txt"))
+				settingsFileCount++;
+			else if(filepath.endsWith(".csv"))
+				csvFileCount++;
+			else if(filepath.endsWith(".mjpg"))
+				cameraMjpgFileCount++;
+			else if(filepath.endsWith(".bin"))
+				cameraBinFileCount++;
+			else
+				invalidFileCount++;
+		
+		if(invalidFileCount > 0) {
+			NotificationsController.showFailureForSeconds("Unsupported file type. Only files exported from TelemetryViewer can be imported:\nSettings files (.txt)\nCSV files (.csv)\nCamera image files (.mjpg)\nCamera image index files (.bin)", 20, true);
+			return;
+		}
+		if(cameraMjpgFileCount != cameraBinFileCount) {
+			NotificationsController.showFailureForSeconds("MJPG and BIN files must be imported together.", 10, true);
+			return;
+		}
+		if(csvFileCount > 1) {
+			NotificationsController.showFailureForSeconds("Only one CSV file can be opened at a time.", 10, true);
+			return;
+		}
+		if(settingsFileCount > 1) {
+			NotificationsController.showFailureForSeconds("Only one settings file can be opened at a time.", 10, true);
+			return;
+		}
+		if(cameraMjpgFileCount > 0)
+			for(String filepath : filepaths)
+				if(filepath.endsWith(".mjpg") && !Arrays.asList(filepaths).contains(filepath.substring(0, filepath.length() - 4) + "bin")) {
+					NotificationsController.showFailureForSeconds("Each MJPG file must have a corresponding BIN file.", 10, true);
+					return;
+				}
+		if(cameraMjpgFileCount > 0 && csvFileCount == 0) {
+			NotificationsController.showFailureForSeconds("Camera images can only be imported along with their corresponding CSV file.", 10, true);
+			return;
+		}
+		
+		disconnect(null);
+		
+		// import the settings file if requested
+		if(settingsFileCount == 1)
+			for(String filepath : filepaths)
+				if(filepath.endsWith(".txt"))
+					if(!importSettingsFile(filepath, csvFileCount == 0))
+						return;
+		
+		// import the CSV file if requested
+		if(csvFileCount == 1)
+			for(String filepath : filepaths)
+				if(filepath.endsWith(".csv"))
+					importCsvFile(filepath);
+		
+		// import the camera images if requested
+		if(cameraMjpgFileCount > 0)
+			for(String filepath : filepaths)
+				if(filepath.endsWith(".mjpg"))
+					importCameraFiles(filepath, filepath.substring(0, filepath.length() - 4) + "bin");
+	}
+	
+	static volatile boolean importingAllowed = true;
+	
+	/**
+	 * Exports data to files. While exporting is in progress, importing/exporting/connecting/disconnecting will be prohibited.
+	 * Connecting/disconnecting is prohibited to prevent the data structure from being changed while exporting is in progress.
+	 * 
+	 * @param filepath              The absolute path, including the part of the filename that will be common to all exported files.
+	 * @param exportSettingsFile    If true, export the settings to filepath + ".txt"
+	 * @param exportCsvFile         If true, export the samples to filepath + ".csv"
+	 * @param exportCameraNames     For each camera name in this List, export images to filepath + camera name + ".mjpg" and corresponding index data to filepath + camera name + ".bin"
+	 */
+	public static void exportFiles(String filepath, boolean exportSettingsFile, boolean exportCsvFile, List<String> exportCameraNames) {
+		
+		Thread exportThread = new Thread(() -> {
+			
+			double fileCount = exportCameraNames.size() + (exportCsvFile ? 1 : 0);
+		
+			CommunicationView.instance.allowConnecting(false);
+			CommunicationView.instance.allowImporting(false);
+			CommunicationView.instance.allowExporting(false);
+			importingAllowed = false;
+			
+			NotificationsController.showProgressBar("Exporting...");
+			NotificationsController.setProgress(0);
+			
+			if(exportSettingsFile)
+				exportSettingsFile(filepath + ".txt");
+	
+			if(exportCsvFile)
+				exportCsvFile(filepath + ".csv", (progressAmount) -> NotificationsController.setProgress(progressAmount / fileCount));
+	
+			for(int i = 0; i < exportCameraNames.size(); i++)
+				for(Camera camera : DatasetsController.getExistingCameras())
+					if(exportCameraNames.get(i).equals(camera.name)) {
+						int cameraN = i;
+						camera.exportFiles(filepath, (progressAmount) -> NotificationsController.setProgress(exportCsvFile ? (((1 + cameraN) / fileCount) + (progressAmount / fileCount)) :
+							                                                                                                     (((cameraN) / fileCount) + (progressAmount / fileCount))));
+					}
+			
+			NotificationsController.setProgress(-1);
+	
+			CommunicationView.instance.allowConnecting(true);
+			CommunicationView.instance.allowImporting(true);
+			CommunicationView.instance.allowExporting(true);
+			importingAllowed = true;
+			
+		});
+		
+		exportThread.setPriority(Thread.MIN_PRIORITY); // exporting is not critical
+		exportThread.setName("File Export Thread");
+		exportThread.start();
+		
+	}
+	
+	/**
+	 * Exports all samples to a CSV file.
+	 * 
+	 * @param filepath           Full path with file name.
+	 * @param progressTracker    Consumer<Double> that will be notified as progress is made.
+	 */
+	static void exportCsvFile(String filepath, Consumer<Double> progressTracker) {
+		
+		int datasetsCount = DatasetsController.getDatasetsCount();
+		int sampleCount = DatasetsController.getSampleCount();
+		
+		try {
+			
+			PrintWriter logFile = new PrintWriter(filepath, "UTF-8");
+			logFile.print("Sample Number (" + CommunicationController.getSampleRate() + " samples per second),UNIX Timestamp (Milliseconds since 1970-01-01)");
+			for(int i = 0; i < datasetsCount; i++) {
+				Dataset d = DatasetsController.getDatasetByIndex(i);
+				logFile.print("," + d.name + " (" + d.unit + ")");
+			}
+			logFile.println();
+			
+			for(int i = 0; i < sampleCount; i++) {
+				// ensure active slots don't get flushed to disk, and periodically update the progress tracker
+				if(i % 1024 == 0) {
+					DatasetsController.dontFlushRangeBeingExported(i, i + DatasetsController.SLOT_SIZE);
+					progressTracker.accept((double) i / (double) sampleCount);
+				}
+				
+				logFile.print(i + "," + DatasetsController.getTimestamp(i));
+				for(int n = 0; n < datasetsCount; n++)
+					logFile.print("," + Float.toString(DatasetsController.getDatasetByIndex(n).getSample(i)));
+				logFile.println();
+				
+			}
+			
+			DatasetsController.dontFlushRangeBeingExported(-1, -1);
+			
+			logFile.close();
+			
+		} catch(Exception e) { }
+		
+	}
+	
+	/**
+	 * Saves the GUI settings, communication settings, data structure definition, and chart settings.
+	 * 
+	 * @param outputFilePath    An absolute path to a .txt file.
+	 */
+	static void exportSettingsFile(String outputFilePath) {
+		
+		try {
+			
+			PrintWriter file = new PrintWriter(new File(outputFilePath), "UTF-8");
+			file.println("Telemetry Viewer v0.7 Settings");
+			file.println("");
+			
+			file.println("GUI Settings:");
+			file.println("");
+			file.println("\ttile column count = "          + SettingsController.getTileColumns());
+			file.println("\ttile row count = "             + SettingsController.getTileRows());
+			file.println("\ttime format = "                + SettingsController.getTimeFormat());
+			file.println("\tshow 24-hour time = "          + SettingsController.getTimeFormat24hours());
+			file.println("\tshow plot tooltips = "         + SettingsController.getTooltipVisibility());
+			file.println("\tsmooth scrolling = "           + SettingsController.getSmoothScrolling());
+			file.println("\tshow fps and period = "        + SettingsController.getFpsVisibility());
+			file.println("\tchart index for benchmarks = " + SettingsController.getBenchmarkedChartIndex());
+			file.println("\tantialiasing level = "         + SettingsController.getAntialiasingLevel());
+			file.println("");
+			
+			file.println("Communication Settings:");
+			file.println("");
+			file.println("\tport = "                + CommunicationController.getPort());
+			file.println("\tuart baud rate = "      + CommunicationController.getBaudRate());
+			file.println("\ttcp/udp port number = " + CommunicationController.getPortNumber());
+			file.println("\tpacket type = "         + CommunicationController.getPacketType());
+			file.println("\tsample rate = "         + CommunicationController.getSampleRate());
+			file.println("");
+			
+			file.println(DatasetsController.getDatasetsCount() + " Data Structure Locations:");
+			
+			for(Dataset dataset : DatasetsController.getAllDatasets()) {
+				
+				file.println("");
+				file.println("\tlocation = " + dataset.location);
+				file.println("\tbinary processor = " + (dataset.processor == null ? "null" : dataset.processor.toString()));
+				file.println("\tname = " + dataset.name);
+				file.println("\tcolor = " + String.format("0x%02X%02X%02X", dataset.color.getRed(), dataset.color.getGreen(), dataset.color.getBlue()));
+				file.println("\tunit = " + dataset.unit);
+				file.println("\tconversion factor a = " + dataset.conversionFactorA);
+				file.println("\tconversion factor b = " + dataset.conversionFactorB);
+				if(dataset.processor != null && dataset.processor.toString().startsWith("Bitfield"))
+					for(Bitfield bitfield : dataset.bitfields) {
+						file.print("\t[" + bitfield.MSBit + ":" + bitfield.LSBit + "] = " + bitfield.names[0]);
+						for(int i = 1; i < bitfield.names.length; i++)
+							file.print("," + bitfield.names[i]);
+						file.println();
+					}
+				
+			}
+			
+			file.println("");
+			file.println("Checksum:");
+			file.println("");
+			file.println("\tlocation = " + packet.getChecksumProcessorLocation());
+			file.println("\tchecksum processor = " + (packet.checksumProcessor == null ? "null" : packet.checksumProcessor.toString()));
+			
+			file.println("");
+			file.println(ChartsController.getCharts().size() + " Charts:");
+			
+			for(PositionedChart chart : ChartsController.getCharts()) {
+				
+				file.println("");
+				file.println("\tchart type = " + chart.toString());
+				file.println("\ttop left x = " + chart.topLeftX);
+				file.println("\ttop left y = " + chart.topLeftY);
+				file.println("\tbottom right x = " + chart.bottomRightX);
+				file.println("\tbottom right y = " + chart.bottomRightY);
+				
+				for(String line : chart.exportChart())
+					file.println("\t" + line);
+				
+			}
+			
+			file.close();
+			
+		} catch (IOException e) {
+			
+			NotificationsController.showFailureForSeconds("Unable to save the settings file.", 5, false);
+			
+		}
+		
+	}
+
+	/**
+	 * Opens a file and resets the current state to the state defined in that file.
+	 * The state consists of: GUI settings, communication settings, data structure definition, and details for each chart.
+	 * 
+	 * @param inputFilePath    An absolute path to a .txt file.
+	 * @param connect          True to connect, or false to just configure things without connecting to the device.
+	 * @return                 True on success, or false on error.
+	 */
+	private static boolean importSettingsFile(String inputFilePath, boolean connect) {
+		
+		CommunicationController.disconnect(null);
+		ChartsController.removeAllCharts();
+		DatasetsController.removeAllDatasets();
+		
+		QueueOfLines lines = null;
+		
+		try {
+			
+			lines = new QueueOfLines(Files.readAllLines(new File(inputFilePath).toPath(), StandardCharsets.UTF_8));
+			
+			ChartUtils.parseExact(lines.remove(), "Telemetry Viewer v0.7 Settings");
+			ChartUtils.parseExact(lines.remove(), "");
+			
+			ChartUtils.parseExact(lines.remove(), "GUI Settings:");
+			ChartUtils.parseExact(lines.remove(), "");
+			
+			int tileColumns           = ChartUtils.parseInteger(lines.remove(), "tile column count = %d");
+			int tileRows              = ChartUtils.parseInteger(lines.remove(), "tile row count = %d");
+			String timeFormat         = ChartUtils.parseString (lines.remove(), "time format = %s");
+			boolean timeFormat24hours = ChartUtils.parseBoolean(lines.remove(), "show 24-hour time = %b");
+			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
+			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
+			boolean fpsVisibility     = ChartUtils.parseBoolean(lines.remove(), "show fps and period = %b");
+			int chartIndex            = ChartUtils.parseInteger(lines.remove(), "chart index for benchmarks = %d");
+			int antialiasingLevel     = ChartUtils.parseInteger(lines.remove(), "antialiasing level = %d");
+			ChartUtils.parseExact(lines.remove(), "");
+			
+			SettingsController.setTileColumns(tileColumns);
+			SettingsController.setTileRows(tileRows);
+			SettingsController.setTimeFormat(timeFormat);
+			SettingsController.setTimeFormat24hours(timeFormat24hours);
+			SettingsController.setTooltipVisibility(tooltipVisibility);
+			SettingsController.setSmoothScrolling(smoothScrolling);
+			SettingsController.setFpsVisibility(fpsVisibility);
+			SettingsController.setAntialiasingLevel(antialiasingLevel);
+
+			ChartUtils.parseExact(lines.remove(), "Communication Settings:");
+			ChartUtils.parseExact(lines.remove(), "");
+			
+			String portName   = ChartUtils.parseString (lines.remove(), "port = %s");
+			int baudRate      = ChartUtils.parseInteger(lines.remove(), "uart baud rate = %d");
+			int tcpUdpPort    = ChartUtils.parseInteger(lines.remove(), "tcp/udp port number = %d");
+			String packetType = ChartUtils.parseString (lines.remove(), "packet type = %s");
+			if(!Arrays.asList(CommunicationController.getPacketTypes()).contains(packetType))
+				throw new AssertionError("Invalid packet type.");
+			int sampleRate    = ChartUtils.parseInteger(lines.remove(), "sample rate = %d");
+			ChartUtils.parseExact(lines.remove(), "");
+			
+			CommunicationController.setPort(portName);
+			CommunicationController.setBaudRate(baudRate);
+			CommunicationController.setPortNumber(tcpUdpPort);
+			CommunicationController.setPacketType(packetType);
+			CommunicationController.setSampleRate(sampleRate);
+			
+			// connect if requested
+			// if not connecting, we are about to import a file, and should indicate this so the charts can detect it if needed
+			if(connect)
+				CommunicationController.connect(true);
+			else
+				CommunicationController.setPort(PORT_FILE);
+			
+			int locationsCount = ChartUtils.parseInteger(lines.remove(), "%d Data Structure Locations:");
+			ChartUtils.parseExact(lines.remove(), "");
+
+			for(int i = 0; i < locationsCount; i++) {
+				
+				int location            = ChartUtils.parseInteger(lines.remove(), "location = %d");
+				String processorName    = ChartUtils.parseString (lines.remove(), "binary processor = %s");
+				String name             = ChartUtils.parseString (lines.remove(), "name = %s");
+				String colorText        = ChartUtils.parseString (lines.remove(), "color = 0x%s");
+				String unit             = ChartUtils.parseString (lines.remove(), "unit = %s");
+				float conversionFactorA = ChartUtils.parseFloat  (lines.remove(), "conversion factor a = %f");
+				float conversionFactorB = ChartUtils.parseFloat  (lines.remove(), "conversion factor b = %f");
+				
+				Color color = new Color(Integer.parseInt(colorText, 16));
+				BinaryFieldProcessor processor = null;
+				for(BinaryFieldProcessor p : PacketBinary.getBinaryFieldProcessors())
+					if(p.toString().equals(processorName))
+						processor = p;
+				
+				packet.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				
+				if(processor != null && processor.toString().startsWith("Bitfield")) {
+					List<Bitfield> fields = new ArrayList<Bitfield>();
+					String line = lines.remove();
+					while(!line.equals("")){
+						try {
+							String bitNumbers = line.split(" ")[0];
+							String[] fieldNames = line.substring(bitNumbers.length() + 3).split(","); // skip past "[n:n] = "
+							bitNumbers = bitNumbers.substring(1, bitNumbers.length() - 1); // remove [ and ]
+							int MSBit = Integer.parseInt(bitNumbers.split(":")[0]);
+							int LSBit = Integer.parseInt(bitNumbers.split(":")[1]);
+							Bitfield field = new Bitfield(MSBit, LSBit);
+							for(int f = 0; f < fieldNames.length; f++) {
+								field.textfields[f].setText(fieldNames[f]);
+								field.names[f] = fieldNames[f];
+							}
+							fields.add(field);
+						} catch(Exception e) {
+							throw new AssertionError("Text does not start with a bitfield range.");
+						}
+						line = lines.remove();
+					}
+					DatasetsController.getDatasetByLocation(location).setBitfields(fields);
+				} else {
+					ChartUtils.parseExact(lines.remove(), "");
+				}
+				
+			}
+			
+			ChartUtils.parseExact(lines.remove(), "Checksum:");
+			ChartUtils.parseExact(lines.remove(), "");
+			int checksumOffset = ChartUtils.parseInteger(lines.remove(), "location = %d");
+			String checksumName  = ChartUtils.parseString(lines.remove(), "checksum processor = %s");
+			
+			if(checksumOffset >= 1 && !checksumName.equals("null")) {
+				BinaryChecksumProcessor processor = null;
+				for(BinaryChecksumProcessor p : PacketBinary.getBinaryChecksumProcessors())
+					if(p.toString().equals(checksumName))
+						processor = p;
+				packet.insertChecksum(checksumOffset, processor);
+			}
+			
+			packet.dataStructureDefined = true;
+
+			ChartUtils.parseExact(lines.remove(), "");
+			int chartsCount = ChartUtils.parseInteger(lines.remove(), "%d Charts:");
+			if(chartsCount == 0) {
+				NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
+				return true;
+			}
+
+			for(int i = 0; i < chartsCount; i++) {
+				
+				ChartUtils.parseExact(lines.remove(), "");
+				String chartType = ChartUtils.parseString (lines.remove(), "chart type = %s");
+				int topLeftX     = ChartUtils.parseInteger(lines.remove(), "top left x = %d");
+				int topLeftY     = ChartUtils.parseInteger(lines.remove(), "top left y = %d");
+				int bottomRightX = ChartUtils.parseInteger(lines.remove(), "bottom right x = %d");
+				int bottomRightY = ChartUtils.parseInteger(lines.remove(), "bottom right y = %d");
+				
+				if(topLeftX < 0 || topLeftX >= SettingsController.getTileColumns()) {
+					lines.lineNumber -= 3;
+					throw new AssertionError("Invalid chart position.");
+				}
+				
+				if(topLeftY < 0 || topLeftY >= SettingsController.getTileRows()) {
+					lines.lineNumber -= 2;
+					throw new AssertionError("Invalid chart position.");
+				}
+				
+				if(bottomRightX < 0 || bottomRightX >= SettingsController.getTileColumns()) {
+					lines.lineNumber -= 1;
+					throw new AssertionError("Invalid chart position.");
+				}
+				
+				if(bottomRightY < 0 || bottomRightY >= SettingsController.getTileRows())
+					throw new AssertionError("Invalid chart position.");
+				
+				for(PositionedChart existingChart : ChartsController.getCharts())
+					if(existingChart.regionOccupied(topLeftX, topLeftY, bottomRightX, bottomRightY))
+						throw new AssertionError("Chart overlaps an existing chart.");
+				
+				PositionedChart chart = ChartsController.createAndAddChart(chartType, topLeftX, topLeftY, bottomRightX, bottomRightY);
+				if(chart == null) {
+					lines.lineNumber -= 4;
+					throw new AssertionError("Invalid chart type.");
+				}
+				chart.importChart(lines);
+				
+			}
+			
+			SettingsController.setBenchmarkedChartByIndex(chartIndex);
+			return true;
+			
+		} catch (IOException ioe) {
+			
+			NotificationsController.showFailureUntil("Unable to open the settings file.", () -> false, true);
+			return false;
+			
+		} catch(AssertionError ae) {
+		
+			CommunicationController.disconnect(null);
+			ChartsController.removeAllCharts();
+			DatasetsController.removeAllDatasets();
+			
+			NotificationsController.showFailureUntil("Error while parsing the settings file:\nLine " + lines.lineNumber + ": " + ae.getMessage(), () -> false, true);
+			return false;
+		
+		}
+		
+	}
+	
+	/**
+	 * Imports all samples from a CSV file.
+	 * 
+	 * @param path    Full path with file name.
+	 */
+	private static void importCsvFile(String filepath) {
+
+		disconnect(null);
+		setPort(PORT_FILE);
+		importFilePath = filepath;
+		connect(true);
+		
+	}
+	
+	/**
+	 * Imports all images from a MJPG and corresponding BIN file.
+	 * 
+	 * @param mjpgFilepath    MJPEG file containing the concatenated JPEG images.
+	 * @param binFilepath     BIN file containing index data for those JPEGs.
+	 */
+	private static void importCameraFiles(String mjpgFilepath, String binFilepath) {
+		
+		for(Camera camera : DatasetsController.getExistingCameras()) {
+			String filesystemFriendlyName = camera.name.replaceAll("[^a-zA-Z0-9.-]", "_");
+			if(mjpgFilepath.endsWith(filesystemFriendlyName + ".mjpg")) {
+				camera.importFiles(mjpgFilepath, binFilepath);
+				return;
+			}
+		}
+		
+	}
+	
+	@SuppressWarnings("serial")
+	public static class QueueOfLines extends LinkedList<String> {
+		
+		int lineNumber = 0;
+		
+		/**
+		 * A Queue<String> that keeps track of how many items have been removed from the Queue.
+		 * This is for easily tracking the current line number, so it can be displayed in error messages if necessary.
+		 * 
+		 * @param lines    The lines of text to insert into the queue. Leading tabs will be removed.
+		 */
+		public QueueOfLines(List<String> lines) {
+			super();
+			for(String line : lines)
+				if(line.startsWith("\t"))
+					add(line.substring(1));
+				else
+					add(line);
+		}
+		
+		@Override public String remove() {
+			lineNumber++;
+			try {
+				return super.remove();
+			} catch(Exception e) {
+				throw new AssertionError("Incomplete file. More lines are required.");
+			}
+		}
+
 	}
 	
 }

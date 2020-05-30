@@ -100,7 +100,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	@Override public String toString() {
 		
-		return "Time Domain Chart";
+		return "Time Domain";
 		
 	}
 	

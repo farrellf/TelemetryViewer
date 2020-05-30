@@ -266,12 +266,12 @@ public class PacketCsv extends Packet {
 			}
 			
 			// tell the user we're connected
-			String waitingForTelemetry = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected. Send telemetry." :
-			                             CommunicationController.getPort().equals(Communication.PORT_TCP)      ? "The TCP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort :
-			                             CommunicationController.getPort().equals(Communication.PORT_UDP)      ? "The UDP server is running. Send telemetry to " + Communication.localIp + ":" + Communication.tcpUdpPort : "";
-			String receivingTelemetry  = CommunicationController.getPort().startsWith(Communication.PORT_UART) ? Communication.port.substring(6) + " is connected and receiving telemetry." :
-			                             CommunicationController.getPort().equals(Communication.PORT_TCP)      ? "The TCP server is running and receiving telemetry." :
-			                             CommunicationController.getPort().equals(Communication.PORT_UDP)      ? "The UDP server is running and receiving telemetry." : "";
+			String waitingForTelemetry = CommunicationController.getPort().startsWith(CommunicationController.PORT_UART) ? CommunicationController.getPort().substring(6) + " is connected. Send telemetry." :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_TCP)      ? "The TCP server is running. Send telemetry to " + CommunicationController.getLoclIpAddress() :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_UDP)      ? "The UDP server is running. Send telemetry to " + CommunicationController.getLoclIpAddress() : "";
+			String receivingTelemetry  = CommunicationController.getPort().startsWith(CommunicationController.PORT_UART) ? CommunicationController.getPort().substring(6) + " is connected and receiving telemetry." :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_TCP)      ? "The TCP server is running and receiving telemetry." :
+			                             CommunicationController.getPort().equals(CommunicationController.PORT_UDP)      ? "The UDP server is running and receiving telemetry." : "";
 			int oldSampleCount = DatasetsController.getSampleCount();
 			Timer t = new Timer(100, event -> {
 				if(DatasetsController.getSampleCount() == oldSampleCount)
@@ -345,7 +345,7 @@ public class PacketCsv extends Packet {
 		if(PacketCsv.instance.getFirstAvailableColumn() != -1)
 			CsvDataStructureGui.instance.columnTextfield.setText(Integer.toString(PacketCsv.instance.getFirstAvailableColumn()));
 		CsvDataStructureGui.instance.nameTextfield.setText("");
-		CsvDataStructureGui.instance.colorButton.setForeground(Controller.getDefaultLineColor());
+		CsvDataStructureGui.instance.colorButton.setForeground(Theme.defaultDatasetColor);
 		CsvDataStructureGui.instance.unitTextfield.setText("");
 		CsvDataStructureGui.instance.conversionFactorAtextfield.setText("1.0");
 		CsvDataStructureGui.instance.conversionFactorBtextfield.setText("1.0");
@@ -416,7 +416,7 @@ public class PacketCsv extends Packet {
 			
 			// color of the field
 			colorButton = new JButton("\u25B2");
-			colorButton.setForeground(Controller.getDefaultLineColor());
+			colorButton.setForeground(Theme.defaultDatasetColor);
 			colorButton.addActionListener(event -> {
 				Color color = JColorChooser.showDialog(CsvDataStructureGui.this, "Pick a Color for " + nameTextfield.getText(), Color.BLACK);
 				if(color != null)
@@ -515,6 +515,8 @@ public class PacketCsv extends Packet {
 					JOptionPane.showMessageDialog(CsvDataStructureGui.this, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
 				} else {
 					PacketCsv.instance.dataStructureDefined = true;
+					if(ChartsController.getCharts().isEmpty())
+						NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
 					Main.hideDataStructureGui();
 				}
 			});
@@ -547,7 +549,7 @@ public class PacketCsv extends Packet {
 			dataStructureTable.getColumn("").setCellRenderer(new TableCellRenderer() {
 				@Override public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 					JButton b = new JButton("Remove");
-					if(CommunicationController.getPort() == Communication.PORT_TEST)
+					if(CommunicationController.getPort().equals(CommunicationController.PORT_TEST))
 						b.setEnabled(false);
 					return b;
 				}
@@ -556,7 +558,7 @@ public class PacketCsv extends Packet {
 				
 				// ask the user to confirm
 				@Override public void mousePressed(MouseEvent e) {
-					if(CommunicationController.getPort() == Communication.PORT_TEST)
+					if(CommunicationController.getPort().equals(CommunicationController.PORT_TEST))
 						return;
 					Dataset dataset = DatasetsController.getDatasetByIndex(dataStructureTable.getSelectedRow());
 					String title = "Remove " + dataset.name + "?";
@@ -636,7 +638,7 @@ public class PacketCsv extends Packet {
 		
 		public void updateGui(boolean updateColumnNumber) {
 			
-			if(CommunicationController.getPort() == Communication.PORT_TEST) {
+			if(CommunicationController.getPort().equals(CommunicationController.PORT_TEST)) {
 				
 				dsdLabel.setText("Data Structure Definition: (Not Editable in Test Mode)");
 				columnTextfield.setEnabled(false);
@@ -814,7 +816,7 @@ public class PacketCsv extends Packet {
 					code.append("\t   esp8266_reset() &&\n");
 					code.append("\t   esp8266_client_mode() &&\n");
 					code.append("\t   esp8266_join_ap(\"your_wifi_network_name_here\", \"your_wifi_password_here\") && // EDIT THIS LINE\n");
-					code.append("\t   esp8266_start_udp(\"" + Communication.localIp + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
+					code.append("\t   esp8266_start_udp(\"" + CommunicationController.getLoclIpAddress() + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
 					code.append("\n");
 					code.append("\t\t// success, turn on LED\n");
 					code.append("\t\tdigitalWrite(LED_BUILTIN, HIGH);\n");
@@ -1003,7 +1005,7 @@ public class PacketCsv extends Packet {
 					code.append("\t\t// enter an infinite loop that tries to connect to the TCP server once every 3 seconds\n");
 					code.append("\t\twhile(true) {\n");
 					code.append("\n");
-					code.append("\t\t\ttry(Socket socket = new Socket(\"" + Communication.localIp + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
+					code.append("\t\t\ttry(Socket socket = new Socket(\"" + CommunicationController.getLoclIpAddress() + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
 					code.append("\n");
 					code.append("\t\t\t\t// enter another infinite loop that sends packets of telemetry\n");
 					code.append("\t\t\t\tPrintWriter output = new PrintWriter(socket.getOutputStream(), true);\n");
@@ -1071,7 +1073,7 @@ public class PacketCsv extends Packet {
 					for(String name : datasetNames)
 						code.append("\t\t\t\t\tfloat " + name + " = ...; // EDIT THIS LINE\n");
 					code.append("\t\t\t\t\tbyte[] buffer = String.format(\"" + printfFormatString.replace('d', 'f') + "\\n\", " + intPrintfVariables + ").getBytes();\n");
-					code.append("\t\t\t\t\tDatagramPacket packet = new DatagramPacket(buffer, 0, buffer.length, InetAddress.getByName(\"" + Communication.localIp + "\"), " + CommunicationController.getPortNumber() + "); // EDIT THIS LINE\n");
+					code.append("\t\t\t\t\tDatagramPacket packet = new DatagramPacket(buffer, 0, buffer.length, InetAddress.getByName(\"" + CommunicationController.getLoclIpAddress() + "\"), " + CommunicationController.getPortNumber() + "); // EDIT THIS LINE\n");
 					code.append("\t\t\t\t\tsocket.send(packet);\n");
 					code.append("\t\t\t\t\tThread.sleep(" + Math.round(1000.0 / CommunicationController.getSampleRate())  + ");\n");
 					code.append("\t\t\t\t}\n");

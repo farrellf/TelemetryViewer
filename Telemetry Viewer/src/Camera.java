@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Consumer;
+
 import javax.imageio.ImageIO;
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
@@ -47,7 +49,7 @@ public class Camera {
 	public String name;
 	private boolean isMjpeg;
 	private Webcam camera;
-	private Dimension requestedResolution;
+	private Dimension requestedResolution = new Dimension(0, 0);
 	
 	// images in memory
 	private volatile GLframe liveImage = new GLframe(null, true, 1, 1, "[waiting]", 0);
@@ -69,8 +71,8 @@ public class Camera {
 	 * Prepares a Camera object, but does not actually connect to it.
 	 * This object may be backed by a local camera (USB, etc.) or an MJPEG-over-HTTP stream.
 	 * 
-	 * @param name                     The camera name or URL.
-	 * @param isMjpeg                  True if using MJPEG-over-HTTP.
+	 * @param name       The camera name or URL.
+	 * @param isMjpeg    True if using MJPEG-over-HTTP.
 	 */
 	public Camera(String name, boolean isMjpeg) {
 		
@@ -89,7 +91,7 @@ public class Camera {
 			                                    StandardOpenOption.WRITE);
 			fileIsImported = false;
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the create the cache file for " + name + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForSeconds("Unable the create the cache file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 		}
 		
@@ -106,11 +108,12 @@ public class Camera {
 		disconnect();
 		
 		// don't actually connect if importing from a file
-		if(CommunicationController.getPort().equals(Communication.PORT_FILE))
+		if(CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
 			return;
 		
 		// if we previously imported a file, close it and create a new cache file
-		if(fileIsImported) {
+		// it's also possible that the file is closed if we imported a CSV file without importing the corresponding camera files.
+		if(fileIsImported || !file.isOpen()) {
 			try {
 				file.close();
 				frames.clear();
@@ -120,7 +123,7 @@ public class Camera {
 				                                    StandardOpenOption.WRITE);
 				fileIsImported = false;
 			} catch(Exception e) {
-				NotificationsController.showFailureForSeconds("Unable the create the cache file for " + name + "\n" + e.getMessage(), 10, true);
+				NotificationsController.showFailureForSeconds("Unable the create the cache file for " + name + "\n" + e.getMessage(), 10, false);
 				e.printStackTrace();
 				return;
 			}
@@ -303,7 +306,7 @@ public class Camera {
 	 */
 	public boolean isConnected() {
 		
-		return thread.isAlive();
+		return (thread != null) && thread.isAlive();
 		
 	}
 	
@@ -331,7 +334,7 @@ public class Camera {
 			Files.deleteIfExists(pathOnDisk);
 			frames.clear();
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the delete the cache file for " + name + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForSeconds("Unable the delete the cache file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 		}
 		
@@ -437,11 +440,12 @@ public class Camera {
 	}
 	
 	/**
-	 * Saves all images to a MJPG file, and saves the corresponding index to a BIN file.
+	 * Saves all images to a MJPG file, and saves the corresponding index data to a BIN file.
 	 * 
-	 * @param filepath    The absolute path of the corresponding CSV log file, without the .csv extension.
+	 * @param filepath           An absolute path, including the first part of the file name. The camera name, and .mjpg/.bin, will be appended to this.
+	 * @param progressTracker    Consumer<Double> that will be notified as progress is made. (0.0 = 0%, 1.0 = 100%.)
 	 */
-	public void exportFiles(String filepath) {
+	public void exportFiles(String filepath, Consumer<Double> progressTracker) {
 		
 		filepath += " " + name.replaceAll("[^a-zA-Z0-9.-]", "_");
 		
@@ -460,30 +464,32 @@ public class Camera {
 			}
 			binFile.close();
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Error while exporting the BIN file for " + name + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForSeconds("Error while exporting the BIN file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 			return;
 		}
 		
-		// write the actual frames to a MJPG file
+		// write the images to a MJPG file
 		try {
 			FileChannel mjpgFile = FileChannel.open(Paths.get(filepath + ".mjpg"), StandardOpenOption.CREATE,
 			                                                                       StandardOpenOption.TRUNCATE_EXISTING,
 			                                                                       StandardOpenOption.WRITE);
-			// copy to the mjpg file, by mapping up to the max of 2GB at a time
+			// copy to the mjpg file with FileChannel.transferTo(), do not use FileChannel.map() because:
+			// https://bugs.openjdk.java.net/browse/JDK-4715154
 			long offset = 0;
-			long size = frames.get(frameCount - 1).offset + frames.get(frameCount - 1).length;
-			while(size > 0) {
-				long amount = Long.min(size, Integer.MAX_VALUE);
-				ByteBuffer buffer = file.map(FileChannel.MapMode.READ_ONLY, offset, amount);
-				mjpgFile.write(buffer);
+			long remainingBytes = frames.get(frameCount - 1).offset + frames.get(frameCount - 1).length;
+			long fileSize = remainingBytes;
+			while(remainingBytes > 0) {
+				long amount = Long.min(remainingBytes, 16777216); // 16MB chunks
+				file.transferTo(offset, amount, mjpgFile);
 				mjpgFile.force(true);
-				size -= amount;
+				remainingBytes -= amount;
 				offset += amount;
+				progressTracker.accept((double) offset / (double) fileSize);
 			}
 			mjpgFile.close();
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Error while exporting the MJPG file for " + name + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForSeconds("Error while exporting the MJPG file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 			return;
 		}
@@ -493,17 +499,18 @@ public class Camera {
 	/**
 	 * Imports all images from a MJPG file and corresponding index data from a BIN file.
 	 * 
-	 * @param filepath    The absolute path of the files, without the file extensions.
+	 * @param mjpgFilepath    Absolute path of the MJPG file.
+	 * @param binFilepath     Absolute path of the BIN file.
 	 */
-	public void importFiles(String filepath) {
+	public void importFiles(String mjpgFilepath, String binFilepath) {
 		
 		dispose();
 		
 		try {
-			file = FileChannel.open(Paths.get(filepath + ".mjpg"), StandardOpenOption.READ);
+			file = FileChannel.open(Paths.get(mjpgFilepath), StandardOpenOption.READ);
 			fileIsImported = true;
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the open the MJPG file for " + name + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForSeconds("Unable the open the MJPG file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 			return;
 		}
@@ -511,7 +518,7 @@ public class Camera {
 		new Thread(() -> {
 			try {
 				// import the index data
-				ObjectInputStream binFile = new ObjectInputStream(new FileInputStream(filepath + ".bin"));
+				ObjectInputStream binFile = new ObjectInputStream(new FileInputStream(binFilepath));
 				try {
 					while(true) {
 						long timestamp = binFile.readLong();
@@ -524,7 +531,7 @@ public class Camera {
 				}
 				binFile.close();
 			} catch(Exception e) {
-				NotificationsController.showFailureForSeconds("Error while importing data from " + filepath + ".bin\n" + e.getMessage(), 10, true);
+				NotificationsController.showFailureForSeconds("Error while importing data from " + binFilepath + "\n" + e.getMessage(), 10, false);
 				e.printStackTrace();
 				return;
 			}
@@ -545,7 +552,7 @@ public class Camera {
 			file.write(ByteBuffer.wrap(jpegBytes));
 			file.force(true);
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the save to the cache file for " + name + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForSeconds("Unable the save to the cache file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 			return;
 		}
@@ -672,7 +679,7 @@ public class Camera {
 				file.write(ByteBuffer.wrap(jpegBytes, 0, jpegBytesLength));
 				file.force(true);
 			} catch (Exception e) {
-				NotificationsController.showFailureForSeconds("Unable to save one of the frames from " + name + "\n" + e.getMessage(), 10, true);
+				NotificationsController.showFailureForSeconds("Unable to save one of the frames from " + name + "\n" + e.getMessage(), 10, false);
 				e.printStackTrace();
 				liveJpegThreads--;
 				return;

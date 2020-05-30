@@ -19,7 +19,7 @@ public class SettingsController {
 		
 		// sanity check
 		boolean chartsObscured = false;
-		for(PositionedChart chart : Model.charts)
+		for(PositionedChart chart : ChartsController.getCharts())
 			if(chart.regionOccupied(value, 0, Settings.tileColumns, Settings.tileRows))
 				chartsObscured = true;
 		
@@ -29,9 +29,9 @@ public class SettingsController {
 		// apply change
 		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
 		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
-		Controller.updateTileOccupancy(null);
-		OpenGLChartsRegion.instance.tileColumns = Settings.tileColumns;
-		OpenGLChartsRegion.instance.tileRows = Settings.tileRows;
+		ChartsController.updateTileOccupancy(null);
+		OpenGLChartsView.instance.tileColumns = Settings.tileColumns;
+		OpenGLChartsView.instance.tileRows = Settings.tileRows;
 		
 	}
 	
@@ -53,7 +53,7 @@ public class SettingsController {
 		
 		// sanity check
 		boolean chartsObscured = false;
-		for(PositionedChart chart : Model.charts)
+		for(PositionedChart chart : ChartsController.getCharts())
 			if(chart.regionOccupied(0, value, Settings.tileColumns, Settings.tileRows))
 				chartsObscured = true;
 		
@@ -63,9 +63,9 @@ public class SettingsController {
 		// apply change
 		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
 		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
-		Controller.updateTileOccupancy(null);
-		OpenGLChartsRegion.instance.tileColumns = Settings.tileColumns;
-		OpenGLChartsRegion.instance.tileRows = Settings.tileRows;
+		ChartsController.updateTileOccupancy(null);
+		OpenGLChartsView.instance.tileColumns = Settings.tileColumns;
+		OpenGLChartsView.instance.tileRows = Settings.tileRows;
 		
 	}
 	
@@ -281,7 +281,7 @@ public class SettingsController {
 	 */
 	public static void setBenchmarkedChartByIndex(int index) {
 
-		setBenchmarkedChart(index >= 0 ? Controller.getCharts().get(index) : null);
+		setBenchmarkedChart(index >= 0 ? ChartsController.getCharts().get(index) : null);
 		
 	}
 	
@@ -299,7 +299,7 @@ public class SettingsController {
 	 */
 	public static int getBenchmarkedChartIndex() {
 
-		List<PositionedChart> charts = Controller.getCharts();
+		List<PositionedChart> charts = ChartsController.getCharts();
 		for(int i = 0; i < charts.size(); i++)
 			if(charts.get(i) == Settings.chartForBenchmarks)
 				return i;
@@ -316,7 +316,7 @@ public class SettingsController {
 	public static void setAntialiasingLevel(int level) {
 		
 		if(Settings.antialiasingLevel != level)
-			SwingUtilities.invokeLater(() -> OpenGLChartsRegion.regenerate());
+			SwingUtilities.invokeLater(() -> OpenGLChartsView.regenerate());
 		
 		Settings.antialiasingLevel = level;
 		SettingsView.instance.antialiasingLevelSlider.setValue((int) (Math.log(level) / Math.log(2)));

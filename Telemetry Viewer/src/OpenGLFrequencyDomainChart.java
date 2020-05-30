@@ -130,7 +130,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 	
 	@Override public String toString() {
 		
-		return "Frequency Domain Chart";
+		return "Frequency Domain";
 		
 	}
 	
@@ -352,7 +352,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				yPowerTextTop = yPowerTextBaseline + OpenGL.smallTextHeight;
 				xMaxPowerTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, maxPowerText);
 				xPowerScaleRight = xMaxPowerTextLeft - Theme.tickTextPadding;
-				xPowerScaleLeft = xPowerScaleRight - (100 * Controller.getDisplayScalingFactor());
+				xPowerScaleLeft = xPowerScaleRight - (100 * ChartsController.getDisplayScalingFactor());
 				xMinPowerTextLeft = xPowerScaleLeft - Theme.tickTextPadding - OpenGL.smallTextWidth(gl, minPowerText);
 				
 				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);

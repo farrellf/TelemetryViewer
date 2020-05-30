@@ -41,8 +41,9 @@ public class WidgetCamera extends Widget {
 		
 		mjpegUrlTextfield = new JTextField("http://example.com:8080/video");
 		// crude attempt to make the default URL be the IP address of the default gateway
-		if(Communication.localIp.split("\\.").length == 4)
-			mjpegUrlTextfield.setText("http://" + Communication.localIp.substring(0, Communication.localIp.lastIndexOf(".")) + ".1:8080/video");
+		String ip = CommunicationController.getLoclIpAddress();
+		if(ip.split("\\.").length == 4)
+			mjpegUrlTextfield.setText("http://" + ip.substring(0, ip.lastIndexOf(".")) + ".1:8080/video");
 
 		resolutionsCombobox = new JComboBox<String>();
 		for(Dimension resolution : resolutions)
@@ -90,7 +91,7 @@ public class WidgetCamera extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(Controller.QueueOfLines lines) {
+	@Override public void importState(CommunicationController.QueueOfLines lines) {
 		
 		// disable the event listeners
 		for(ActionListener l : namesCombobox.getActionListeners())

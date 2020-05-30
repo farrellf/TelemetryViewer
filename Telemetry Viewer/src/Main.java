@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
 public class Main {
@@ -36,12 +37,12 @@ public class Main {
 		
 		// populate the window
 		window.setLayout(new BorderLayout());
-		window.add(NotificationsView.instance,  BorderLayout.NORTH);
-		window.add(OpenGLChartsRegion.instance, BorderLayout.CENTER);
-		window.add(SettingsView.instance,       BorderLayout.WEST);
-		window.add(ControlsRegion.instance,     BorderLayout.SOUTH);
-		window.add(ConfigureView.instance,      BorderLayout.EAST);
-		NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> CommunicationController.isConnected() || !Controller.getCharts().isEmpty(), true);
+		window.add(NotificationsView.instance, BorderLayout.NORTH);
+		window.add(OpenGLChartsView.instance,  BorderLayout.CENTER);
+		window.add(SettingsView.instance,      BorderLayout.WEST);
+		window.add(CommunicationView.instance, BorderLayout.SOUTH);
+		window.add(ConfigureView.instance,     BorderLayout.EAST);
+		NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> false, true);
 		
 		// size the window
 		int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
@@ -49,7 +50,7 @@ public class Main {
 		int configureViewWidth = ConfigureView.instance.getPreferredSize().width;
 		int notificationHeight = NotificationsView.instance.getPreferredSize().height;
 		int settingsViewHeight = SettingsView.instance.preferredSize.height;
-		int controlsViewHeight = ControlsRegion.instance.getPreferredSize().height;
+		int controlsViewHeight = CommunicationView.instance.getPreferredSize().height;
 		int width  = settingsViewWidth + dataStructureViewWidth + configureViewWidth + (4 * Theme.padding);
 		int height = notificationHeight + settingsViewHeight + controlsViewHeight + (8 * Theme.padding);
 		Dimension size = new Dimension(width, height);
@@ -64,28 +65,17 @@ public class Main {
 			@Override public void windowLostFocus(WindowEvent we)   { }
 		});
 		
-		// allow the user to drag-n-drop a layout file, or a CSV log file, or both
+		// allow the user to drag-n-drop settings/CSV/camera files
 		window.setDropTarget(new DropTarget() {			
 			@Override public void drop(DropTargetDropEvent event) {
 				try {
 					event.acceptDrop(DnDConstants.ACTION_LINK);
 					@SuppressWarnings("unchecked")
 					List<File> files = (List<File>) event.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
-					
-					if(files.size() == 1 && files.get(0).getAbsolutePath().endsWith(".txt")) {
-						Controller.openLayout(files.get(0).getAbsolutePath(), true);
-					} else if(files.size() == 1 && files.get(0).getAbsolutePath().endsWith(".csv")) {
-						Controller.importCsvLogFile(files.get(0).getAbsolutePath());
-					} else if(files.size() == 2 && files.get(0).getAbsolutePath().endsWith(".txt") && files.get(1).getAbsolutePath().endsWith(".csv")) {
-						Controller.openLayout(files.get(0).getAbsolutePath(), false);
-						Controller.importCsvLogFile(files.get(1).getAbsolutePath());
-					} else if(files.size() == 2 && files.get(0).getAbsolutePath().endsWith(".csv") && files.get(1).getAbsolutePath().endsWith(".txt")) {
-						Controller.openLayout(files.get(1).getAbsolutePath(), false);
-						Controller.importCsvLogFile(files.get(0).getAbsolutePath());
-					} else {
-						NotificationsController.showFailureUntil("Error: Wrong file type or too many files selected. Select one layout file, or one CSV log file, or one of each.", () -> false, true);
-					}
-						
+					String[] filepaths = new String[files.size()];
+					for(int i = 0; i < files.size(); i++)
+						filepaths[i] = files.get(i).getAbsolutePath();
+					CommunicationController.importFiles(filepaths);
 				} catch(Exception e) {}
 			}
 		});
@@ -95,7 +85,7 @@ public class Main {
 		try { Files.createDirectory(cacheDir); } catch(FileAlreadyExistsException e) {} catch(Exception e) { e.printStackTrace(); }
 		window.addWindowListener(new WindowAdapter() {
 			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-				CommunicationController.disconnect();
+				CommunicationController.disconnect(null);
 				DatasetsController.removeAllDatasets();
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}
@@ -108,39 +98,42 @@ public class Main {
 	}
 	
 	/**
-	 * Hides the charts and shows the data structure GUI in the middle of the main window.
+	 * Hides the charts and settings panels, then shows the data structure screen in the middle of the main window.
+	 * This method is thread-safe.
 	 */
 	public static void showDataStructureGui() {
 		
-		OpenGLChartsRegion.instance.animator.pause();
-		SettingsView.instance.setVisible(false);
-		ConfigureView.instance.close();
-		window.remove(OpenGLChartsRegion.instance);
-		window.add(Communication.packet.getDataStructureGui(), BorderLayout.CENTER);
-		window.revalidate();
-		window.repaint();
+		SwingUtilities.invokeLater(() -> {
+			OpenGLChartsView.instance.animator.pause();
+			CommunicationView.instance.showSettings(false);
+			ConfigureView.instance.close();
+			window.remove(OpenGLChartsView.instance);
+			window.add(CommunicationController.getDataStructureGui(), BorderLayout.CENTER);
+			window.revalidate();
+			window.repaint();
+		});
 		
 	}
 	
 	/**
-	 * Hides the data structure GUI and shows the charts in the middle of the main window.
+	 * Hides the data structure screen and shows the charts in the middle of the main window.
+	 * This method is thread-safe.
 	 */
 	public static void hideDataStructureGui() {
 		
-		// do nothing if already hidden
-		for(Component c : window.getContentPane().getComponents())
-			if(c == OpenGLChartsRegion.instance)
-				return;
-				
-		window.remove(PacketBinary.BinaryDataStructureGui.instance);
-		window.remove(PacketCsv.CsvDataStructureGui.instance);
-		window.add(OpenGLChartsRegion.instance, BorderLayout.CENTER);
-		window.revalidate();
-		window.repaint();
-		OpenGLChartsRegion.instance.animator.resume();
-		
-		if(CommunicationController.isConnected() && Controller.getCharts().isEmpty())
-			NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !Controller.getCharts().isEmpty(), true);
+		SwingUtilities.invokeLater(() -> {
+			// do nothing if already hidden
+			for(Component c : window.getContentPane().getComponents())
+				if(c == OpenGLChartsView.instance)
+					return;
+					
+			window.remove(PacketBinary.BinaryDataStructureGui.instance);
+			window.remove(PacketCsv.CsvDataStructureGui.instance);
+			window.add(OpenGLChartsView.instance, BorderLayout.CENTER);
+			window.revalidate();
+			window.repaint();
+			OpenGLChartsView.instance.animator.resume();
+		});
 		
 	}
 

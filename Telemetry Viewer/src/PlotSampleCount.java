@@ -456,6 +456,11 @@ public class PlotSampleCount extends Plot {
 		float startX = (float) (plotMaxX % plotDomain) / plotDomain;
 		OpenGL.drawRingbufferTexturedBox(gl, texHandle, xPlotLeft, yPlotBottom, plotWidth, plotHeight, startX);
 		
+		// clip to the plot region
+		int[] originalScissorArgs = new int[4];
+		gl.glGetIntegerv(GL3.GL_SCISSOR_BOX, originalScissorArgs, 0);
+		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, plotWidth, plotHeight);
+		
 		// draw any bitfield changes
 		if(datasets.length > 0 && plotSampleCount >= 2) {
 			List<BitfieldEvents.EventsAtSampleNumber> list = events.get();
@@ -463,6 +468,9 @@ public class PlotSampleCount extends Plot {
 				event.pixelX = (event.sampleNumber - plotMinX) / (float) plotDomain * plotWidth;
 			ChartUtils.drawMarkers(gl, list, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom);
 		}
+
+		// stop clipping to the plot region
+		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 		
 //		// draw the framebuffer without ringbuffer wrapping, 10 pixels above the plot
 //		gl.glDisable(GL2.GL_SCISSOR_TEST);

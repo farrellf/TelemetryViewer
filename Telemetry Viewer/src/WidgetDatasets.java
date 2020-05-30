@@ -133,7 +133,7 @@ public class WidgetDatasets extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(Controller.QueueOfLines lines) {
+	@Override public void importState(CommunicationController.QueueOfLines lines) {
 		
 		Dataset[] datasets = null;
 		

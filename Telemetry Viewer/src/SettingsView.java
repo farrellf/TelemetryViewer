@@ -133,7 +133,7 @@ public class SettingsView extends JPanel {
 		showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
 		showBenchmarksCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showBenchmarksCheckbox.addActionListener(event -> {
-			if(Controller.getCharts().isEmpty()) {
+			if(ChartsController.getCharts().isEmpty()) {
 				NotificationsController.showFailureForSeconds("There are no charts to benchmark. Add a chart first.", 5, true);
 				SettingsController.setBenchmarkedChart(null);
 			} else if(!showBenchmarksCheckbox.isSelected()) {

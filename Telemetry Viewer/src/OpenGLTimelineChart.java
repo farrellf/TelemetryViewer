@@ -83,7 +83,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 		yTimelineBottom = yTimelineTickTop;
 		yTimelineTop = yTimelineBottom + (Theme.lineWidth * 2);
 		timelineHeight = yTimelineTop - yTimelineBottom;
-		markerWidth = 6 * Controller.getDisplayScalingFactor();
+		markerWidth = 6 * ChartsController.getDisplayScalingFactor();
 		
 		// draw the time label if enabled, and if space is available
 		if(showTime) {
@@ -121,7 +121,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 		}
 		
 		// x and y locations of the live view button
-		boolean showLiveViewButton = !OpenGLChartsRegion.instance.isLiveView();
+		boolean showLiveViewButton = !OpenGLChartsView.instance.isLiveView();
 		String buttonText = "\u23ED";
 		float xButtonText = width - Theme.tilePadding - OpenGL.largeTextWidth(gl, buttonText) - Theme.legendTextPadding;
 		float yButtonText = Theme.tilePadding + Theme.legendTextPadding;
@@ -193,7 +193,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 					}
 					
 					int sampleNumber = closestSampleNumber;
-					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsRegion.instance.setNonLiveView(sampleNumber));
+					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setNonLiveView(sampleNumber));
 					
 					mouseTimestamp = DatasetsController.getTimestamp(closestSampleNumber);
 					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
@@ -217,7 +217,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 			OpenGL.drawBox(gl, Theme.legendBackgroundColor, xButtonLeft, yButtonBottom, (xButtonRight - xButtonLeft), (yButtonTop - yButtonBottom));
 			if(mouseOverButton) {
 				OpenGL.drawBoxOutline(gl, Theme.tickLinesColor, xButtonLeft, yButtonBottom, (xButtonRight - xButtonLeft), (yButtonTop - yButtonBottom));
-				handler = EventHandler.onPress(event -> OpenGLChartsRegion.instance.setLiveView());
+				handler = EventHandler.onPress(event -> OpenGLChartsView.instance.setLiveView());
 			}
 			OpenGL.drawLargeText(gl, buttonText, (int) xButtonText, (int) yButtonText, 0);
 		}

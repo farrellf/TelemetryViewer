@@ -670,7 +670,7 @@ public class ChartUtils {
 		final int NORTH_EAST = 2;
 		final int UNDEFINED  = 3;
 		
-		float padding = 6f * Controller.getDisplayScalingFactor();
+		float padding = 6f * ChartsController.getDisplayScalingFactor();
 		
 		List<float[]> occupiedRegions = new ArrayList<float[]>(); // [0] = minX, [1] = maxX, [2] = minY, [3] = maxY
 		
@@ -836,7 +836,7 @@ public class ChartUtils {
 		// notify the user if not all markers could be drawn
 		if(insufficientSpace) {
 			
-			float gradientLength = 10 * Controller.getDisplayScalingFactor();
+			float gradientLength = 10 * ChartsController.getDisplayScalingFactor();
 			float[] red            = new float[] {1, 0, 0, 1};
 			float[] transparentRed = new float[] {1, 0, 0, 0};
 			
@@ -964,7 +964,7 @@ public class ChartUtils {
 		final int SOUTH_WEST = 6;
 		final int SOUTH_EAST = 7;
 		
-		float padding = 6f * Controller.getDisplayScalingFactor();
+		float padding = 6f * ChartsController.getDisplayScalingFactor();
 		
 		float maxTextWidth = OpenGL.smallTextWidth(gl, text[0]);
 		for(int i = 1; i < text.length; i++)

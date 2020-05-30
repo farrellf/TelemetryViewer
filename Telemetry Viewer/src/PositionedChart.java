@@ -47,7 +47,7 @@ public abstract class PositionedChart {
 	
 	public abstract EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
 	
-	public final void importChart(Controller.QueueOfLines lines) {
+	public final void importChart(CommunicationController.QueueOfLines lines) {
 
 		for(Widget widget : widgets)
 			if(widget != null)
@@ -78,7 +78,7 @@ public abstract class PositionedChart {
 	final public void dispose() {
 		
 		disposeNonGpu();
-		OpenGLChartsRegion.instance.chartsToDispose.add(this);
+		OpenGLChartsView.instance.chartsToDispose.add(this);
 		
 	}
 	
