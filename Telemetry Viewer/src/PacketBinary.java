@@ -572,10 +572,12 @@ public class PacketBinary extends Packet {
 			                             CommunicationController.getPort().equals(CommunicationController.PORT_UDP)      ? "The UDP server is running and receiving telemetry." : "";
 			int oldSampleCount = DatasetsController.getSampleCount();
 			Timer t = new Timer(100, event -> {
-				if(DatasetsController.getSampleCount() == oldSampleCount)
-					NotificationsController.showSuccessUntil(waitingForTelemetry, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
-				else
-					NotificationsController.showVerboseForSeconds(receivingTelemetry, 5, true);
+				if(CommunicationController.isConnected()) {
+					if(DatasetsController.getSampleCount() == oldSampleCount)
+						NotificationsController.showSuccessUntil(waitingForTelemetry, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
+					else
+						NotificationsController.showVerboseForSeconds(receivingTelemetry, 5, true);
+				}
 			});
 			t.setRepeats(false);
 			t.start();

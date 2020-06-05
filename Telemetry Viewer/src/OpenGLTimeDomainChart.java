@@ -53,6 +53,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float yXaxisTickTextTop;
 	float yXaxisTickBottom;
 	float yXaxisTickTop;
+	boolean isTimestampsMode;
 	
 	// y-axis title
 	boolean showYaxisTitle;
@@ -116,9 +117,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		durationWidget = new WidgetDuration(SampleCountDefault,
 		                                    SampleCountMinimum,
 		                                    SampleCountMaximum,
-		                                    isSampleCount -> {
-		                                    	sampleCountMode = isSampleCount;
-		                                    	plot = isSampleCount ? new PlotSampleCount() : new PlotMilliseconds();
+		                                    (xAxisType) -> {
+		                                    	sampleCountMode  = xAxisType.equals("Sample Count");
+		                                    	isTimestampsMode = xAxisType.equals("Timestamps");
+		                                    	plot = sampleCountMode ? new PlotSampleCount() : new PlotMilliseconds();
 		                                    });
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
@@ -181,7 +183,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		EventHandler handler = null;
 		
-		plot.initialize(lastSampleNumber, zoomLevel, datasets, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode);
+		plot.initialize(lastSampleNumber, zoomLevel, datasets, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
 		Dataset.MinMax requiredRange = plot.getRange();
@@ -257,6 +259,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showXaxisScale) {
 			yXaxisTickTextBaseline = yPlotBottom;
 			yXaxisTickTextTop = yXaxisTickTextBaseline + OpenGL.smallTextHeight;
+			if(isTimestampsMode && SettingsController.isTimeFormatTwoLines())
+				yXaxisTickTextTop += 1.3 * OpenGL.smallTextHeight;
 			yXaxisTickBottom = yXaxisTickTextTop + Theme.tickTextPadding;
 			yXaxisTickTop = yXaxisTickBottom + Theme.tickLength;
 			
@@ -331,9 +335,14 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			OpenGL.drawLinesXyrgba(gl, GL3.GL_LINES, OpenGL.buffer, vertexCount);
 			
 			for(Map.Entry<Float,String> entry : divisions.entrySet()) {
-				float x = entry.getKey() + xPlotLeft - (OpenGL.smallTextWidth(gl, entry.getValue()) / 2.0f);
-				float y = yXaxisTickTextBaseline;
-				OpenGL.drawSmallText(gl, entry.getValue(), (int) x, (int) y, 0);
+				String[] lines = entry.getValue().split("\n");
+				float x = 0;
+				float y = yXaxisTickTextBaseline + ((lines.length - 1) * 1.3f * OpenGL.smallTextHeight);
+				for(String line : lines) {
+					x = entry.getKey() + xPlotLeft - (OpenGL.smallTextWidth(gl, line) / 2.0f);
+					OpenGL.drawSmallText(gl, line, (int) x, (int) y, 0);
+					y -= 1.3f * OpenGL.smallTextHeight;
+				}
 			}
 		}
 		
@@ -394,13 +403,16 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			Plot.TooltipInfo tooltip = plot.getTooltip(mouseX - (int) xPlotLeft, plotWidth);
 			if(tooltip.draw) {
-				String[] text = new String[datasets.length + 1];
-				Color[] colors = new Color[datasets.length + 1];
-				text[0] = tooltip.label;
-				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+				String[] tooltipLines = tooltip.label.split("\n");
+				String[] text = new String[datasets.length + tooltipLines.length];
+				Color[] colors = new Color[datasets.length + tooltipLines.length];
+				for(int i = 0; i < tooltipLines.length; i++) {
+					text[i] = tooltipLines[i];
+					colors[i] = null;
+				}
 				for(int i = 0; i < datasets.length; i++) {
-					text[i + 1] = datasets[i].getSampleAsString(tooltip.sampleNumber);
-					colors[i + 1] = datasets[i].color;
+					text[i + tooltipLines.length] = datasets[i].getSampleAsString(tooltip.sampleNumber);
+					colors[i + tooltipLines.length] = datasets[i].color;
 				}
 				float anchorX = tooltip.pixelX + xPlotLeft;
 				if(anchorX >= 0 && datasets.length > 1) {

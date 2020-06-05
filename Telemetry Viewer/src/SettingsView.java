@@ -14,7 +14,7 @@ import javax.swing.JTextField;
 import net.miginfocom.swing.MigLayout;
 
 /**
- * The Settings / SettingsView / SettingsController classes form the MVC that manage GUI-related settings.
+ * The SettingsView and SettingsController classes form the MVC that manage GUI-related settings.
  * Settings can be changed when the user interacts with the GUI or opens a Layout file.
  * This class is the GUI that is optionally shown at the left side of the screen.
  */
@@ -81,20 +81,7 @@ public class SettingsView extends JPanel {
 		add(Box.createVerticalStrut(2 * Theme.padding), "span 2");
 		
 		// time format
-		timeFormatCombobox = new JComboBox<String>(new String[] {
-			"YYYY-MM-DD HH:MM:SS.SSS",
-			"YYYY-MM-DD HH:MM:SS",
-			"YYYY-MM-DD HH:MM",
-			"MM-DD-YYYY HH:MM:SS.SSS",
-			"MM-DD-YYYY HH:MM:SS",
-			"MM-DD-YYYY HH:MM",
-			"DD-MM-YYYY HH:MM:SS.SSS",
-			"DD-MM-YYYY HH:MM:SS",
-			"DD-MM-YYYY HH:MM",
-			"HH:MM:SS.SSS",
-			"HH:MM:SS",
-			"HH:MM",
-		});
+		timeFormatCombobox = new JComboBox<String>(SettingsController.getTimeFormats());
 		String format = SettingsController.getTimeFormat();
 		for(int i = 0; i < timeFormatCombobox.getItemCount(); i++)
 			if(timeFormatCombobox.getItemAt(i).equals(format))

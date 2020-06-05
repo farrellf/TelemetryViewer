@@ -23,7 +23,7 @@ public class BitfieldEvents {
 		// check if an object already exists for this sample number
 		if(events.containsKey(sampleNumber)) {
 			EventsAtSampleNumber event = events.get(sampleNumber);
-			event.names.add(name);
+			event.text.add(name);
 			event.glColors.add(glColor);
 			return;
 		}
@@ -49,13 +49,22 @@ public class BitfieldEvents {
 		
 		int sampleNumber = 0;
 		float pixelX = 0;
-		List<String> names = new ArrayList<String>();
+		List<String> text = new ArrayList<String>();
 		List<float[]> glColors = new ArrayList<float[]>();
 		
 		public EventsAtSampleNumber(int sampleNumber, String name, float[] glColor) {
 			this.sampleNumber = sampleNumber;
-			this.names.add(name);
-			this.glColors.add(glColor);
+			
+			text.add("Sample " + sampleNumber);
+			glColors.add(null);
+			String[] lines = SettingsController.formatTimestampToMilliseconds(DatasetsController.getTimestamp(sampleNumber)).split("\n");
+			for(String line : lines) {
+				text.add(line);
+				glColors.add(null);
+			}
+			
+			text.add(name);
+			glColors.add(glColor);
 		}
 		
 	}

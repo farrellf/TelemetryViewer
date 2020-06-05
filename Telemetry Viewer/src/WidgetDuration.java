@@ -1,4 +1,5 @@
 import java.awt.GridLayout;
+import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.function.Consumer;
@@ -12,8 +13,9 @@ import javax.swing.JTextField;
 public class WidgetDuration extends Widget {
 	
 	JTextField textfield;
-	JComboBox<String> combobox;
-	Consumer<Boolean> handler;
+	JComboBox<String> durationTypeCombobox;
+	JComboBox<String> xAxisCombobox;
+	Consumer<String> handler;
 	int defaultSampleCount;
 	int lowerLimit;
 	int upperLimit;
@@ -26,9 +28,9 @@ public class WidgetDuration extends Widget {
 	 * A widget that lets the user specify a duration and pick the duration type (sample count, seconds, etc.) from a drop-down list.
 	 * 
 	 * @param defaultSampleCount    Default sample count.
-	 * @param eventHandler          Will be notified when the duration type or duration value changes.
+	 * @param eventHandler          Will be notified when the duration or x-axis mode changes. The String will be "Sample Count" or "Timestamps" or "Time Elapsed".
 	 */
-	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, Consumer<Boolean> eventHandler) {
+	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, Consumer<String> eventHandler) {
 		
 		super();
 		
@@ -43,16 +45,21 @@ public class WidgetDuration extends Widget {
 			@Override public void focusGained(FocusEvent fe) { textfield.selectAll(); }
 		});
 		
-		combobox = new JComboBox<String>(new String[] {"Samples", "Seconds", "Minutes", "Hours", "Days"});
-		combobox.addActionListener(event -> sanityCheck());
+		durationTypeCombobox = new JComboBox<String>(new String[] {"Samples", "Seconds", "Minutes", "Hours", "Days"});
+		durationTypeCombobox.addActionListener(event -> sanityCheck());
+		
+		xAxisCombobox = new JComboBox<String>(new String[] {"Sample Count", "Timestamps", "Time Elapsed"});
+		xAxisCombobox.addActionListener(event -> sanityCheck());
 		
 		JPanel panel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
 		panel.add(textfield);
-		panel.add(combobox);
+		panel.add(durationTypeCombobox);
 		
-		setLayout(new GridLayout(1, 2, Theme.padding, Theme.padding));
+		setLayout(new GridLayout(0, 2, Theme.padding, Theme.padding));
 		add(new JLabel("Duration: "));
 		add(panel);
+		add(new JLabel("X-Axis: "));
+		add(xAxisCombobox);
 		
 		previousType = "Samples";
 		sanityCheck();
@@ -64,7 +71,13 @@ public class WidgetDuration extends Widget {
 	 */
 	public void sanityCheck() {
 		
-		String currentType = combobox.getSelectedItem().toString();
+		// remove event handlers so they don't get called when updating the comboboxes
+		for(ActionListener al : durationTypeCombobox.getActionListeners())
+			durationTypeCombobox.removeActionListener(al);
+		for(ActionListener al : xAxisCombobox.getActionListeners())
+			xAxisCombobox.removeActionListener(al);
+		
+		String currentType = durationTypeCombobox.getSelectedItem().toString();
 		if(!currentType.equals(previousType)) {
 			// the type changed, so scale the value to roughly match
 			if(previousType.equals("Samples") && currentType.equals("Seconds"))
@@ -113,9 +126,20 @@ public class WidgetDuration extends Widget {
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) * 24f));
 		}
 		
+		// if duration is a sample count, the x-axis mode must be "Sample Count"
+		// if duration is not a sample count, the x-axis mode must be "Time Elapsed" or "Timestamp"
+		if(durationTypeCombobox.getSelectedItem().toString().equals("Samples")) {
+			xAxisCombobox.setSelectedItem("Sample Count");
+			xAxisCombobox.setEnabled(false);
+		} else {
+			if(xAxisCombobox.getSelectedIndex() == 0)
+				xAxisCombobox.setSelectedIndex(1);
+			xAxisCombobox.setEnabled(true);
+		}
+		
 		try {
 			
-			if(combobox.getSelectedItem().toString().equals("Samples")) {
+			if(durationTypeCombobox.getSelectedItem().toString().equals("Samples")) {
 				
 				int i = Integer.parseInt(textfield.getText().trim());
 				if(i < lowerLimit)
@@ -125,7 +149,7 @@ public class WidgetDuration extends Widget {
 				intDuration = i;
 				
 				textfield.setText(Integer.toString(i));
-				handler.accept(true);
+				handler.accept(xAxisCombobox.getSelectedItem().toString());
 				
 			} else {
 				
@@ -135,20 +159,26 @@ public class WidgetDuration extends Widget {
 				floatDuration = f;
 				
 				textfield.setText(Float.toString(f));
-				handler.accept(false);
+				handler.accept(xAxisCombobox.getSelectedItem().toString());
 				
 			}
 			
 		} catch(Exception e) {
 			
-			combobox.setSelectedItem("Samples");
+			durationTypeCombobox.setSelectedItem("Samples");
+			xAxisCombobox.setSelectedItem("Sample Count");
+			xAxisCombobox.setEnabled(false);
 			textfield.setText(Integer.toString(defaultSampleCount));
 			intDuration = defaultSampleCount;
-			handler.accept(true);
+			handler.accept(xAxisCombobox.getSelectedItem().toString());
 			
 		}
 		
-		previousType = combobox.getSelectedItem().toString();
+		previousType = durationTypeCombobox.getSelectedItem().toString();
+		
+		// restore the event handlers
+		durationTypeCombobox.addActionListener(event -> sanityCheck());
+		xAxisCombobox.addActionListener(event -> sanityCheck());
 		
 	}
 	
@@ -185,9 +215,9 @@ public class WidgetDuration extends Widget {
 		
 		// update the widget
 		boolean validEnum = false;
-		for(int i = 0; i < combobox.getItemCount(); i++)
-			if(combobox.getItemAt(i).equals(type)) {
-				combobox.setSelectedIndex(i);
+		for(int i = 0; i < durationTypeCombobox.getItemCount(); i++)
+			if(durationTypeCombobox.getItemAt(i).equals(type)) {
+				durationTypeCombobox.setSelectedIndex(i);
 				validEnum = true;
 			}
 		if(!validEnum)
@@ -200,6 +230,19 @@ public class WidgetDuration extends Widget {
 			float duration = ChartUtils.parseFloat(lines.remove(), "duration = %f");
 			textfield.setText(Float.toString(duration));
 		}
+		
+		// parse the x-axis mode text
+		String showsAs = ChartUtils.parseString(lines.remove(), "x-axis = %s");
+		
+		// update the widget
+		validEnum = false;
+		for(int i = 0; i < xAxisCombobox.getItemCount(); i++)
+			if(xAxisCombobox.getItemAt(i).equals(showsAs)) {
+				xAxisCombobox.setSelectedIndex(i);
+				validEnum = true;
+			}
+		if(!validEnum)
+			throw new AssertionError("X-axis type does not match an expected value.");
 		
 		// update the chart
 		sanityCheck();
@@ -214,8 +257,9 @@ public class WidgetDuration extends Widget {
 	@Override public String[] exportState() {
 		
 		return new String[] {
-			"duration type = " + combobox.getSelectedItem().toString(),
-			"duration = " + textfield.getText()
+			"duration type = " + durationTypeCombobox.getSelectedItem().toString(),
+			"duration = " + textfield.getText(),
+			"x-axis = " + xAxisCombobox.getSelectedItem().toString()
 		};
 		
 	}

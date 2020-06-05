@@ -1,6 +1,5 @@
 import java.awt.Color;
 import java.awt.Font;
-import java.text.SimpleDateFormat;
 import javax.swing.JPanel;
 
 import com.jogamp.opengl.GL2ES3;
@@ -57,10 +56,6 @@ public class Theme {
 	public static Font smallFont  = new Font("Geneva", Font.PLAIN, 12);
 	public static Font mediumFont = new Font("Geneva", Font.BOLD,  14);
 	public static Font largeFont  = new Font("Geneva", Font.BOLD,  18);
-	
-	// display format for timestamps
-	public static SimpleDateFormat timestampFormatter        = new SimpleDateFormat("yyyy-MM-dd\nhh:mm:ss.SSS a");
-	public static SimpleDateFormat tooltipTimestampFormatter = new SimpleDateFormat("yyyy-MM-dd\nhh:mm:ss.SSS a");
 	
 	/**
 	 * This method must be called when the OpenGL context is initialized,

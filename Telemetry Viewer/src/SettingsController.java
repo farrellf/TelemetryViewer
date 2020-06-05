@@ -4,11 +4,46 @@ import java.util.List;
 import javax.swing.SwingUtilities;
 
 /**
- * The Settings / SettingsView / SettingsController classes form the MVC that manage GUI-related settings.
+ * The SettingsView and SettingsController classes form the MVC that manage GUI-related settings.
  * Settings can be changed when the user interacts with the GUI or opens a Layout file.
  * This class is the controller and handles all of those events. It decides if changes are acceptable, and notifies the GUI of those changes.
  */
 public class SettingsController {
+
+	// grid size for the OpenGLChartsView
+	private final static int tileColumnsDefault = 6;
+	private final static int tileColumnsMinimum = 1;
+	private final static int tileColumnsMaximum = 15;
+	private static int tileColumns = tileColumnsDefault;
+	
+	private final static int tileRowsDefault = 6;
+	private final static int tileRowsMinimum = 1;
+	private final static int tileRowsMaximum = 15;
+	private static int tileRows = tileRowsDefault;
+	
+	// how the date/time should be drawn
+	private static String timeFormat = "Only Time";
+	private static boolean timeFormat24hours = false;
+	private static boolean timeFormatAsTwoLines = false;
+	public static SimpleDateFormat timestampFormatterMilliseconds = new SimpleDateFormat("hh:mm:ss.SSS a");
+	public static SimpleDateFormat timestampFormatterSeconds      = new SimpleDateFormat("hh:mm:ss a");
+	public static SimpleDateFormat timestampFormatterMinutes      = new SimpleDateFormat("hh:mm a");
+	
+	// if plot tooltips should be drawn
+	private static boolean tooltipVisibility = true;
+	
+	// if logitech smooth scrolling should be enabled
+	private static boolean smoothScrolling = true;
+	
+	// OpenGL multisample (MSAA) level, use 1 to disable antialiasing
+	private static int antialiasingLevel = 16;
+	
+	// if the FPS and period should be drawn
+	private static boolean fpsVisibility = false;
+	
+	// which chart to measure for CPU/GPU times, or null to not measure
+	private static PositionedChart chartForBenchmarks = null;
+	private static boolean awaitingChartForBenchmark = false;
 	
 	/**
 	 * Changes the OpenGLChartsRegion tile column count if it is within the allowed range and would not obscure part of an existing chart.
@@ -20,18 +55,18 @@ public class SettingsController {
 		// sanity check
 		boolean chartsObscured = false;
 		for(PositionedChart chart : ChartsController.getCharts())
-			if(chart.regionOccupied(value, 0, Settings.tileColumns, Settings.tileRows))
+			if(chart.regionOccupied(value, 0, tileColumns, tileRows))
 				chartsObscured = true;
 		
-		if(value >= Settings.tileColumnsMinimum && value <= Settings.tileColumnsMaximum && !chartsObscured)
-			Settings.tileColumns = value;
+		if(value >= tileColumnsMinimum && value <= tileColumnsMaximum && !chartsObscured)
+			tileColumns = value;
 
 		// apply change
-		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
-		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
+		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(tileColumns));
+		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(tileRows));
 		ChartsController.updateTileOccupancy(null);
-		OpenGLChartsView.instance.tileColumns = Settings.tileColumns;
-		OpenGLChartsView.instance.tileRows = Settings.tileRows;
+		OpenGLChartsView.instance.tileColumns = tileColumns;
+		OpenGLChartsView.instance.tileRows = tileRows;
 		
 	}
 	
@@ -40,7 +75,7 @@ public class SettingsController {
 	 */
 	public static int getTileColumns() {
 		
-		return Settings.tileColumns;
+		return tileColumns;
 		
 	}
 	
@@ -54,18 +89,18 @@ public class SettingsController {
 		// sanity check
 		boolean chartsObscured = false;
 		for(PositionedChart chart : ChartsController.getCharts())
-			if(chart.regionOccupied(0, value, Settings.tileColumns, Settings.tileRows))
+			if(chart.regionOccupied(0, value, tileColumns, tileRows))
 				chartsObscured = true;
 		
-		if(value >= Settings.tileRowsMinimum && value <= Settings.tileRowsMaximum && !chartsObscured)
-			Settings.tileRows = value;
+		if(value >= tileRowsMinimum && value <= tileRowsMaximum && !chartsObscured)
+			tileRows = value;
 
 		// apply change
-		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(Settings.tileColumns));
-		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(Settings.tileRows));
+		SettingsView.instance.tileColumnsTextfield.setText(Integer.toString(tileColumns));
+		SettingsView.instance.tileRowsTextfield.setText(Integer.toString(tileRows));
 		ChartsController.updateTileOccupancy(null);
-		OpenGLChartsView.instance.tileColumns = Settings.tileColumns;
-		OpenGLChartsView.instance.tileRows = Settings.tileRows;
+		OpenGLChartsView.instance.tileColumns = tileColumns;
+		OpenGLChartsView.instance.tileRows = tileRows;
 		
 	}
 	
@@ -74,73 +109,43 @@ public class SettingsController {
 	 */
 	public static int getTileRows() {
 		
-		return Settings.tileRows;
+		return tileRows;
 		
 	}
 	
 	/**
 	 * Changes the format used to display the date and time.
-	 * Tooltips will always show the time with millisecond resolution.
 	 * 
 	 * @param format    One of the combobox options from SettingsView.timeFormatCombobox.
 	 */
 	public static void setTimeFormat(String format) {
 		
-		Settings.timeFormat = format;
+		timeFormat = format;
 		
-		if(format.equals("YYYY-MM-DD HH:MM:SS.SSS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+		if(format.equals("Time and YYYY-MM-DD")) {
+			timestampFormatterMilliseconds = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss.SSS\nyyyy-MM-dd" : "hh:mm:ss.SSS a\nyyyy-MM-dd");
+			timestampFormatterSeconds      = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss\nyyyy-MM-dd"     : "hh:mm:ss a\nyyyy-MM-dd");
+			timestampFormatterMinutes      = new SimpleDateFormat(timeFormat24hours ? "kk:mm\nyyyy-MM-dd"        : "hh:mm a\nyyyy-MM-dd");
+			timeFormatAsTwoLines = true;
 			SettingsView.instance.timeFormatCombobox.setSelectedIndex(0);
-		} else if(format.equals("YYYY-MM-DD HH:MM:SS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss"     : "yyyy-MM-dd\nhh:mm:ss a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+		} else if(format.equals("Time and MM-DD-YYYY")) {
+			timestampFormatterMilliseconds = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss.SSS\nMM-dd-yyyy" : "hh:mm:ss.SSS a\nMM-dd-yyyy");
+			timestampFormatterSeconds      = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss\nMM-dd-yyyy"     : "hh:mm:ss a\nMM-dd-yyyy");
+			timestampFormatterMinutes      = new SimpleDateFormat(timeFormat24hours ? "kk:mm\nMM-dd-yyyy"        : "hh:mm a\nMM-dd-yyyy");
+			timeFormatAsTwoLines = true;
 			SettingsView.instance.timeFormatCombobox.setSelectedIndex(1);
-		} else if(format.equals("YYYY-MM-DD HH:MM")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm"        : "yyyy-MM-dd\nhh:mm a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
+		} else if(format.equals("Time and DD-MM-YYYY")) {
+			timestampFormatterMilliseconds = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss.SSS\ndd-MM-yyyy" : "hh:mm:ss.SSS a\ndd-MM-yyyy");
+			timestampFormatterSeconds      = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss\ndd-MM-yyyy"     : "hh:mm:ss a\ndd-MM-yyyy");
+			timestampFormatterMinutes      = new SimpleDateFormat(timeFormat24hours ? "kk:mm\ndd-MM-yyyy"        : "hh:mm a\ndd-MM-yyyy");
+			timeFormatAsTwoLines = true;
 			SettingsView.instance.timeFormatCombobox.setSelectedIndex(2);
-		} else if(format.equals("MM-DD-YYYY HH:MM:SS.SSS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(3);
-		} else if(format.equals("MM-DD-YYYY HH:MM:SS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss"     : "MM-dd-yyyy\nhh:mm:ss a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(4);
-		} else if(format.equals("MM-DD-YYYY HH:MM")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm"        : "MM-dd-yyyy\nhh:mm a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "MM-dd-yyyy\nkk:mm:ss.SSS" : "MM-dd-yyyy\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(5);
-		} else if(format.equals("DD-MM-YYYY HH:MM:SS.SSS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(6);
-		} else if(format.equals("DD-MM-YYYY HH:MM:SS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss"     : "dd-MM-yyyy\nhh:mm:ss a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(7);
-		} else if(format.equals("DD-MM-YYYY HH:MM")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm"        : "dd-MM-yyyy\nhh:mm a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "dd-MM-yyyy\nkk:mm:ss.SSS" : "dd-MM-yyyy\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(8);
-		} else if(format.equals("HH:MM:SS.SSS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(9);
-		} else if(format.equals("HH:MM:SS")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss"                : "hh:mm:ss a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(10);
-		} else if(format.equals("HH:MM")) {
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm"                   : "hh:mm a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "kk:mm:ss.SSS"            : "hh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(11);
 		} else {
-			Settings.timeFormat = "YYYY-MM-DD HH:MM:SS.SSS";
-			Theme.timestampFormatter        = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
-			Theme.tooltipTimestampFormatter = new SimpleDateFormat(Settings.timeFormat24hours ? "yyyy-MM-dd\nkk:mm:ss.SSS" : "yyyy-MM-dd\nhh:mm:ss.SSS a");
-			SettingsView.instance.timeFormatCombobox.setSelectedIndex(0);
+			timestampFormatterMilliseconds = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss.SSS" : "hh:mm:ss.SSS a");
+			timestampFormatterSeconds      = new SimpleDateFormat(timeFormat24hours ? "kk:mm:ss"     : "hh:mm:ss a");
+			timestampFormatterMinutes      = new SimpleDateFormat(timeFormat24hours ? "kk:mm"        : "hh:mm a");
+			timeFormatAsTwoLines = false;
+			SettingsView.instance.timeFormatCombobox.setSelectedIndex(3);
 		}
 		
 	}
@@ -150,7 +155,61 @@ public class SettingsController {
 	 */
 	public static String getTimeFormat() {
 		
-		return Settings.timeFormat;
+		return timeFormat;
+		
+	}
+	
+	/**
+	 * @return    The supported time formats, to be shown in the SettingsView drop-down box.
+	 */
+	public static String[] getTimeFormats() {
+		
+		return new String[] {"Time and YYYY-MM-DD",
+		                     "Time and MM-DD-YYYY",
+		                     "Time and DD-MM-YYYY",
+		                     "Only Time"};
+		
+	}
+	
+	public static boolean isTimeFormatTwoLines() {
+		
+		return timeFormatAsTwoLines;
+		
+	}
+	
+	/**
+	 * Converts a timestamp into a String representation with milliseconds resolution.
+	 * 
+	 * @param timestamp    The timestamp (milliseconds since 1970-01-01.)
+	 * @return             Text representation.
+	 */
+	public static String formatTimestampToMilliseconds(long timestamp) {
+		
+		return timestampFormatterMilliseconds.format(timestamp);
+		
+	}
+	
+	/**
+	 * Converts a timestamp into a String representation with seconds resolution (hides milliseconds.)
+	 * 
+	 * @param timestamp    The timestamp (milliseconds since 1970-01-01.)
+	 * @return             Text representation.
+	 */
+	public static String formatTimestampToSeconds(long timestamp) {
+		
+		return timestampFormatterSeconds.format(timestamp);
+		
+	}
+	
+	/**
+	 * Converts a timestamp into a String representation with minutes resolution (hides seconds and milliseconds.)
+	 * 
+	 * @param timestamp    The timestamp (milliseconds since 1970-01-01.)
+	 * @return             Text representation.
+	 */
+	public static String formatTimestampToMinutes(long timestamp) {
+		
+		return timestampFormatterMinutes.format(timestamp);
 		
 	}
 	
@@ -161,10 +220,10 @@ public class SettingsController {
 	 */
 	public static void setTimeFormat24hours(boolean value) {
 		
-		Settings.timeFormat24hours = value;
+		timeFormat24hours = value;
 		SettingsView.instance.timeFormat24hoursCheckbox.setSelected(value);
 		
-		setTimeFormat(Settings.timeFormat);
+		setTimeFormat(timeFormat);
 		
 	}
 	
@@ -173,7 +232,7 @@ public class SettingsController {
 	 */
 	public static boolean getTimeFormat24hours() {
 		
-		return Settings.timeFormat24hours;
+		return timeFormat24hours;
 		
 	}
 	
@@ -184,7 +243,7 @@ public class SettingsController {
 	 */
 	public static void setTooltipVisibility(boolean value) {
 		
-		Settings.tooltipVisibility = value;
+		tooltipVisibility = value;
 		SettingsView.instance.showTooltipsCheckbox.setSelected(value);
 		
 	}
@@ -194,7 +253,7 @@ public class SettingsController {
 	 */
 	public static boolean getTooltipVisibility() {
 		
-		return Settings.tooltipVisibility;
+		return tooltipVisibility;
 		
 	}
 	
@@ -205,8 +264,8 @@ public class SettingsController {
 	 */
 	public static void setSmoothScrolling(boolean value) {
 		
-		Settings.smoothScrolling = value;
-		SettingsView.instance.enableSmoothScrollingCheckbox.setSelected(Settings.smoothScrolling);
+		smoothScrolling = value;
+		SettingsView.instance.enableSmoothScrollingCheckbox.setSelected(smoothScrolling);
 		Main.mouse.updateScrolling();
 		
 	}
@@ -216,7 +275,7 @@ public class SettingsController {
 	 */
 	public static boolean getSmoothScrolling() {
 		
-		return Settings.smoothScrolling;
+		return smoothScrolling;
 		
 	}
 	
@@ -227,7 +286,7 @@ public class SettingsController {
 	 */
 	public static void setFpsVisibility(boolean value) {
 		
-		Settings.fpsVisibility = value;
+		fpsVisibility = value;
 		SettingsView.instance.showFpsCheckbox.setSelected(value);
 		
 	}
@@ -237,7 +296,7 @@ public class SettingsController {
 	 */
 	public static boolean getFpsVisibility() {
 		
-		return Settings.fpsVisibility;
+		return fpsVisibility;
 		
 	}
 	
@@ -246,7 +305,7 @@ public class SettingsController {
 	 */
 	public static void awaitBenchmarkedChart() {
 		
-		Settings.awaitingChartForBenchmark = true;
+		awaitingChartForBenchmark = true;
 		
 	}
 	
@@ -255,7 +314,7 @@ public class SettingsController {
 	 */
 	public static boolean awaitingBenchmarkedChart() {
 		
-		return Settings.awaitingChartForBenchmark;
+		return awaitingChartForBenchmark;
 		
 	}
 	
@@ -266,8 +325,8 @@ public class SettingsController {
 	 */
 	public static void setBenchmarkedChart(PositionedChart chart) {
 		
-		Settings.chartForBenchmarks = chart;
-		Settings.awaitingChartForBenchmark = false;
+		chartForBenchmarks = chart;
+		awaitingChartForBenchmark = false;
 
 		SettingsView.instance.showBenchmarksCheckbox.setSelected(chart != null);
 		SettingsView.instance.showBenchmarksCheckbox.setEnabled(true);
@@ -290,7 +349,7 @@ public class SettingsController {
 	 */
 	public static PositionedChart getBenchmarkedChart() {
 		
-		return Settings.chartForBenchmarks;
+		return chartForBenchmarks;
 		
 	}
 	
@@ -301,7 +360,7 @@ public class SettingsController {
 
 		List<PositionedChart> charts = ChartsController.getCharts();
 		for(int i = 0; i < charts.size(); i++)
-			if(charts.get(i) == Settings.chartForBenchmarks)
+			if(charts.get(i) == chartForBenchmarks)
 				return i;
 		
 		return -1;
@@ -315,10 +374,10 @@ public class SettingsController {
 	 */
 	public static void setAntialiasingLevel(int level) {
 		
-		if(Settings.antialiasingLevel != level)
+		if(antialiasingLevel != level)
 			SwingUtilities.invokeLater(() -> OpenGLChartsView.regenerate());
 		
-		Settings.antialiasingLevel = level;
+		antialiasingLevel = level;
 		SettingsView.instance.antialiasingLevelSlider.setValue((int) (Math.log(level) / Math.log(2)));
 		
 	}
@@ -328,7 +387,7 @@ public class SettingsController {
 	 */
 	public static int getAntialiasingLevel() {
 		
-		return Settings.antialiasingLevel;
+		return antialiasingLevel;
 		
 	}
 	

@@ -1,4 +1,3 @@
-import java.util.Date;
 import java.util.Map;
 
 import com.jogamp.opengl.GL2ES3;
@@ -68,7 +67,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 		EventHandler handler = null;
 		
 		int trueLastSampleNumber = DatasetsController.getSampleCount() - 1;
-		boolean twoLineTimestamps = Theme.timestampFormatter.toPattern().contains("\n");
+		boolean twoLineTimestamps = SettingsController.isTimeFormatTwoLines();
 		
 		// x and y locations of the timeline
 		yTimelineTextBaseline = Theme.tilePadding;
@@ -87,7 +86,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 		// draw the time label if enabled, and if space is available
 		if(showTime) {
-			String timeText = Theme.timestampFormatter.format(new Date(DatasetsController.getTimestamp(lastSampleNumber)));
+			String timeText = SettingsController.formatTimestampToMilliseconds((DatasetsController.getTimestamp(lastSampleNumber)));
 			String[] timeTextLine = timeText.split("\n");
 			boolean useTwoLines = twoLineTimestamps && OpenGL.largeTextWidth(gl, timeText.replace('\n', ' ')) > (width - 2*Theme.tilePadding);
 			if(showTimeline)
@@ -155,14 +154,13 @@ public class OpenGLTimelineChart extends PositionedChart {
 			// draw the tick text
 			for(Map.Entry<Float,String> entry : divisions.entrySet()) {
 				if(twoLineTimestamps) {
-					String text = entry.getValue();
-					String[] tickLine = text.split("\n");
-					float x1 = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, tickLine[0]) / 2.0f);
-					float x2 = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, tickLine[1]) / 2.0f);
+					String[] line = entry.getValue().split("\n");
+					float x1 = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, line[0]) / 2.0f);
+					float x2 = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, line[1]) / 2.0f);
 					float y1 = yTimelineTextBaseline + 1.3f * OpenGL.smallTextHeight;
 					float y2 = yTimelineTextBaseline;
-					OpenGL.drawSmallText(gl, tickLine[0], (int) x1, (int) y1, 0);
-					OpenGL.drawSmallText(gl, tickLine[1], (int) x2, (int) y2, 0);
+					OpenGL.drawSmallText(gl, line[0], (int) x1, (int) y1, 0);
+					OpenGL.drawSmallText(gl, line[1], (int) x2, (int) y2, 0);
 				} else {
 					float x = entry.getKey() + xTimelineLeft - (OpenGL.smallTextWidth(gl, entry.getValue()) / 2.0f);
 					float y = yTimelineTextBaseline;
@@ -181,33 +179,40 @@ public class OpenGLTimelineChart extends PositionedChart {
 			OpenGL.drawBox(gl, Theme.tickLinesColor, x - markerWidth/2, y+markerWidth, markerWidth, markerWidth);
 			
 			// draw a tooltip if the mouse is not over the live view button
-			if(!mouseOverButton) {
+			if(!mouseOverButton && mouseX >= xTimelineLeft && mouseX <= xTimelineRight && mouseY >= 0 && mouseY <= height) {
+				
 				double mousePercentage = (mouseX - xTimelineLeft) / timelineWidth;
 				long mouseTimestamp = minTimestamp + (long) (mousePercentage * (double) (maxTimestamp - minTimestamp));
-				int closestSampleNumber = trueLastSampleNumber;
-				if(mouseX >= xTimelineLeft && mouseX <= xTimelineRight && mouseY >= 0 && mouseY <= height) {
-					for(int sampleN = trueLastSampleNumber - 1; sampleN >= 0; sampleN--) { // FIXME change this to a binary search?
-						closestSampleNumber = sampleN;
-						if(DatasetsController.getTimestamp(sampleN) < mouseTimestamp)
-							break;
-					}
-					
-					int sampleNumber = closestSampleNumber;
-					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setNonLiveView(sampleNumber));
-					
-					mouseTimestamp = DatasetsController.getTimestamp(closestSampleNumber);
-					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
-					String[] text = new String[twoLineTimestamps ? 3 : 2];
-					text[0] = "Sample " + closestSampleNumber;
-					if(twoLineTimestamps) {
-						String[] timestampLine = Theme.tooltipTimestampFormatter.format(new Date(mouseTimestamp)).split("\n");
-						text[1] = timestampLine[0];
-						text[2] = timestampLine[1];
-					} else {
-						text[1] = Theme.tooltipTimestampFormatter.format(new Date(mouseTimestamp));
-					}
-					ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
+				
+				int closestSampleNumberBefore = trueLastSampleNumber;
+				for(int sampleN = trueLastSampleNumber - 1; sampleN >= 0; sampleN--) { // FIXME change this to a binary search?
+					closestSampleNumberBefore = sampleN;
+					if(DatasetsController.getTimestamp(sampleN) < mouseTimestamp)
+						break;
 				}
+				int closestSampleNumberAfter = closestSampleNumberBefore + 1;
+				if(closestSampleNumberAfter > trueLastSampleNumber)
+					closestSampleNumberAfter = trueLastSampleNumber;
+				
+				long beforeError = mouseTimestamp - DatasetsController.getTimestamp(closestSampleNumberBefore);
+				long afterError  = DatasetsController.getTimestamp(closestSampleNumberAfter) - mouseTimestamp;
+				
+				int sampleNumber = beforeError < afterError ? closestSampleNumberBefore : closestSampleNumberAfter;
+				handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setNonLiveView(sampleNumber));
+				
+				mouseTimestamp = DatasetsController.getTimestamp(sampleNumber);
+				float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
+				String[] text = new String[twoLineTimestamps ? 3 : 2];
+				text[0] = "Sample " + sampleNumber;
+				if(twoLineTimestamps) {
+					String[] timestampLine = SettingsController.formatTimestampToMilliseconds(mouseTimestamp).split("\n");
+					text[1] = timestampLine[0];
+					text[2] = timestampLine[1];
+				} else {
+					text[1] = SettingsController.formatTimestampToMilliseconds(mouseTimestamp);
+				}
+				ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
+
 			}
 			
 		}

@@ -20,13 +20,14 @@ public abstract class Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param lastSampleNumber      The sample to render at the right edge of the plot.
-	 * @param zoomLevel             Current zoom level. 1.0 = no zoom.
-	 * @param datasets              Datasets to acquire from.
-	 * @param duration              The sample count, before applying the zoom factor.
-	 * @param cachedMode            True to enable the cache.
+	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
+	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
+	 * @param datasets            Datasets to acquire from.
+	 * @param duration            The sample count, before applying the zoom factor.
+	 * @param cachedMode          True to enable the cache.
+	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows sample count or elapsed time.
 	 */
-	abstract void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode);
+	abstract void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode, boolean showTimestamps);
 	
 	/**
 	 * Step 2: Get the required range, assuming you want to see all samples on screen.

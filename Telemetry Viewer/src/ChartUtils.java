@@ -296,10 +296,11 @@ public class ChartUtils {
 			return divisions;
 		
 		// determine how many divisions can fit on screen
-		String leftLabel  = Theme.timestampFormatter.format(new Date(minTimestamp));
-		String rightLabel = Theme.timestampFormatter.format(new Date(maxTimestamp));
+		// first try with milliseconds resolution
+		String leftLabel  = SettingsController.formatTimestampToMilliseconds(minTimestamp);
+		String rightLabel = SettingsController.formatTimestampToMilliseconds(maxTimestamp);
 		float maxLabelWidth = 0;
-		if(leftLabel.contains("\n")) {
+		if(SettingsController.isTimeFormatTwoLines()) {
 			String[] leftLine = leftLabel.split("\n");
 			String[] rightLine = rightLabel.split("\n");
 			float leftMax  = Float.max(OpenGL.smallTextWidth(gl, leftLine[0]),  OpenGL.smallTextWidth(gl, leftLine[1]));
@@ -310,14 +311,52 @@ public class ChartUtils {
 		}
 		float padding = maxLabelWidth / 2f;
 		int divisionCount = (int) (width / (maxLabelWidth + padding));
-		
-		// determine how many milliseconds between divisions
 		long millisecondsOnScreen = maxTimestamp - minTimestamp;
 		long millisecondsPerDivision = (long) Math.ceil((double) millisecondsOnScreen / (double) divisionCount);
-		if(millisecondsPerDivision < 1000 && !Theme.timestampFormatter.toPattern().contains("SSS"))
-			millisecondsPerDivision = 1000; // can't display milliseconds resolution
-		if(millisecondsPerDivision < 60000 && !Theme.timestampFormatter.toPattern().contains("ss"))
-			millisecondsPerDivision = 60000; // can't display seconds resolution
+		
+		// if the divisions are >1000ms apart, change to seconds resolution instead
+		if(millisecondsPerDivision > 1000) {
+			leftLabel  = SettingsController.formatTimestampToSeconds(minTimestamp);
+			rightLabel = SettingsController.formatTimestampToSeconds(maxTimestamp);
+			maxLabelWidth = 0;
+			if(SettingsController.isTimeFormatTwoLines()) {
+				String[] leftLine = leftLabel.split("\n");
+				String[] rightLine = rightLabel.split("\n");
+				float leftMax  = Float.max(OpenGL.smallTextWidth(gl, leftLine[0]),  OpenGL.smallTextWidth(gl, leftLine[1]));
+				float rightMax = Float.max(OpenGL.smallTextWidth(gl, rightLine[0]), OpenGL.smallTextWidth(gl, rightLine[1]));
+				maxLabelWidth = Float.max(leftMax, rightMax);
+			} else {
+				maxLabelWidth = Float.max(OpenGL.smallTextWidth(gl, leftLabel), OpenGL.smallTextWidth(gl, rightLabel));
+			}
+			padding = maxLabelWidth / 2f;
+			divisionCount = (int) (width / (maxLabelWidth + padding));
+			millisecondsOnScreen = maxTimestamp - minTimestamp;
+			millisecondsPerDivision = (long) Math.ceil((double) millisecondsOnScreen / (double) divisionCount);
+			if(millisecondsPerDivision < 1000)
+				millisecondsPerDivision = 1000;
+		}
+		
+		// if the divisions are >60000ms apart, change to minutes resolution instead
+		if(millisecondsPerDivision > 60000) {
+			leftLabel  = SettingsController.formatTimestampToMinutes(minTimestamp);
+			rightLabel = SettingsController.formatTimestampToMinutes(maxTimestamp);
+			maxLabelWidth = 0;
+			if(SettingsController.isTimeFormatTwoLines()) {
+				String[] leftLine = leftLabel.split("\n");
+				String[] rightLine = rightLabel.split("\n");
+				float leftMax  = Float.max(OpenGL.smallTextWidth(gl, leftLine[0]),  OpenGL.smallTextWidth(gl, leftLine[1]));
+				float rightMax = Float.max(OpenGL.smallTextWidth(gl, rightLine[0]), OpenGL.smallTextWidth(gl, rightLine[1]));
+				maxLabelWidth = Float.max(leftMax, rightMax);
+			} else {
+				maxLabelWidth = Float.max(OpenGL.smallTextWidth(gl, leftLabel), OpenGL.smallTextWidth(gl, rightLabel));
+			}
+			padding = maxLabelWidth / 2f;
+			divisionCount = (int) (width / (maxLabelWidth + padding));
+			millisecondsOnScreen = maxTimestamp - minTimestamp;
+			millisecondsPerDivision = (long) Math.ceil((double) millisecondsOnScreen / (double) divisionCount);
+			if(millisecondsPerDivision < 60000)
+				millisecondsPerDivision = 60000;
+		}
 		
 		Date minDate = new Date(minTimestamp);
 		long firstDivisionTimestamp = minTimestamp;
@@ -381,7 +420,9 @@ public class ChartUtils {
 		for(int divisionN = 0; divisionN < divisionCount; divisionN++) {
 			long timestampN = firstDivisionTimestamp + (divisionN * millisecondsPerDivision);
 			float pixelX = (float) (timestampN - minTimestamp) / (float) millisecondsOnScreen * width;
-			String label = Theme.timestampFormatter.format(new Date(timestampN));
+			String label = millisecondsPerDivision < 1000  ? SettingsController.formatTimestampToMilliseconds(timestampN) :
+			               millisecondsPerDivision < 60000 ? SettingsController.formatTimestampToSeconds(timestampN) :
+			                                                 SettingsController.formatTimestampToMinutes(timestampN);
 			if(pixelX <= width)
 				divisions.put(pixelX, label);
 			else
@@ -679,17 +720,17 @@ public class ChartUtils {
 		for(BitfieldEvents.EventsAtSampleNumber marker : markers) {
 			
 			// calculate the box size
-			float maxTextWidth = OpenGL.smallTextWidth(gl, "Sample " + marker.sampleNumber);
-			for(int i = 0; i < marker.names.size(); i++)
-				if(OpenGL.smallTextWidth(gl, marker.names.get(i)) > maxTextWidth)
-					maxTextWidth = OpenGL.smallTextWidth(gl, marker.names.get(i));
+			float maxTextWidth = 0;
+			for(int i = 0; i < marker.text.size(); i++)
+				if(OpenGL.smallTextWidth(gl, marker.text.get(i)) > maxTextWidth)
+					maxTextWidth = OpenGL.smallTextWidth(gl, marker.text.get(i));
 			float textHeight = OpenGL.smallTextHeight;
 			
 			float boxWidth = textHeight + Theme.tooltipTextPadding + maxTextWidth + (2 * padding);
-			float boxHeight = (marker.names.size() + 1) * (textHeight + padding) + padding;
+			float boxHeight = marker.text.size() * (textHeight + padding) + padding;
 			
 			// calculate the box anchor position
-			float anchorX = marker.pixelX + topLeftX;
+			float anchorX = Math.round(marker.pixelX + topLeftX);
 			float anchorY = topLeftY - boxHeight - padding;
 			
 			// decide which orientation to use
@@ -711,6 +752,9 @@ public class ChartUtils {
 					break;
 				}
 			}
+			
+			float textX = 0;
+			float textY = 0;
 			
 			// draw the marker
 			if(orientation == NORTH) {
@@ -743,12 +787,12 @@ public class ChartUtils {
 				                                 anchorY + padding + boxHeight});
 				
 				// draw the text and color boxes
-				float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
-				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				OpenGL.drawSmallText(gl, "Sample " + marker.sampleNumber, (int) textX, (int) textY, 0);
-				for(int i = 0; i < marker.names.size(); i++) {
-					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					OpenGL.drawSmallText(gl, marker.names.get(i), (int) textX, (int) textY, 0);
+				for(int i = 0; i < marker.text.size(); i++) {
+					textX = marker.glColors.get(i) == null ? anchorX - (boxWidth / 2f) + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
+					                                         anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
+					textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+					OpenGL.drawSmallText(gl, marker.text.get(i), (int) textX, (int) textY, 0);
+					if(marker.glColors.get(i) != null)
 					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
@@ -781,12 +825,12 @@ public class ChartUtils {
 				                                 anchorY + padding + boxHeight});
 				
 				// draw the text and color boxes
-				float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
-				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				OpenGL.drawSmallText(gl, "Sample " + marker.sampleNumber, (int) textX, (int) textY, 0);
-				for(int i = 0; i < marker.names.size(); i++) {
-					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					OpenGL.drawSmallText(gl, marker.names.get(i), (int) textX, (int) textY, 0);
+				for(int i = 0; i < marker.text.size(); i++) {
+					textX = marker.glColors.get(i) == null ? anchorX - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
+					                                         anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
+					textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+					OpenGL.drawSmallText(gl, marker.text.get(i), (int) textX, (int) textY, 0);
+					if(marker.glColors.get(i) != null)
 					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
@@ -819,12 +863,12 @@ public class ChartUtils {
 				                                 anchorY + padding + boxHeight});
 				
 				// draw the text and color boxes
-				float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
-				float textY = anchorY + padding + boxHeight - (padding + textHeight);
-				OpenGL.drawSmallText(gl, "Sample " + marker.sampleNumber, (int) textX, (int) textY, 0);
-				for(int i = 0; i < marker.names.size(); i++) {
-					textY = anchorY + padding + boxHeight - ((i + 2) * (padding + textHeight));
-					OpenGL.drawSmallText(gl, marker.names.get(i), (int) textX, (int) textY, 0);
+				for(int i = 0; i < marker.text.size(); i++) {
+					textX = marker.glColors.get(i) == null ? anchorX + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
+					                                         anchorX + padding + textHeight + Theme.tooltipTextPadding;
+					textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+					OpenGL.drawSmallText(gl, marker.text.get(i), (int) textX, (int) textY, 0);
+					if(marker.glColors.get(i) != null)
 					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
@@ -945,7 +989,7 @@ public class ChartUtils {
 	 * 
 	 * @param gl              The OpenGL context.
 	 * @param text            Array of text to show.
-	 * @param colors          Corresponding array of colors to show at the left of each line of text, or null to not show any colors.
+	 * @param colors          Corresponding array of colors to show at the left of each line of text, or null (the array or specific elements) to not show color.
 	 * @param anchorX         X location to point to.
 	 * @param anchorY         Y location to point to.
 	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
@@ -963,6 +1007,9 @@ public class ChartUtils {
 		final int NORTH_EAST = 5;
 		final int SOUTH_WEST = 6;
 		final int SOUTH_EAST = 7;
+		
+		anchorX = Math.round(anchorX);
+		anchorY = Math.round(anchorY);
 		
 		float padding = 6f * ChartsController.getDisplayScalingFactor();
 		
@@ -1015,7 +1062,13 @@ public class ChartUtils {
 		float[][] glColors = new float[colors == null ? 0 : colors.length][];
 		if(colors != null)
 			for(int i = 0; i < colors.length; i++)
-				glColors[i] = new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1};
+				if(colors[i] != null)
+					glColors[i] = new float[] {colors[i].getRed() / 255f, colors[i].getGreen() / 255f, colors[i].getBlue() / 255f, 1};
+				else
+					glColors[i] = new float[] {0, 0, 0, 0};
+		
+		float textX = 0;
+		float textY = 0;
 		
 		// draw the tooltip
 		if(orientation == NORTH) {
@@ -1038,13 +1091,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
-			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX - (boxWidth / 2f) + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX - (boxWidth / 2f) + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1069,13 +1121,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
-			float textX = anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX - (boxWidth / 2f) + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX - (boxWidth / 2f) + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1100,13 +1151,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
-			float textX = anchorX - boxWidth + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX - padding - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX - padding - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX - boxWidth + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1131,13 +1181,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 7);
 			
 			// draw the text and color boxes
-			float textX = anchorX + (2f * padding) + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX + padding + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX + padding + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX + (2f * padding) + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY + (boxHeight / 2f) - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1160,13 +1209,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
-			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1189,13 +1237,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
-			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX + padding + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1218,13 +1265,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
-			float textX = anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}
@@ -1247,13 +1293,12 @@ public class ChartUtils {
 			OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 5);
 			
 			// draw the text and color boxes
-			float textX = anchorX + padding + textHeight + Theme.tooltipTextPadding;
 			for(int i = 0; i < text.length; i++) {
-				if(colors == null)
-					textX = anchorX + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2;
-				float textY = anchorY - padding - ((i + 1) * (padding + textHeight));
+				textX = (colors == null || colors[i] == null) ? anchorX + (boxWidth - OpenGL.smallTextWidth(gl, text[i])) / 2 :
+				                                                anchorX + padding + textHeight + Theme.tooltipTextPadding;
+				textY = anchorY - padding - ((i + 1) * (padding + textHeight));
 				OpenGL.drawSmallText(gl, text[i], (int) textX, (int) textY, 0);
-				if(colors != null)
+				if(colors != null && colors[i] != null)
 					OpenGL.drawQuad2D(gl, glColors[i], textX - Theme.tooltipTextPadding - textHeight, textY,
 					                                   textX - Theme.tooltipTextPadding,              textY + textHeight);
 			}

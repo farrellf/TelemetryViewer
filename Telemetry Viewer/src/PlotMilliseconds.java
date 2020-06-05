@@ -9,9 +9,8 @@ import com.jogamp.opengl.GL3;
 
 public class PlotMilliseconds extends Plot {
 	
-	boolean showHours;
-	boolean showMinutes;
-	boolean showTensOfSeconds;
+	enum Mode {SHOWS_TIMESTAMPS, SHOWS_SECONDS, SHOWS_MINUTES, SHOWS_HOURS};
+	Mode xAxisMode;
 	
 	// for non-cached mode
 	FloatBuffer   bufferX;
@@ -78,16 +77,17 @@ public class PlotMilliseconds extends Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param lastSampleNumber      The sample to render at the right edge of the plot.
-	 * @param zoomLevel             Current zoom level. 1.0 = no zoom.
-	 * @param datasets              Datasets to acquire from.
-	 * @param duration              The number of milliseconds to acquire, before applying the zoom factor.
+	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
+	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
+	 * @param datasets            Datasets to acquire from.
+	 * @param duration            The number of milliseconds to acquire, before applying the zoom factor.
+	 * @param cachedMode          True to enable the cache.
+	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
 	 */
-	@Override public void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode) {
+	@Override public void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.cachedMode = cachedMode;
-		xAxisTitle = "Time Elapsed";
 		
 		plotDomain = (long) Math.ceil(duration * zoomLevel);
 		
@@ -101,6 +101,8 @@ public class PlotMilliseconds extends Plot {
 			if(plotMinX == 0) plotMinX = -1;
 			samplesMinY = -1;
 			samplesMaxY =  1;
+			xAxisMode = showTimestamps ? Mode.SHOWS_TIMESTAMPS : Mode.SHOWS_SECONDS;
+			xAxisTitle = showTimestamps ? "Time" : "Time Elapsed";
 			return;
 		}
 
@@ -149,24 +151,29 @@ public class PlotMilliseconds extends Plot {
 		}
 		
 		// determine the x-axis title
-		long leftMillisecondsElapsed = plotMinX - DatasetsController.getFirstTimestamp();
-		long hours = leftMillisecondsElapsed / 3600000; leftMillisecondsElapsed %= 3600000;
-		long minutes = leftMillisecondsElapsed / 60000; leftMillisecondsElapsed %= 60000;
-		showHours = (hours != 0);
-		showMinutes = (minutes != 0);
-		showTensOfSeconds = (!showHours && !showMinutes && leftMillisecondsElapsed >= 10000);
-		long rightMillisecondsElapsed = plotMaxX - DatasetsController.getFirstTimestamp();
-		hours = rightMillisecondsElapsed / 3600000; rightMillisecondsElapsed %= 3600000;
-		minutes = rightMillisecondsElapsed / 60000; rightMillisecondsElapsed %= 60000;
-		if(hours != 0)
-			showHours = true;
-		if(minutes != 0)
-			showMinutes = true;
-		if(!showHours && !showMinutes && rightMillisecondsElapsed >= 10000)
-			showTensOfSeconds = true;
-		xAxisTitle = showHours ?   "Time Elapsed (HH:MM:SS.SSS)" :
-		             showMinutes ? "Time Elapsed (MM:SS.SSS)" :
-		                           "Time Elapsed (Seconds)";
+		if(showTimestamps) {
+			xAxisMode = Mode.SHOWS_TIMESTAMPS;
+			xAxisTitle = "Time";
+		} else {
+			long leftMillisecondsElapsed = plotMinX - DatasetsController.getFirstTimestamp();
+			long hours = leftMillisecondsElapsed / 3600000; leftMillisecondsElapsed %= 3600000;
+			long minutes = leftMillisecondsElapsed / 60000; leftMillisecondsElapsed %= 60000;
+			xAxisMode = (hours == 0 && minutes == 0) ? Mode.SHOWS_SECONDS :
+			            (hours == 0) ?                 Mode.SHOWS_MINUTES :
+			                                           Mode.SHOWS_HOURS;
+			
+			long rightMillisecondsElapsed = plotMaxX - DatasetsController.getFirstTimestamp();
+			hours = rightMillisecondsElapsed / 3600000; rightMillisecondsElapsed %= 3600000;
+			minutes = rightMillisecondsElapsed / 60000; rightMillisecondsElapsed %= 60000;
+			if(hours == 0 && minutes != 0 && xAxisMode == Mode.SHOWS_SECONDS)
+				xAxisMode = Mode.SHOWS_MINUTES;
+			if(hours != 0)
+				xAxisMode = Mode.SHOWS_HOURS;
+			
+			xAxisTitle = (xAxisMode == Mode.SHOWS_HOURS)   ? "Time Elapsed (HH:MM:SS.SSS)" :
+			             (xAxisMode == Mode.SHOWS_MINUTES) ? "Time Elapsed (MM:SS.SSS)" :
+			                                                 "Time Elapsed (Seconds)";
+		}
 		
 	}
 	
@@ -178,6 +185,9 @@ public class PlotMilliseconds extends Plot {
 	 * @return             A Map where each value is a string to draw on screen, and each key is the pixelX location for it (0 = left edge of the plot)
 	 */
 	@Override public Map<Float, String> getXdivisions(GL2ES3 gl, float plotWidth) {
+		
+		if(xAxisMode == Mode.SHOWS_TIMESTAMPS)
+			return ChartUtils.getTimestampDivisions(gl, plotWidth, plotMinX, plotMaxX);
 			
 		Map<Float, String> divisions = new HashMap<Float, String>();
 		
@@ -200,9 +210,9 @@ public class PlotMilliseconds extends Plot {
 		seconds = leftMillisecondsElapsed / 1000;  leftMillisecondsElapsed %= 1000;
 		milliseconds = leftMillisecondsElapsed;
 		leftMillisecondsElapsed = plotMinX - firstTimestamp;
-		String leftLabel = showHours ?   String.format("%s%02d:%02d:%02d.%03d", negative ? "-" : "", hours, minutes, seconds, milliseconds) :
-		                   showMinutes ? String.format("%s%02d:%02d.%03d",      negative ? "-" : "",        minutes, seconds, milliseconds) :
-		                                 String.format("%s%02d.%03d",           negative ? "-" : "",                 seconds, milliseconds);
+		String leftLabel = (xAxisMode == Mode.SHOWS_HOURS)   ? String.format("%s%02d:%02d:%02d.%03d", negative ? "-" : "", hours, minutes, seconds, milliseconds) :
+		                   (xAxisMode == Mode.SHOWS_MINUTES) ? String.format("%s%02d:%02d.%03d",      negative ? "-" : "",        minutes, seconds, milliseconds) :
+		                                                       String.format("%s%02d.%03d",           negative ? "-" : "",                 seconds, milliseconds);
 
 		long rightMillisecondsElapsed = plotMaxX - firstTimestamp;
 		hours = rightMillisecondsElapsed / 3600000; rightMillisecondsElapsed %= 3600000;
@@ -210,9 +220,9 @@ public class PlotMilliseconds extends Plot {
 		seconds = rightMillisecondsElapsed / 1000;  rightMillisecondsElapsed %= 1000;
 		milliseconds = rightMillisecondsElapsed;
 		rightMillisecondsElapsed = plotMaxX - firstTimestamp;
-		String rightLabel = showHours ?   String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds) :
-		                    showMinutes ? String.format("%02d:%02d.%03d",             minutes, seconds, milliseconds) :
-		                                  String.format("%02d.%03d",                           seconds, milliseconds);
+		String rightLabel = (xAxisMode == Mode.SHOWS_HOURS)   ? String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds) :
+		                    (xAxisMode == Mode.SHOWS_MINUTES) ? String.format("%02d:%02d.%03d",             minutes, seconds, milliseconds) :
+		                                                        String.format("%02d.%03d",                           seconds, milliseconds);
 		
 		float maxLabelWidth = Float.max(OpenGL.smallTextWidth(gl, leftLabel), OpenGL.smallTextWidth(gl, rightLabel));
 		float padding = maxLabelWidth / 2f;
@@ -289,10 +299,9 @@ public class PlotMilliseconds extends Plot {
 			minutes = millisecondsElapsed / 60000; millisecondsElapsed %= 60000;
 			seconds = millisecondsElapsed / 1000;  millisecondsElapsed %= 1000;
 			milliseconds = millisecondsElapsed;
-			String label = showHours         ? String.format("%s%02d:%02d:%02d.%03d", negative ? "-" : "", hours, minutes, seconds, milliseconds) :
-			               showMinutes       ? String.format("%s%02d:%02d.%03d",      negative ? "-" : "",        minutes, seconds, milliseconds) :
-			               showTensOfSeconds ? String.format("%s%02d.%03d",           negative ? "-" : "",                 seconds, milliseconds) :
-			                                   String.format("%s%01d.%03d",           negative ? "-" : "",                 seconds, milliseconds);
+			String label = (xAxisMode == Mode.SHOWS_HOURS)           ? String.format("%s%02d:%02d:%02d.%03d", negative ? "-" : "", hours, minutes, seconds, milliseconds) :
+			               (xAxisMode == Mode.SHOWS_MINUTES)         ? String.format("%s%02d:%02d.%03d",      negative ? "-" : "",        minutes, seconds, milliseconds) :
+			                                                           String.format("%s%01d.%03d",           negative ? "-" : "",                 seconds, milliseconds);
 			if(pixelX <= plotWidth)
 				divisions.put(pixelX, label);
 			else
@@ -721,17 +730,24 @@ public class PlotMilliseconds extends Plot {
 			double afterError = (double) (DatasetsController.getTimestamp(closestSampleNumberAfter) - plotMinX) - (double) ((mouseX / plotWidth) * plotDomain);
 			
 			int closestSampleNumber = (beforeError < afterError) ? closestSampleNumberBefore : closestSampleNumberAfter;
-			long millisecondsElapsed = DatasetsController.getTimestamp(closestSampleNumber) - DatasetsController.getFirstTimestamp();
-			long hours = millisecondsElapsed / 3600000; millisecondsElapsed %= 3600000;
-			long minutes = millisecondsElapsed / 60000; millisecondsElapsed %= 60000;
-			long seconds = millisecondsElapsed / 1000;  millisecondsElapsed %= 1000;
-			long milliseconds = millisecondsElapsed;
 			
-			String time = showHours ?   String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds) :
-			              showMinutes ? String.format("%02d:%02d.%03d",             minutes, seconds, milliseconds) :
-			                            String.format("%02d.%03d",                           seconds, milliseconds);
+			String label = "";
+			if(xAxisMode == Mode.SHOWS_TIMESTAMPS) {
+				label = "Sample " + closestSampleNumber + "\n" + SettingsController.formatTimestampToMilliseconds(DatasetsController.getTimestamp(closestSampleNumber));
+			} else {
+				long millisecondsElapsed = DatasetsController.getTimestamp(closestSampleNumber) - DatasetsController.getFirstTimestamp();
+				long hours = millisecondsElapsed / 3600000; millisecondsElapsed %= 3600000;
+				long minutes = millisecondsElapsed / 60000; millisecondsElapsed %= 60000;
+				long seconds = millisecondsElapsed / 1000;  millisecondsElapsed %= 1000;
+				long milliseconds = millisecondsElapsed;
+				
+				String time = (xAxisMode == Mode.SHOWS_HOURS)   ? String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds) :
+				              (xAxisMode == Mode.SHOWS_MINUTES) ? String.format("%02d:%02d.%03d",             minutes, seconds, milliseconds) :
+				                                                  String.format("%01d.%03d",                           seconds, milliseconds);
+				
+				label = "Sample " + closestSampleNumber + "\nt = " + time;
+			}
 			
-			String label = "Sample " + closestSampleNumber + " (t = " + time + ")";
 			float pixelX = (float) (DatasetsController.getTimestamp(closestSampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
 			
 			return new TooltipInfo(true, closestSampleNumber, label, pixelX);

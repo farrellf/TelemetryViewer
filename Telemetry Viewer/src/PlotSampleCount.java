@@ -71,12 +71,14 @@ public class PlotSampleCount extends Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param lastSampleNumber      The sample to render at the right edge of the plot.
-	 * @param zoomLevel             Current zoom level. 1.0 = no zoom.
-	 * @param datasets              Datasets to acquire from.
-	 * @param duration              The sample count, before applying the zoom factor.
+	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
+	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
+	 * @param datasets            Datasets to acquire from.
+	 * @param duration            The sample count, before applying the zoom factor.
+	 * @param cachedMode          True to enable the cache.
+	 * @param showTimestamps      Ignored. This is only used by PlotMilliseconds.
 	 */
-	@Override void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode) {
+	@Override void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.cachedMode = cachedMode;

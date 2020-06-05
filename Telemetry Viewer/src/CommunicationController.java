@@ -1227,6 +1227,8 @@ public class CommunicationController {
 			int tileColumns           = ChartUtils.parseInteger(lines.remove(), "tile column count = %d");
 			int tileRows              = ChartUtils.parseInteger(lines.remove(), "tile row count = %d");
 			String timeFormat         = ChartUtils.parseString (lines.remove(), "time format = %s");
+			if(!Arrays.asList(SettingsController.getTimeFormats()).contains(timeFormat))
+				throw new AssertionError("Invalid time format.");
 			boolean timeFormat24hours = ChartUtils.parseBoolean(lines.remove(), "show 24-hour time = %b");
 			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
 			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
