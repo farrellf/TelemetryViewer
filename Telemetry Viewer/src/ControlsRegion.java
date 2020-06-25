@@ -98,7 +98,7 @@ public class ControlsRegion extends JPanel {
 		helpButton.addActionListener(event -> {
 			
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(ControlsRegion.this);
-			String helpText = "<html><b>Telemetry Viewer v0.6 (2019-09-08)</b><br>" +
+			String helpText = "<html><b>Telemetry Viewer v0.7 (2020-01-30)</b><br>" +
 			                  "A fast and easy tool for visualizing data received over a UART/TCP/UDP connection.<br><br>" +
 			                  "Step 1: Use the controls at the lower-right corner of the window to connect to a serial port or to start a TCP/UDP server.<br>" +
 			                  "Step 2: A \"Data Structure\" window will pop up. Use it to specify how your data is laid out, then click \"Done.\"<br>" +
@@ -118,20 +118,23 @@ public class ControlsRegion extends JPanel {
 			                  "Click the \"Export CSV Log\" button to save all of your acquired samples to a CSV file.<br>" +
 			                  "Click the \"Reset\" button to remove all charts.<br><br>" +
 			                  "Layout files and CSV log files can also be opened via drag-n-drop.<br><br>" +
-			                  "Author: Farrell Farahbod<br>" +
+			                  "Author: Farrell Farahbod & Ricardo Boss<br>" +
 			                  "This software is free and open source.</html>";
 			JLabel helpLabel = new JLabel(helpText);
-			JButton websiteButton = new JButton("<html><a href=\"http://www.farrellf.com/TelemetryViewer/\">http://www.farrellf.com/TelemetryViewer/</a></html>");
-			websiteButton.addActionListener(click -> { try { Desktop.getDesktop().browse(new URI("http://www.farrellf.com/TelemetryViewer/")); } catch(Exception ex) {} });
-			JButton paypalButton = new JButton("<html><a href=\"https://paypal.me/farrellfarahbod/\">https://paypal.me/farrellfarahbod/</a></html>");
-			paypalButton.addActionListener(click -> { try { Desktop.getDesktop().browse(new URI("https://paypal.me/farrellfarahbod/")); } catch(Exception ex) {} });
+			JButton websiteButton = new JButton("<html><a href=\"https://github.com/ricardoboss/TelemetryViewer\">https://github.com/ricardoboss/TelemetryViewer</a></html>");
+			websiteButton.addActionListener(click -> { try { Desktop.getDesktop().browse(new URI("https://github.com/ricardoboss/TelemetryViewer")); } catch(Exception ex) {} });
+			JButton paypal1Button = new JButton("<html><a href=\"https://paypal.me/farrellfarahbod/\">https://paypal.me/farrellfarahbod/</a></html>");
+			paypal1Button.addActionListener(click -> { try { Desktop.getDesktop().browse(new URI("https://paypal.me/farrellfarahbod/")); } catch(Exception ex) {} });
+			JButton paypal2Button = new JButton("<html><a href=\"https://paypal.me/ricardoboss/\">https://paypal.me/ricardoboss/</a></html>");
+			paypal2Button.addActionListener(click -> { try { Desktop.getDesktop().browse(new URI("https://paypal.me/ricardoboss/")); } catch(Exception ex) {} });
 			
 			JPanel panel = new JPanel();
 			panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 			panel.add(helpLabel);
 			panel.add(websiteButton);
 			panel.add(new JLabel("<html><br>If you find this software useful and want to \"buy me a coffee\" that would be awesome!</html>"));
-			panel.add(paypalButton);
+			panel.add(paypal1Button);
+			panel.add(paypal2Button);
 			panel.add(new JLabel(" "));
 			JOptionPane.showMessageDialog(parentWindow, panel, "Help", JOptionPane.PLAIN_MESSAGE);
 
