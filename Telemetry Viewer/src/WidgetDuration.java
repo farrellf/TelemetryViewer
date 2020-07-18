@@ -9,7 +9,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
-@SuppressWarnings("serial")
 public class WidgetDuration extends Widget {
 	
 	JTextField textfield;
@@ -55,11 +54,10 @@ public class WidgetDuration extends Widget {
 		panel.add(textfield);
 		panel.add(durationTypeCombobox);
 		
-		setLayout(new GridLayout(0, 2, Theme.padding, Theme.padding));
-		add(new JLabel("Duration: "));
-		add(panel);
-		add(new JLabel("X-Axis: "));
-		add(xAxisCombobox);
+		widgets.put(new JLabel("Duration: "), "");
+		widgets.put(panel, "span 3, growx");
+		widgets.put(new JLabel("X-Axis: "), "");
+		widgets.put(xAxisCombobox, "span 3, growx");
 		
 		previousType = "Samples";
 		sanityCheck();

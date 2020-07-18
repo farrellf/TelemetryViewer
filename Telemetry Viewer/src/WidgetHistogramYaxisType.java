@@ -1,4 +1,3 @@
-import java.awt.GridLayout;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.function.BiConsumer;
@@ -11,7 +10,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
-@SuppressWarnings("serial")
 public class WidgetHistogramYaxisType extends Widget {
 	
 	JLabel axisTypeLabel;
@@ -102,26 +100,24 @@ public class WidgetHistogramYaxisType extends Widget {
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
 		
-		setLayout(new GridLayout(3, 2, Theme.padding, Theme.padding));
-		
-		add(axisTypeLabel);
-		add(axisTypeCombobox);
+		widgets.put(axisTypeLabel, "");
+		widgets.put(axisTypeCombobox, "span 3, growx");
 		
 		JPanel maxPanel = new JPanel();
 		maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
 		maxPanel.add(maxCheckbox);
 		maxPanel.add(Box.createHorizontalStrut(Theme.padding));
 		maxPanel.add(maxTextfield);
-		add(maxLabel);
-		add(maxPanel);
+		widgets.put(maxLabel, "");
+		widgets.put(maxPanel, "span 3, growx");
 		
 		JPanel minPanel = new JPanel();
 		minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
 		minPanel.add(minCheckbox);
 		minPanel.add(Box.createHorizontalStrut(Theme.padding));
 		minPanel.add(minTextfield);
-		add(minLabel);
-		add(minPanel);
+		widgets.put(minLabel, "");
+		widgets.put(minPanel, "span 3, growx");
 		
 		sanityCheck();
 		

@@ -11,6 +11,7 @@ import java.util.Scanner;
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 public class ChartUtils {
 
@@ -695,16 +696,20 @@ public class ChartUtils {
 	}
 	
 	/**
-	 * Draws a collection of markers over a plot.
+	 * Draws a collection of markers over the plot. If the mouse is over a marker, the marker will be drawn like a clickable element.
 	 * 
 	 * @param gl              The OpenGL context.
-	 * @param markers         A List of events in time and their corresponding names/colors.
+	 * @param edgeMarkers     List of edge markers to draw.
+	 * @param levelMarkers    List of level markers to draw.
 	 * @param topLeftX        Allowed bounding box's top-left x coordinate.
 	 * @param topLeftY        Allowed bounding box's top-left y coordinate.
 	 * @param bottomRightX    Allowed bounding box's bottom-right x coordinate.
 	 * @param bottomRightY    Allowed bounding box's bottom-right y coordinate.
+	 * @param mouseX          Current location of the mouse, in pixels.
+	 * @param mouseY          Current location of the mouse, in pixels.
+	 * @return                An EventHandler that will jump to a corresponding sample number if the user clicks on a marker, or null if the mouse is not over any marker.
 	 */
-	public static void drawMarkers(GL2ES3 gl, List<BitfieldEvents.EventsAtSampleNumber> markers, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY) {
+	public static EventHandler drawMarkers(GL2ES3 gl, List<BitfieldEvents.EdgeMarker> edgeMarkers, List<BitfieldEvents.LevelMarker> levelMarkers, float topLeftX, float topLeftY, float bottomRightX, float bottomRightY, int mouseX, int mouseY) {
 			
 		final int NORTH      = 0;
 		final int NORTH_WEST = 1;
@@ -715,9 +720,11 @@ public class ChartUtils {
 		
 		List<float[]> occupiedRegions = new ArrayList<float[]>(); // [0] = minX, [1] = maxX, [2] = minY, [3] = maxY
 		
-		// draw each event
+		EventHandler handler = null;
+		
+		// draw each edge event
 		boolean insufficientSpace = false;
-		for(BitfieldEvents.EventsAtSampleNumber marker : markers) {
+		for(BitfieldEvents.EdgeMarker marker : edgeMarkers) {
 			
 			// calculate the box size
 			float maxTextWidth = 0;
@@ -730,23 +737,23 @@ public class ChartUtils {
 			float boxHeight = marker.text.size() * (textHeight + padding) + padding;
 			
 			// calculate the box anchor position
-			float anchorX = Math.round(marker.pixelX + topLeftX);
-			float anchorY = topLeftY - boxHeight - padding;
+			float xAnchor = marker.pixelX + topLeftX;
+			float yAnchor = topLeftY - boxHeight - padding;
 			
 			// decide which orientation to use
 			int orientation = UNDEFINED;
 			
 			while(orientation == UNDEFINED) {
-				if(anchorX - boxWidth >= topLeftX && anchorX <= bottomRightX && regionAvailable(occupiedRegions, anchorX - boxWidth, anchorX, anchorY, anchorY + boxHeight + padding))
+				if(xAnchor - boxWidth >= topLeftX && xAnchor <= bottomRightX && regionAvailable(occupiedRegions, xAnchor - boxWidth, xAnchor, yAnchor, yAnchor + boxHeight + padding))
 					orientation = NORTH_WEST;
-				else if(anchorX - (boxWidth / 2f) >= topLeftX && anchorX + (boxWidth / 2f) <= bottomRightX && regionAvailable(occupiedRegions, anchorX - (boxWidth / 2f), anchorX + (boxWidth / 2f), anchorY, anchorY + boxHeight + padding))
+				else if(xAnchor - (boxWidth / 2f) >= topLeftX && xAnchor + (boxWidth / 2f) <= bottomRightX && regionAvailable(occupiedRegions, xAnchor - (boxWidth / 2f), xAnchor + (boxWidth / 2f), yAnchor, yAnchor + boxHeight + padding))
 					orientation = NORTH;
-				else if(anchorX >= topLeftX && anchorX + boxWidth <= bottomRightX && regionAvailable(occupiedRegions, anchorX, anchorX + boxWidth, anchorY, anchorY + boxHeight + padding))
+				else if(xAnchor >= topLeftX && xAnchor + boxWidth <= bottomRightX && regionAvailable(occupiedRegions, xAnchor, xAnchor + boxWidth, yAnchor, yAnchor + boxHeight + padding))
 					orientation = NORTH_EAST;
 				else
-					anchorY = anchorY - 1;
+					yAnchor = yAnchor - 1;
 				
-				if(anchorY < bottomRightY) {
+				if(yAnchor < bottomRightY) {
 					// not enough room to draw this marker
 					insufficientSpace = true;
 					break;
@@ -759,121 +766,187 @@ public class ChartUtils {
 			// draw the marker
 			if(orientation == NORTH) {
 				
-				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                  anchorY,
-				                                                        anchorX + (padding / 2f), anchorY + padding,
-				                                                        anchorX - (padding / 2f), anchorY + padding);
-				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - (boxWidth / 2f), anchorY + padding,
-				                                                    anchorX + (boxWidth / 2f), anchorY + padding + boxHeight);
+				float xBoxLeft     = xAnchor - (boxWidth / 2f);
+				float xBoxRight    = xAnchor + (boxWidth / 2f);
+				float yBoxBottom   = yAnchor + padding;
+				float yBoxTop      = yAnchor + padding + boxHeight;
+				float xAnchorLeft  = xAnchor - (padding / 2f);
+				float xAnchorRight = xAnchor + (padding / 2f);
+				
+				occupiedRegions.add(new float[] {xBoxLeft, xBoxRight, yAnchor, yBoxTop});
+				boolean mouseOverMarker = mouseX > xBoxLeft && mouseX < xBoxRight && mouseY > yAnchor && mouseY < yBoxTop;
+				if(mouseOverMarker)
+					handler = EventHandler.onPress(press -> OpenGLChartsView.instance.setNonLiveView(marker.sampleNumber));
+				
+				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, xBoxLeft, yBoxBottom, xBoxRight, yBoxTop);
+				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, xAnchor, yAnchor, xAnchorRight, yBoxBottom, xAnchorLeft, yBoxBottom);
 				
 				OpenGL.buffer.rewind();
-				OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding + boxHeight);
-				OpenGL.buffer.put(anchorX - (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX - (padding / 2f));  OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX);                   OpenGL.buffer.put(anchorY);
-				OpenGL.buffer.put(anchorX + (padding / 2f));  OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX + (boxWidth / 2f)); OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.put(xBoxLeft);     OpenGL.buffer.put(yBoxTop);
+				OpenGL.buffer.put(xBoxLeft);     OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xAnchorLeft);  OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xAnchor);      OpenGL.buffer.put(yAnchor);
+				OpenGL.buffer.put(xAnchorRight); OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xBoxRight);    OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xBoxRight);    OpenGL.buffer.put(yBoxTop);
 				OpenGL.buffer.rewind();
-				OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 7);
+				OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor, OpenGL.buffer, 7);
 				OpenGL.buffer.rewind();
-				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY);               OpenGL.buffer.put(Theme.tooltipBorderColor);
-				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY - padding * 6); OpenGL.buffer.put(Theme.tooltipBorderColor, 0, 3); OpenGL.buffer.put(0);
+				OpenGL.buffer.put(xAnchor); OpenGL.buffer.put(yAnchor);               OpenGL.buffer.put(mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor);
+				OpenGL.buffer.put(xAnchor); OpenGL.buffer.put(yAnchor - padding * 6); OpenGL.buffer.put(mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor, 0, 3); OpenGL.buffer.put(0);
 				OpenGL.buffer.rewind();
 				OpenGL.drawLinesXyrgba(gl, GL.GL_LINES, OpenGL.buffer, 2);
 				
-				occupiedRegions.add(new float[] {anchorX - (boxWidth / 2f),
-				                                 anchorX + (boxWidth / 2f),
-				                                 anchorY,
-				                                 anchorY + padding + boxHeight});
-				
 				// draw the text and color boxes
 				for(int i = 0; i < marker.text.size(); i++) {
-					textX = marker.glColors.get(i) == null ? anchorX - (boxWidth / 2f) + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
-					                                         anchorX - (boxWidth / 2f) + padding + textHeight + Theme.tooltipTextPadding;
-					textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+					textX = marker.glColors.get(i) == null ? xBoxLeft + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
+					                                         xBoxLeft + padding + textHeight + Theme.tooltipTextPadding;
+					textY = yBoxTop - ((i + 1) * (padding + textHeight));
 					OpenGL.drawSmallText(gl, marker.text.get(i), (int) textX, (int) textY, 0);
 					if(marker.glColors.get(i) != null)
-					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
-					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
+						OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
+						                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
 				
 			} else if(orientation == NORTH_WEST) {
 				
-				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY,
-				                                                        anchorX,                     anchorY + padding,
-				                                                        anchorX - (0.85f * padding), anchorY + padding);
-				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX - boxWidth, anchorY + padding,
-				                                                    anchorX,            anchorY + padding + boxHeight);
+				float xBoxLeft    = xAnchor - boxWidth;
+				float xBoxRight   = xAnchor;
+				float yBoxBottom  = yAnchor + padding;
+				float yBoxTop     = yAnchor + padding + boxHeight;
+				float xAnchorLeft = xAnchor - (0.85f * padding);
+				
+				occupiedRegions.add(new float[] {xBoxLeft, xBoxRight, yAnchor, yBoxTop});
+				boolean mouseOverMarker = mouseX > xBoxLeft && mouseX < xBoxRight && mouseY > yAnchor && mouseY < yBoxTop;
+				if(mouseOverMarker)
+					handler = EventHandler.onPress(press -> OpenGLChartsView.instance.setNonLiveView(marker.sampleNumber));
+				
+				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, xBoxLeft, yBoxBottom, xBoxRight, yBoxTop);
+				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, xAnchor, yAnchor, xAnchor, yBoxBottom, xAnchorLeft, yBoxBottom);
 				
 				OpenGL.buffer.rewind();
-				OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY + padding + boxHeight);
-				OpenGL.buffer.put(anchorX - boxWidth);          OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX - (0.85f * padding)); OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
-				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.put(xBoxLeft);    OpenGL.buffer.put(yBoxTop);
+				OpenGL.buffer.put(xBoxLeft);    OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xAnchorLeft); OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xAnchor);     OpenGL.buffer.put(yAnchor);
+				OpenGL.buffer.put(xAnchor);     OpenGL.buffer.put(yBoxTop);
 				OpenGL.buffer.rewind();
-				OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 5);
+				OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor, OpenGL.buffer, 5);
 				OpenGL.buffer.rewind();
-				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY);               OpenGL.buffer.put(Theme.tooltipBorderColor);
-				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY - padding * 6); OpenGL.buffer.put(Theme.tooltipBorderColor, 0, 3); OpenGL.buffer.put(0);
+				OpenGL.buffer.put(xAnchor); OpenGL.buffer.put(yAnchor);               OpenGL.buffer.put(mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor);
+				OpenGL.buffer.put(xAnchor); OpenGL.buffer.put(yAnchor - padding * 6); OpenGL.buffer.put(mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor, 0, 3); OpenGL.buffer.put(0);
 				OpenGL.buffer.rewind();
 				OpenGL.drawLinesXyrgba(gl, GL.GL_LINES, OpenGL.buffer, 2);
 				
-				occupiedRegions.add(new float[] {anchorX - boxWidth,
-				                                 anchorX,
-				                                 anchorY,
-				                                 anchorY + padding + boxHeight});
-				
 				// draw the text and color boxes
 				for(int i = 0; i < marker.text.size(); i++) {
-					textX = marker.glColors.get(i) == null ? anchorX - boxWidth + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
-					                                         anchorX - boxWidth + padding + textHeight + Theme.tooltipTextPadding;
-					textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+					textX = marker.glColors.get(i) == null ? xBoxLeft + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
+					                                         xBoxLeft + padding + textHeight + Theme.tooltipTextPadding;
+					textY = yBoxTop - ((i + 1) * (padding + textHeight));
 					OpenGL.drawSmallText(gl, marker.text.get(i), (int) textX, (int) textY, 0);
 					if(marker.glColors.get(i) != null)
-					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
-					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
+						OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
+						                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
 				
 			} else if(orientation == NORTH_EAST) {
 				
-				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, anchorX,                     anchorY + padding,
-				                                                        anchorX,                     anchorY,
-				                                                        anchorX + (0.85f * padding), anchorY + padding);
-				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, anchorX,            anchorY + padding,
-				                                                    anchorX + boxWidth, anchorY + padding + boxHeight);
+				float xBoxLeft     = xAnchor;
+				float xBoxRight    = xAnchor + boxWidth;
+				float yBoxBottom   = yAnchor + padding;
+				float yBoxTop      = yAnchor + padding + boxHeight;
+				float xAnchorRight = xAnchor + (0.85f * padding);
+				
+				OpenGL.drawQuad2D(gl, Theme.tooltipBackgroundColor, xBoxLeft, yBoxBottom, xBoxRight, yBoxTop);
+				OpenGL.drawTriangle2D(gl, Theme.tooltipBackgroundColor, xAnchor, yBoxBottom, xAnchor, yAnchor, xAnchorRight, yBoxBottom);
+				
+				occupiedRegions.add(new float[] {xBoxLeft, xBoxRight, yAnchor, yBoxTop});
+				boolean mouseOverMarker = mouseX > xBoxLeft && mouseX < xBoxRight && mouseY > yAnchor && mouseY < yBoxTop;
+				if(mouseOverMarker)
+					handler = EventHandler.onPress(press -> OpenGLChartsView.instance.setNonLiveView(marker.sampleNumber));
 				
 				OpenGL.buffer.rewind();
-				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY + padding + boxHeight);
-				OpenGL.buffer.put(anchorX);                     OpenGL.buffer.put(anchorY);
-				OpenGL.buffer.put(anchorX + (0.85f * padding)); OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY + padding);
-				OpenGL.buffer.put(anchorX + boxWidth);          OpenGL.buffer.put(anchorY + padding + boxHeight);
+				OpenGL.buffer.put(xBoxLeft);     OpenGL.buffer.put(yBoxTop);
+				OpenGL.buffer.put(xBoxLeft);     OpenGL.buffer.put(yAnchor);
+				OpenGL.buffer.put(xAnchorRight); OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xBoxRight);    OpenGL.buffer.put(yBoxBottom);
+				OpenGL.buffer.put(xBoxRight);    OpenGL.buffer.put(yBoxTop);
 				OpenGL.buffer.rewind();
-				OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, Theme.tooltipBorderColor, OpenGL.buffer, 5);
+				OpenGL.drawLinesXy(gl, GL.GL_LINE_LOOP, mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor, OpenGL.buffer, 5);
 				OpenGL.buffer.rewind();
-				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY);               OpenGL.buffer.put(Theme.tooltipBorderColor);
-				OpenGL.buffer.put(anchorX); OpenGL.buffer.put(anchorY - padding * 6); OpenGL.buffer.put(Theme.tooltipBorderColor, 0, 3); OpenGL.buffer.put(0);
+				OpenGL.buffer.put(xAnchor); OpenGL.buffer.put(yAnchor);               OpenGL.buffer.put(mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor);
+				OpenGL.buffer.put(xAnchor); OpenGL.buffer.put(yAnchor - padding * 6); OpenGL.buffer.put(mouseOverMarker ? Theme.tickLinesColor : Theme.markerBorderColor, 0, 3); OpenGL.buffer.put(0);
 				OpenGL.buffer.rewind();
 				OpenGL.drawLinesXyrgba(gl, GL.GL_LINES, OpenGL.buffer, 2);
 				
-				occupiedRegions.add(new float[] {anchorX,
-				                                 anchorX + boxWidth,
-				                                 anchorY,
-				                                 anchorY + padding + boxHeight});
-				
 				// draw the text and color boxes
 				for(int i = 0; i < marker.text.size(); i++) {
-					textX = marker.glColors.get(i) == null ? anchorX + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
-					                                         anchorX + padding + textHeight + Theme.tooltipTextPadding;
-					textY = anchorY + padding + boxHeight - ((i + 1) * (padding + textHeight));
+					textX = marker.glColors.get(i) == null ? xBoxLeft + (boxWidth - OpenGL.smallTextWidth(gl, marker.text.get(i))) / 2 :
+					                                         xBoxLeft + padding + textHeight + Theme.tooltipTextPadding;
+					textY = yBoxTop - ((i + 1) * (padding + textHeight));
 					OpenGL.drawSmallText(gl, marker.text.get(i), (int) textX, (int) textY, 0);
 					if(marker.glColors.get(i) != null)
-					OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
-					                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
+						OpenGL.drawQuad2D(gl, marker.glColors.get(i), textX - Theme.tooltipTextPadding - textHeight, textY,
+						                                              textX - Theme.tooltipTextPadding,              textY + textHeight);
 				}
 				
 			}
+			
+		}
+		
+		// draw each level
+		for(int i = 0; i < levelMarkers.size(); i++) {
+			
+			BitfieldEvents.LevelMarker marker = levelMarkers.get(i);
+			
+			float yBottom       = bottomRightY + padding + ((levelMarkers.size() - 1 - i) * (padding + OpenGL.smallTextHeight + padding));
+			float yTop          = yBottom + OpenGL.smallTextHeight + padding;
+			float yTextBaseline = yBottom + padding/2f;
+			
+			// if the mouse is over a level marker, we have to draw its outline after drawing other level markers, to ensure other markers don't overlap the outline
+			boolean drawMouseOverOutline = false;
+			float xOutlineLeft = 0;
+			float xOutlineRight = 0;
+			float yOutlineBottom = 0;
+			float yOutlineTop = 0;
+			
+			for(int rangeN = 0; rangeN < marker.pixelXranges.size(); rangeN++) {
+				float[] xRange = marker.pixelXranges.get(rangeN);
+				float xLeft  = (xRange[0] < 0) ? topLeftX : xRange[0] + topLeftX;
+				float xRight = xRange[1] + topLeftX;
+				if(regionAvailable(occupiedRegions, xLeft, xRight, yBottom, yTop) && yTop <= topLeftY) {
+					
+					occupiedRegions.add(new float[] {xLeft, xRight, yBottom, yTop});
+					boolean mouseOverMarker = mouseX >= xLeft && mouseX <= xRight && mouseY >= yBottom && mouseY <= yTop;
+					OpenGL.drawQuad2D(gl, marker.glColors.get(rangeN), xLeft, yBottom, xRight, yTop);
+					if(mouseOverMarker) {
+						drawMouseOverOutline = true;
+						xOutlineLeft = xLeft;
+						xOutlineRight = xRight;
+						yOutlineBottom = yBottom;
+						yOutlineTop = yTop;
+					} else {
+						OpenGL.drawQuadOutline2D(gl, Theme.markerBorderColor, xLeft, yBottom, xRight, yTop);
+					}
+					
+					int[] originalScissorArgs = new int[4];
+					gl.glGetIntegerv(GL3.GL_SCISSOR_BOX, originalScissorArgs, 0);
+					gl.glScissor(originalScissorArgs[0] + (int) (xLeft - topLeftX), originalScissorArgs[1] + (int) (yBottom - bottomRightY), Integer.max(0, (int) (xRight - xLeft)), (int) (yTop - yBottom));
+					OpenGL.drawSmallText(gl, marker.labels.get(rangeN), (int) (xLeft + padding), (int) yTextBaseline, 0);
+					gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
+					
+					if(mouseOverMarker) {
+						int r = rangeN;
+						handler = EventHandler.onPress(event -> OpenGLChartsView.instance.setNonLiveView(marker.ranges.get(r)[0]));
+					}
+					
+				} else {
+					insufficientSpace = true;
+				}
+			}
+			
+			if(drawMouseOverOutline)
+				OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, xOutlineLeft, yOutlineBottom, xOutlineRight, yOutlineTop);
 			
 		}
 		
@@ -934,6 +1007,8 @@ public class ChartUtils {
 			OpenGL.drawSmallText(gl, text, (int) textLeftX, (int) textBottomY, 0); 
 						
 		}
+		
+		return handler;
 		
 	}
 	
@@ -1007,9 +1082,6 @@ public class ChartUtils {
 		final int NORTH_EAST = 5;
 		final int SOUTH_WEST = 6;
 		final int SOUTH_EAST = 7;
-		
-		anchorX = Math.round(anchorX);
-		anchorY = Math.round(anchorY);
 		
 		float padding = 6f * ChartsController.getDisplayScalingFactor();
 		

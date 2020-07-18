@@ -17,7 +17,6 @@ import java.awt.font.FontRenderContext;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import javax.swing.Box;
@@ -936,7 +935,12 @@ public class PacketBinary extends Packet {
 						boolean remove = JOptionPane.showConfirmDialog(BinaryDataStructureGui.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 						if(remove) {
 							offsetTextfield.setText(Integer.toString(dataset.location));
-							processorCombobox.setSelectedItem(dataset.processor);
+							for(ActionListener al : processorCombobox.getActionListeners())
+								processorCombobox.removeActionListener(al);
+							for(int i = 0; i < processorCombobox.getItemCount(); i++)
+								if(processorCombobox.getItemAt(i).toString().equals(dataset.processor.toString()))
+									processorCombobox.setSelectedIndex(i);
+							processorCombobox.addActionListener(event -> updateGui(true));
 							nameTextfield.setText(dataset.name);
 							colorButton.setForeground(dataset.color);
 							unitTextfield.setText(dataset.unit);
@@ -1150,8 +1154,8 @@ public class PacketBinary extends Packet {
 	@SuppressWarnings("serial")
 	private static class BitfieldPanel extends JPanel {
 		
-		List<Bitfield> fields = new ArrayList<Bitfield>();
-		JPanel widgets = new JPanel(new MigLayout("wrap 2, gap " + Theme.padding, "[pref][grow]"));
+		JPanel widgets = new JPanel(new MigLayout("wrap 3, gap " + Theme.padding, "[pref][pref][grow]"));
+		Dataset dataset;
 		
 		public BitfieldPanel(int bitCount, Dataset dataset) {
 			
@@ -1160,7 +1164,6 @@ public class PacketBinary extends Packet {
 			
 			JButton doneButton = new JButton("Done With Bitfield");
 			doneButton.addActionListener(event -> {
-				dataset.setBitfields(fields);
 				BinaryDataStructureGui.instance.remove(this);
 				BinaryDataStructureGui.instance.add(BinaryDataStructureGui.instance.scrollableDataStructureTable, "grow, span, cell 0 2");
 				BinaryDataStructureGui.instance.bitfieldDefinitionInProgress = false;
@@ -1175,32 +1178,67 @@ public class PacketBinary extends Packet {
 			add(new JScrollPane(widgets), BorderLayout.CENTER);
 			add(bottom, BorderLayout.SOUTH);
 			
+			this.dataset = dataset;
+			
 		}
 		
 		/**
-		 * The user added a new bitfield, so we add a new Bitfield object, and redraw the panel.
+		 * The user added a new bitfield, so update and redraw the panel.
 		 * 
 		 * @param MSBit    The most-significant bit of the bitfield.
 		 * @param LSBit    The least-significant bit of the bitfield.
 		 */
 		public void addField(int MSBit, int LSBit) {
 			
-			fields.add(new Bitfield(MSBit, LSBit));
-			Collections.sort(fields);
+			dataset.addBitfield(MSBit, LSBit);
+			
+			List<Dataset.Bitfield> bitfields = dataset.getBitfields();
+			Collections.sort(bitfields);
 			
 			// update the GUI
 			widgets.removeAll();
 			widgets.add(new JLabel("<html><b>State&nbsp;&nbsp;&nbsp;</b></html>"));
+			widgets.add(new JLabel("<html><b>Color&nbsp;&nbsp;&nbsp;</b></html>"));
 			widgets.add(new JLabel("<html><b>Name&nbsp;&nbsp;&nbsp;</b></html>"));
 			
-			for(Bitfield field : fields) {
-				for(int i = 0; i < field.textfieldLabels.length; i++) {
-					widgets.add(field.textfieldLabels[i]);
-					widgets.add(field.textfields[i], "growx"); // stretch to fill column width
+			for(Dataset.Bitfield bitfield : bitfields) {
+				for(Dataset.Bitfield.State state : bitfield.states) {
+					JTextField textfield = new JTextField(state.name);
+					textfield.addKeyListener(new KeyListener() {
+						@Override public void keyTyped(KeyEvent e)    { }
+						@Override public void keyPressed(KeyEvent e)  { }
+						@Override public void keyReleased(KeyEvent e) {
+							textfield.setText(textfield.getText().replace(',', ' ')); // no commas allowed, because they will break import/export logic
+							state.name = textfield.getText();
+						}
+					});
+					textfield.addFocusListener(new FocusListener() {
+						@Override public void focusLost(FocusEvent e)   { }
+						@Override public void focusGained(FocusEvent e) {
+							textfield.selectAll();
+						}
+					});
+					
+					JButton colorButton = new JButton("\u25B2");
+					colorButton.setForeground(state.color);
+					colorButton.addActionListener(event -> {
+						Color color = JColorChooser.showDialog(BitfieldPanel.this, "Pick a Color for " + state.name, state.color);
+						if(color != null) {
+							colorButton.setForeground(color);
+							state.color = color;
+							state.glColor = new float[] {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, 1};
+						}
+					});
+					
+					widgets.add(new JLabel(state.label));
+					widgets.add(colorButton);
+					widgets.add(textfield, "growx"); // stretch to fill column width
 				}
 				widgets.add(new JLabel(" "));
 				widgets.add(new JLabel(" "));
+				widgets.add(new JLabel(" "));
 			}
+			widgets.remove(widgets.getComponentCount() - 1);
 			widgets.remove(widgets.getComponentCount() - 1);
 			widgets.remove(widgets.getComponentCount() - 1);
 			
@@ -1264,8 +1302,8 @@ public class PacketBinary extends Packet {
 							if(x >= minX && x <= maxX && y >= minY && y <= maxY) {
 								int bit = bitCount - 1 - i;
 								boolean bitAvailable = true;
-								for(Bitfield field : fields)
-									if(bit >= field.LSBit && bit <= field.MSBit)
+								for(Dataset.Bitfield bitfield : dataset.getBitfields())
+									if(bit >= bitfield.LSBit && bit <= bitfield.MSBit)
 										bitAvailable = false;
 								if(bitAvailable) {
 									firstBit = bit;
@@ -1312,8 +1350,8 @@ public class PacketBinary extends Packet {
 								int bit = bitCount - 1 - i;
 								boolean bitRangeAvailable = true;
 								for(int b = Integer.min(bit, firstBit); b <= Integer.max(bit, firstBit); b++)
-									for(Bitfield field : fields)
-										if(b >= field.LSBit && b <= field.MSBit)
+									for(Dataset.Bitfield bitfield : dataset.getBitfields())
+										if(b >= bitfield.LSBit && b <= bitfield.MSBit)
 											bitRangeAvailable = false;
 								if(bitRangeAvailable)
 									lastBit = bit;
@@ -1343,10 +1381,10 @@ public class PacketBinary extends Packet {
 				
 				// draw existing fields
 				g.setColor(getBackground());
-				for(Bitfield field : fields) {
-					int width = padding + maxTextWidth + padding + (field.MSBit - field.LSBit) * (spacing + buttonWidth);
+				for(Dataset.Bitfield bitfield : dataset.getBitfields()) {
+					int width = padding + maxTextWidth + padding + (bitfield.MSBit - bitfield.LSBit) * (spacing + buttonWidth);
 					int height = padding + textHeight + padding;
-					int x = (bitCount - 1 - field.MSBit) * (spacing + buttonWidth);
+					int x = (bitCount - 1 - bitfield.MSBit) * (spacing + buttonWidth);
 					int y = 0;
 					g.fillRect(x, y, width, height);
 				}
@@ -1366,8 +1404,8 @@ public class PacketBinary extends Packet {
 				// draw each text label
 				for(int i = 0; i < bitCount; i++) {
 					g.setColor(Color.BLACK);
-					for(Bitfield field : fields)
-						if((bitCount - 1 - i) >= field.LSBit && (bitCount - 1 - i) <= field.MSBit)
+					for(Dataset.Bitfield bitfield : dataset.getBitfields())
+						if((bitCount - 1 - i) >= bitfield.LSBit && (bitCount - 1 - i) <= bitfield.MSBit)
 							g.setColor(Color.LIGHT_GRAY);
 					int x = i * (spacing + buttonWidth) + padding;
 					int y = padding + textHeight;

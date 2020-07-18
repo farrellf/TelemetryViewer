@@ -1,6 +1,7 @@
 import java.awt.Dimension;
-import java.awt.GridLayout;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.util.List;
 
 import javax.swing.JComboBox;
@@ -9,7 +10,6 @@ import javax.swing.JTextField;
 
 import com.github.sarxos.webcam.Webcam;
 
-@SuppressWarnings("serial")
 public class WidgetCamera extends Widget {
 	
 	static List<Webcam> cameras = Webcam.getWebcams();
@@ -20,10 +20,13 @@ public class WidgetCamera extends Widget {
 		new Dimension(3840, 2160)
 	};
 	
+	JLabel            namesLabel;
 	JComboBox<String> namesCombobox;
-	JTextField mjpegUrlTextfield;
+	JLabel            mjpegUrlLabel;
+	JTextField        mjpegUrlTextfield;
+	JLabel            resolutionsLabel;
 	JComboBox<String> resolutionsCombobox;
-	CameraConsumer handler;
+	CameraConsumer    handler;
 	
 	/**
 	 * A widget that lets the user pick a camera and resolution from drop-down lists.
@@ -34,55 +37,95 @@ public class WidgetCamera extends Widget {
 		
 		super();
 		
+		namesLabel = new JLabel("Camera: ");
 		namesCombobox = new JComboBox<String>();
 		for(Webcam camera : cameras)
 			namesCombobox.addItem(camera.getName());
 		namesCombobox.addItem("MJPEG over HTTP");
 		
+		mjpegUrlLabel = new JLabel("URL: ");
 		mjpegUrlTextfield = new JTextField("http://example.com:8080/video");
 		// crude attempt to make the default URL be the IP address of the default gateway
 		String ip = CommunicationController.getLoclIpAddress();
 		if(ip.split("\\.").length == 4)
 			mjpegUrlTextfield.setText("http://" + ip.substring(0, ip.lastIndexOf(".")) + ".1:8080/video");
 
+		resolutionsLabel = new JLabel("Resolution: ");
 		resolutionsCombobox = new JComboBox<String>();
 		for(Dimension resolution : resolutions)
 			resolutionsCombobox.addItem(resolution.width + " x " + resolution.height);
 		
-		namesCombobox.addActionListener(event -> notifyHandler());
-		mjpegUrlTextfield.addActionListener(event -> notifyHandler());
-		resolutionsCombobox.addActionListener(event -> notifyHandler());
-		
-		setLayout(new GridLayout(2, 2, Theme.padding, Theme.padding));
+		mjpegUrlTextfield.addFocusListener(new FocusListener() {
+			@Override public void focusLost(FocusEvent e)   { sanityCheck(); }
+			@Override public void focusGained(FocusEvent e) { }
+		});
+				
+		widgets.put(namesLabel,          "");
+		widgets.put(namesCombobox,       "span 3, growx");
+		widgets.put(mjpegUrlLabel,       "");
+		widgets.put(mjpegUrlTextfield,   "span 3, growx");
+		widgets.put(resolutionsLabel,    "");
+		widgets.put(resolutionsCombobox, "span 3, growx");
 		
 		handler = eventHandler;
-		notifyHandler();
+		sanityCheck();
+		
+	}
+	
+	/**
+	 * Removes ActionListeners so that programmatic changes to the GUI do not trigger recursive events.
+	 */
+	private void removeActionListeners() {
+		
+		for(ActionListener l : namesCombobox.getActionListeners())
+			namesCombobox.removeActionListener(l);
+		for(ActionListener l : mjpegUrlTextfield.getActionListeners())
+			mjpegUrlTextfield.removeActionListener(l);
+		for(ActionListener l : resolutionsCombobox.getActionListeners())
+			resolutionsCombobox.removeActionListener(l);
+		
+	}
+	
+	/**
+	 * Adds ActionListeners so the GUI can trigger events.
+	 */
+	private void addActionListeners() {
+		
+		namesCombobox.addActionListener(event -> sanityCheck());
+		mjpegUrlTextfield.addActionListener(event -> sanityCheck());
+		resolutionsCombobox.addActionListener(event -> sanityCheck());
 		
 	}
 	
 	/**
 	 * Notifies the handler.
 	 */
-	public void notifyHandler() {
+	public void sanityCheck() {
+		
+		// pause events
+		removeActionListeners();
 		
 		// update the GUI
 		mjpegUrlTextfield.setText(mjpegUrlTextfield.getText().trim());
-		removeAll();
-		add(new JLabel("Camera: "));
-		add(namesCombobox);
 		if(namesCombobox.getSelectedItem().toString().equals("MJPEG over HTTP")) {
-			add(new JLabel("URL: "));
-			add(mjpegUrlTextfield);
+			mjpegUrlLabel.setVisible(true);
+			mjpegUrlTextfield.setVisible(true);
+			resolutionsLabel.setVisible(false);
+			resolutionsCombobox.setVisible(false);
 		} else {
-			add(new JLabel("Resolution: "));
-			add(resolutionsCombobox);
+			mjpegUrlLabel.setVisible(false);
+			mjpegUrlTextfield.setVisible(false);
+			resolutionsLabel.setVisible(true);
+			resolutionsCombobox.setVisible(true);
 		}
-		revalidate();
-		repaint();
 		
+		// update the chart
 		boolean isMjpeg = namesCombobox.getSelectedItem().toString().equals("MJPEG over HTTP");
 		String name = isMjpeg ? mjpegUrlTextfield.getText() : namesCombobox.getSelectedItem().toString();
 		handler.accept(name, isMjpeg, resolutions[resolutionsCombobox.getSelectedIndex()]);
+		
+		// resume events
+		addActionListeners();
 		
 	}
 	
@@ -93,15 +136,10 @@ public class WidgetCamera extends Widget {
 	 */
 	@Override public void importState(CommunicationController.QueueOfLines lines) {
 		
-		// disable the event listeners
-		for(ActionListener l : namesCombobox.getActionListeners())
-			namesCombobox.removeActionListener(l);
-		for(ActionListener l : mjpegUrlTextfield.getActionListeners())
-			mjpegUrlTextfield.removeActionListener(l);
-		for(ActionListener l : resolutionsCombobox.getActionListeners())
-			resolutionsCombobox.removeActionListener(l);
+		// pause events
+		removeActionListeners();
 
-		// update the widgets
+		// update the GUI
 		String name = ChartUtils.parseString(lines.remove(), "camera name = %s");
 		int cameraN = -1;
 		for(int i = 0; i < namesCombobox.getItemCount(); i++)
@@ -120,23 +158,13 @@ public class WidgetCamera extends Widget {
 		else
 			throw new AssertionError("Invalid MJPEG URL.");
 		
-		String res = ChartUtils.parseString(lines.remove(), "requested resolution = %s");
-		int resN = -1;
-		for(int i = 0; i < resolutionsCombobox.getItemCount(); i++)
-			if(resolutionsCombobox.getItemAt(i).equals(res))
-				resN = i;
-		if(resN >= 0)
-			resolutionsCombobox.setSelectedIndex(resN);
-		else
+		String resolution = ChartUtils.parseString(lines.remove(), "requested resolution = %s");
+		resolutionsCombobox.setSelectedItem(resolution);
+		if(!resolutionsCombobox.getSelectedItem().equals(resolution))
 			throw new AssertionError("Invalid camera resolution.");
 		
-		// enable the event listeners
-		namesCombobox.addActionListener(event -> notifyHandler());
-		mjpegUrlTextfield.addActionListener(event -> notifyHandler());
-		resolutionsCombobox.addActionListener(event -> notifyHandler());
-		
-		// update the chart
-		notifyHandler();
+		// process the new state
+		sanityCheck();
 		
 	}
 	

@@ -1,10 +1,8 @@
-import java.awt.GridLayout;
 import java.util.function.Consumer;
 
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 
-@SuppressWarnings("serial")
 public class WidgetCheckbox extends Widget {
 	
 	String label;
@@ -29,9 +27,8 @@ public class WidgetCheckbox extends Widget {
 		checkbox.setSelected(isChecked);
 		checkbox.addActionListener(event -> handler.accept(checkbox.isSelected()));
 		
-		setLayout(new GridLayout(1, 2, 0, 0));
-		add(new JLabel(""));
-		add(checkbox);
+		widgets.put(new JLabel(""), "");
+		widgets.put(checkbox, "span 3, growx");
 		
 		handler.accept(checkbox.isSelected());
 		

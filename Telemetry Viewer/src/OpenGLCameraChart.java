@@ -163,7 +163,7 @@ public class OpenGLCameraChart extends PositionedChart {
 			OpenGL.createTexture(gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, true);
 			OpenGL.writeTexture (gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, f.buffer);
 			previousFrameTimestamp = f.timestamp;
-			cameraWidget.notifyHandler();
+			cameraWidget.sanityCheck();
 		} else if(f.timestamp != previousFrameTimestamp) {
 			// only replace the texture if a new image is available
 			OpenGL.writeTexture(gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, f.buffer);

@@ -104,7 +104,6 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		datasetWidget = new WidgetDatasets(1,
 		                                   new String[] {"Dataset"},
-		                                   false,
 		                                   newDataset -> datasets = newDataset);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Dial",
@@ -165,7 +164,7 @@ public class OpenGLDialChart extends PositionedChart {
 		if(endIndex - startIndex < minDomain)
 			return handler;
 		
-		datasets[0].getSamples(startIndex, endIndex, samples);
+		datasets.get(0).getSamples(startIndex, endIndex, samples);
 		float lastSample = samples.buffer[samples.buffer.length - 1];
 
 		// calculate range
@@ -226,7 +225,7 @@ public class OpenGLDialChart extends PositionedChart {
 			return handler;
 		
 		if(showReadingLabel) {
-			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets[0].unit;
+			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets.get(0).unit;
 			readingLabelWidth = OpenGL.largeTextWidth(gl, readingLabel);
 			xReadingLabelLeft = xCircleCenter - (readingLabelWidth / 2);
 			yReadingLabelBaseline = yPlotBottom;
@@ -248,7 +247,7 @@ public class OpenGLDialChart extends PositionedChart {
 		}
 		
 		if(showDatasetLabel) {
-			datasetLabel = datasets[0].name;
+			datasetLabel = datasets.get(0).name;
 			datasetLabelWidth = OpenGL.largeTextWidth(gl, datasetLabel);
 			yDatasetLabelBaseline = showReadingLabel ? yReadingLabelTop + Theme.tickTextPadding + Theme.legendTextPadding : yPlotBottom;
 			yDatasetLabelTop = yDatasetLabelBaseline + OpenGL.largeTextHeight;
@@ -263,7 +262,7 @@ public class OpenGLDialChart extends PositionedChart {
 				if(mouseX >= xMouseoverLeft && mouseX <= xMouseoverRight && mouseY >= yMouseoverBottom && mouseY <= yMouseoverTop) {
 					OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
 					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, xMouseoverLeft, yMouseoverBottom, xMouseoverRight, yMouseoverTop);
-					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(datasets[0]));
+					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(datasets.get(0)));
 				}
 				OpenGL.drawLargeText(gl, datasetLabel, (int) xDatasetLabelLeft, (int) yDatasetLabelBaseline, 0);
 			}

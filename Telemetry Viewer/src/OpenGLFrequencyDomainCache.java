@@ -1,5 +1,7 @@
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2ES3;
@@ -16,7 +18,7 @@ public class OpenGLFrequencyDomainCache {
 	int[][] firstSampleNumberOfDft; // [datasetN][dftN]
 	int previousDftWindowLength;
 	int previousTotalSampleCount;
-	Dataset[] previousDatasets;
+	List<Dataset> previousDatasets;
 	String previousChartType;
 	
 	float minHz;
@@ -49,7 +51,7 @@ public class OpenGLFrequencyDomainCache {
 		firstSampleNumberOfDft = new int[0][];
 		previousDftWindowLength = 0;
 		previousTotalSampleCount = 0;
-		previousDatasets = new Dataset[0];
+		previousDatasets = new ArrayList<Dataset>();
 		
 		minHz = 0;
 		maxHz = 0;
@@ -72,13 +74,13 @@ public class OpenGLFrequencyDomainCache {
 	 * @param datasets            The datasets to visualize.
 	 * @param chartType           "Live View" or "Waveform View" or "Waterfall View"
 	 */
-	public void calculateDfts(int lastSampleNumber, int dftWindowLength, int totalSampleCount, Dataset[] datasets, String chartType) {
+	public void calculateDfts(int lastSampleNumber, int dftWindowLength, int totalSampleCount, List<Dataset> datasets, String chartType) {
 		
-		int datasetsCount = datasets.length;
+		int datasetsCount = datasets.size();
 		int dftsCount = totalSampleCount / dftWindowLength;
 		
 		// flush the cache if the DFT window length has changed, or the datasets have changed, or the chart type has changed
-		if(previousDftWindowLength != dftWindowLength || previousDatasets != datasets || previousTotalSampleCount != totalSampleCount || !previousChartType.equals(chartType)) {
+		if(previousDftWindowLength != dftWindowLength || !previousDatasets.equals(datasets) || previousTotalSampleCount != totalSampleCount || !previousChartType.equals(chartType)) {
 			
 			dfts = new float[datasetsCount][dftsCount][];
 			firstSampleNumberOfDft = new int[datasetsCount][dftsCount];
@@ -107,8 +109,8 @@ public class OpenGLFrequencyDomainCache {
 			int endX = lastSampleNumber;
 			int startX = endX - dftWindowLength + 1;
 			
-			for(int dataset = 0; dataset < datasets.length; dataset++) {
-				float[] samples = datasets[dataset].getSamplesArray(startX, endX);
+			for(int dataset = 0; dataset < datasetsCount; dataset++) {
+				float[] samples = datasets.get(dataset).getSamplesArray(startX, endX);
 				dfts[dataset][0] = calculateDFTxy(samples, CommunicationController.getSampleRate());
 			}
 			
@@ -121,7 +123,7 @@ public class OpenGLFrequencyDomainCache {
 			// calculate the DFT range
 			minPower = dfts[0][0][1];
 			maxPower = dfts[0][0][1];
-			for(int dataset = 0; dataset < datasets.length; dataset++) {
+			for(int dataset = 0; dataset < datasetsCount; dataset++) {
 				for(int i = 1; i < dfts[dataset][0].length; i += 2) {
 					float y = dfts[dataset][0][i];
 					if(y > maxPower) maxPower = y;
@@ -131,7 +133,7 @@ public class OpenGLFrequencyDomainCache {
 			
 		} else {
 			
-			for(int dataset = 0; dataset < datasets.length; dataset++) {
+			for(int dataset = 0; dataset < datasetsCount; dataset++) {
 				for(int dft = firstDft; dft <= lastDft; dft++) {
 					
 					int firstSampleNumber = dft * dftWindowLength;
@@ -141,7 +143,7 @@ public class OpenGLFrequencyDomainCache {
 						
 						int startX = firstSampleNumber;
 						int endX = startX + dftWindowLength - 1;
-						float[] samples = datasets[dataset].getSamplesArray(startX, endX);
+						float[] samples = datasets.get(dataset).getSamplesArray(startX, endX);
 						dfts[dataset][rbIndex] = calculateDFT(samples, CommunicationController.getSampleRate());
 						firstSampleNumberOfDft[dataset][rbIndex] = startX;
 						
@@ -159,7 +161,7 @@ public class OpenGLFrequencyDomainCache {
 			// calculate the DFT range
 			minPower = dfts[0][firstDft % dftsCount][0];
 			maxPower = dfts[0][firstDft % dftsCount][0];
-			for(int dataset = 0; dataset < datasets.length; dataset++) {
+			for(int dataset = 0; dataset < datasetsCount; dataset++) {
 				for(int dft = firstDft; dft <= lastDft; dft++) {
 					for(int i = 0; i < dfts[dataset][dft % dftsCount].length; i++) {
 						float y = dfts[dataset][dft % dftsCount][i];
@@ -306,7 +308,7 @@ public class OpenGLFrequencyDomainCache {
 	 * @param gl             The OpenGL context.
 	 * @param datasets       The datasets to visualize.
 	 */
-	public void renderLiveView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, Dataset[] datasets) {
+	public void renderLiveView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
 		
 		float[] offscreenMatrix = new float[16];
 		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, width, 0, height, -1, 1);
@@ -324,15 +326,15 @@ public class OpenGLFrequencyDomainCache {
 		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, liveViewFbHandle, liveViewTexHandle, width, height);
 		
 		// draw the DFT line charts onto the texture
-		for(int dataset = 0; dataset < datasets.length; dataset++) {
+		for(int dataset = 0; dataset < datasets.size(); dataset++) {
 			
 			int dftBinCount = dfts[dataset][0].length / 2;
 			FloatBuffer buffer = Buffers.newDirectFloatBuffer(dfts[dataset][0]);
-			OpenGL.drawLinesXy(gl, GL3.GL_LINE_STRIP, datasets[dataset].glColor, buffer, dftBinCount);
+			OpenGL.drawLinesXy(gl, GL3.GL_LINE_STRIP, datasets.get(dataset).glColor, buffer, dftBinCount);
 			
 			// also draw points if there are relatively few bins on screen
 			if(width / dftBinCount > 2 * Theme.pointWidth)
-				OpenGL.drawPointsXy(gl, datasets[dataset].glColor, buffer, dftBinCount);
+				OpenGL.drawPointsXy(gl, datasets.get(dataset).glColor, buffer, dftBinCount);
 			
 		}
 		
@@ -358,10 +360,10 @@ public class OpenGLFrequencyDomainCache {
 	 * @param datasets       The datasets to visualize.
 	 * @param rowCount       How many vertical bins to divide the plot into. (The number of horizontal bins is the DFT bin count.)
 	 */
-	public void renderWaveformView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, Dataset[] datasets, int rowCount) {
+	public void renderWaveformView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets, int rowCount) {
 		
 		// calculate a 2D histogram for each dataset
-		int datasetsCount = datasets.length;
+		int datasetsCount = datasets.size();
 		int xBinCount = dfts[0][0].length;
 		histogram = new int[datasetsCount][xBinCount][rowCount];
 		for(int dataset = 0; dataset < datasetsCount; dataset++) {
@@ -382,9 +384,9 @@ public class OpenGLFrequencyDomainCache {
 		
 		// populate the pixels, simulating glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 		for(int dataset = 0; dataset < datasetsCount; dataset++) {
-			float newR = datasets[dataset].glColor[0];
-			float newG = datasets[dataset].glColor[1];
-			float newB = datasets[dataset].glColor[2];
+			float newR = datasets.get(dataset).glColor[0];
+			float newG = datasets.get(dataset).glColor[1];
+			float newB = datasets.get(dataset).glColor[2];
 			
 			for(int y = 0; y < rowCount; y++) {
 				for(int x = 0; x < xBinCount; x++) {
@@ -435,11 +437,11 @@ public class OpenGLFrequencyDomainCache {
 	 * @param gl             The OpenGL context.
 	 * @param datasets       The datasets to visualize.
 	 */
-	public void renderWaterfallView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, Dataset[] datasets) {
+	public void renderWaterfallView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
 		
 		int binCount = dfts[0][0].length;
 		int dftsCount = dfts[0].length;
-		int datasetsCount = datasets.length;
+		int datasetsCount = datasets.size();
 		
 		int pixelCount = binCount * dftsCount;
 		
@@ -448,9 +450,9 @@ public class OpenGLFrequencyDomainCache {
 		
 		// populate the pixels, simulating glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 		for(int dataset = 0; dataset < datasetsCount; dataset++) {
-			float newR = datasets[dataset].glColor[0];
-			float newG = datasets[dataset].glColor[1];
-			float newB = datasets[dataset].glColor[2];
+			float newR = datasets.get(dataset).glColor[0];
+			float newG = datasets.get(dataset).glColor[1];
+			float newB = datasets.get(dataset).glColor[2];
 			
 			for(int y = 0; y < dftsCount; y++) {
 				int dft = lastDft - y;

@@ -1,3 +1,5 @@
+import java.awt.Component;
+import java.util.List;
 import java.util.Map;
 
 import com.jogamp.opengl.GL2ES3;
@@ -7,8 +9,8 @@ import com.jogamp.opengl.GL3;
  * Renders the label showing the date, and/or an interactive timeline.
  * 
  * User settings:
- *     The date can be displayed.
- *     The timeline can be displayed.
+ *     Time and/or timeline can be displayed.
+ *     Bitfield events can be displayed.
  */
 public class OpenGLTimelineChart extends PositionedChart {
 	
@@ -40,8 +42,8 @@ public class OpenGLTimelineChart extends PositionedChart {
 	float timeWidth;
 	
 	// control widgets
-	WidgetCheckbox showTimeWidget;
-	WidgetCheckbox showTimelineWidget;
+	WidgetCombobox showWidget;
+	WidgetDatasets datasetsWidget;
 	
 	@Override public String toString() {
 		
@@ -53,12 +55,33 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		showTimeWidget     = new WidgetCheckbox("Show Time",     true, isShown -> showTime = isShown);
-		showTimelineWidget = new WidgetCheckbox("Show Timeline", true, isShown -> showTimeline = isShown);
-
+		datasetsWidget = new WidgetDatasets(newBitfieldEdges  -> bitfieldEdges = newBitfieldEdges,
+		                                    newBitfieldLevels -> bitfieldLevels = newBitfieldLevels);
+		
+		showWidget = new WidgetCombobox("Show",
+		                                new String[] {"Timeline and Time", "Only Timeline", "Only Time"},
+		                                newType -> {
+		                                	if(newType.equals("Timeline and Time")) {
+		                                		showTimeline = true;
+		                                		showTime = true;
+		                                		for(Component widget : datasetsWidget.widgets.keySet())
+		                                			widget.setVisible(true);
+		                                	} else if(newType.equals("Only Timeline")) {
+		                                		showTimeline = true;
+		                                		showTime = false;
+		                                		for(Component widget : datasetsWidget.widgets.keySet())
+		                                			widget.setVisible(true);
+		                                	} else {
+		                                		showTimeline = false;
+		                                		showTime = true;
+		                                		for(Component widget : datasetsWidget.widgets.keySet())
+		                                			widget.setVisible(false);
+		                                	}
+		                                });
+		
 		widgets = new Widget[2];
-		widgets[0] = showTimeWidget;
-		widgets[1] = showTimelineWidget;
+		widgets[0] = showWidget;
+		widgets[1] = datasetsWidget;
 		
 	}
 	
@@ -86,9 +109,9 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 		// draw the time label if enabled, and if space is available
 		if(showTime) {
-			String timeText = SettingsController.formatTimestampToMilliseconds((DatasetsController.getTimestamp(lastSampleNumber)));
+			String timeText = lastSampleNumber < 0 ? "[No timestamp]" : SettingsController.formatTimestampToMilliseconds((DatasetsController.getTimestamp(lastSampleNumber)));
 			String[] timeTextLine = timeText.split("\n");
-			boolean useTwoLines = twoLineTimestamps && OpenGL.largeTextWidth(gl, timeText.replace('\n', ' ')) > (width - 2*Theme.tilePadding);
+			boolean useTwoLines = lastSampleNumber < 0 ? false : twoLineTimestamps && OpenGL.largeTextWidth(gl, timeText.replace('\n', ' ')) > (width - 2*Theme.tilePadding);
 			if(showTimeline)
 				yTimeTop = height - Theme.tilePadding; // label at the top of the chart region
 			else if(useTwoLines)
@@ -178,8 +201,20 @@ public class OpenGLTimelineChart extends PositionedChart {
 			OpenGL.drawTriangle2D(gl, Theme.tickLinesColor, x, y, x + markerWidth/2, y+markerWidth, x - markerWidth/2, y+markerWidth);
 			OpenGL.drawBox(gl, Theme.tickLinesColor, x - markerWidth/2, y+markerWidth, markerWidth, markerWidth);
 			
-			// draw a tooltip if the mouse is not over the live view button
-			if(!mouseOverButton && mouseX >= xTimelineLeft && mouseX <= xTimelineRight && mouseY >= 0 && mouseY <= height) {
+			// draw any bitfield events
+			int[] originalScissorArgs = new int[4];
+			gl.glGetIntegerv(GL3.GL_SCISSOR_BOX, originalScissorArgs, 0);
+			gl.glScissor(originalScissorArgs[0] + (int) xTimelineLeft, originalScissorArgs[1] + (int) (y + 2*markerWidth), (int) timelineWidth, (int) (height - yTimelineBottom));
+			if(trueLastSampleNumber > 0) {
+				BitfieldEvents events = new BitfieldEvents(false, false, bitfieldEdges, bitfieldLevels, 0, trueLastSampleNumber);
+				List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers (sampleNumber -> (float) (DatasetsController.getTimestamp(sampleNumber) - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth);
+				List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers(sampleNumber -> (float) (DatasetsController.getTimestamp(sampleNumber) - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth);
+				handler = ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xTimelineLeft, showTime ? yTimeBaseline2 - Theme.tickTextPadding - Theme.lineWidth : height - Theme.lineWidth, xTimelineRight, y + 2*markerWidth, mouseX, mouseY);
+			}
+			gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
+			
+			// draw a tooltip if the mouse is not over the live view button and not over a bitfield event
+			if(!mouseOverButton && handler == null && mouseX >= xTimelineLeft && mouseX <= xTimelineRight && mouseY >= 0 && mouseY <= height) {
 				
 				double mousePercentage = (mouseX - xTimelineLeft) / timelineWidth;
 				long mouseTimestamp = minTimestamp + (long) (mousePercentage * (double) (maxTimestamp - minTimestamp));

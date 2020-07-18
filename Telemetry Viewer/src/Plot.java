@@ -1,10 +1,13 @@
+import java.util.List;
 import java.util.Map;
 
 import com.jogamp.opengl.GL2ES3;
 
 public abstract class Plot {
 	
-	Dataset[] datasets;
+	List<Dataset> datasets;
+	List<Dataset.Bitfield.State> bitfieldEdges;
+	List<Dataset.Bitfield.State> bitfieldLevels;
 	int maxSampleNumber;
 	int minSampleNumber;
 	int plotSampleCount;
@@ -22,12 +25,14 @@ public abstract class Plot {
 	 * 
 	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
 	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
-	 * @param datasets            Datasets to acquire from.
+	 * @param datasets            Normal datasets to acquire from.
+	 * @param bitfieldEdges       Bitfield states to show edge events from.
+	 * @param bitfieldLevels      Bitfield states to show levels from.
 	 * @param duration            The sample count, before applying the zoom factor.
 	 * @param cachedMode          True to enable the cache.
 	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows sample count or elapsed time.
 	 */
-	abstract void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode, boolean showTimestamps);
+	abstract void initialize(int lastSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps);
 	
 	/**
 	 * Step 2: Get the required range, assuming you want to see all samples on screen.

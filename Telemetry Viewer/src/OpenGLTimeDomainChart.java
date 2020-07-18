@@ -1,6 +1,7 @@
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-
 import com.jogamp.opengl.GL2ES3;
 import com.jogamp.opengl.GL3;
 
@@ -77,6 +78,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	Plot plot;
 	boolean sampleCountMode;
 	boolean cachedMode;
+	List<Dataset> allDatasets; // normal and bitfields
 	
 	// constraints
 	static final int SampleCountDefault = 1000;
@@ -105,6 +107,25 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 	}
 	
+	/**
+	 * Updates the List of bitfield datasets, which is used by the legend and tooltip code.
+	 */
+	private void updateAllDatasetsList() {
+		
+		allDatasets = new ArrayList<Dataset>(datasets);
+		
+		if(bitfieldEdges != null)
+			for(Dataset.Bitfield.State state : bitfieldEdges)
+				if(!allDatasets.contains(state.dataset))
+					allDatasets.add(state.dataset);
+		
+		if(bitfieldLevels != null)
+			for(Dataset.Bitfield.State state : bitfieldLevels)
+				if(!allDatasets.contains(state.dataset))
+					allDatasets.add(state.dataset);
+		
+	}
+	
 	public OpenGLTimeDomainChart(int x1, int y1, int x2, int y2) {
 		
 		super(x1, y1, x2, y2);
@@ -112,7 +133,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		autoscale = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.10f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(true, newDatasets -> datasets = newDatasets);
+		datasetsWidget = new WidgetDatasets(newDatasets       -> { datasets       = newDatasets;       updateAllDatasetsList(); },
+		                                    newBitfieldEdges  -> { bitfieldEdges  = newBitfieldEdges;  updateAllDatasetsList(); },
+		                                    newBitfieldLevels -> { bitfieldLevels = newBitfieldLevels; updateAllDatasetsList(); });
 		
 		durationWidget = new WidgetDuration(SampleCountDefault,
 		                                    SampleCountMinimum,
@@ -183,7 +206,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		EventHandler handler = null;
 		
-		plot.initialize(lastSampleNumber, zoomLevel, datasets, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
+		plot.initialize(lastSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
 		Dataset.MinMax requiredRange = plot.getRange();
@@ -200,7 +223,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		yPlotBottom = Theme.tilePadding;
 		plotHeight = yPlotTop - yPlotBottom;
 		
-		boolean haveDatasets = datasets != null && datasets.length > 0;
+		boolean haveDatasets = allDatasets != null && !allDatasets.isEmpty();
+		int datasetsCount = haveDatasets ? allDatasets.size() : 0;
 		
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
@@ -222,13 +246,13 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 			yLegendTextTop = yLegendTextBaseline + OpenGL.mediumTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 			
-			legendMouseoverCoordinates = new float[datasets.length][4];
-			legendBoxCoordinates = new float[datasets.length][4];
-			xLegendNameLeft = new float[datasets.length];
+			legendMouseoverCoordinates = new float[datasetsCount][4];
+			legendBoxCoordinates = new float[datasetsCount][4];
+			xLegendNameLeft = new float[datasetsCount];
 			
 			float xOffset = xLegendBorderLeft + (Theme.lineWidth / 2) + Theme.legendTextPadding;
 			
-			for(int i = 0; i < datasets.length; i++) {
+			for(int i = 0; i < datasetsCount; i++) {
 				legendMouseoverCoordinates[i][0] = xOffset - Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][1] = yLegendBorderBottom;
 				
@@ -239,7 +263,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				
 				xOffset += OpenGL.mediumTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
-				xOffset += OpenGL.mediumTextWidth(gl, datasets[i].name) + Theme.legendNamesPadding;
+				xOffset += OpenGL.mediumTextWidth(gl, allDatasets.get(i).name) + Theme.legendNamesPadding;
 				
 				legendMouseoverCoordinates[i][2] = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][3] = yLegendBorderTop;
@@ -271,7 +295,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showYaxisTitle) {
 			xYaxisTitleTextTop = xPlotLeft;
 			xYaxisTitleTextBaseline = xYaxisTitleTextTop + OpenGL.largeTextHeight;
-			yAxisTitle = haveDatasets ? datasets[0].unit : "";
+			yAxisTitle = haveDatasets ? datasets.get(0).unit : "";
 			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (OpenGL.largeTextWidth(gl, yAxisTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
@@ -372,14 +396,14 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
 			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
-			for(int i = 0; i < datasets.length; i++) {
+			for(int i = 0; i < datasetsCount; i++) {
 				if(mouseX >= legendMouseoverCoordinates[i][0] && mouseX <= legendMouseoverCoordinates[i][2] && mouseY >= legendMouseoverCoordinates[i][1] && mouseY <= legendMouseoverCoordinates[i][3]) {
 					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, legendMouseoverCoordinates[i][0], legendMouseoverCoordinates[i][1], legendMouseoverCoordinates[i][2], legendMouseoverCoordinates[i][3]);
-					Dataset d = datasets[i];
+					Dataset d = allDatasets.get(i);
 					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(d));
 				}
-				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-				OpenGL.drawMediumText(gl, datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline, 0);
+				OpenGL.drawQuad2D(gl, allDatasets.get(i).glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
+				OpenGL.drawMediumText(gl, allDatasets.get(i).name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline, 0);
 			}
 		}
 		
@@ -400,22 +424,22 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		plot.draw(gl, chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinY, plotMaxY);
 		
 		// draw the tooltip if the mouse is in the plot region
-		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		if(!allDatasets.isEmpty() && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			Plot.TooltipInfo tooltip = plot.getTooltip(mouseX - (int) xPlotLeft, plotWidth);
 			if(tooltip.draw) {
 				String[] tooltipLines = tooltip.label.split("\n");
-				String[] text = new String[datasets.length + tooltipLines.length];
-				Color[] colors = new Color[datasets.length + tooltipLines.length];
+				String[] text = new String[datasetsCount + tooltipLines.length];
+				Color[] colors = new Color[datasetsCount + tooltipLines.length];
 				for(int i = 0; i < tooltipLines.length; i++) {
 					text[i] = tooltipLines[i];
 					colors[i] = null;
 				}
-				for(int i = 0; i < datasets.length; i++) {
-					text[i + tooltipLines.length] = datasets[i].getSampleAsString(tooltip.sampleNumber);
-					colors[i + tooltipLines.length] = datasets[i].color;
+				for(int i = 0; i < datasetsCount; i++) {
+					text[i + tooltipLines.length] = allDatasets.get(i).getSampleAsString(tooltip.sampleNumber);
+					colors[i + tooltipLines.length] = allDatasets.get(i).color;
 				}
 				float anchorX = tooltip.pixelX + xPlotLeft;
-				if(anchorX >= 0 && datasets.length > 1) {
+				if(anchorX >= 0 && datasetsCount > 1) {
 					OpenGL.buffer.rewind();
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotTop);
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotBottom);
@@ -423,7 +447,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 					OpenGL.drawLinesXy(gl, GL3.GL_LINES, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
 					ChartUtils.drawTooltip(gl, text, colors, anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				} else if(anchorX >= 0) {
-					float anchorY = (datasets[0].getSample(tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom;
+					float anchorY = (allDatasets.get(0).getSample(tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom;
 					ChartUtils.drawTooltip(gl, text, colors, anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				}
 			}

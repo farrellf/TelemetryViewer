@@ -47,12 +47,11 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		super(x1, y1, x2, y2);
 		
 		sampleCount = 1;
-		datasets = new Dataset[4];
 		
 		shape = ChartUtils.getShapeFromAsciiStl(getClass().getResourceAsStream("monkey.stl"));
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(4, new String[] {"Q0", "Q1", "Q2", "Q3"}, false, newDatasets -> datasets = newDatasets);
+		datasetsWidget = new WidgetDatasets(4, new String[] {"Q0", "Q1", "Q2", "Q3"}, newDatasets -> datasets = newDatasets);
 		
 		showTextLabelWidget = new WidgetCheckbox("Show Text Label",
 		                                         true,
@@ -73,10 +72,10 @@ public class OpenGLQuaternionChart extends PositionedChart {
 			return null;
 
 		// get the quaternion values
-		float q0 = datasets[0].getSample(lastSampleNumber);
-		float q1 = datasets[1].getSample(lastSampleNumber);
-		float q2 = datasets[2].getSample(lastSampleNumber);
-		float q3 = datasets[3].getSample(lastSampleNumber);
+		float q0 = datasets.get(0).getSample(lastSampleNumber);
+		float q1 = datasets.get(1).getSample(lastSampleNumber);
+		float q2 = datasets.get(2).getSample(lastSampleNumber);
+		float q3 = datasets.get(3).getSample(lastSampleNumber);
 		
 		// calculate x and y positions of everything
 		xPlotLeft = Theme.tilePadding;

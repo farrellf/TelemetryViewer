@@ -11,7 +11,9 @@ public abstract class PositionedChart {
 	int bottomRightY;
 	
 	int sampleCount;
-	Dataset[] datasets;
+	List<Dataset> datasets;
+	List<Dataset.Bitfield.State> bitfieldEdges;
+	List<Dataset.Bitfield.State> bitfieldLevels;
 	Widget[] widgets;
 	
 	public PositionedChart(int x1, int y1, int x2, int y2) {

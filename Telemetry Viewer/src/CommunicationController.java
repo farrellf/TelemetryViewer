@@ -16,7 +16,6 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.LinkedList;
@@ -1156,10 +1155,10 @@ public class CommunicationController {
 				file.println("\tconversion factor a = " + dataset.conversionFactorA);
 				file.println("\tconversion factor b = " + dataset.conversionFactorB);
 				if(dataset.processor != null && dataset.processor.toString().startsWith("Bitfield"))
-					for(Bitfield bitfield : dataset.bitfields) {
-						file.print("\t[" + bitfield.MSBit + ":" + bitfield.LSBit + "] = " + bitfield.names[0]);
-						for(int i = 1; i < bitfield.names.length; i++)
-							file.print("," + bitfield.names[i]);
+					for(Dataset.Bitfield bitfield : dataset.bitfields) {
+						file.print("\t[" + bitfield.MSBit + ":" + bitfield.LSBit + "] = " + String.format("0x%02X%02X%02X ", bitfield.states[0].color.getRed(), bitfield.states[0].color.getGreen(), bitfield.states[0].color.getBlue()) + bitfield.states[0].name);
+						for(int i = 1; i < bitfield.states.length; i++)
+							file.print("," + String.format("0x%02X%02X%02X ", bitfield.states[i].color.getRed(), bitfield.states[i].color.getGreen(), bitfield.states[i].color.getBlue()) + bitfield.states[i].name);
 						file.println();
 					}
 				
@@ -1293,27 +1292,28 @@ public class CommunicationController {
 				packet.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
 				if(processor != null && processor.toString().startsWith("Bitfield")) {
-					List<Bitfield> fields = new ArrayList<Bitfield>();
+					Dataset dataset = DatasetsController.getDatasetByLocation(location);
 					String line = lines.remove();
 					while(!line.equals("")){
 						try {
 							String bitNumbers = line.split(" ")[0];
-							String[] fieldNames = line.substring(bitNumbers.length() + 3).split(","); // skip past "[n:n] = "
+							String[] stateNamesAndColors = line.substring(bitNumbers.length() + 3).split(","); // skip past "[n:n] = "
 							bitNumbers = bitNumbers.substring(1, bitNumbers.length() - 1); // remove [ and ]
 							int MSBit = Integer.parseInt(bitNumbers.split(":")[0]);
 							int LSBit = Integer.parseInt(bitNumbers.split(":")[1]);
-							Bitfield field = new Bitfield(MSBit, LSBit);
-							for(int f = 0; f < fieldNames.length; f++) {
-								field.textfields[f].setText(fieldNames[f]);
-								field.names[f] = fieldNames[f];
+							Dataset.Bitfield bitfield = dataset.addBitfield(MSBit, LSBit);
+							for(int stateN = 0; stateN < stateNamesAndColors.length; stateN++) {
+								Color c = new Color(Integer.parseInt(stateNamesAndColors[stateN].split(" ")[0].substring(2), 16));
+								String n = stateNamesAndColors[stateN].substring(9);
+								bitfield.states[stateN].color = c;
+								bitfield.states[stateN].glColor = new float[] {c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, 1};
+								bitfield.states[stateN].name = n;
 							}
-							fields.add(field);
 						} catch(Exception e) {
-							throw new AssertionError("Text does not start with a bitfield range.");
+							throw new AssertionError("Text does not specify a bitfield range.");
 						}
 						line = lines.remove();
 					}
-					DatasetsController.getDatasetByLocation(location).setBitfields(fields);
 				} else {
 					ChartUtils.parseExact(lines.remove(), "");
 				}

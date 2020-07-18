@@ -36,9 +36,10 @@ public class Theme {
 	public static float[] divisionLinesColor      = new float[] {0.7f, 0.7f, 0.7f, 1.0f};
 	public static float[] divisionLinesFadedColor = new float[] {0.7f, 0.7f, 0.7f, 0.0f};
 	
-	// tooltips in the plot region
+	// tooltips and markers in the plot region
 	public static float[] tooltipBackgroundColor  = new float[] {1, 1, 1, 1};
-	public static float[] tooltipBorderColor      = new float[] {0, 0, 0, 1};
+	public static float[] tooltipBorderColor      = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
+	public static float[] markerBorderColor       = new float[] {0.6f, 0.6f, 0.6f, 1.0f};
 	public static float[] tooltipVerticalBarColor = new float[] {0.0f, 0.0f, 0.0f, 1.0f};
 	public static float   tooltipTextPadding      = 5.0f;
 	

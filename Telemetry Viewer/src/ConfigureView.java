@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
@@ -8,6 +9,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -19,6 +21,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
+import javax.swing.border.EmptyBorder;
 
 import net.miginfocom.swing.MigLayout;
 
@@ -42,20 +45,21 @@ public class ConfigureView extends JPanel {
 		super();
 		
 		widgetsPanel = new JPanel();
-		widgetsPanel.setLayout(new MigLayout("wrap 1, gap 0, insets 0")); // 1 column, no border
+		widgetsPanel.setLayout(new MigLayout("hidemode 3, wrap 4, insets 0, gap " + Theme.padding, "[pref][min!][min!][grow]"));
+		widgetsPanel.setBorder(new EmptyBorder(Theme.padding, Theme.padding, Theme.padding, Theme.padding));
 		scrollableRegion = new JScrollPane(widgetsPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		scrollableRegion.setBorder(null);
 		buttonsPanel = new JPanel();
-		buttonsPanel.setLayout(new MigLayout("insets " + (Theme.padding * 2) + " 0 " + Theme.padding + " 0", "[33%!][grow][33%!]")); // border above and below the buttons, 3 equal columns
+		buttonsPanel.setLayout(new MigLayout("insets 0", "[33%!][grow][33%!]")); // 3 equal columns
+		buttonsPanel.setBorder(new EmptyBorder(Theme.padding * 2, Theme.padding, Theme.padding, Theme.padding)); // extra padding above
 		
-		setLayout(new MigLayout("wrap 1, insets " + Theme.padding + " " + Theme.padding + " 0 " + Theme.padding)); // 1 column, border around the top/left/right
+		setLayout(new MigLayout("wrap 1, insets 0")); // 1 column, no border
 		add(scrollableRegion, "growx");
 		add(buttonsPanel, "growx");
 		
 		setPreferredSize(new Dimension(0, 0));
 		
 	}
-	
 	
 	/**
 	 * Calculate the preferred size of this panel, taking into account the width of the vertical scroll bar.
@@ -67,8 +71,8 @@ public class ConfigureView extends JPanel {
 		
 		// resize the widgets region if the scrollbar is visible
 		if(scrollableRegion.getVerticalScrollBar().isVisible())
-			size.width += scrollableRegion.getVerticalScrollBar().getPreferredSize().width + Theme.padding;
-		widgetsPanel.setPreferredSize(size);
+			size.width += scrollableRegion.getVerticalScrollBar().getPreferredSize().width;
+		scrollableRegion.setPreferredSize(size);
 		
 		// due to the event queue, the scroll bar may be about to appear or disappear, but the above if() can't see the future
 		// work around this by triggering another getPreferredSize() at the end of the event queue.
@@ -93,13 +97,18 @@ public class ConfigureView extends JPanel {
 		buttonsPanel.removeAll();
 
 		for(Widget widget : chart.widgets) {
-			widgetsPanel.add(widget != null ? widget : Box.createVerticalStrut(Theme.padding), "growx");
-			widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
+			if(widget == null)
+				widgetsPanel.add(Box.createVerticalStrut(Theme.padding), "span 4");
+			else
+				for(Map.Entry<Component, String> thing : widget.widgets.entrySet())
+					widgetsPanel.add(thing.getKey(), thing.getValue());
 		}
 		
 		JButton doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> close());
 		buttonsPanel.add(doneButton, "growx, cell 2 0");
+		
+		scrollableRegion.getVerticalScrollBar().setValue(0);
 
 		instance.setPreferredSize(null);
 		instance.revalidate();
@@ -143,15 +152,20 @@ public class ConfigureView extends JPanel {
 			if(activeChart != null)
 				ChartsController.removeChart(activeChart);
 			widgetsPanel.removeAll();
-			widgetsPanel.add(chartTypePanel, "growx");
-			widgetsPanel.add(Box.createVerticalStrut(Theme.padding * 3));
+			widgetsPanel.add(chartTypePanel, "span 4, growx");
+			widgetsPanel.add(Box.createVerticalStrut(Theme.padding * 2), "span 4");
 			
 			// create the chart and show it's widgets
 			activeChart = ChartsController.createAndAddChart(clickedButton.getText(), x1, y1, x2, y2);
 			for(Widget widget : activeChart.widgets) {
-				widgetsPanel.add(widget != null ? widget : Box.createVerticalStrut(Theme.padding), "growx");
-				widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
+				if(widget == null)
+					widgetsPanel.add(Box.createVerticalStrut(Theme.padding), "span 4");
+				else
+					for(Map.Entry<Component, String> thing : widget.widgets.entrySet())
+						widgetsPanel.add(thing.getKey(), thing.getValue());
 			}
+			
+			scrollableRegion.getVerticalScrollBar().setValue(0);
 			
 			// size the panel as needed
 			instance.setPreferredSize(null);
@@ -239,11 +253,11 @@ public class ConfigureView extends JPanel {
 		unitPanel.add(new JLabel("Unit: "));
 		unitPanel.add(unitTextfield);
 		widgetsPanel.removeAll();
-		widgetsPanel.add(namePanel, "growx");
-		widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
-		widgetsPanel.add(colorPanel, "growx");
-		widgetsPanel.add(Box.createVerticalStrut(Theme.padding));
-		widgetsPanel.add(unitPanel, "growx");
+		widgetsPanel.add(namePanel, "span 4, growx");
+		widgetsPanel.add(colorPanel, "span 4, growx");
+		widgetsPanel.add(unitPanel, "span 4, growx");
+		
+		scrollableRegion.getVerticalScrollBar().setValue(0);
 
 		instance.setPreferredSize(null);
 		instance.revalidate();

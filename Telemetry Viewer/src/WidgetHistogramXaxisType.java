@@ -1,4 +1,3 @@
-import java.awt.GridLayout;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.function.BiConsumer;
@@ -11,7 +10,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
-@SuppressWarnings("serial")
 public class WidgetHistogramXaxisType extends Widget {
 	
 	JLabel axisTypeLabel;
@@ -24,6 +22,8 @@ public class WidgetHistogramXaxisType extends Widget {
 	JTextField maxTextfield;
 	JTextField minTextfield;
 	JTextField centerTextfield;
+	JPanel maxPanel;
+	JPanel minPanel;
 	float upperLimit;
 	float lowerLimit;
 	float defaultMax;
@@ -96,9 +96,28 @@ public class WidgetHistogramXaxisType extends Widget {
 			@Override public void focusGained(FocusEvent fe) { centerTextfield.selectAll(); }
 		});
 		
-		setLayout(new GridLayout(3, 2, Theme.padding, Theme.padding));
-		
 		axisTypeCombobox.addActionListener(event -> sanityCheck());
+		
+		maxPanel = new JPanel();
+		maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
+		maxPanel.add(maxCheckbox);
+		maxPanel.add(Box.createHorizontalStrut(10));
+		maxPanel.add(maxTextfield);
+		
+		minPanel = new JPanel();
+		minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
+		minPanel.add(minCheckbox);
+		minPanel.add(Box.createHorizontalStrut(10));
+		minPanel.add(minTextfield);
+		
+		widgets.put(axisTypeLabel, "");
+		widgets.put(axisTypeCombobox, "span 3, growx");
+		widgets.put(maxLabel, "");
+		widgets.put(maxPanel, "span 3, growx");
+		widgets.put(minLabel, "");
+		widgets.put(minPanel, "span 3, growx");
+		widgets.put(centerLabel, "");
+		widgets.put(centerTextfield, "span 3, growx");
 		
 		sanityCheck();
 		
@@ -177,53 +196,21 @@ public class WidgetHistogramXaxisType extends Widget {
 		// redraw depending on the axis type
 		if(axisTypeCombobox.getSelectedItem().toString().equals("Normal")) {
 			
-			removeAll();
-			
-			add(axisTypeLabel);
-			add(axisTypeCombobox);
-			
-			JPanel maxPanel = new JPanel();
-			maxPanel.setLayout(new BoxLayout(maxPanel, BoxLayout.X_AXIS));
-			maxPanel.add(maxCheckbox);
-			maxPanel.add(Box.createHorizontalStrut(10));
-			maxPanel.add(maxTextfield);
-			add(maxLabel);
-			add(maxPanel);
-			
-			JPanel minPanel = new JPanel();
-			minPanel.setLayout(new BoxLayout(minPanel, BoxLayout.X_AXIS));
-			minPanel.add(minCheckbox);
-			minPanel.add(Box.createHorizontalStrut(10));
-			minPanel.add(minTextfield);
-			add(minLabel);
-			add(minPanel);
-			
-			revalidate();
-			repaint();
+			maxLabel.setVisible(true);
+			maxPanel.setVisible(true);
+			minLabel.setVisible(true);
+			minPanel.setVisible(true);
+			centerLabel.setVisible(false);
+			centerTextfield.setVisible(false);
 			
 		} else if(axisTypeCombobox.getSelectedItem().toString().equals("Locked Center")) {
 			
-			removeAll();
-			
-			add(axisTypeLabel);
-			add(axisTypeCombobox);
-			
-			add(centerLabel);
-			add(centerTextfield);
-
-			// adding invisible stuff to ensure size does not change
-			JLabel dummyLabel = new JLabel(" ");
-			JPanel dummyPanel = new JPanel();
-			dummyPanel.setLayout(new BoxLayout(dummyPanel, BoxLayout.X_AXIS));
-			dummyPanel.add(new JCheckBox(" "));
-			dummyPanel.add(Box.createHorizontalStrut(10));
-			dummyPanel.add(new JTextField());
-			dummyPanel.setVisible(false);
-			add(dummyLabel);
-			add(dummyPanel);
-			
-			revalidate();
-			repaint();
+			maxLabel.setVisible(false);
+			maxPanel.setVisible(false);
+			minLabel.setVisible(false);
+			minPanel.setVisible(false);
+			centerLabel.setVisible(true);
+			centerTextfield.setVisible(true);
 			
 		}
 		
@@ -265,7 +252,7 @@ public class WidgetHistogramXaxisType extends Widget {
 	@Override public String[] exportState() {
 		
 		return new String[] {
-			"x-axis is centered = " + (axisTypeCombobox.getSelectedIndex() == 0),
+			"x-axis is centered = " + (axisTypeCombobox.getSelectedIndex() == 1),
 			"x-axis center value = " + centerTextfield.getText(),
 			"x-axis autoscale minimum = " + minCheckbox.isSelected(),
 			"x-axis manual minimum = " + minTextfield.getText(),

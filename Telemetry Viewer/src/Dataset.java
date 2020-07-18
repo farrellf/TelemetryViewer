@@ -7,6 +7,7 @@ import java.io.ObjectOutputStream;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.jogamp.common.nio.Buffers;
@@ -16,7 +17,6 @@ import com.jogamp.common.nio.Buffers;
  */
 public class Dataset {
 	
-	// constants defined at constructor-time
 	final int location;
 	final BinaryFieldProcessor processor;
 	String name;
@@ -26,6 +26,9 @@ public class Dataset {
 	final float conversionFactorA;
 	final float conversionFactorB;
 	final float conversionFactor;
+	
+	boolean isBitfield;
+	List<Bitfield> bitfields;
 
 	/**
 	 * Samples are stored in an array of Slots. Each Slot contains 1M values, and may be flushed to disk if RAM runs low.
@@ -133,10 +136,6 @@ public class Dataset {
 	}
 	Slot[] slots;
 	
-	// bitfields if this dataset represents a bitfield
-	boolean isBitfield;
-	List<Bitfield> bitfields;
-	
 	/**
 	 * Creates a new object that describes one dataset and stores all of its samples.
 	 * 
@@ -160,6 +159,7 @@ public class Dataset {
 		this.conversionFactorB = conversionFactorB;
 		this.conversionFactor  = conversionFactorB / conversionFactorA;
 		this.isBitfield        = false;
+		this.bitfields         = new ArrayList<Bitfield>();
 		
 		slots = new Slot[DatasetsController.SLOT_COUNT];
 		
@@ -180,47 +180,27 @@ public class Dataset {
 	}
 	
 	/**
-	 * Configures this Dataset as a bitfield.
+	 * Configures this Dataset to store Bitfields, and appends a new Bitfield object to it.
 	 * 
-	 * @param bitfields    A List of Bitfield objects that describe each bitfield in this Dataset.
+	 * @param MSBit    Most-significant-bit occupied by the Bitfield.
+	 * @param LSBit    Least-significant-bit occupied by the Bitfield.
+	 * @return         The new Bitfield object.
 	 */
-	public void setBitfields(List<Bitfield> bitfields) {
+	public Bitfield addBitfield(int MSBit, int LSBit) {
 		
 		isBitfield = true;
-		this.bitfields = bitfields;
+		Bitfield bitfield = new Bitfield(MSBit, LSBit);
+		bitfields.add(bitfield);
+		return bitfield;
 		
 	}
 	
 	/**
-	 * Checks a range in this dataset for any bitfield events.
-	 * 
-	 * @param events        The object to append any events to.
-	 * @param startIndex    The first sample number (inclusive) to check.
-	 * @param endIndex      The last sample number (inclusive) to check. This must be > startIndex.
+	 * @return    List of Bitfields.
 	 */
-	public void appendBitfieldEvents(BitfieldEvents events, int startIndex, int endIndex) {
+	public List<Bitfield> getBitfields() {
 		
-		if(!isBitfield)
-			return;
-		
-		if(endIndex <= startIndex)
-			return;
-		
-		int sampleCount = endIndex - startIndex + 1;
-		
-		for(int i = (startIndex == 0) ? 1 : 0; i < sampleCount; i++) {
-			int currentState  = (int) getSample(i + startIndex);
-			int previousState = (int) getSample(i - 1 + startIndex);
-			
-			if(currentState != previousState) {
-				for(Bitfield bitfield: bitfields) {
-					int currentValue = bitfield.getValue(currentState);
-					int previousValue = bitfield.getValue(previousState);
-					if(currentValue != previousValue)
-						events.add(startIndex + i, bitfield.names[currentValue], glColor);
-				}
-			}
-		}
+		return bitfields;
 		
 	}
 	
@@ -338,6 +318,10 @@ public class Dataset {
 			slots[slotNumber] = new Slot();
 		slots[slotNumber].setValue(slotIndex, value);
 		
+		if(isBitfield)
+			for(Bitfield bitfield : bitfields)
+				bitfield.processValue((int) value, currentSize);
+		
 	}
 	
 	/**
@@ -351,6 +335,10 @@ public class Dataset {
 		if(slotIndex == 0)
 			slots[slotNumber] = new Slot();
 		slots[slotNumber].setValue(slotIndex, value);
+		
+		if(isBitfield)
+			for(Bitfield bitfield : bitfields)
+				bitfield.processValue((int) value, currentSize);
 		
 	}
 	
@@ -426,6 +414,135 @@ public class Dataset {
 		float max;
 		public MinMax()                     {this.min = Float.MAX_VALUE; this.max = -Float.MAX_VALUE;}
 		public MinMax(float min, float max) {this.min = min;             this.max = max;}
+	}
+	
+	/**
+	 * Describes one bitfield, which has 2^n states.
+	 * Each Dataset can contain zero or more Bitfields.
+	 */
+	public class Bitfield implements Comparable<Bitfield> {
+		
+		final int MSBit;
+		final int LSBit;
+		final int bitmask; // (raw dataset value >> LSBit) & bitmask = bitfield state
+		final State[] states;
+		final Dataset dataset;
+		
+		public Bitfield(int MSBit, int LSBit) {
+			
+			this.MSBit = MSBit;
+			this.LSBit = LSBit;
+			
+			int statesCount = (int) Math.pow(2, MSBit - LSBit + 1);
+			bitmask = statesCount - 1;
+			states = new State[statesCount];
+			for(int i = 0; i < statesCount; i++)
+				states[i] = new State(i, (MSBit != LSBit) ? "Bits [" + MSBit + ":" + LSBit + "] = " + i :
+				                                            "Bit " + MSBit + " = " + i);
+			
+			dataset = Dataset.this;
+			
+		}
+		
+		int previousValue = 0;
+		int previousState = 0;
+		
+		/**
+		 * Checks a dataset value to see if this Bitfield has changed state since the previous sample number.
+		 * 
+		 * @param value           Dataset value.
+		 * @param sampleNumber    The current sample number.
+		 */
+		void processValue(int value, int sampleNumber) {
+			
+			// don't consider the first sample to be a change of state
+			if(sampleNumber == 0) {
+				previousValue = value;
+				previousState = (value >> LSBit) & bitmask;
+				return;
+			}
+			
+			// don't bother testing for a change of state if the dataset value has not changed
+			if(value == previousValue)
+				return;
+			
+			// test for a change of state
+			int state = (value >> LSBit) & bitmask;
+			if(state != previousState) {
+				states[state].sampleNumbers.add(sampleNumber);
+				previousState = state;
+			}
+			previousValue = value;
+			
+		}
+		
+		/**
+		 * @param sampleNumber    Sample number.
+		 * @return                State of this bitfield at the specified sample number.
+		 */
+		int getStateAt(int sampleNumber) {
+			int value = (int) Dataset.this.getSample(sampleNumber);
+			int state = (value >> LSBit) & bitmask;
+			return state;
+		}
+
+		/**
+		 * For sorting a Collection of Bitfields so the fields occupying less-significant bits come first.
+		 */
+		@Override public int compareTo(Bitfield other) {
+
+			if(this.dataset == other.dataset)
+				return this.MSBit - other.LSBit;
+			else
+				return this.dataset.location - other.dataset.location;
+			
+		}
+		
+		/**
+		 * Describes one possible state (value) of the Bitfield.
+		 */
+		public class State implements Comparable<State> {
+			
+			String label;                // Example: "Bit 7 = 1" (shown in the PacketBinary.BitfieldPanel.Visualization)
+			int value;                   // Example: "1"
+			String name;                 // Example: "Some Fault Occurred" (shown on markers on the charts)
+			Color color;                 // shown in the PacketBinary.BitfieldPanel
+			float[] glColor;             // shown on markers on the charts
+			List<Integer> sampleNumbers; // transitioned to the "Some Fault" state at these sample numbers
+			Dataset dataset;             // owner of this State
+			Bitfield bitfield;           // owner of this State
+			
+			public State(int value, String label) {
+				this.label = label;
+				this.value = value;
+				this.name = "";
+				this.color = Dataset.this.color;
+				this.glColor = Dataset.this.glColor;
+				sampleNumbers = new ArrayList<Integer>();
+				dataset = Dataset.this;
+				bitfield = Bitfield.this;
+			}
+			
+			@Override public String toString() {
+				return Dataset.this.location + "[" + Bitfield.this.MSBit + ":" + Bitfield.this.LSBit + "]=" + value;
+			}
+			
+			/**
+			 * For sorting a collections of States so earlier datasets come first, and smaller values come first.
+			 */
+			@Override public int compareTo(State other) {
+
+				if(this.bitfield == other.bitfield)
+					return this.value - other.value;
+				else if(this.dataset == other.dataset)
+					return this.bitfield.MSBit - other.bitfield.MSBit;
+				else
+					return this.dataset.location - other.dataset.location;
+				
+			}
+			
+		}
+
 	}
 	
 }

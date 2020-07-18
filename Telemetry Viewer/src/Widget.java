@@ -1,16 +1,19 @@
-import javax.swing.JPanel;
+import java.awt.Component;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-@SuppressWarnings("serial")
-public abstract class Widget extends JPanel {
+public abstract class Widget {
+
+	Map<Component, String> widgets; // key = Swing widget, value = MigLayout component constraints
 	
 	public Widget() {
 		
-		super();
+		widgets = new LinkedHashMap<Component, String>();
 		
 	}
 
 	/**
-	 * Updates the widget and chart based on settings from a layout file.
+	 * Updates the widget and chart based on a settings file.
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */

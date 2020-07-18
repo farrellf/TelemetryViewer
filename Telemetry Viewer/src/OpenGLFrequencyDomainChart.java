@@ -141,7 +141,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		autoscalePower = new AutoScale(AutoScale.MODE_EXPONENTIAL, 90, 0.20f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(false, newDatasets -> datasets = newDatasets);
+		datasetsWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Power",
 		                                                  PowerMinimumDefault,
@@ -220,7 +220,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		if(dftWindowLength < 5)
 			return handler; // zoomed in too much
 		
-		boolean haveDatasets = datasets != null && datasets.length > 0;
+		boolean haveDatasets = datasets != null && !datasets.isEmpty();
 		
 		// calculate the DFTs
 		if(cache == null)
@@ -277,13 +277,13 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			yLegendTextTop = yLegendTextBaseline + OpenGL.mediumTextHeight;
 			yLegendBorderTop = yLegendTextTop + Theme.legendTextPadding;
 
-			legendMouseoverCoordinates = new float[datasets.length][4];
-			legendBoxCoordinates = new float[datasets.length][4];
-			xLegendNameLeft = new float[datasets.length];
+			legendMouseoverCoordinates = new float[datasets.size()][4];
+			legendBoxCoordinates = new float[datasets.size()][4];
+			xLegendNameLeft = new float[datasets.size()];
 			
 			float xOffset = xLegendBorderLeft + (Theme.lineWidth / 2) + Theme.legendTextPadding;
 			
-			for(int i = 0; i < datasets.length; i++) {
+			for(int i = 0; i < datasets.size(); i++) {
 				legendMouseoverCoordinates[i][0] = xOffset - Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][1] = yLegendBorderBottom;
 				
@@ -294,7 +294,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				
 				xOffset += OpenGL.mediumTextHeight + Theme.legendTextPadding;
 				xLegendNameLeft[i] = xOffset;
-				xOffset += OpenGL.mediumTextWidth(gl, datasets[i].name) + Theme.legendNamesPadding;
+				xOffset += OpenGL.mediumTextWidth(gl, datasets.get(i).name) + Theme.legendNamesPadding;
 				
 				legendMouseoverCoordinates[i][2] = xOffset - Theme.legendNamesPadding + Theme.legendTextPadding;
 				legendMouseoverCoordinates[i][3] = yLegendBorderTop;
@@ -506,14 +506,14 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
 			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
-			for(int i = 0; i < datasets.length; i++) {
+			for(int i = 0; i < datasets.size(); i++) {
 				if(mouseX >= legendMouseoverCoordinates[i][0] && mouseX <= legendMouseoverCoordinates[i][2] && mouseY >= legendMouseoverCoordinates[i][1] && mouseY <= legendMouseoverCoordinates[i][3]) {
 					OpenGL.drawQuadOutline2D(gl, Theme.tickLinesColor, legendMouseoverCoordinates[i][0], legendMouseoverCoordinates[i][1], legendMouseoverCoordinates[i][2], legendMouseoverCoordinates[i][3]);
-					Dataset d = datasets[i];
+					Dataset d = datasets.get(i);
 					handler = EventHandler.onPress(event -> ConfigureView.instance.forDataset(d));
 				}
-				OpenGL.drawQuad2D(gl, datasets[i].glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
-				OpenGL.drawMediumText(gl, datasets[i].name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline, 0);
+				OpenGL.drawQuad2D(gl, datasets.get(i).glColor, legendBoxCoordinates[i][0], legendBoxCoordinates[i][1], legendBoxCoordinates[i][2], legendBoxCoordinates[i][3]);
+				OpenGL.drawMediumText(gl, datasets.get(i).name, (int) xLegendNameLeft[i], (int) yLegendTextBaseline, 0);
 			}
 		}
 		
@@ -538,12 +538,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				
 				OpenGL.drawQuad2D(gl, Theme.plotBackgroundColor, xPowerScaleLeft, yPowerTextBaseline, xPowerScaleRight, yPowerTextTop);
 				
-				for(int dataset = 0; dataset < datasets.length; dataset++) {
-					float top = yPowerTextTop - (yPowerTextTop - yPowerTextBaseline) * dataset / datasets.length;
-					float bottom = top - (yPowerTextTop - yPowerTextBaseline) / datasets.length;
-					float r = datasets[dataset].glColor[0];
-					float g = datasets[dataset].glColor[1];
-					float b = datasets[dataset].glColor[2];
+				for(int dataset = 0; dataset < datasets.size(); dataset++) {
+					float top = yPowerTextTop - (yPowerTextTop - yPowerTextBaseline) * dataset / datasets.size();
+					float bottom = top - (yPowerTextTop - yPowerTextBaseline) / datasets.size();
+					float r = datasets.get(dataset).glColor[0];
+					float g = datasets.get(dataset).glColor[1];
+					float b = datasets.get(dataset).glColor[2];
 					OpenGL.buffer.rewind();
 					OpenGL.buffer.put(xPowerScaleLeft);  OpenGL.buffer.put(top);    OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(0);
 					OpenGL.buffer.put(xPowerScaleLeft);  OpenGL.buffer.put(bottom); OpenGL.buffer.put(r); OpenGL.buffer.put(g); OpenGL.buffer.put(b); OpenGL.buffer.put(0);
@@ -579,7 +579,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 		
 		// draw the tooltip if the mouse is in the plot region
-		if(datasets.length > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		if(!datasets.isEmpty() && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			// map mouseX to a frequency
 			double binSizeHz = cache.getBinSizeHz();
 			int binCount = cache.getBinCount();
@@ -596,13 +596,13 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			if(chartType.equals("Live View")) {
 				// for live view, get the power levels (one per dataset) for the mouseX frequency
 				float[] binValues = cache.getBinValuesForLiveView(binN);
-				text = new String[datasets.length + 1];
-				colors = new Color[datasets.length + 1];
+				text = new String[datasets.size() + 1];
+				colors = new Color[datasets.size() + 1];
 				text[0] = (int) frequency + " Hz";
 				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-				for(int i = 0; i < datasets.length; i++) {
+				for(int i = 0; i < datasets.size(); i++) {
 					text[i + 1] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
-					colors[i + 1] = datasets[i].color;
+					colors[i + 1] = datasets.get(i).color;
 				}
 				anchorY = (int) ((binValues[0] - plotMinY) / plotRange * plotHeight + yPlotBottom);
 			} else if(chartType.equals("Waveform View")) {
@@ -615,13 +615,13 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);
 				// for waveform view, get the percentages (one per dataset) for the mouseX frequency and mouseY power range
 				int[] binCounts = cache.getBinValuesForWaveformView(binN, powerBinN);
-				text = new String[datasets.length + 1];
-				colors = new Color[datasets.length + 1];
+				text = new String[datasets.size() + 1];
+				colors = new Color[datasets.size() + 1];
 				text[0] = (int) frequency + " Hz, 1e" + ChartUtils.formattedNumber(minPower, 4) + " to 1e" + ChartUtils.formattedNumber(maxPower, 4) + " Watts";
 				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-				for(int i = 0; i < datasets.length; i++) {
+				for(int i = 0; i < datasets.size(); i++) {
 					text[i + 1] = binCounts[i] + " of " + windowCount + " DFTs (" + ChartUtils.formattedNumber((double) binCounts[i] / (double) windowCount * 100.0, 4) + "%)";
-					colors[i + 1] = datasets[i].color;
+					colors[i + 1] = datasets.get(i).color;
 				}
 				anchorY = (int) (((float) powerBinN + 0.5f) / (float) waveformRowCount * plotHeight + yPlotBottom);
 			} else if(chartType.equals("Waterfall View")) {
@@ -634,8 +634,8 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				int rowLastSampleNumber = trueLastSampleNumber - (waterfallRowN * dftWindowLength) - 1;
 				int rowFirstSampleNumber = rowLastSampleNumber - dftWindowLength + 1;
 				if(rowFirstSampleNumber >= 0) {
-					text = new String[datasets.length + 2];
-					colors = new Color[datasets.length + 2];
+					text = new String[datasets.size() + 2];
+					colors = new Color[datasets.size() + 2];
 					// for waterfall view, get the power levels (one per dataset) for the mouseX frequency and mouseY time
 					float[] binValues = cache.getBinValuesForWaterfallView(binN, waterfallRowN);
 					float secondsElapsed = ((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotMaxTime;
@@ -643,16 +643,16 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
 					text[1] = "(Samples " + rowFirstSampleNumber + " to " + rowLastSampleNumber + ")";
 					colors[1] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-					for(int i = 0; i < datasets.length; i++) {
+					for(int i = 0; i < datasets.size(); i++) {
 						text[i + 2] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
-						colors[i + 2] = datasets[i].color;
+						colors[i + 2] = datasets.get(i).color;
 					}
 					anchorY = (int) (((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotHeight + yPlotBottom);
 				}
 			}
 
 			if(text != null && colors != null) {
-				if(datasets.length > 1 && chartType.equals("Live View")) {
+				if(datasets.size() > 1 && chartType.equals("Live View")) {
 					OpenGL.buffer.rewind();
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotTop);
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotBottom);

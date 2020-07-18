@@ -22,17 +22,17 @@ public class PlotMilliseconds extends Plot {
 	int[]     fbHandle;
 	int[]     texHandle;
 	boolean   cacheIsValid;
-	Dataset[] previousDatasets;
-	long      previousPlotMinX;
-	long      previousPlotMaxX;
-	float     previousPlotMinY;
-	float     previousPlotMaxY;
-	int       previousPlotWidth;
-	int       previousPlotHeight;
-	long      previousPlotDomain;
-	float     previousLineWidth;
-	int       previousMinSampleNumber;
-	int       previousMaxSampleNumber;
+	List<Dataset> previousDatasets;
+	long          previousPlotMinX;
+	long          previousPlotMaxX;
+	float         previousPlotMinY;
+	float         previousPlotMaxY;
+	int           previousPlotWidth;
+	int           previousPlotHeight;
+	long          previousPlotDomain;
+	float         previousLineWidth;
+	int           previousMinSampleNumber;
+	int           previousMaxSampleNumber;
 	
 	private class CachedModeDraw {
 		
@@ -42,7 +42,7 @@ public class PlotMilliseconds extends Plot {
 		FloatBuffer   bufferX;
 		FloatBuffer[] buffersY;
 		
-		void enableAndAcquire(Dataset[] datasets, int firstSampleNumber, int lastSampleNumber, long leftTimestamp, long rightTimestamp, int plotWidth, int plotHeight) {
+		void enableAndAcquire(List<Dataset> datasets, int firstSampleNumber, int lastSampleNumber, long leftTimestamp, long rightTimestamp, int plotWidth, int plotHeight) {
 			enabled = true;
 			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
 			scissorArgs = calculateScissorArgs(leftTimestamp, rightTimestamp, plotWidth, plotHeight);
@@ -62,10 +62,10 @@ public class PlotMilliseconds extends Plot {
 			// acquire the samples
 			bufferX = DatasetsController.getTimestampsBuffer(firstSampleNumber, lastSampleNumber, xOffset);
 
-			buffersY = new FloatBuffer[datasets.length];
-			for(int datasetN = 0; datasetN < datasets.length; datasetN++)
-				if(!datasets[datasetN].isBitfield)
-					buffersY[datasetN] = datasets[datasetN].getBuffer(firstSampleNumber, lastSampleNumber);
+			buffersY = new FloatBuffer[datasets.size()];
+			for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+				if(!datasets.get(datasetN).isBitfield)
+					buffersY[datasetN] = datasets.get(datasetN).getBuffer(firstSampleNumber, lastSampleNumber);
 		}
 		
 		void disable() {
@@ -80,13 +80,17 @@ public class PlotMilliseconds extends Plot {
 	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
 	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
 	 * @param datasets            Datasets to acquire from.
+	 * @param bitfieldEdges       Bitfield states to show edge events from.
+	 * @param bitfieldLevels      Bitfield states to show levels from.
 	 * @param duration            The number of milliseconds to acquire, before applying the zoom factor.
 	 * @param cachedMode          True to enable the cache.
 	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
 	 */
-	@Override public void initialize(int lastSampleNumber, double zoomLevel, Dataset[] datasets, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override public void initialize(int lastSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
+		this.bitfieldEdges = bitfieldEdges;
+		this.bitfieldLevels = bitfieldLevels;
 		this.cachedMode = cachedMode;
 		
 		plotDomain = (long) Math.ceil(duration * zoomLevel);
@@ -131,9 +135,9 @@ public class PlotMilliseconds extends Plot {
 		samplesMinY = Float.MAX_VALUE;
 		samplesMaxY = -Float.MAX_VALUE;
 
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++) {
-			if(!datasets[datasetN].isBitfield) {
-				Dataset.MinMax range = datasets[datasetN].getRange(minSampleNumber, maxSampleNumber);
+		for(Dataset dataset : datasets) {
+			if(!dataset.isBitfield) {
+				Dataset.MinMax range = dataset.getRange(minSampleNumber, maxSampleNumber);
 				if(range.min < samplesMinY)
 					samplesMinY = range.min;
 				if(range.max > samplesMaxY)
@@ -323,29 +327,23 @@ public class PlotMilliseconds extends Plot {
 	 */
 	@Override public void acquireSamplesNonCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents();
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++)
-			if(datasets[datasetN].isBitfield)
-				datasets[datasetN].appendBitfieldEvents(events, minSampleNumber, maxSampleNumber);
+		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, minSampleNumber, maxSampleNumber);
 			
 		bufferX = DatasetsController.getTimestampsBuffer(minSampleNumber, maxSampleNumber, plotMinX);
 		
-		buffersY = new FloatBuffer[datasets.length];
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++)
-			if(!datasets[datasetN].isBitfield)
-				buffersY[datasetN] = datasets[datasetN].getBuffer(minSampleNumber, maxSampleNumber);
+		buffersY = new FloatBuffer[datasets.size()];
+		for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+			if(!datasets.get(datasetN).isBitfield)
+				buffersY[datasetN] = datasets.get(datasetN).getBuffer(minSampleNumber, maxSampleNumber);
 		
 	}
 	
 	@Override void acquireSamplesCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents();
-		for(int datasetN = 0; datasetN < datasets.length; datasetN++)
-			if(datasets[datasetN].isBitfield)
-				datasets[datasetN].appendBitfieldEvents(events, minSampleNumber, maxSampleNumber);
+		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, minSampleNumber, maxSampleNumber);
 		
 		// check if the cache must be flushed
-		cacheIsValid = (datasets == previousDatasets) &&
+		cacheIsValid = (datasets.equals(previousDatasets)) &&
 		               (plotMinX < previousPlotMaxX) &&
 		               (plotMaxX > previousPlotMinX) &&
 		               (plotMinY == previousPlotMinY) &&
@@ -539,21 +537,21 @@ public class PlotMilliseconds extends Plot {
 		OpenGL.useMatrix(gl, plotMatrix);
 		
 		// draw each dataset
-		if(datasets.length > 0 && plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.length; i++) {
+		if(!datasets.isEmpty() && plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.size(); i++) {
 				
 				// do not draw bitfields
-				if(datasets[i].isBitfield)
+				if(datasets.get(i).isBitfield)
 					continue;
 				
-				OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets[i].glColor, bufferX, buffersY[i], plotSampleCount);
+				OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets.get(i).glColor, bufferX, buffersY[i], plotSampleCount);
 				
 				// also draw points if there are relatively few samples on screen
 				float occupiedPlotWidthPercentage = (float) (DatasetsController.getTimestamp(maxSampleNumber) - DatasetsController.getTimestamp(minSampleNumber)) / (float) plotDomain;
 				float occupiedPlotWidth = plotWidth * occupiedPlotWidthPercentage;
 				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointWidth);
 				if(fewSamplesOnScreen)
-					OpenGL.drawPointsX_Y(gl, datasets[i].glColor, bufferX, buffersY[i], plotSampleCount);
+					OpenGL.drawPointsX_Y(gl, datasets.get(i).glColor, bufferX, buffersY[i], plotSampleCount);
 				
 			}
 		}
@@ -561,11 +559,10 @@ public class PlotMilliseconds extends Plot {
 		OpenGL.useMatrix(gl, chartMatrix);
 		
 		// draw any bitfield changes
-		if(datasets.length > 0 && plotSampleCount >= 2) {
-			List<BitfieldEvents.EventsAtSampleNumber> list = events.get();
-			for(BitfieldEvents.EventsAtSampleNumber event : list)
-				event.pixelX = (float) (DatasetsController.getTimestamp(event.sampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
-			ChartUtils.drawMarkers(gl, list, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom);
+		if(!datasets.isEmpty() && plotSampleCount >= 2) {
+			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers (sampleNumber -> (float) (DatasetsController.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
+			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers(sampleNumber -> (float) (DatasetsController.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
+			ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom, -1, -1);
 		}
 
 		// stop clipping to the plot region
@@ -624,11 +621,11 @@ public class PlotMilliseconds extends Plot {
 		OpenGL.useMatrix(gl, offscreenMatrix);
 		
 		// draw each dataset
-		if(datasets.length > 0 && plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.length; i++) {
+		if(!datasets.isEmpty() && plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.size(); i++) {
 				
 				// do not draw bitfields
-				if(datasets[i].isBitfield)
+				if(datasets.get(i).isBitfield)
 					continue;
 				
 				float occupiedPlotWidthPercentage = (float) (DatasetsController.getTimestamp(maxSampleNumber) - DatasetsController.getTimestamp(minSampleNumber)) / (float) plotDomain;
@@ -638,18 +635,18 @@ public class PlotMilliseconds extends Plot {
 				if(draw1.enabled) {
 					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(draw1.scissorArgs[0], draw1.scissorArgs[1], draw1.scissorArgs[2], draw1.scissorArgs[3]);
-					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets[i].glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
+					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets.get(i).glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
 					if(fewSamplesOnScreen)
-						OpenGL.drawPointsX_Y(gl, datasets[i].glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
+						OpenGL.drawPointsX_Y(gl, datasets.get(i).glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
 					gl.glDisable(GL3.GL_SCISSOR_TEST);
 				}
 				
 				if(draw2.enabled) {
 					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(draw2.scissorArgs[0], draw2.scissorArgs[1], draw2.scissorArgs[2], draw2.scissorArgs[3]);
-					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets[i].glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
+					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets.get(i).glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
 					if(fewSamplesOnScreen)
-						OpenGL.drawPointsX_Y(gl, datasets[i].glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
+						OpenGL.drawPointsX_Y(gl, datasets.get(i).glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
 					gl.glDisable(GL3.GL_SCISSOR_TEST);
 				}
 				
@@ -679,11 +676,10 @@ public class PlotMilliseconds extends Plot {
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, plotWidth, plotHeight);
 		
 		// draw any bitfield changes
-		if(datasets.length > 0 && plotSampleCount >= 2) {
-			List<BitfieldEvents.EventsAtSampleNumber> list = events.get();
-			for(BitfieldEvents.EventsAtSampleNumber event : list)
-				event.pixelX = (DatasetsController.getTimestamp(event.sampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
-			ChartUtils.drawMarkers(gl, list, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom);
+		if(!datasets.isEmpty() && plotSampleCount >= 2) {
+			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers (sampleNumber -> (DatasetsController.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
+			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers(sampleNumber -> (DatasetsController.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
+			ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom, -1, -1);
 		}
 		
 		// stop clipping to the plot region
