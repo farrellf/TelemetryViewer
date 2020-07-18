@@ -155,7 +155,7 @@ public class CommunicationView extends JPanel {
 		helpButton.addActionListener(event -> {
 			
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(CommunicationView.instance);
-			String helpText = "<html><b>Telemetry Viewer v0.6 (2019-09-08)</b><br>" +
+			String helpText = "<html><b>Telemetry Viewer v0.7 (2020-07-17)</b><br>" +
 			                  "A fast and easy tool for visualizing data received over a UART/TCP/UDP connection.<br><br>" +
 			                  "Step 1: Use the controls at the lower-right corner of the window to connect to a serial port or to start a TCP/UDP server.<br>" +
 			                  "Step 2: A \"Data Structure Definition\" screen will appear. Use it to specify how your data is laid out, then click \"Done.\"<br>" +
