@@ -296,7 +296,7 @@ public class DatasetsController {
 		
 	}
 	
-	private static Map<Camera, Boolean> cameras = new HashMap<Camera, Boolean>();
+	private static Map<Camera, Boolean> cameras = new HashMap<Camera, Boolean>(); // the Boolean is true if the camera is currently owned by a chart
 	
 	/**
 	 * Obtains ownership of a camera, preventing other charts from using it.
@@ -331,10 +331,27 @@ public class DatasetsController {
 	 */
 	public static void releaseCamera(Camera c) {
 		
-		c.disposeIfEmpty();
+		c.disconnect();
+		if(c.getFrameCount() == 0) {
+			c.dispose();
+			cameras.remove(c);
+		}
+		
 		for(Map.Entry<Camera, Boolean> entry : cameras.entrySet())
 			if(entry.getKey() == c)
 				entry.setValue(false);
+		
+	}
+	
+	/**
+	 * Removes a Camera from the Map of acquired camera.
+	 * This method should be called when
+	 * 
+	 * @param c    The camera.
+	 */
+	public static void removeCamera(Camera c) {
+		
+		cameras.remove(c);
 		
 	}
 	

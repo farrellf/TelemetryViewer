@@ -323,6 +323,15 @@ public class Camera {
 	}
 	
 	/**
+	 * @return    The number of frames that have been acquired.
+	 */
+	public int getFrameCount() {
+		
+		return frames.size();
+		
+	}
+	
+	/**
 	 * Disconnects from the camera and deletes all acquired images.
 	 */
 	public void dispose() {
@@ -337,17 +346,6 @@ public class Camera {
 			NotificationsController.showFailureForSeconds("Unable the delete the cache file for " + name + "\n" + e.getMessage(), 10, false);
 			e.printStackTrace();
 		}
-		
-	}
-	
-	/**
-	 * Disconnects from the camera and deletes the cache file if no images have been acquired.
-	 */
-	public void disposeIfEmpty() {
-
-		disconnect();
-		if(frames.isEmpty())
-			dispose();
 		
 	}
 	
