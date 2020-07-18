@@ -363,16 +363,16 @@ public class OpenGL {
 	/**
 	 * Draws a buffer of (x,y,s,t) vertices as a GL_TRIANGLE_STRIP.
 	 * 
-	 * @param gl                      The OpenGL context.
-	 * @param buffer                  Vertex buffer containing (x1,y1,s1,t1,...)
-	 * @param textureHandle           Texture to draw on the triangles.
-	 * @param isMultisampleTexture    True if the texture is a GL_TEXTURE_2D_MULTISAMPLE, false if it's a GL_TEXTURE_2D.
-	 * @param vertexCount             Number of vertices in the buffer.
+	 * @param gl               The OpenGL context.
+	 * @param buffer           Vertex buffer containing (x1,y1,s1,t1,...)
+	 * @param textureHandle    Texture to draw on the triangles.
+	 * @param isFboTexture     True if the texture is an off-screen frame buffer, false if it's just a normal texture.
+	 * @param vertexCount      Number of vertices in the buffer.
 	 */
-	public static void drawTriangleStripTextured2D(GL2ES3 gl, FloatBuffer buffer, int textureHandle, boolean isMultisampleTexture, int vertexCount) {
+	public static void drawTriangleStripTextured2D(GL2ES3 gl, FloatBuffer buffer, int textureHandle, boolean isFboTexture, int vertexCount) {
 		
 		// send data to the GPU
-		if(isMultisampleTexture) {
+		if(isFboTexture && SettingsController.getAntialiasingLevel() > 1) {
 			gl.glUseProgram(TrianglesXYSTmultisample.programHandle);
 			gl.glBindVertexArray(TrianglesXYSTmultisample.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, TrianglesXYSTmultisample.vboHandle);
@@ -516,7 +516,7 @@ public class OpenGL {
 			int atlasX = 0;
 			int atlasY = 0;
 			int atlasWidth = 0;
-			if(charIndex < smallFontAsciiCharWidthLUT.length) {
+			if(charIndex < smallFontAsciiCharWidthLUT.length && charIndex >= 0) {
 				atlasX = (charIndex % smallFontCharsPerRow) * smallFontMaxCharWidth;
 				atlasY = (charIndex / smallFontCharsPerRow) * smallFontMaxCharHeight;
 				atlasWidth = smallFontAsciiCharWidthLUT[charIndex];
@@ -530,7 +530,7 @@ public class OpenGL {
 					// character not in the texture atlas. so check for any other missing characters, then regenerate the atlas, then call this function again
 					for(int j = 0; j < text.length(); j++) {
 						char c2 = text.charAt(j);
-						if(c2 > lastAsciiChar && !nonAsciiCharMap.containsKey(c2))
+						if((c2 > lastAsciiChar || c2 < firstAsciiChar) && !nonAsciiCharMap.containsKey(c2))
 							nonAsciiCharMap.put(c2, new int[9]);
 					}
 					updateFontTextures(gl);
@@ -594,7 +594,7 @@ public class OpenGL {
 			int atlasX = 0;
 			int atlasY = 0;
 			int atlasWidth = 0;
-			if(charIndex < mediumFontAsciiCharWidthLUT.length) {
+			if(charIndex < mediumFontAsciiCharWidthLUT.length && charIndex >= 0) {
 				atlasX = (charIndex % mediumFontCharsPerRow) * mediumFontMaxCharWidth;
 				atlasY = (charIndex / mediumFontCharsPerRow) * mediumFontMaxCharHeight;
 				atlasWidth = mediumFontAsciiCharWidthLUT[charIndex];
@@ -608,7 +608,7 @@ public class OpenGL {
 					// character not in the texture atlas. so check for any other missing characters, then regenerate the atlas, then call this function again
 					for(int j = 0; j < text.length(); j++) {
 						char c2 = text.charAt(j);
-						if(c2 > lastAsciiChar && !nonAsciiCharMap.containsKey(c2))
+						if((c2 > lastAsciiChar || c2 < firstAsciiChar) && !nonAsciiCharMap.containsKey(c2))
 							nonAsciiCharMap.put(c2, new int[9]);
 					}
 					updateFontTextures(gl);
@@ -672,7 +672,7 @@ public class OpenGL {
 			int atlasX = 0;
 			int atlasY = 0;
 			int atlasWidth = 0;
-			if(charIndex < largeFontAsciiCharWidthLUT.length) {
+			if(charIndex < largeFontAsciiCharWidthLUT.length && charIndex >= 0) {
 				atlasX = (charIndex % largeFontCharsPerRow) * largeFontMaxCharWidth;
 				atlasY = (charIndex / largeFontCharsPerRow) * largeFontMaxCharHeight;
 				atlasWidth = largeFontAsciiCharWidthLUT[charIndex];
@@ -686,7 +686,7 @@ public class OpenGL {
 					// character not in the texture atlas. so check for any other missing characters, then regenerate the atlas, then call this function again
 					for(int j = 0; j < text.length(); j++) {
 						char c2 = text.charAt(j);
-						if(c2 > lastAsciiChar && !nonAsciiCharMap.containsKey(c2))
+						if((c2 > lastAsciiChar || c2 < firstAsciiChar) && !nonAsciiCharMap.containsKey(c2))
 							nonAsciiCharMap.put(c2, new int[9]);
 					}
 					updateFontTextures(gl);
@@ -728,7 +728,7 @@ public class OpenGL {
 		for(int i = 0; i < text.length(); i++) {
 			char c = text.charAt(i);
 			int charIndex = c - firstAsciiChar;
-			if(charIndex < smallFontAsciiCharWidthLUT.length) {
+			if(charIndex < smallFontAsciiCharWidthLUT.length && charIndex >= 0) {
 				width += smallFontAsciiCharWidthLUT[charIndex];
 			} else {
 				int[] details = nonAsciiCharMap.get(c);
@@ -738,7 +738,7 @@ public class OpenGL {
 					// character not in the texture atlas. so check for any other missing characters, then regenerate the atlas, then call this function again
 					for(int j = 0; j < text.length(); j++) {
 						char c2 = text.charAt(j);
-						if(c2 > lastAsciiChar && !nonAsciiCharMap.containsKey(c2))
+						if((c2 > lastAsciiChar || c2 < firstAsciiChar) && !nonAsciiCharMap.containsKey(c2))
 							nonAsciiCharMap.put(c2, new int[9]);
 					}
 					updateFontTextures(gl);
@@ -762,7 +762,7 @@ public class OpenGL {
 		for(int i = 0; i < text.length(); i++) {
 			char c = text.charAt(i);
 			int charIndex = c - firstAsciiChar;
-			if(charIndex < mediumFontAsciiCharWidthLUT.length) {
+			if(charIndex < mediumFontAsciiCharWidthLUT.length && charIndex >= 0) {
 				width += mediumFontAsciiCharWidthLUT[charIndex];
 			} else {
 				int[] details = nonAsciiCharMap.get(c);
@@ -772,7 +772,7 @@ public class OpenGL {
 					// character not in the texture atlas. so check for any other missing characters, then regenerate the atlas, then call this function again
 					for(int j = 0; j < text.length(); j++) {
 						char c2 = text.charAt(j);
-						if(c2 > lastAsciiChar && !nonAsciiCharMap.containsKey(c2))
+						if((c2 > lastAsciiChar || c2 < firstAsciiChar) && !nonAsciiCharMap.containsKey(c2))
 							nonAsciiCharMap.put(c2, new int[9]);
 					}
 					updateFontTextures(gl);
@@ -796,7 +796,7 @@ public class OpenGL {
 		for(int i = 0; i < text.length(); i++) {
 			char c = text.charAt(i);
 			int charIndex = c - firstAsciiChar;
-			if(charIndex < largeFontAsciiCharWidthLUT.length) {
+			if(charIndex < largeFontAsciiCharWidthLUT.length && charIndex >= 0) {
 				width += largeFontAsciiCharWidthLUT[charIndex];
 			} else {
 				int[] details = nonAsciiCharMap.get(c);
@@ -806,7 +806,7 @@ public class OpenGL {
 					// character not in the texture atlas. so check for any other missing characters, then regenerate the atlas, then call this function again
 					for(int j = 0; j < text.length(); j++) {
 						char c2 = text.charAt(j);
-						if(c2 > lastAsciiChar && !nonAsciiCharMap.containsKey(c2))
+						if((c2 > lastAsciiChar || c2 < firstAsciiChar) && !nonAsciiCharMap.containsKey(c2))
 							nonAsciiCharMap.put(c2, new int[9]);
 					}
 					updateFontTextures(gl);
@@ -1078,21 +1078,22 @@ public class OpenGL {
 		
 		// create and use a texture
 		gl.glGenTextures(1, textureHandle, 0);
-		gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0]);
-		gl.glTexImage2DMultisample(GL3.GL_TEXTURE_2D_MULTISAMPLE, SettingsController.getAntialiasingLevel(), GL3.GL_RGBA, 512, 512, true);
-		gl.glFramebufferTexture2D(GL3.GL_FRAMEBUFFER, GL3.GL_COLOR_ATTACHMENT0, GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0], 0);
+		if(SettingsController.getAntialiasingLevel() > 1) {
+			gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0]);
+			gl.glTexImage2DMultisample(GL3.GL_TEXTURE_2D_MULTISAMPLE, SettingsController.getAntialiasingLevel(), GL3.GL_RGBA, 512, 512, true);
+			gl.glFramebufferTexture2D(GL3.GL_FRAMEBUFFER, GL3.GL_COLOR_ATTACHMENT0, GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0], 0);
+		} else {
+			gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle[0]);
+			gl.glTexImage2D(GL3.GL_TEXTURE_2D, 0, GL3.GL_RGBA, 512, 512, 0, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, null); // dummy 512x512 texture
+			gl.glTexParameteri(GL3.GL_TEXTURE_2D, GL3.GL_TEXTURE_MIN_FILTER, GL3.GL_NEAREST);
+			gl.glTexParameteri(GL3.GL_TEXTURE_2D, GL3.GL_TEXTURE_MAG_FILTER, GL3.GL_NEAREST);
+			gl.glFramebufferTexture2D(GL3.GL_FRAMEBUFFER, GL3.GL_COLOR_ATTACHMENT0, GL3.GL_TEXTURE_2D, textureHandle[0], 0);
+		}
 		gl.glDrawBuffers(1, new int[] {GL3.GL_COLOR_ATTACHMENT0}, 0);
-//		gl.glGenTextures(1, textureHandle, 0);
-//		gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle[0]);
-//		gl.glTexImage2D(GL3.GL_TEXTURE_2D, 0, GL3.GL_RGBA, 512, 512, 0, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, null); // dummy 512x512 texture
-//		gl.glTexParameteri(GL3.GL_TEXTURE_2D, GL3.GL_TEXTURE_MIN_FILTER, GL3.GL_NEAREST);
-//		gl.glTexParameteri(GL3.GL_TEXTURE_2D, GL3.GL_TEXTURE_MAG_FILTER, GL3.GL_NEAREST);
-//		gl.glFramebufferTexture2D(GL3.GL_FRAMEBUFFER, GL3.GL_COLOR_ATTACHMENT0, GL3.GL_TEXTURE_2D, textureHandle[0], 0);
-//		gl.glDrawBuffers(1, new int[] {GL3.GL_COLOR_ATTACHMENT0}, 0);
 		
 		// check for errors
 		if(gl.glCheckFramebufferStatus(GL3.GL_FRAMEBUFFER) != GL3.GL_FRAMEBUFFER_COMPLETE)
-			NotificationsController.showFailureForSeconds("OpenGL error: unable to create a framebuffer or texture.", 999, false);
+			NotificationsController.showFailureForSeconds("OpenGL Error: unable to create the framebuffer or texture.", 999, false);
 		
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL3.GL_FRAMEBUFFER, 0);
@@ -1122,12 +1123,16 @@ public class OpenGL {
 
 		// switch to the off-screen framebuffer and corresponding texture
 		gl.glBindFramebuffer(GL3.GL_FRAMEBUFFER, fboHandle[0]);
-		gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0]);
-//		gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle[0]);
+		if(SettingsController.getAntialiasingLevel() > 1)
+			gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0]);
+		else
+			gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle[0]);
 
 		// replace the existing texture
-		gl.glTexImage2DMultisample(GL3.GL_TEXTURE_2D_MULTISAMPLE, SettingsController.getAntialiasingLevel(), GL3.GL_RGBA, width, height, true);
-//		gl.glTexImage2D(GL3.GL_TEXTURE_2D, 0, GL3.GL_RGBA, width, height, 0, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, null);
+		if(SettingsController.getAntialiasingLevel() > 1)
+			gl.glTexImage2DMultisample(GL3.GL_TEXTURE_2D_MULTISAMPLE, SettingsController.getAntialiasingLevel(), GL3.GL_RGBA, width, height, true);
+		else
+			gl.glTexImage2D(GL3.GL_TEXTURE_2D, 0, GL3.GL_RGBA, width, height, 0, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, null);
 
 		// set the viewport and disable the scissor test
 		gl.glViewport(0, 0, width, height);
@@ -1164,8 +1169,10 @@ public class OpenGL {
 
 		// switch to the off-screen framebuffer and corresponding texture
 		gl.glBindFramebuffer(GL3.GL_FRAMEBUFFER, fboHandle[0]);
-		gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0]);
-//		gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle[0]);
+		if(SettingsController.getAntialiasingLevel() > 1)
+			gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle[0]);
+		else
+			gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle[0]);
 
 		// set the viewport and disable the scissor test
 		gl.glViewport(0, 0, width, height);
@@ -1205,18 +1212,18 @@ public class OpenGL {
 	/**
 	 * Helper function that draws a texture onto an axis-aligned quad.
 	 * 
-	 * @param gl                      The OpenGL context.
-	 * @param textureHandle           Handle to the texture.
-	 * @param isMultisampleTexture    True if the texture uses MSAA.
-	 * @param lowerLeftX              Lower-left x location.
-	 * @param lowerLeftY              Lower-left y location.
-	 * @param width                   Width of the quad.
-	 * @param height                  Height of the quad.
-	 * @param offset                  Used to stretch the texture so its pixels are half-way through the left and right edge of the quad.
-	 *                                (This is used by the DFT chart so the first and last bins get centered on the left and right edges.)
-	 * @param rotateTexture           If true, rotate the texture 90 degrees clockwise, and don't use any offset.
+	 * @param gl               The OpenGL context.
+	 * @param textureHandle    Handle to the texture.
+	 * @param isFboTexture     True if the texture is an off-screen frame buffer, false if it's just a normal texture.
+	 * @param lowerLeftX       Lower-left x location.
+	 * @param lowerLeftY       Lower-left y location.
+	 * @param width            Width of the quad.
+	 * @param height           Height of the quad.
+	 * @param offset           Used to stretch the texture so its pixels are half-way through the left and right edge of the quad.
+	 *                         (This is used by the DFT chart so the first and last bins get centered on the left and right edges.)
+	 * @param rotateTexture    If true, rotate the texture 90 degrees clockwise, and don't use any offset.
 	 */
-	public static void drawTexturedBox(GL2ES3 gl, int[] textureHandle, boolean isMultisampleTexture, float lowerLeftX, float lowerLeftY, float width, float height, float offset, boolean rotateTexture) {
+	public static void drawTexturedBox(GL2ES3 gl, int[] textureHandle, boolean isFboTexture, float lowerLeftX, float lowerLeftY, float width, float height, float offset, boolean rotateTexture) {
 		
 		if(rotateTexture) {
 			buffer.rewind();
@@ -1241,7 +1248,7 @@ public class OpenGL {
 			buffer.put(1 - offset);         buffer.put(0);
 			buffer.rewind();
 		}
-		drawTriangleStripTextured2D(gl, buffer, textureHandle[0], isMultisampleTexture, 4);
+		drawTriangleStripTextured2D(gl, buffer, textureHandle[0], isFboTexture, 4);
 		
 	}
 	
@@ -1687,14 +1694,14 @@ public class OpenGL {
 	 */
 	public static void makeAllPrograms(GL2ES3 gl) {
 		
-		String versionLine = gl.isGL3() ? "#version 150\n" : "#version 320 es\n" +
-		                                                     "precision mediump float;\n" + 
-		                                                     "precision mediump int;\n" + 
-		                                                     "precision mediump sampler2D;\n" + 
-		                                                     "precision mediump sampler2DMS;";
+		String versionLine = gl.isGL3() ? "#version 150\n" : "#version 310 es\n";
 		
 		String[] vertexShaderVboY = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" +
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in float y;\n",
 			"uniform mat4 matrix;\n",
 			"uniform int xOffset;\n",
@@ -1704,6 +1711,10 @@ public class OpenGL {
 		};
 		String[] vertexShaderVboXvboY = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in float x;\n",
 			"in float y;\n",
 			"uniform mat4 matrix;\n",
@@ -1713,6 +1724,10 @@ public class OpenGL {
 		};
 		String[] vertexShaderVboXy = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec2 xy;\n",
 			"uniform mat4 matrix;\n",
 			"void main(void) {\n",
@@ -1721,6 +1736,10 @@ public class OpenGL {
 		};
 		String[] vertexShaderVboXyst = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec2 xy;\n",
 			"in vec2 st;\n",
 			"out vec2 texCoord;\n",
@@ -1732,6 +1751,10 @@ public class OpenGL {
 		};
 		String[] vertexShaderVboXyrgba = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec2 xy;\n",
 			"in vec4 rgba;\n",
 			"out vec4 color;\n",
@@ -1743,6 +1766,10 @@ public class OpenGL {
 		};
 		String[] vertexShaderVboXyzuvw = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec3 xyz;\n",
 			"in vec3 uvw;\n",
 			"out vec3 normal;\n",
@@ -1754,6 +1781,10 @@ public class OpenGL {
 		};
 		String[] vertexShaderFontRenderer = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec2 xy;\n", // location of lower-left corner of a character, in pixels
 			"in vec3 stw;\n", // font texture atlas (s,t) and width, in pixels
 			"out vec3 atlas;\n",
@@ -1764,6 +1795,11 @@ public class OpenGL {
 		};
 		String[] geometryShaderThickLines = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"#extension GL_EXT_geometry_shader : require\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"layout (lines) in;\n",
 			"layout (triangle_strip, max_vertices = 4) out;\n",
 			"uniform float lineWidth;\n",
@@ -1784,6 +1820,11 @@ public class OpenGL {
 		};
 		String[] geometryShaderThickColoredLines = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"#extension GL_EXT_geometry_shader : require\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"layout (lines) in;\n",
 			"layout (triangle_strip, max_vertices = 4) out;\n",
 			"uniform float lineWidth;\n",
@@ -1806,6 +1847,11 @@ public class OpenGL {
 		};
 		String[] geometryShaderThickPoints = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"#extension GL_EXT_geometry_shader : require\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"layout (points) in;\n",
 			"layout (triangle_strip, max_vertices = 4) out;\n",
 			"uniform float pointWidth;\n",
@@ -1825,6 +1871,11 @@ public class OpenGL {
 		};
 		String[] geometryShaderFontRenderer = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"#extension GL_EXT_geometry_shader : require\n" +
+			"precision mediump float;\n" +
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"layout (points) in;\n",
 			"layout (triangle_strip, max_vertices = 4) out;\n",
 			"in vec3 atlas[1];\n",
@@ -1841,6 +1892,10 @@ public class OpenGL {
 		};
 		String[] fragmentShaderUniformColor = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"uniform vec4 rgba;\n",
 			"out vec4 fragColor;\n",
 			"void main(void) {\n",
@@ -1849,6 +1904,10 @@ public class OpenGL {
 		};
 		String[] fragmentShaderVaryingColor = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec4 color;\n",
 			"out vec4 fragColor;\n",
 			"void main(void) {\n",
@@ -1857,6 +1916,10 @@ public class OpenGL {
 		};
 		String[] fragmentShaderVaryingColorFromGeom = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec4 rgba;\n",
 			"out vec4 fragColor;\n",
 			"void main(void) {\n",
@@ -1865,6 +1928,10 @@ public class OpenGL {
 		};
 		String[] fragmentShaderUniformColorPoints = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"uniform vec4 rgba;\n",
 			"uniform float pointWidth;\n",
 			"flat in vec4 center;\n",
@@ -1877,6 +1944,11 @@ public class OpenGL {
 		};
 		String[] fragmentShaderTex2D = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" + 
+			"precision mediump sampler2D;\n" +
+			"#endif\n" +
 			"in vec2 texCoord;\n",
 			"uniform sampler2D tex;\n",
 			"out vec4 fragColor;\n",
@@ -1887,6 +1959,12 @@ public class OpenGL {
 		int msaaLevel = SettingsController.getAntialiasingLevel();
 		String[] fragmentShaderTex2DMS = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"#extension ARB_texture_multisample : require\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"precision mediump sampler2DMS;\n" +
+			"#endif\n" +
 			"in vec2 texCoord;\n",
 			"uniform sampler2DMS tex;\n",
 			"out vec4 fragColor;\n",
@@ -1903,6 +1981,10 @@ public class OpenGL {
 		};
 		String[] fragmentShaderLights3D = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" +
+			"#endif\n" +
 			"in vec3 normal;\n",
 			"uniform mat4 matrix;\n",
 			"out vec4 fragColor;\n",
@@ -1919,6 +2001,11 @@ public class OpenGL {
 		};
 		String[] fragmentShaderFontRenderer = new String[] {
 			versionLine,
+			"#ifdef GL_ES\n" +
+			"precision mediump float;\n" + 
+			"precision mediump int;\n" + 
+			"precision mediump sampler2D;\n" +
+			"#endif\n" +
 			"in vec2 texCoord;\n",
 			"uniform sampler2D tex;\n",
 			"out vec4 fragColor;\n",
@@ -2404,28 +2491,32 @@ public class OpenGL {
 		 * One VBO of floats specifies (x1,y1,s1,t1,...) data.
 		 * One uniform mat4 specifies the matrix.
 		 */
-		TrianglesXYSTmultisample.programHandle = makeProgram(gl, vertexShaderVboXyst, null, fragmentShaderTex2DMS);
-		
-		// VAO
-		gl.glGenVertexArrays(1, handle, 0);
-		gl.glBindVertexArray(handle[0]);
-		TrianglesXYSTmultisample.vaoHandle = handle[0];
-		
-		// VBO
-		gl.glGenBuffers(1, handle, 0);
-		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, handle[0]);
-		TrianglesXYSTmultisample.vboHandle = handle[0];
-		
-		// use the VBO for (x,y,s,t) data
-		index = gl.glGetAttribLocation(TrianglesXYSTmultisample.programHandle, "xy");
-		gl.glVertexAttribPointer(index, 2, GL3.GL_FLOAT, false, 4*4, 0);
-		gl.glEnableVertexAttribArray(index);
-		index = gl.glGetAttribLocation(TrianglesXYSTmultisample.programHandle, "st");
-		gl.glVertexAttribPointer(index, 2, GL3.GL_FLOAT, false, 4*4, 2*4);
-		gl.glEnableVertexAttribArray(index);
-		
-		// get handles for the uniforms
-		TrianglesXYSTmultisample.matrixHandle = gl.glGetUniformLocation(TrianglesXYSTmultisample.programHandle, "matrix");
+		if(SettingsController.getAntialiasingLevel() > 1) {
+			
+			TrianglesXYSTmultisample.programHandle = makeProgram(gl, vertexShaderVboXyst, null, fragmentShaderTex2DMS);
+			
+			// VAO
+			gl.glGenVertexArrays(1, handle, 0);
+			gl.glBindVertexArray(handle[0]);
+			TrianglesXYSTmultisample.vaoHandle = handle[0];
+			
+			// VBO
+			gl.glGenBuffers(1, handle, 0);
+			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, handle[0]);
+			TrianglesXYSTmultisample.vboHandle = handle[0];
+			
+			// use the VBO for (x,y,s,t) data
+			index = gl.glGetAttribLocation(TrianglesXYSTmultisample.programHandle, "xy");
+			gl.glVertexAttribPointer(index, 2, GL3.GL_FLOAT, false, 4*4, 0);
+			gl.glEnableVertexAttribArray(index);
+			index = gl.glGetAttribLocation(TrianglesXYSTmultisample.programHandle, "st");
+			gl.glVertexAttribPointer(index, 2, GL3.GL_FLOAT, false, 4*4, 2*4);
+			gl.glEnableVertexAttribArray(index);
+			
+			// get handles for the uniforms
+			TrianglesXYSTmultisample.matrixHandle = gl.glGetUniformLocation(TrianglesXYSTmultisample.programHandle, "matrix");
+			
+		}
 		
 		/*
 		 * "FontRenderer" is for drawing 2D text.

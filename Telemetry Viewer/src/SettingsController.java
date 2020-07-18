@@ -383,7 +383,7 @@ public class SettingsController {
 	}
 	
 	/**
-	 * @return    True if antialiasing is enabled.
+	 * @return    The MSAA level.
 	 */
 	public static int getAntialiasingLevel() {
 		

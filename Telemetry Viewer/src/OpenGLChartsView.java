@@ -88,6 +88,7 @@ public class OpenGLChartsView extends JPanel {
 	double averageGpuMilliseconds;
 	int[] gpuQueryHandles = new int[2];
 	long[] gpuTimes = new long[2];
+	boolean openGLES;
 	
 	JFrame parentWindow;
 	
@@ -121,6 +122,7 @@ public class OpenGLChartsView extends JPanel {
 		try {
 			// try to get normal OpenGL
 			capabilities = new GLCapabilities(GLProfile.get(GLProfile.GL3));
+			openGLES = false;
 			if(SettingsController.getAntialiasingLevel() > 1) {
 				capabilities.setSampleBuffers(true);
 				capabilities.setNumSamples(SettingsController.getAntialiasingLevel());
@@ -129,6 +131,7 @@ public class OpenGLChartsView extends JPanel {
 			try {
 				// fall back to OpenGL ES
 				capabilities = new GLCapabilities(GLProfile.get(GLProfile.GLES3));
+				openGLES = true;
 				if(SettingsController.getAntialiasingLevel() > 1) {
 					capabilities.setSampleBuffers(true);
 					capabilities.setNumSamples(SettingsController.getAntialiasingLevel());
@@ -148,6 +151,12 @@ public class OpenGLChartsView extends JPanel {
 				gl.glEnable(GL3.GL_BLEND);
 				gl.glBlendFunc(GL3.GL_SRC_ALPHA, GL3.GL_ONE_MINUS_SRC_ALPHA);
 				
+				// disable antialiasing when using OpenGL ES, because rendering to off-screen framebuffers doesn't seem to support MSAA in OpenGL ES 3.1
+				if(!gl.isGL3() && SettingsController.getAntialiasingLevel() > 1) {
+					SettingsController.setAntialiasingLevel(1);
+					return;
+				}
+				
 				// ensure the requested AA level is supported 
 				if(SettingsController.getAntialiasingLevel() > 1) {
 					int[] number = new int[1];
@@ -158,38 +167,40 @@ public class OpenGLChartsView extends JPanel {
 				
 				gl.setSwapInterval(1);
 				
-				gl.glGenQueries(2, gpuQueryHandles, 0);
-				// insert both queries to prevent a warning on the first time they are read
-				gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
-				gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+				// GPU benchmarking is not possible with OpenGL ES
+				if(!openGLES) {
+					gl.glGenQueries(2, gpuQueryHandles, 0);
+					gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP); // insert both queries to prevent a warning on the first time they are read
+					gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+				}
 				
 				OpenGL.makeAllPrograms(gl);
 				
 				displayScalingFactor = ChartsController.getDisplayScalingFactor();
 				Theme.initialize(gl, displayScalingFactor);
 				
-//				if(firstRun) {
-//					
-//					firstRun = false;
-//					int[] number = new int[2];
-//					StringBuilder text = new StringBuilder(65536);
-//					                                                               text.append("GL_VENDOR                    = " + gl.glGetString(GL3.GL_VENDOR) + "\n");
-//					                                                               text.append("GL_RENDERER                  = " + gl.glGetString(GL3.GL_RENDERER) + "\n");
-//					                                                               text.append("GL_VERSION                   = " + gl.glGetString(GL3.GL_VERSION) + "\n");
-//					                                                               text.append("GL_SHADING_LANGUAGE_VERSION  = " + gl.glGetString(GL3.GL_SHADING_LANGUAGE_VERSION) + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAJOR_VERSION, number, 0);             text.append("GL_MAJOR_VERSION             = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MINOR_VERSION, number, 0);             text.append("GL_MINOR_VERSION             = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAX_SAMPLES, number, 0);               text.append("GL_MAX_SAMPLES               = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAX_TEXTURE_SIZE, number, 0);          text.append("GL_MAX_TEXTURE_SIZE          = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAX_RENDERBUFFER_SIZE, number, 0);     text.append("GL_MAX_RENDERBUFFER_SIZE     = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAX_VIEWPORT_DIMS, number, 0);         text.append("GL_MAX_VIEWPORT_DIMS         = " + number[0] + " x " + number[1] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAX_DRAW_BUFFERS, number, 0);          text.append("GL_MAX_DRAW_BUFFERS          = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_MAX_COLOR_TEXTURE_SAMPLES, number, 0); text.append("GL_MAX_COLOR_TEXTURE_SAMPLES = " + number[0] + "\n");
-//					gl.glGetIntegerv(GL3.GL_NUM_EXTENSIONS, number, 0);            text.append(number[0] + " EXTENSIONS: " + gl.glGetStringi(GL3.GL_EXTENSIONS, 0));
-//					for(int i = 1; i < number[0]; i++)                             text.append(", " + gl.glGetStringi(GL3.GL_EXTENSIONS, i));
-//					NotificationsController.showVerboseForSeconds("OpenGL Information:\n" + text.toString(), 999, true);
-//					
-//				}
+				if(firstRun) {
+					
+					firstRun = false;
+					int[] number = new int[2];
+					StringBuilder text = new StringBuilder(65536);
+					                                                               text.append("GL_VENDOR                    = " + gl.glGetString(GL3.GL_VENDOR) + "\n");
+					                                                               text.append("GL_RENDERER                  = " + gl.glGetString(GL3.GL_RENDERER) + "\n");
+					                                                               text.append("GL_VERSION                   = " + gl.glGetString(GL3.GL_VERSION) + "\n");
+					                                                               text.append("GL_SHADING_LANGUAGE_VERSION  = " + gl.glGetString(GL3.GL_SHADING_LANGUAGE_VERSION) + "\n");
+					gl.glGetIntegerv(GL3.GL_MAJOR_VERSION, number, 0);             text.append("GL_MAJOR_VERSION             = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_MINOR_VERSION, number, 0);             text.append("GL_MINOR_VERSION             = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_MAX_SAMPLES, number, 0);               text.append("GL_MAX_SAMPLES               = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_MAX_TEXTURE_SIZE, number, 0);          text.append("GL_MAX_TEXTURE_SIZE          = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_MAX_RENDERBUFFER_SIZE, number, 0);     text.append("GL_MAX_RENDERBUFFER_SIZE     = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_MAX_VIEWPORT_DIMS, number, 0);         text.append("GL_MAX_VIEWPORT_DIMS         = " + number[0] + " x " + number[1] + "\n");
+					gl.glGetIntegerv(GL3.GL_MAX_DRAW_BUFFERS, number, 0);          text.append("GL_MAX_DRAW_BUFFERS          = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_MAX_COLOR_TEXTURE_SAMPLES, number, 0); text.append("GL_MAX_COLOR_TEXTURE_SAMPLES = " + number[0] + "\n");
+					gl.glGetIntegerv(GL3.GL_NUM_EXTENSIONS, number, 0);            text.append(number[0] + " EXTENSIONS: " + gl.glGetStringi(GL3.GL_EXTENSIONS, 0));
+					for(int i = 1; i < number[0]; i++)                             text.append(", " + gl.glGetStringi(GL3.GL_EXTENSIONS, i));
+					NotificationsController.showVerboseForSeconds("OpenGL Information:\n" + text.toString(), 999, true);
+					
+				}
 				
 			}
 						
@@ -299,11 +310,14 @@ public class OpenGLChartsView extends JPanel {
 					if(maximizedChart != null && maximizedChart != removingChart && chart != maximizedChart && !maximizing && !demaximizing)
 						continue;
 					
-					// calculate cpu/gpu benchmarks for this chart if benchmarking
+					// calculate CPU/GPU time for the *previous frame*
+					// GPU benchmarking is not possible with OpenGL ES
 					if(chart == SettingsController.getBenchmarkedChart()) {
 						previousCpuMilliseconds = (cpuStopNanoseconds - cpuStartNanoseconds) / 1000000.0;
-						gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL3.GL_QUERY_RESULT, gpuTimes, 0);
-						gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL3.GL_QUERY_RESULT, gpuTimes, 1);
+						if(!openGLES) {
+							gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL3.GL_QUERY_RESULT, gpuTimes, 0);
+							gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL3.GL_QUERY_RESULT, gpuTimes, 1);
+						}
 						previousGpuMilliseconds = (gpuTimes[1] - gpuTimes[0]) / 1000000.0;
 						if(count < SAMPLE_COUNT) {
 							cpuMillisecondsAccumulator += previousCpuMilliseconds;
@@ -316,8 +330,11 @@ public class OpenGLChartsView extends JPanel {
 							gpuMillisecondsAccumulator = 0;
 							count = 0;
 						}
+						
+						// start timers for *this frame*
 						cpuStartNanoseconds = System.nanoTime();
-						gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
+						if(!openGLES)
+							gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
 					}
 					
 					// size the chart
@@ -339,8 +356,8 @@ public class OpenGLChartsView extends JPanel {
 
 						if(maximizing) {
 							
-							width = (int) Math.round(width * (1.0 - animationPosition) + (maximizedWidth * animationPosition));
-							height = (int) Math.round(height * (1.0 - animationPosition) + (maximizedHeight * animationPosition));
+							width   = (int) Math.round(width   * (1.0 - animationPosition) + (maximizedWidth   * animationPosition));
+							height  = (int) Math.round(height  * (1.0 - animationPosition) + (maximizedHeight  * animationPosition));
 							xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
 							yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
 							
@@ -349,8 +366,8 @@ public class OpenGLChartsView extends JPanel {
 							
 						} else if(demaximizing) {
 							
-							width = (int) Math.round((width * animationPosition) + (maximizedWidth * (1.0 - animationPosition)));
-							height = (int) Math.round((height * animationPosition) + (maximizedHeight * (1.0 - animationPosition)));
+							width   = (int) Math.round((width   * animationPosition) + (maximizedWidth   * (1.0 - animationPosition)));
+							height  = (int) Math.round((height  * animationPosition) + (maximizedHeight  * (1.0 - animationPosition)));
 							xOffset = (int) Math.round((xOffset * animationPosition) + (maximizedXoffset * (1.0 - animationPosition)));
 							yOffset = (int) Math.round((yOffset * animationPosition) + (maximizedYoffset * (1.0 - animationPosition)));
 
@@ -375,10 +392,10 @@ public class OpenGLChartsView extends JPanel {
 						double animationPosition = 1.0 - (double) (removingAnimationEndTime - System.currentTimeMillis()) / removingAnimationDuration;
 						animationPosition = smoothstep(animationPosition);
 						
-						xOffset = (int) Math.round(xOffset + (0.5 * width * animationPosition));
+						xOffset = (int) Math.round(xOffset + (0.5 * width  * animationPosition));
 						yOffset = (int) Math.round(yOffset + (0.5 * height * animationPosition));
-						width = (int) Math.round(width * (1.0 - animationPosition));
-						height = (int) Math.round(height * (1.0 - animationPosition));
+						width   = (int) Math.round(width  * (1.0 - animationPosition));
+						height  = (int) Math.round(height * (1.0 - animationPosition));
 						
 					}
 					
@@ -402,15 +419,21 @@ public class OpenGLChartsView extends JPanel {
 					
 					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					
-					// draw the cpu/gpu benchmarks for this chart if benchmarking
+					// draw the CPU/GPU benchmarks for this chart if benchmarking
+					// GPU benchmarking is not possible with OpenGL ES
 					if(chart == SettingsController.getBenchmarkedChart()) {
+						// stop timers for *this frame*
 						cpuStopNanoseconds = System.nanoTime();
-						gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+						if(!openGLES)
+							gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+						
+						// show times of *previous frame*
 						gl.glScissor((int) (xOffset - Theme.tilePadding), (int) (yOffset - Theme.tilePadding), (int) (width + 2 * Theme.tilePadding), (int) (height + 2 * Theme.tilePadding));
 						OpenGL.translateMatrix(chartMatrix, 0, -Theme.tilePadding, 0);
 						OpenGL.useMatrix(gl, chartMatrix);
-						String line1 = String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
-						String line2 = String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds);
+						String line1 =             String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
+						String line2 = !openGLES ? String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds) :
+						                                         "GPU = unknown";
 						float textHeight = 2 * OpenGL.smallTextHeight + Theme.tickTextPadding;
 						float textWidth = Float.max(OpenGL.smallTextWidth(gl, line1), OpenGL.smallTextWidth(gl, line2));
 						OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
@@ -464,7 +487,8 @@ public class OpenGLChartsView extends JPanel {
 				for(PositionedChart chart : ChartsController.getCharts())
 					chart.disposeGpu(gl);
 				
-				gl.glDeleteQueries(2, gpuQueryHandles, 0);
+				if(!openGLES)
+					gl.glDeleteQueries(2, gpuQueryHandles, 0);
 				
 			}
 			
@@ -682,6 +706,7 @@ public class OpenGLChartsView extends JPanel {
 		PositionedChart maximizedChart = instance.maximizedChart;
 
 		// regenerate
+		instance.animator.stop();
 		instance = new OpenGLChartsView();
 		
 		// restore state

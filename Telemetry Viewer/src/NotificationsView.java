@@ -96,6 +96,7 @@ public class NotificationsView extends JPanel {
 		int fadeOutCount;
 		Timer autoRemoveTimer;
 		boolean isProgressBar;
+		long progressFinishedTimestamp;
 		
 		/**
 		 * A message shown to the user.
@@ -179,9 +180,12 @@ public class NotificationsView extends JPanel {
 			autoRemoveTimer = new Timer(50, event -> {
 				double percent = NotificationsController.getProgress();
 				if(percent < 0) {
-					label.setText(text + " 100.0%");
+					label.setText(text + " Done.");
 					setBackground(idleColor);
-					fadeAway();
+					if(progressFinishedTimestamp == 0)
+						progressFinishedTimestamp = System.currentTimeMillis();
+					if(System.currentTimeMillis() - progressFinishedTimestamp > 1000) // wait 1 second after 100% before fading away
+						fadeAway();
 				} else {
 					label.setText(String.format("%s %1.1f%%", text, percent * 100.0));
 					repaint();
