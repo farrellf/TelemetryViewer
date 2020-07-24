@@ -841,7 +841,7 @@ public class OpenGL {
 		ByteBuffer buffer = null;
 		
 		// prepare for small font texture
-		while(maxCharWidth * maxCharHeight * charCount > textureWidth * textureWidth) {
+		while((textureWidth / maxCharWidth) * (textureWidth / maxCharHeight) < charCount) {
 			textureWidth *= 2;
 			image = new BufferedImage(textureWidth, textureWidth, BufferedImage.TYPE_4BYTE_ABGR);
 			g = image.createGraphics();
@@ -851,7 +851,7 @@ public class OpenGL {
 			FontMetrics fm = g.getFontMetrics();
 			maxCharWidth = fm.getMaxAdvance();
 			maxCharHeight = fm.getMaxAscent() + fm.getMaxDescent();
-			baselineOffset = fm.getMaxDescent();
+			baselineOffset = fm.getMaxDescent() + 1;
 			int charsPerRow = textureWidth / maxCharWidth;
 			smallFontMaxCharWidth = maxCharWidth;
 			smallFontMaxCharHeight = maxCharHeight;
@@ -895,11 +895,16 @@ public class OpenGL {
 		buffer = Buffers.newDirectByteBuffer(((DataBufferByte) image.getRaster().getDataBuffer()).getData());
 		writeTexture(gl, FontRenderer.smallFontTextureHandle, textureWidth, textureWidth, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, buffer); // actually ABGR, so swizzling it in the fragment shader
 		
+//		JFrame small = new JFrame("Small Font Atlas");
+//		small.add(new JLabel(new ImageIcon(image)));
+//		small.pack();
+//		small.setVisible(true);
+		
 		// prepare for medium font texture
 		textureWidth = 128;
 		maxCharWidth = 100;
 		maxCharHeight = 100;
-		while(maxCharWidth * maxCharHeight * charCount > textureWidth * textureWidth) {
+		while((textureWidth / maxCharWidth) * (textureWidth / maxCharHeight) < charCount) {
 			textureWidth *= 2;
 			image = new BufferedImage(textureWidth, textureWidth, BufferedImage.TYPE_4BYTE_ABGR);
 			g = image.createGraphics();
@@ -909,7 +914,7 @@ public class OpenGL {
 			FontMetrics fm = g.getFontMetrics();
 			maxCharWidth = fm.getMaxAdvance();
 			maxCharHeight = fm.getMaxAscent() + fm.getMaxDescent();
-			baselineOffset = fm.getMaxDescent();
+			baselineOffset = fm.getMaxDescent() + 1;
 			int charsPerRow = textureWidth / maxCharWidth;
 			mediumFontMaxCharWidth = maxCharWidth;
 			mediumFontMaxCharHeight = maxCharHeight;
@@ -953,11 +958,16 @@ public class OpenGL {
 		buffer = Buffers.newDirectByteBuffer(((DataBufferByte) image.getRaster().getDataBuffer()).getData());
 		writeTexture(gl, FontRenderer.mediumFontTextureHandle, textureWidth, textureWidth, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, buffer); // actually ABGR, so swizzling it in the fragment shader
 		
+//		JFrame medium = new JFrame("Medium Font Atlas");
+//		medium.add(new JLabel(new ImageIcon(image)));
+//		medium.pack();
+//		medium.setVisible(true);
+		
 		// prepare for large font texture
 		textureWidth = 128;
 		maxCharWidth = 100;
 		maxCharHeight = 100;
-		while(maxCharWidth * maxCharHeight * charCount > textureWidth * textureWidth) {
+		while((textureWidth / maxCharWidth) * (textureWidth / maxCharHeight) < charCount) {
 			textureWidth *= 2;
 			image = new BufferedImage(textureWidth, textureWidth, BufferedImage.TYPE_4BYTE_ABGR);
 			g = image.createGraphics();
@@ -967,7 +977,7 @@ public class OpenGL {
 			FontMetrics fm = g.getFontMetrics();
 			maxCharWidth = fm.getMaxAdvance();
 			maxCharHeight = fm.getMaxAscent() + fm.getMaxDescent();
-			baselineOffset = fm.getMaxDescent();
+			baselineOffset = fm.getMaxDescent() + 1;
 			int charsPerRow = textureWidth / maxCharWidth;
 			largeFontMaxCharWidth = maxCharWidth;
 			largeFontMaxCharHeight = maxCharHeight;
@@ -1011,10 +1021,10 @@ public class OpenGL {
 		buffer = Buffers.newDirectByteBuffer(((DataBufferByte) image.getRaster().getDataBuffer()).getData());
 		writeTexture(gl, FontRenderer.largeFontTextureHandle, textureWidth, textureWidth, GL3.GL_RGBA, GL3.GL_UNSIGNED_BYTE, buffer); // actually ABGR, so swizzling it in the fragment shader
 		
-//		JFrame window = new JFrame("Large Font Atlas");
-//		window.add(new JLabel(new ImageIcon(image)));
-//		window.pack();
-//		window.setVisible(true);
+//		JFrame large = new JFrame("Large Font Atlas");
+//		large.add(new JLabel(new ImageIcon(image)));
+//		large.pack();
+//		large.setVisible(true);
 		
 	}
 	
