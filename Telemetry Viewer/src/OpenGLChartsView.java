@@ -519,6 +519,10 @@ public class OpenGLChartsView extends JPanel {
 					return;
 				}
 				
+				// don't start a new chart region if there is a maximized chart
+				if(maximizedChart != null)
+					return;
+				
 				int proposedStartX = me.getX() * tileColumns / getWidth();
 				int proposedStartY = me.getY() * tileRows / getHeight();
 				
