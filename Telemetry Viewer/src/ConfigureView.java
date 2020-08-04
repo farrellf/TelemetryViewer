@@ -1,4 +1,3 @@
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
@@ -13,7 +12,6 @@ import java.util.Map;
 
 import javax.swing.Box;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -226,11 +224,7 @@ public class ConfigureView extends JPanel {
 		});
 		
 		colorButton.setForeground(dataset.color);
-		colorButton.addActionListener(event -> {
-			Color color = JColorChooser.showDialog(this, "Pick a Color for " + nameTextfield.getText(), dataset.color);
-			if(color != null)
-				colorButton.setForeground(color);
-		});
+		colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground())));
 		
 		unitTextfield.addActionListener(pressEnterToApply);
 		unitTextfield.addFocusListener(new FocusListener() {
@@ -243,19 +237,13 @@ public class ConfigureView extends JPanel {
 			@Override public void keyTyped(KeyEvent ke)    { }
 		});
 		
-		JPanel namePanel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
-		namePanel.add(new JLabel("Name: "));
-		namePanel.add(nameTextfield);
-		JPanel colorPanel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
-		colorPanel.add(new JLabel("Color: "));
-		colorPanel.add(colorButton);
-		JPanel unitPanel = new JPanel(new GridLayout(1, 2, Theme.padding, Theme.padding));
-		unitPanel.add(new JLabel("Unit: "));
-		unitPanel.add(unitTextfield);
 		widgetsPanel.removeAll();
-		widgetsPanel.add(namePanel, "span 4, growx");
-		widgetsPanel.add(colorPanel, "span 4, growx");
-		widgetsPanel.add(unitPanel, "span 4, growx");
+		widgetsPanel.add(new JLabel("Name: "));
+		widgetsPanel.add(nameTextfield, "span 3, growx");
+		widgetsPanel.add(new JLabel("Color: "));
+		widgetsPanel.add(colorButton, "span 3, growx");
+		widgetsPanel.add(new JLabel("Unit: "));
+		widgetsPanel.add(unitTextfield, "span 3, growx");
 		
 		scrollableRegion.getVerticalScrollBar().setValue(0);
 

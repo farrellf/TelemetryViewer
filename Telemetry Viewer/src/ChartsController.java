@@ -21,6 +21,15 @@ public class ChartsController {
 	}
 	
 	/**
+	 * @return    The display scaling factor for GUI widgets.
+	 */
+	public static float getDisplayScalingFactorForGUI() {
+		
+		return dpiScalingFactorJava8 * dpiScalingFactorJava9;
+		
+	}
+	
+	/**
 	 * @return    The display scaling factor requested by the user.
 	 */
 	public static float getDisplayScalingFactorUser() {
@@ -54,15 +63,6 @@ public class ChartsController {
 		
 		dpiScalingFactorJava9 = newFactor;
 		dpiScalingFactorJava8 = 1; // only use the Java9 scaling factor
-		
-	}
-	
-	/**
-	 * @return    The display scaling factor specified by the OS if using Java 9+.
-	 */
-	public static float getDisplayScalingFactorJava9() {
-		
-		return dpiScalingFactorJava9;
 		
 	}
 	

@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.Box;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -419,11 +418,7 @@ public class PacketCsv extends Packet {
 			// color of the field
 			colorButton = new JButton("\u25B2");
 			colorButton.setForeground(Theme.defaultDatasetColor);
-			colorButton.addActionListener(event -> {
-				Color color = JColorChooser.showDialog(CsvDataStructureGui.this, "Pick a Color for " + nameTextfield.getText(), Color.BLACK);
-				if(color != null)
-					colorButton.setForeground(color);
-			});
+			colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground())));
 			
 			// unit of the field
 			unitTextfield = new JTextField("", 15);

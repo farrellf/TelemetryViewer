@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.List;
 import javax.swing.Box;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -757,11 +756,7 @@ public class PacketBinary extends Packet {
 			// color of the field
 			colorButton = new JButton("\u25B2");
 			colorButton.setForeground(Theme.defaultDatasetColor);
-			colorButton.addActionListener(event -> {
-				Color color = JColorChooser.showDialog(BinaryDataStructureGui.this, "Pick a Color for " + nameTextfield.getText(), Color.BLACK);
-				if(color != null)
-					colorButton.setForeground(color);
-			});
+			colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground())));
 			
 			// unit of the field
 			unitTextfield = new JTextField("", 15);
@@ -1222,12 +1217,10 @@ public class PacketBinary extends Packet {
 					JButton colorButton = new JButton("\u25B2");
 					colorButton.setForeground(state.color);
 					colorButton.addActionListener(event -> {
-						Color color = JColorChooser.showDialog(BitfieldPanel.this, "Pick a Color for " + state.name, state.color);
-						if(color != null) {
-							colorButton.setForeground(color);
-							state.color = color;
-							state.glColor = new float[] {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, 1};
-						}
+						Color color = ColorPickerView.getColor(state.name, colorButton.getForeground());
+						colorButton.setForeground(color);
+						state.color = color;
+						state.glColor = new float[] {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, 1};
 					});
 					
 					widgets.add(new JLabel(state.label));
