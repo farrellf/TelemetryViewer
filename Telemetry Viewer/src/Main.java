@@ -35,6 +35,10 @@ public class Main {
 		
 		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch(Exception e){}
 		
+		// create the cache folder
+		Path cacheDir = Paths.get("cache");
+		try { Files.createDirectory(cacheDir); } catch(FileAlreadyExistsException e) {} catch(Exception e) { e.printStackTrace(); }
+		
 		// populate the window
 		window.setLayout(new BorderLayout());
 		window.add(NotificationsView.instance, BorderLayout.NORTH);
@@ -80,13 +84,11 @@ public class Main {
 			}
 		});
 		
-		// create a directory for the cache, and remove it on exit
-		Path cacheDir = Paths.get("cache");
-		try { Files.createDirectory(cacheDir); } catch(FileAlreadyExistsException e) {} catch(Exception e) { e.printStackTrace(); }
+		// remove the cache on exit
 		window.addWindowListener(new WindowAdapter() {
 			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
 				CommunicationController.disconnect(null);
-				DatasetsController.removeAllDatasets();
+				DatasetsController.dispose();
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}
 		});

@@ -209,7 +209,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		plot.initialize(lastSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
-		Dataset.MinMax requiredRange = plot.getRange();
+		StorageFloats.MinMax requiredRange = plot.getRange();
 		autoscale.update(requiredRange.min, requiredRange.max);
 		float plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
 		float plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;

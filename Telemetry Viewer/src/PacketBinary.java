@@ -14,9 +14,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.font.FontRenderContext;
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import javax.swing.Box;
@@ -543,7 +540,7 @@ public class PacketBinary extends Packet {
 	 * 
 	 * @param stream    The data to process.
 	 */
-	@Override public void startReceivingData(InputStream stream) {
+	@Override public void startReceivingData(SharedByteStream stream) {
 		
 		thread = new Thread(() -> {
 			
@@ -557,9 +554,6 @@ public class PacketBinary extends Packet {
 					return;
 				}
 			}
-				
-			byte[] rx_buffer = new byte[packetSize];
-			BufferedInputStream bStream = new BufferedInputStream(stream, 2 * packetSize);
 			
 			// tell the user we're connected
 			String waitingForTelemetry = CommunicationController.getPort().startsWith(CommunicationController.PORT_UART) ? CommunicationController.getPort().substring(6) + " is connected. Send telemetry." :
@@ -584,18 +578,15 @@ public class PacketBinary extends Packet {
 			while(true) {
 				
 				try {
-				
-					// wait for data to arrive
-					while(bStream.available() < packetSize)
-						Thread.sleep(1);
+
+					if(Thread.interrupted())
+						throw new InterruptedException();
 					
-					// wait for the sync word
-					bStream.read(rx_buffer, 0, 1);
-					while(rx_buffer[0] != syncWord)
-						bStream.read(rx_buffer, 0, 1);
+					// align with sync word
+					stream.skipPast(syncWord);
 					
-					// get rest of packet after the sync word
-					bStream.read(rx_buffer, 0, packetSize - 1); // -1 for syncWord
+					// get rest of packet
+					byte[] rx_buffer = stream.readBytes(packetSize - 1); // -1 for syncWord
 					
 					// test checksum if enabled
 					boolean checksumPassed = true;
@@ -621,10 +612,9 @@ public class PacketBinary extends Packet {
 					}
 					DatasetsController.incrementSampleCount();
 				
-				} catch(IOException | InterruptedException e) {
+				} catch(InterruptedException e) {
 					
 					// stop and end this thread
-					try { bStream.close(); } catch(IOException e2) { }
 					NotificationsController.showVerboseForSeconds("The Binary Packet Processor thread is stopping.", 5, false);
 					return;
 					

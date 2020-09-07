@@ -10,11 +10,6 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.font.FontRenderContext;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.Box;
@@ -246,11 +241,9 @@ public class PacketCsv extends Packet {
 	 * 
 	 * @param stream    The data to process.
 	 */
-	@Override public void startReceivingData(InputStream stream) {
+	@Override public void startReceivingData(SharedByteStream stream) {
 		
 		thread = new Thread(() -> {
-				
-			BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
 			
 			// wait for the data structure to be defined
 			while(!dataStructureDefined) {
@@ -259,7 +252,6 @@ public class PacketCsv extends Packet {
 				} catch (InterruptedException e) {
 					// stop and end this thread
 					NotificationsController.showVerboseForSeconds("The CSV Packet Processor thread is stopping.", 5, false);
-					try { reader.close(); } catch(Exception e1) { }
 					return;
 				}
 			}
@@ -287,14 +279,13 @@ public class PacketCsv extends Packet {
 			while(true) {
 				
 				try {
+
+					if(Thread.interrupted())
+						throw new InterruptedException();
 					
-					// wait for text to arrive
-					while(!reader.ready())
-						Thread.sleep(1);
+					// get line of text
+					String[] tokens = stream.readLine().split(",");
 					
-					// parse received text
-					String line = reader.readLine();
-					String[] tokens = line.split(",");
 					// ensure they can all be parsed as floats before populating the datasets
 					for(Dataset dataset : DatasetsController.getAllDatasets())
 						Float.parseFloat(tokens[dataset.location]);
@@ -302,15 +293,14 @@ public class PacketCsv extends Packet {
 						dataset.add(Float.parseFloat(tokens[dataset.location]));
 					DatasetsController.incrementSampleCount();
 					
-				} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException | SocketTimeoutException e1) {
+				} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
 					
 					NotificationsController.showVerboseForSeconds("A corrupt or incomplete line was received.", 5, false);
 					
-				} catch(IOException | InterruptedException e2) {
+				} catch(InterruptedException e2) {
 					
 					// stop and end this thread
 					NotificationsController.showVerboseForSeconds("The CSV Packet Processor thread is stopping.", 5, false);
-					try { reader.close(); } catch(Exception e) { }
 					return;
 					
 				}

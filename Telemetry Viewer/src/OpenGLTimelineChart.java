@@ -219,12 +219,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 				double mousePercentage = (mouseX - xTimelineLeft) / timelineWidth;
 				long mouseTimestamp = minTimestamp + (long) (mousePercentage * (double) (maxTimestamp - minTimestamp));
 				
-				int closestSampleNumberBefore = trueLastSampleNumber;
-				for(int sampleN = trueLastSampleNumber - 1; sampleN >= 0; sampleN--) { // FIXME change this to a binary search?
-					closestSampleNumberBefore = sampleN;
-					if(DatasetsController.getTimestamp(sampleN) < mouseTimestamp)
-						break;
-				}
+				int closestSampleNumberBefore = DatasetsController.getClosestSampleNumberBefore(mouseTimestamp, trueLastSampleNumber);
 				int closestSampleNumberAfter = closestSampleNumberBefore + 1;
 				if(closestSampleNumberAfter > trueLastSampleNumber)
 					closestSampleNumberAfter = trueLastSampleNumber;

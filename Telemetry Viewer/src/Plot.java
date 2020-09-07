@@ -39,7 +39,7 @@ public abstract class Plot {
 	 * 
 	 * @return    The minimum and maximum Y-axis values.
 	 */
-	final Dataset.MinMax getRange() { return new Dataset.MinMax(samplesMinY, samplesMaxY); }
+	final StorageFloats.MinMax getRange() { return new StorageFloats.MinMax(samplesMinY, samplesMaxY); }
 	
 	/**
 	 * Step 3: Get the x-axis title.

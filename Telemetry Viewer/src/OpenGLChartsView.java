@@ -55,6 +55,7 @@ public class OpenGLChartsView extends JPanel {
 	
 	// time and zoom settings
 	boolean liveView;
+	int lastSampleNumber;
 	int nonLiveViewSampleNumber;
 	double zoomLevel;
 	
@@ -107,6 +108,7 @@ public class OpenGLChartsView extends JPanel {
 		endY    = -1;
 		
 		liveView = true;
+		lastSampleNumber = 0;
 		nonLiveViewSampleNumber = 0;
 		zoomLevel = 1;
 		
@@ -285,16 +287,7 @@ public class OpenGLChartsView extends JPanel {
 				               (Math.abs(endX - startX) + 1) * tileWidth,
 				               (Math.abs(endY - startY) + 1) * tileHeight);
 				
-				int lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSampleNumber;
-				
-				// ensure active slots don't get flushed to disk
-				int lastSampleNumberOnScreen = lastSampleNumber;
-				int firstSampleNumberOnScreen = lastSampleNumberOnScreen;
-				for(PositionedChart c : ChartsController.getCharts()) {
-					if(lastSampleNumberOnScreen - c.sampleCount < firstSampleNumberOnScreen)
-						firstSampleNumberOnScreen = lastSampleNumberOnScreen - c.sampleCount;
-				}
-				DatasetsController.dontFlushRangeOnScreen(firstSampleNumberOnScreen, lastSampleNumberOnScreen);
+				lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSampleNumber;
 				
 				// draw the charts
 				//
@@ -477,6 +470,9 @@ public class OpenGLChartsView extends JPanel {
 					OpenGL.drawLargeText(gl, text, padding, padding, 0);
 					NotificationsController.showVerboseForSeconds(text, 1, false);
 				}
+				
+				// move old samples and timestamps to disk
+				DatasetsController.flushOldValues();
 				
 			}
 			

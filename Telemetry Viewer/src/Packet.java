@@ -1,6 +1,4 @@
 import java.awt.Color;
-import java.io.InputStream;
-
 import javax.swing.JPanel;
 
 /**
@@ -85,7 +83,7 @@ public abstract class Packet {
 	}
 	
 	public abstract JPanel getDataStructureGui();
-	public abstract void startReceivingData(InputStream stream);
+	public abstract void startReceivingData(SharedByteStream stream);
 	public abstract void stopReceivingData();
 
 }

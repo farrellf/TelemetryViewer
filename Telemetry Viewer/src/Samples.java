@@ -1,3 +1,5 @@
+import java.nio.FloatBuffer;
+
 /**
  * The Dataset class provides three ways to get samples:
  * 
@@ -7,12 +9,8 @@
  */
 public class Samples {
 	
-	public float[] buffer;
+	public FloatBuffer buffer;
 	public float min;
 	public float max;
-	
-	public float[] color;
-	public String name;
-	public String unit;
 
 }

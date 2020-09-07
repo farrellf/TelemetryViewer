@@ -165,7 +165,7 @@ public class OpenGLDialChart extends PositionedChart {
 			return handler;
 		
 		datasets.get(0).getSamples(startIndex, endIndex, samples);
-		float lastSample = samples.buffer[samples.buffer.length - 1];
+		float lastSample = samples.buffer.get(samples.buffer.capacity() - 1);
 
 		// calculate range
 		float dialMin = autoscaleMin ? samples.min : manualMin;
@@ -181,9 +181,9 @@ public class OpenGLDialChart extends PositionedChart {
 		plotHeight = yPlotTop - yPlotBottom;
 
 		if(showStatistics) {
-			double[] doubles = new double[samples.buffer.length];
-			for(int i = 0; i < samples.buffer.length; i++)
-				doubles[i] = (double) samples.buffer[i];
+			double[] doubles = new double[samples.buffer.capacity()];
+			for(int i = 0; i < samples.buffer.capacity(); i++)
+				doubles[i] = (double) samples.buffer.get(i);
 			DescriptiveStatistics stats = new DescriptiveStatistics(doubles);
 			
 			meanText    = "Mean: " +    ChartUtils.formattedNumber(stats.getMean(), 6);
@@ -282,7 +282,7 @@ public class OpenGLDialChart extends PositionedChart {
 			float x3 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
 			float y3 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
 			
-			float[] color = angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : samples.color;
+			float[] color = angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : datasets.get(0).glColor;
 			OpenGL.buffer.put(x1); OpenGL.buffer.put(y1); OpenGL.buffer.put(color);
 			OpenGL.buffer.put(x2); OpenGL.buffer.put(y2); OpenGL.buffer.put(color);
 			OpenGL.buffer.put(x4); OpenGL.buffer.put(y4); OpenGL.buffer.put(color);

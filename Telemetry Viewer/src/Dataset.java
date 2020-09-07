@@ -1,12 +1,5 @@
 import java.awt.Color;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.nio.FloatBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,112 +22,8 @@ public class Dataset {
 	
 	boolean isBitfield;
 	List<Bitfield> bitfields;
-
-	/**
-	 * Samples are stored in an array of Slots. Each Slot contains 1M values, and may be flushed to disk if RAM runs low.
-	 * Slots are further divided into "blocks" that cache min/max values.
-	 */
-	private final int BLOCK_SIZE = 1024;
-	class Slot {
-		
-		private String pathOnDisk = "cache/" + this.toString();
-		private volatile boolean inRam = true;
-		private volatile boolean flushing = false;
-		
-		private volatile float[] values = new float[DatasetsController.SLOT_SIZE];
-		private volatile float[] minimumValueInBlock = new float[DatasetsController.SLOT_SIZE / BLOCK_SIZE];
-		private volatile float[] maximumValueInBlock = new float[DatasetsController.SLOT_SIZE / BLOCK_SIZE];
-		
-		public void moveToDisk() {
-			
-			if(!inRam || flushing)
-				return;
-			
-			flushing = true;
-			
-			new Thread(() -> {
-				try {
-					ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream(pathOnDisk));
-					stream.writeObject(values);
-					stream.writeObject(minimumValueInBlock);
-					stream.writeObject(maximumValueInBlock);
-					stream.close();
-					inRam = false;
-					values = null;
-					flushing = false;
-				} catch(Exception e) {
-					e.printStackTrace();
-				}
-			}).start();
-			
-		}
-		
-		private void copyToRam() {
-			
-			try {
-				ObjectInputStream stream = new ObjectInputStream(new FileInputStream(pathOnDisk));
-				values = (float[]) stream.readObject();
-				minimumValueInBlock = (float[]) stream.readObject();
-				maximumValueInBlock = (float[]) stream.readObject();
-				stream.close();
-				inRam = true;
-			} catch(Exception e) {
-				e.printStackTrace();
-			}
-			
-		}
-		
-		public void removeFromDisk() {
-			
-			try { Files.deleteIfExists(Paths.get(pathOnDisk)); } catch (IOException e) {}
-			
-		}
-		
-		public void setValue(int index, float value) {
-			
-			if(!inRam)
-				copyToRam();
-			values[index] = value;
-			
-			int blockN = index / BLOCK_SIZE;
-			if(index % BLOCK_SIZE == 0) {
-				minimumValueInBlock[blockN] = value;
-				maximumValueInBlock[blockN] = value;
-			} else {
-				if(value < minimumValueInBlock[blockN])
-					minimumValueInBlock[blockN] = value;
-				if(value > maximumValueInBlock[blockN])
-					maximumValueInBlock[blockN] = value;
-			}
-			
-		}
-		
-		public float getValue(int index) {
-			
-			if(!inRam)
-				copyToRam();
-			return values[index];
-			
-		}
-		
-		public float getMinimumInBlock(int blockIndex) {
-			
-			if(!inRam)
-				copyToRam();
-			return minimumValueInBlock[blockIndex];
-			
-		}
-		
-		public float getMaximumInBlock(int blockIndex) {
-			
-			if(!inRam)
-				copyToRam();
-			return maximumValueInBlock[blockIndex];
-			
-		}
-		
-	}
-	Slot[] slots;
+	
+	StorageFloats floats;
 	
 	/**
 	 * Creates a new object that describes one dataset and stores all of its samples.
@@ -161,7 +50,7 @@ public class Dataset {
 		this.isBitfield        = false;
 		this.bitfields         = new ArrayList<Bitfield>();
 		
-		slots = new Slot[DatasetsController.SLOT_COUNT];
+		floats = new StorageFloats(super.toString());
 		
 	}
 	
@@ -221,9 +110,7 @@ public class Dataset {
 	 */
 	public float getSample(int index) {
 		
-		int slotNumber = index / DatasetsController.SLOT_SIZE;
-		int slotIndex  = index % DatasetsController.SLOT_SIZE;
-		return slots[slotNumber].getValue(slotIndex);
+		return floats.getValue(index);
 		
 	}
 	
@@ -276,31 +163,22 @@ public class Dataset {
 	 */
 	public void getSamples(int startIndex, int endIndex, Samples samples) {
 		
-		if(samples.color == null)
-			samples.color = new float[4];
-		samples.color[0] = (float) color.getRed()   / 255.0f;
-		samples.color[1] = (float) color.getGreen() / 255.0f;
-		samples.color[2] = (float) color.getBlue()  / 255.0f;
-		samples.color[3] = 1.0f;
-		
-		samples.name = name;
-		
-		samples.unit = unit;
-		
 		int sampleCount = endIndex - startIndex + 1;
 		
-		if(samples.buffer == null || samples.buffer.length != sampleCount)
-			samples.buffer = new float[sampleCount];
+		if(samples.buffer == null || samples.buffer.capacity() != sampleCount)
+			samples.buffer = Buffers.newDirectFloatBuffer(sampleCount);
 		
 		samples.min = getSample(startIndex);
 		samples.max = getSample(startIndex);
 		
+		samples.buffer.rewind();
 		for(int i = 0; i < sampleCount; i++) {
 			float value = getSample(i + startIndex);
-			samples.buffer[i] = value;
+			samples.buffer.put(value);
 			if(value < samples.min) samples.min = value;
 			if(value > samples.max) samples.max = value;
 		}
+		samples.buffer.rewind();
 		
 	}
 	
@@ -312,11 +190,7 @@ public class Dataset {
 		value *= conversionFactor;
 		
 		int currentSize = DatasetsController.getSampleCount();
-		int slotNumber = currentSize / DatasetsController.SLOT_SIZE;
-		int slotIndex  = currentSize % DatasetsController.SLOT_SIZE;
-		if(slotIndex == 0)
-			slots[slotNumber] = new Slot();
-		slots[slotNumber].setValue(slotIndex, value);
+		floats.appendValue(value);
 		
 		if(isBitfield)
 			for(Bitfield bitfield : bitfields)
@@ -330,11 +204,7 @@ public class Dataset {
 	public void addConverted(float value) {
 		
 		int currentSize = DatasetsController.getSampleCount();
-		int slotNumber = currentSize / DatasetsController.SLOT_SIZE;
-		int slotIndex  = currentSize % DatasetsController.SLOT_SIZE;
-		if(slotIndex == 0)
-			slots[slotNumber] = new Slot();
-		slots[slotNumber].setValue(slotIndex, value);
+		floats.appendValue(value);
 		
 		if(isBitfield)
 			for(Bitfield bitfield : bitfields)
@@ -342,78 +212,17 @@ public class Dataset {
 		
 	}
 	
-	public MinMax getRange(int firstSampleNumber, int lastSampleNumber) {
-		
-		MinMax range = new MinMax();
-		
-		int firstBlock = firstSampleNumber / BLOCK_SIZE;
-		int lastBlock = lastSampleNumber / BLOCK_SIZE;
-		for(int block = firstBlock; block <= lastBlock; block++) {
-			boolean entireBlockInRange = (firstSampleNumber <= block * BLOCK_SIZE) &&
-			                             (lastSampleNumber >= (block + 1) * BLOCK_SIZE - 1);
-			if(entireBlockInRange) {
-				int slotN  = block / (DatasetsController.SLOT_SIZE / BLOCK_SIZE);
-				int blockN = block % (DatasetsController.SLOT_SIZE / BLOCK_SIZE);
-				float min = slots[slotN].getMinimumInBlock(blockN);
-				float max = slots[slotN].getMaximumInBlock(blockN);
-				if(min < range.min)
-					range.min = min;
-				if(max > range.max)
-					range.max = max;
-			} else {
-				int firstSampleInBlock = Integer.max(firstSampleNumber, block * BLOCK_SIZE);
-				int lastSampleInBlock = Integer.min(lastSampleNumber, (block + 1) * BLOCK_SIZE - 1);
-				for(int sampleN = firstSampleInBlock; sampleN <= lastSampleInBlock; sampleN++) {
-					float value = getSample(sampleN);
-					if(value < range.min)
-						range.min = value;
-					if(value > range.max)
-						range.max = value;
-				}
-			}
-		}
-		
-		return range;
+	public StorageFloats.MinMax getRange(int firstSampleNumber, int lastSampleNumber) {
+	
+		return floats.getRange(firstSampleNumber, lastSampleNumber);
 		
 	}
 	
 	public FloatBuffer getBuffer(int firstSampleNumber, int lastSampleNumber) {
 		
-		FloatBuffer buffer = Buffers.newDirectFloatBuffer(lastSampleNumber - firstSampleNumber + 1);
+		StorageFloats.Values values = floats.getValues(firstSampleNumber, lastSampleNumber, false);
+		return values.buffer;
 		
-		int firstSlot = firstSampleNumber / DatasetsController.SLOT_SIZE;
-		int lastSlot = lastSampleNumber / DatasetsController.SLOT_SIZE;
-		
-		for(int slot = firstSlot; slot <= lastSlot; slot++) {
-			
-			int slotFirstSampleNumber = slot * DatasetsController.SLOT_SIZE;
-			int slotLastSampleNumber = (slot + 1) * DatasetsController.SLOT_SIZE - 1;
-			
-			int offset = 0;
-			if(firstSampleNumber > slotFirstSampleNumber)
-				offset = firstSampleNumber - slotFirstSampleNumber;
-			
-			int length = DatasetsController.SLOT_SIZE;
-			if(firstSampleNumber > slotFirstSampleNumber)
-				length -= firstSampleNumber - slotFirstSampleNumber;
-			if(lastSampleNumber < slotLastSampleNumber)
-				length -= slotLastSampleNumber - lastSampleNumber;
-			
-			slots[slot].getValue(0); // just to ensure it's in RAM
-			buffer.put(slots[slot].values, offset, length);
-			
-		}
-		
-		buffer.rewind();
-		return buffer;
-		
-	}
-	
-	public static class MinMax {
-		float min;
-		float max;
-		public MinMax()                     {this.min = Float.MAX_VALUE; this.max = -Float.MAX_VALUE;}
-		public MinMax(float min, float max) {this.min = min;             this.max = max;}
 	}
 	
 	/**

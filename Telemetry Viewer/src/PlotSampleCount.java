@@ -124,7 +124,7 @@ public class PlotSampleCount extends Plot {
 
 		for(Dataset dataset : datasets) {
 			if(!dataset.isBitfield) {
-				Dataset.MinMax range = dataset.getRange(minSampleNumber, maxSampleNumber);
+				StorageFloats.MinMax range = dataset.getRange(minSampleNumber, maxSampleNumber);
 				if(range.min < samplesMinY)
 					samplesMinY = range.min;
 				if(range.max > samplesMaxY)

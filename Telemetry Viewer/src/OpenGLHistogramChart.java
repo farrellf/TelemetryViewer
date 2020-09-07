@@ -308,8 +308,8 @@ public class OpenGLHistogramChart extends PositionedChart {
 		// fill the bins
 		if(haveDatasets) {
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
-				for(int sampleN = 0; sampleN < samples[datasetN].buffer.length; sampleN++) {
-					float sample = samples[datasetN].buffer[sampleN]; 
+				for(int sampleN = 0; sampleN < sampleCount; sampleN++) {
+					float sample = samples[datasetN].buffer.get(sampleN);
 					if(sample >= minX && sample < maxX) {
 						int binN = (int) Math.floor((sample - minX) / range * binCount);
 						if(binN == binCount) binN--; // needed because of float math imperfection

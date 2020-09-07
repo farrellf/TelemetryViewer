@@ -112,13 +112,8 @@ public class PlotMilliseconds extends Plot {
 
 		// determine which samples to acquire
 		maxSampleNumber = lastSampleNumber;
-		minSampleNumber = maxSampleNumber - 1;
 		long startTimestamp = DatasetsController.getTimestamp(maxSampleNumber) - plotDomain;
-		for(int sampleN = maxSampleNumber - 1; sampleN >= 0; sampleN--) { // FIXME change this to a binary search?
-			minSampleNumber = sampleN;
-			if(DatasetsController.getTimestamp(sampleN) < startTimestamp)
-				break;
-		}
+		minSampleNumber = DatasetsController.getClosestSampleNumberBefore(startTimestamp, maxSampleNumber - 1);
 		
 		// calculate the domain
 		plotMaxX = DatasetsController.getTimestamp(maxSampleNumber);
@@ -137,7 +132,7 @@ public class PlotMilliseconds extends Plot {
 
 		for(Dataset dataset : datasets) {
 			if(!dataset.isBitfield) {
-				Dataset.MinMax range = dataset.getRange(minSampleNumber, maxSampleNumber);
+				StorageFloats.MinMax range = dataset.getRange(minSampleNumber, maxSampleNumber);
 				if(range.min < samplesMinY)
 					samplesMinY = range.min;
 				if(range.max > samplesMaxY)
@@ -712,12 +707,7 @@ public class PlotMilliseconds extends Plot {
 			if(mouseTimestamp < DatasetsController.getFirstTimestamp())
 				return new TooltipInfo(false, 0, "", 0);
 			
-			int closestSampleNumberBefore = maxSampleNumber;
-			for(int sampleN = maxSampleNumber - 1; sampleN >= 0; sampleN--) { // FIXME change this to a binary search?
-				closestSampleNumberBefore = sampleN;
-				if(DatasetsController.getTimestamp(sampleN) < mouseTimestamp)
-					break;
-			}
+			int closestSampleNumberBefore = DatasetsController.getClosestSampleNumberBefore(mouseTimestamp, maxSampleNumber - 1);
 			int closestSampleNumberAfter = closestSampleNumberBefore + 1;
 			if(closestSampleNumberAfter > maxSampleNumber)
 				closestSampleNumberAfter = maxSampleNumber;

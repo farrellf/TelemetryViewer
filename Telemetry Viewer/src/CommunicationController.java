@@ -3,8 +3,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -36,6 +34,7 @@ public class CommunicationController {
 	public final static String PORT_FILE = "File"; // dummy mode for importing CSV log files
 	
 	// volatile fields shared with threads
+	private static Thread receiverThread;
 	private static volatile boolean connected = false;
 	private static volatile String importFilePath = null;
 	
@@ -355,21 +354,20 @@ public class CommunicationController {
 		     if(port.startsWith(PORT_UART + ": ")) connectToUart(quiet);
 		else if(port.equals(PORT_TCP))             startTcpServer(quiet);
 		else if(port.equals(PORT_UDP))             startUdpServer(quiet);
-		else if(port.equals(PORT_TEST))            conntectToTester(quiet);
+		else if(port.equals(PORT_TEST))            startTester(quiet);
 		else if(port.equals(PORT_FILE))            connectToFile();
 		
 	}
 	
 	/**
 	 * Disconnects from the device and removes any connection-related Notifications.
-	 * This method blocks until disconnected, so it should not be called directly from a connection thread.
+	 * This method blocks until disconnected, so it should not be called directly from the receiver thread.
 	 * 
-	 * @param errorMessage    If not null, show this as a Notification until a connection is made. 
+	 * @param errorMessage    If not null, show this as a Notification until a connection is attempted. 
 	 */
 	public static void disconnect(String errorMessage) {
 		
 		boolean wasConnected = isConnected();
-		connected = false;
 		
 		NotificationsController.removeIfConnectionRelated();
 		if(errorMessage != null)
@@ -381,21 +379,29 @@ public class CommunicationController {
 			CommunicationView.instance.allowExporting(true);
 		
 		if(wasConnected) {
-			     if(port.startsWith(PORT_UART + ": ")) disconnectFromUart();
-			else if(port.equals(PORT_TCP))             stopTcpServer();
-			else if(port.equals(PORT_UDP))             stopUdpServer();
-			else if(port.equals(PORT_TEST))            disconnectFromTester();
-			else if(port.equals(PORT_FILE))            disconnectFromFile();
+			
+			// tell the receiver thread to terminate by setting the boolean AND interrupting the thread because
+			// interrupting the thread might generate an IOException, but we don't want to report that as an error
+			connected = false;
+			if(receiverThread.isAlive()) {
+				receiverThread.interrupt();
+				while(receiverThread.isAlive()); // wait
+			}
+			
+			if(port.equals(PORT_FILE)) {
+				CommunicationView.instance.allowImporting(true);
+				importingAllowed = true;
+				setPort(portUsedBeforeImport); // switch back to the original port, so "File" is removed from the port combobox
+			}
 
 			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
 				if(ChartsController.getCharts().isEmpty() && !CommunicationController.isConnected())
 					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> !ChartsController.getCharts().isEmpty(), true);
 			});
+			
 		}
 		
 	}
-	
-	private static Thread fileImportThread = null;
 	
 	/**
 	 * Imports samples from a CSV file.
@@ -407,7 +413,7 @@ public class CommunicationController {
 		DatasetsController.removeAllData();
 		importingAllowed = false;
 		
-		fileImportThread = new Thread(() -> {
+		receiverThread = new Thread(() -> {
 			
 			try {
 				
@@ -509,27 +515,9 @@ public class CommunicationController {
 			
 		});
 		
-		fileImportThread.setPriority(Thread.MAX_PRIORITY);
-		fileImportThread.setName("File Import Thread");
-		fileImportThread.start();
-		
-	}
-	
-	/**
-	 * Stops the file import thread, and updates the GUI.
-	 */
-	private static void disconnectFromFile() {
-			
-		if(fileImportThread != null && fileImportThread.isAlive()) {
-			fileImportThread.interrupt();
-			while(fileImportThread.isAlive()); // wait
-		}
-
-		CommunicationView.instance.allowImporting(true);
-		importingAllowed = true;
-		
-		// switch back to the original port, so "File" is removed from the port combobox
-		setPort(portUsedBeforeImport);
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("File Import Thread");
+		receiverThread.start();
 		
 	}
 	
@@ -538,38 +526,26 @@ public class CommunicationController {
 	 */
 	public static void finishImportingFile() {
 		
-		if(fileImportThread != null && fileImportThread.isAlive())
-			fileImportThread.interrupt();
+		if(receiverThread != null && receiverThread.isAlive())
+			receiverThread.interrupt();
 		
 	}
-	
-	private static SerialPort uartPort = null;
 	
 	/**
 	 * Connects to a serial port and shows the DataStructureGui if necessary.
 	 * 
 	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void connectToUart(boolean quiet) { // FIXME make this robust: give up after some time.
-
-		if(uartPort != null && uartPort.isOpen())
-			uartPort.closePort();
+	private static void connectToUart(boolean quiet) {
 			
-		uartPort = SerialPort.getCommPort(port.substring(6)); // trim the leading "UART: "
+		SerialPort uartPort = SerialPort.getCommPort(port.substring(6)); // trim the leading "UART: "
 		uartPort.setBaudRate(uartBaudRate);
-		if(packet == PacketCsv.instance)
-			uartPort.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
-		else if(packet == PacketBinary.instance)
-			uartPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
+		uartPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 0, 0);
 		
-		// try 3 times before giving up
-		if(!uartPort.openPort()) {
-			if(!uartPort.openPort()) {
-				if(!uartPort.openPort()) {
-					disconnect("Unable to connect to " + port + ".");
-					return;
-				}
-			}
+		// try 3 times before giving up, because some Bluetooth UARTs have trouble connecting
+		if(!uartPort.openPort() && !uartPort.openPort() && !uartPort.openPort()) {
+			SwingUtilities.invokeLater(() -> disconnect("Unable to connect to " + port + "."));
+			return;
 		}
 		
 		CommunicationView.instance.setConnected(true);
@@ -578,24 +554,64 @@ public class CommunicationController {
 		if(!quiet)
 			Main.showDataStructureGui();
 		
-		packet.startReceivingData(uartPort.getInputStream());
+		receiverThread = new Thread(() -> {
+			
+			InputStream uart = uartPort.getInputStream();
+			SharedByteStream stream = new SharedByteStream();
+			packet.startReceivingData(stream);
+			
+			// listen for packets
+			while(true) {
+
+				try {
+					
+					if(Thread.interrupted() || !connected)
+						throw new InterruptedException();
+					
+					int length = uart.available();
+					if(length < 1) {
+						Thread.sleep(1);
+					} else {
+						byte[] buffer = new byte[length];
+						length = uart.read(buffer, 0, length);
+						if(length < 0)
+							throw new IOException();
+						else
+							stream.write(buffer, length);
+					}
+					
+				} catch(IOException ioe) {
+					
+					// an IOException can occur if an InterruptedException occurs while receiving data
+					// let this be detected by the connection test in the loop
+					if(!connected)
+						continue;
+					
+					// problem while reading from the UART
+					packet.stopReceivingData();
+					uartPort.closePort();
+					SwingUtilities.invokeLater(() -> disconnect("Error while reading from the UART."));
+					return;
+					
+				}  catch(InterruptedException ie) {
+					
+					// thread got interrupted, so exit
+					packet.stopReceivingData();
+					uartPort.closePort();
+					NotificationsController.showVerboseForSeconds("The UART receiver thread is stopping.", 5, false);
+					return;
+					
+				}
+			
+			}
+			
+		});
+		
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("UART Receiver");
+		receiverThread.start();
 		
 	}
-	
-	/**
-	 * Stops the serial port receiver thread and disconnects from the active serial port.
-	 */
-	private static void disconnectFromUart() {	
-		
-		packet.stopReceivingData();
-		
-		if(uartPort != null && uartPort.isOpen())
-			uartPort.closePort();
-		uartPort = null;
-		
-	}
-	
-	static Thread tcpServerThread;
 	
 	/**
 	 * Spawns a TCP server and shows the DataStructureGui if necessary.
@@ -604,21 +620,18 @@ public class CommunicationController {
 	 */
 	private static void startTcpServer(boolean quiet) {
 		
-		tcpServerThread = new Thread(() -> {
+		receiverThread = new Thread(() -> {
 			
 			ServerSocket tcpServer = null;
 			Socket tcpSocket = null;
-			PipedOutputStream stream = null;
-			PipedInputStream inputStream = null;
+			SharedByteStream stream = new SharedByteStream();
 			
 			// start the TCP server
 			try {
 				tcpServer = new ServerSocket(tcpUdpPort);
 				tcpServer.setSoTimeout(1000);
-				stream = new PipedOutputStream();
-				inputStream = new PipedInputStream(stream);
 			} catch (Exception e) {
-				try { tcpServer.close(); stream.close(); inputStream.close(); } catch(Exception e2) {}
+				try { tcpServer.close(); } catch(Exception e2) {}
 				SwingUtilities.invokeLater(() -> disconnect("Unable to start the TCP server. Make sure another program is not already using port " + tcpUdpPort + "."));
 				return;
 			}
@@ -629,27 +642,14 @@ public class CommunicationController {
 			if(!quiet)
 				Main.showDataStructureGui();
 			
-			// wait for the data structure to be defined
-			while(!packet.dataStructureDefined)
-				try {
-					Thread.sleep(1);
-				} catch(Exception e) {
-					// thread got interrupted, so exit.
-					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
-					try { tcpServer.close(); } catch(Exception e2) {}
-					try { stream.close(); } catch(Exception e2) {}
-					try { inputStream.close(); } catch(Exception e2) {}
-					return;
-				}
-			
-			packet.startReceivingData(inputStream);
+			packet.startReceivingData(stream);
 			
 			// listen for a connection
 			while(true) {
 
 				try {
 					
-					if(Thread.interrupted())
+					if(Thread.interrupted() || !connected)
 						throw new InterruptedException();
 					
 					tcpSocket = tcpServer.accept();
@@ -666,7 +666,7 @@ public class CommunicationController {
 						if(byteCount > 0) {
 							byte[] buffer = new byte[byteCount];
 							is.read(buffer, 0, byteCount);
-							stream.write(buffer, 0, byteCount);
+							stream.write(buffer, byteCount);
 							continue;
 						}
 						Thread.sleep(1);
@@ -689,7 +689,13 @@ public class CommunicationController {
 					
 				} catch(IOException ioe) {
 					
+					// an IOException can occur if an InterruptedException occurs while receiving data
+					// let this be detected by the connection test in the loop
+					if(!connected)
+						continue;
+					
 					// problem while accepting the socket connection, or getting the input stream, or reading from the input stream
+					packet.stopReceivingData();
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
 					SwingUtilities.invokeLater(() -> disconnect("TCP connection failed."));
@@ -698,9 +704,10 @@ public class CommunicationController {
 				}  catch(InterruptedException ie) {
 					
 					// thread got interrupted, so exit.
-					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
+					packet.stopReceivingData();
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
+					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
 					return;
 					
 				}
@@ -709,27 +716,11 @@ public class CommunicationController {
 			
 		});
 		
-		tcpServerThread.setPriority(Thread.MAX_PRIORITY);
-		tcpServerThread.setName("TCP Server");
-		tcpServerThread.start();
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("TCP Server");
+		receiverThread.start();
 		
 	}
-	
-	/**
-	 * Stops the TCP server thread, frees its resources, and notifies any listeners that the connection has been closed.
-	 */
-	private static void stopTcpServer() {
-			
-		if(tcpServerThread != null && tcpServerThread.isAlive()) {
-			tcpServerThread.interrupt();
-			while(tcpServerThread.isAlive()); // wait
-		}
-		
-		packet.stopReceivingData();
-		
-	}
-	
-	static Thread udpServerThread;
 	
 	/**
 	 * Spawns a UDP server and shows the DataStructureGUI if necessary.
@@ -738,20 +729,18 @@ public class CommunicationController {
 	 */
 	private static void startUdpServer(boolean quiet) {
 		
-		udpServerThread = new Thread(() -> {
+		receiverThread = new Thread(() -> {
 			
 			DatagramSocket udpServer = null;
-			PipedOutputStream stream = null;
-			PipedInputStream inputStream = null;
+			SharedByteStream stream = new SharedByteStream();
 			
 			// start the UDP server
 			try {
 				udpServer = new DatagramSocket(tcpUdpPort);
 				udpServer.setSoTimeout(1000);
-				stream = new PipedOutputStream();
-				inputStream = new PipedInputStream(stream);
+				udpServer.setReceiveBufferSize(67108864); // 64MB
 			} catch (Exception e) {
-				try { udpServer.close(); stream.close(); inputStream.close(); } catch(Exception e2) {}
+				try { udpServer.close(); } catch(Exception e2) {}
 				SwingUtilities.invokeLater(() -> disconnect("Unable to start the UDP server. Make sure another program is not already using port " + tcpUdpPort + "."));
 				return;
 			}
@@ -760,35 +749,22 @@ public class CommunicationController {
 			connected = true;
 			
 			if(!quiet)
-				SwingUtilities.invokeLater(() -> Main.showDataStructureGui());
+				Main.showDataStructureGui();
 			
-			// wait for the data structure to be defined
-			while(!packet.dataStructureDefined)
-				try {
-					Thread.sleep(1);
-				} catch(Exception e) {
-					// thread got interrupted, so exit.
-					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
-					try { udpServer.close(); } catch(Exception e2) {}
-					try { stream.close(); } catch(Exception e2) {}
-					try { inputStream.close(); } catch(Exception e2) {}
-					return;
-				}
-			
-			packet.startReceivingData(inputStream);
+			packet.startReceivingData(stream);
 			
 			// listen for packets
-			byte[] rx_buffer = new byte[MAX_UDP_PACKET_SIZE];
-			DatagramPacket udpPacket = new DatagramPacket(rx_buffer, rx_buffer.length);
+			byte[] buffer = new byte[MAX_UDP_PACKET_SIZE];
+			DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
 			while(true) {
 
 				try {
 					
-					if(Thread.interrupted())
+					if(Thread.interrupted() || !connected)
 						throw new InterruptedException();
 					
 					udpServer.receive(udpPacket);
-					stream.write(rx_buffer, 0, udpPacket.getLength());
+					stream.write(buffer, udpPacket.getLength());
 					
 //					NotificationsController.showVerbose("UDP packet received from a client at " + udpPacket.getAddress().getHostAddress() + ":" + udpPacket.getPort() + ".");
 					
@@ -799,9 +775,13 @@ public class CommunicationController {
 					
 				} catch(IOException ioe) {
 					
-					// problem while reading from the socket, or while putting data into the stream
-					try { inputStream.close(); } catch(Exception e) {}
-					try { stream.close(); }      catch(Exception e) {}
+					// an IOException can occur if an InterruptedException occurs while receiving data
+					// let this be detected by the connection test in the loop
+					if(!connected)
+						continue;
+					
+					// problem while reading from the socket
+					packet.stopReceivingData();
 					try { udpServer.close(); }   catch(Exception e) {}
 					SwingUtilities.invokeLater(() -> disconnect("UDP packet error."));
 					return;
@@ -809,9 +789,8 @@ public class CommunicationController {
 				}  catch(InterruptedException ie) {
 					
 					// thread got interrupted while waiting for a connection, so exit.
+					packet.stopReceivingData();
 					NotificationsController.showVerboseForSeconds("The UDP Server thread is stopping.", 5, false);
-					try { inputStream.close(); } catch(Exception e) {}
-					try { stream.close(); }      catch(Exception e) {}
 					try { udpServer.close(); }   catch(Exception e) {}
 					return;
 					
@@ -821,34 +800,18 @@ public class CommunicationController {
 			
 		});
 		
-		udpServerThread.setPriority(Thread.MAX_PRIORITY);
-		udpServerThread.setName("UDP Server");
-		udpServerThread.start();
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("UDP Server");
+		receiverThread.start();
 		
 	}
-	
-	/**
-	 * Stops the UDP server thread.
-	 */
-	private static void stopUdpServer() {
-		
-		if(udpServerThread != null && udpServerThread.isAlive()) {
-			udpServerThread.interrupt();
-			while(udpServerThread.isAlive()); // wait
-		}
-		
-		packet.stopReceivingData();
-		
-	}
-	
-	static Thread testerThread;
 	
 	/**
 	 * Starts transmission of the test data stream, and shows the DataStructureGUI if necessary.
 	 * 
 	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void conntectToTester(boolean quiet) {
+	private static void startTester(boolean quiet) {
 		
 		// force specific settings
 		if(!getPacketType().equals("CSV"))
@@ -871,12 +834,10 @@ public class CommunicationController {
 			
 		}
 
-		// "connect" the tester
-		// this simulates the transmission of 4 numbers every 100us.
+		// simulate the transmission of 4 numbers every 100us.
 		// the first three numbers are pseudo random, and scaled to form a sort of sawtooth waveform.
 		// the fourth number is a 1kHz sine wave.
-		// this is used to check for proper autoscaling of charts, etc.
-		testerThread = new Thread(() -> {
+		receiverThread = new Thread(() -> {
 			
 			double counter = 0;
 			
@@ -904,9 +865,10 @@ public class CommunicationController {
 			}
 			
 		});
-		testerThread.setPriority(Thread.MAX_PRIORITY);
-		testerThread.setName("Test Transmitter");
-		testerThread.start();
+		
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("Test Data Server");
+		receiverThread.start();
 		
 		CommunicationView.instance.setConnected(true);
 		connected = true;
@@ -914,18 +876,6 @@ public class CommunicationController {
 		// show the data structure window
 		if(!quiet)
 			Main.showDataStructureGui();
-		
-	}
-	
-	/**
-	 * Stops transmission of the test data stream.
-	 */
-	private static void disconnectFromTester() {
-		
-		if(testerThread != null && testerThread.isAlive()) {
-			testerThread.interrupt();
-			while(testerThread.isAlive()); // wait
-		}
 		
 	}
 	
@@ -1070,7 +1020,7 @@ public class CommunicationController {
 	 * @param filepath           Full path with file name.
 	 * @param progressTracker    Consumer<Double> that will be notified as progress is made.
 	 */
-	static void exportCsvFile(String filepath, Consumer<Double> progressTracker) {
+	static void exportCsvFile(String filepath, Consumer<Double> progressTracker) { // FIXME improve exporting to use getValues()!
 		
 		int datasetsCount = DatasetsController.getDatasetsCount();
 		int sampleCount = DatasetsController.getSampleCount();
@@ -1086,11 +1036,9 @@ public class CommunicationController {
 			logFile.println();
 			
 			for(int i = 0; i < sampleCount; i++) {
-				// ensure active slots don't get flushed to disk, and periodically update the progress tracker
-				if(i % 1024 == 0) {
-					DatasetsController.dontFlushRangeBeingExported(i, i + DatasetsController.SLOT_SIZE);
+				// periodically update the progress tracker
+				if(i % 1024 == 0)
 					progressTracker.accept((double) i / (double) sampleCount);
-				}
 				
 				logFile.print(i + "," + DatasetsController.getTimestamp(i));
 				for(int n = 0; n < datasetsCount; n++)
@@ -1098,8 +1046,6 @@ public class CommunicationController {
 				logFile.println();
 				
 			}
-			
-			DatasetsController.dontFlushRangeBeingExported(-1, -1);
 			
 			logFile.close();
 			
@@ -1209,7 +1155,7 @@ public class CommunicationController {
 		
 		CommunicationController.disconnect(null);
 		ChartsController.removeAllCharts();
-		DatasetsController.removeAllDatasets();
+		packet.reset();
 		
 		QueueOfLines lines = null;
 		
