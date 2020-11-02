@@ -12,12 +12,11 @@ public class StorageFloats {
 	
 	// floats are buffered into "slots" which each hold 1M values.
 	// to speed up min/max calculations, the min and max value is tracked for smaller "blocks" of 1K values.
-	private final int BLOCK_SIZE = 1024;    // 1K
-	private final int SLOT_SIZE  = 1048576; // 1M
+	public static final int BLOCK_SIZE = 1024; // 1K
+	public static final int SLOT_SIZE  = 1048576; // 1M
 	private final int MAX_SAMPLE_NUMBER = Integer.MAX_VALUE;
 	private final int BYTES_PER_VALUE = 4; // 4 bytes per float
 	
-	private volatile int sampleCount = 0;
 	private volatile Slot[] slot                 = new Slot [MAX_SAMPLE_NUMBER / SLOT_SIZE  + 1]; // +1 to round up
 	private volatile float[] minimumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
 	private volatile float[] maximumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
@@ -58,32 +57,63 @@ public class StorageFloats {
 	}
 	
 	/**
-	 * Adds a new value, and updates the min/max records.
+	 * Sets a value, and updates the min/max records.
 	 * This method is NOT reentrant! Only one thread may call this at a time.
 	 * 
 	 * @param value    The new value.
 	 */
-	public void appendValue(float value) {
+	public void setValue(int sampleNumber, float value) {
 		
-		int slotN  = sampleCount / SLOT_SIZE;
-		int valueN = sampleCount % SLOT_SIZE;
-		int blockN = sampleCount / BLOCK_SIZE;
+		int slotN  = sampleNumber / SLOT_SIZE;
+		int valueN = sampleNumber % SLOT_SIZE;
+		int blockN = sampleNumber / BLOCK_SIZE;
 		
-		if(valueN == 0)
+		if(valueN == 0) {
 			slot[slotN] = new Slot();
-		slot[slotN].value[valueN] = value;
-		
-		if(sampleCount % BLOCK_SIZE == 0) {
+			slot[slotN].value[valueN] = value;
 			minimumValueInBlock[blockN] = value;
 			maximumValueInBlock[blockN] = value;
 		} else {
+			slot[slotN].value[valueN] = value;
 			if(value < minimumValueInBlock[blockN])
 				minimumValueInBlock[blockN] = value;
 			if(value > maximumValueInBlock[blockN])
 				maximumValueInBlock[blockN] = value;
 		}
 		
-		sampleCount++;
+	}
+	
+	/**
+	 * Obtains the samples buffer so that multiple Parser threads may write directly into it (in parallel.)
+	 * 
+	 * @param sampleNumber    The sample number whose buffer is wanted.
+	 * @return                Corresponding buffer.
+	 */
+	public float[] getSlot(int sampleNumber) {
+		
+		int slotN = sampleNumber / SLOT_SIZE;
+
+		if(slot[slotN] == null)
+			slot[slotN] = new Slot();
+		
+		return slot[slotN].value;
+		
+	}
+	
+	/**
+	 * Specifies the minimum and maximum values found in a block.
+	 * This method is NOT reentrant! Only one thread may call this at a time.
+	 * 
+	 * @param firstSampleNumber    First sample number of the block.
+	 * @param minValue             Minimum value in the block.
+	 * @param maxValue             Maximum value in the block.
+	 */
+	public void setRangeOfBlock(int firstSampleNumber, float minValue, float maxValue) {
+
+		int blockN      = firstSampleNumber / BLOCK_SIZE;
+
+		minimumValueInBlock[blockN] = minValue;
+		maximumValueInBlock[blockN] = maxValue;
 		
 	}
 	
@@ -331,13 +361,22 @@ public class StorageFloats {
 	 */
 	public void moveOldValuesToDisk() {
 		
-		int lastSlotN = (sampleCount - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
+		int lastSlotN = (DatasetsController.getSampleCount() - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
 		
 		for(int slotN = 0; slotN < lastSlotN; slotN++) {
 			
 			// skip this slot if it is already moved to disk
 			if(slot[slotN].flushing || !slot[slotN].inRam)
 				continue;
+			
+			// in stress test mode just delete the data
+			// because even high-end SSDs will become the bottleneck
+			if(CommunicationController.getPort().equals(CommunicationController.PORT_STRESS_TEST_MODE)) {
+				slot[slotN].inRam = false;
+				slot[slotN].value = null;
+				slot[slotN].flushing = false;
+				continue;
+			}
 			
 			// move this slot to disk
 			final int SLOT_N = slotN;
@@ -395,7 +434,6 @@ public class StorageFloats {
 		}
 		
 		// empty the slots
-		sampleCount = 0;
 		slot                = new Slot [MAX_SAMPLE_NUMBER / SLOT_SIZE  + 1]; // +1 to round up
 		minimumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
 		maximumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up

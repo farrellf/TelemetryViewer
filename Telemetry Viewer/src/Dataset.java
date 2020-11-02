@@ -11,7 +11,7 @@ import com.jogamp.common.nio.Buffers;
 public class Dataset {
 	
 	final int location;
-	final BinaryFieldProcessor processor;
+	final DatasetsController.BinaryFieldProcessor processor;
 	String name;
 	Color color;
 	float[] glColor;
@@ -36,7 +36,7 @@ public class Dataset {
 	 * @param conversionFactorA    This many unprocessed LSBs...
 	 * @param conversionFactorB    ... equals this many units.
 	 */
-	public Dataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	public Dataset(int location, DatasetsController.BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
 		this.location          = location;
 		this.processor         = processor;
@@ -183,41 +183,76 @@ public class Dataset {
 	}
 	
 	/**
-	 * @param value    New raw sample to be converted and then appended to the dataset.
+	 * Converts and appends a new sample to the dataset.
+	 * 
+	 * @param sampleNumber    Which sample number to populate.
+	 * @param value           New sample to be converted and then written into the dataset.
 	 */
-	public void add(float value) {
+	public void setSample(int sampleNumber, float value) {
 		
-		value *= conversionFactor;
-		
-		int currentSize = DatasetsController.getSampleCount();
-		floats.appendValue(value);
-		
-		if(isBitfield)
-			for(Bitfield bitfield : bitfields)
-				bitfield.processValue((int) value, currentSize);
+		setConvertedSample(sampleNumber, value * conversionFactor);
 		
 	}
 	
 	/**
-	 * @param value    New sample to appended to the dataset. It will be added as-is, not converted.
+	 * Appends a new sample to the dataset.
+	 * 
+	 * @param sampleNumber    Which sample number to populate.
+	 * @param value           New sample to be written into the dataset. It will be written as-is, NOT converted.
 	 */
-	public void addConverted(float value) {
+	public void setConvertedSample(int sampleNumber, float value) {
 		
-		int currentSize = DatasetsController.getSampleCount();
-		floats.appendValue(value);
+		floats.setValue(sampleNumber, value);
 		
-		if(isBitfield)
+		if(isBitfield) {
 			for(Bitfield bitfield : bitfields)
-				bitfield.processValue((int) value, currentSize);
+				bitfield.processValue((int) value, sampleNumber);
+		}
 		
 	}
 	
+	/**
+	 * Obtains the samples buffer so that multiple Parser threads may write directly into it (in parallel.)
+	 * 
+	 * @param sampleNumber    The sample number whose buffer is wanted.
+	 * @return                Corresponding buffer.
+	 */
+	public synchronized float[] getSlot(int sampleNumber) {
+		
+		return floats.getSlot(sampleNumber);
+		
+	}
+	
+	/**
+	 * Specifies the minimum and maximum values found in a block.
+	 * This method must be called AFTER any Parser threads have populated a block, but BEFORE the sample count has been incremented.
+	 * 
+	 * @param firstSampleNumber    First sample number of the block.
+	 * @param minValue             Minimum value in the block.
+	 * @param maxValue             Maximum value in the block.
+	 */
+	public synchronized void setRangeOfBlock(int firstSampleNumber, float minValue, float maxValue) {
+		
+		floats.setRangeOfBlock(firstSampleNumber, minValue, maxValue);
+		
+	}
+	
+	/**
+	 * @param firstSampleNumber    First sample number, inclusive.
+	 * @param lastSampleNumber     Last sample number, inclusive.
+	 * @return                     Range occupied by that sequence of samples.
+	 */
 	public StorageFloats.MinMax getRange(int firstSampleNumber, int lastSampleNumber) {
 	
 		return floats.getRange(firstSampleNumber, lastSampleNumber);
 		
 	}
 	
+	/**
+	 * @param firstSampleNumber    First sample number, inclusive.
+	 * @param lastSampleNumber     Last sample number, inclusive.
+	 * @return                     Corresponding FloatBuffer containing the sequence of samples.
+	 */
 	public FloatBuffer getBuffer(int firstSampleNumber, int lastSampleNumber) {
 		
 		StorageFloats.Values values = floats.getValues(firstSampleNumber, lastSampleNumber, false);

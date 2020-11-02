@@ -45,7 +45,7 @@ public class WidgetDatasets extends Widget {
 		int rowCount = 0;
 		widgets.put(new JLabel("Datasets: "), "");
 		
-		for(Dataset dataset : DatasetsController.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getDatasetsList()) {
 			
 			if(dataset.isBitfield)
 				continue;
@@ -85,7 +85,7 @@ public class WidgetDatasets extends Widget {
 		
 		for(int i = 0; i < datasetCount; i++) {
 			JComboBox<Dataset> combobox = new JComboBox<Dataset>();
-			for(Dataset dataset : DatasetsController.getAllDatasets()) {
+			for(Dataset dataset : DatasetsController.getDatasetsList()) {
 				if(dataset.isBitfield)
 					continue;
 				combobox.addItem(dataset);
@@ -123,7 +123,7 @@ public class WidgetDatasets extends Widget {
 		
 		int rowCount = 0;
 		widgets.put(new JLabel("Bitfields: "), "");
-		for(Dataset dataset : DatasetsController.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getDatasetsList()) {
 			
 			if(!dataset.isBitfield)
 				continue;
@@ -216,7 +216,7 @@ public class WidgetDatasets extends Widget {
 		
 		int rowCount = 0;
 		widgets.put(new JLabel("Datasets: "), "");
-		for(Dataset dataset : DatasetsController.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getDatasetsList()) {
 			
 			if(dataset.isBitfield)
 				continue;
@@ -233,7 +233,7 @@ public class WidgetDatasets extends Widget {
 
 		rowCount = 0;
 		widgets.put(new JLabel("Bitfields: "), "");
-		for(Dataset dataset : DatasetsController.getAllDatasets()) {
+		for(Dataset dataset : DatasetsController.getDatasetsList()) {
 			
 			if(!dataset.isBitfield)
 				continue;
@@ -331,7 +331,7 @@ public class WidgetDatasets extends Widget {
 			bitfieldEdgesHandler.accept(states);
 			
 			// check if every state for every bitfield of a dataset are enabled/disabled
-			for(Dataset d : DatasetsController.getAllDatasets()) {
+			for(Dataset d : DatasetsController.getDatasetsList()) {
 				boolean allSelected = true;
 				if(d.isBitfield) {
 					for(Dataset.Bitfield bitfield : d.bitfields)
@@ -351,7 +351,7 @@ public class WidgetDatasets extends Widget {
 			bitfieldLevelsHandler.accept(states);
 			
 			// check if every state for every bitfield of a dataset are enabled/disabled
-			for(Dataset d : DatasetsController.getAllDatasets()) {
+			for(Dataset d : DatasetsController.getDatasetsList()) {
 				boolean allSelected = true;
 				if(d.isBitfield) {
 					for(Dataset.Bitfield bitfield : d.bitfields)

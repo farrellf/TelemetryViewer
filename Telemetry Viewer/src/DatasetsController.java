@@ -1,6 +1,8 @@
 import java.awt.Color;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -12,6 +14,102 @@ public class DatasetsController {
 	private static AtomicInteger sampleCount = new AtomicInteger(0);
 	private static StorageTimestamps timestamps = new StorageTimestamps("timestamps");
 	private static long firstTimestamp = 0;
+	
+	public static final BinaryFieldProcessor[]    binaryFieldProcessors    = new BinaryFieldProcessor[8];
+	public static final BinaryChecksumProcessor[] binaryChecksumProcessors = new BinaryChecksumProcessor[1];
+	static {
+		binaryFieldProcessors[0] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint16 LSB First"; }
+			@Override public int getByteCount()                            { return 2; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float) (((0xFF & buffer[0+offset]) << 0) |
+					                                                                         ((0xFF & buffer[1+offset]) << 8)); }
+		};
+		binaryFieldProcessors[1] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint16 MSB First"; }
+			@Override public int getByteCount()                            { return 2; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float) (((0xFF & buffer[1+offset]) << 0) |
+			                                                                                 ((0xFF & buffer[0+offset]) << 8)); }
+		};
+		binaryFieldProcessors[2] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "int16 LSB First"; }
+			@Override public int getByteCount()                            { return 2; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[0+offset]) << 0) |
+					                                                                                ((0xFF & buffer[1+offset]) << 8)); }
+		};
+		binaryFieldProcessors[3] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "int16 MSB First"; }
+			@Override public int getByteCount()                            { return 2; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[1+offset]) << 0) |
+			                                                                                        ((0xFF & buffer[0+offset]) << 8)); }
+		};
+		binaryFieldProcessors[4] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "float32 LSB First"; }
+			@Override public int getByteCount()                            { return 4; }
+			@Override public float extractValue(byte[] buffer, int offset) { return Float.intBitsToFloat(((0xFF & buffer[0+offset]) <<  0) |
+			                                                                                             ((0xFF & buffer[1+offset]) <<  8) |
+			                                                                                             ((0xFF & buffer[2+offset]) << 16) |
+			                                                                                             ((0xFF & buffer[3+offset]) << 24)); }
+		};
+		binaryFieldProcessors[5] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "float32 MSB First"; }
+			@Override public int getByteCount()                            { return 4; }
+			@Override public float extractValue(byte[] buffer, int offset) { return Float.intBitsToFloat(((0xFF & buffer[3+offset]) <<  0) |
+                                                                                                         ((0xFF & buffer[2+offset]) <<  8) |
+                                                                                                         ((0xFF & buffer[1+offset]) << 16) |
+                                                                                                         ((0xFF & buffer[0+offset]) << 24)); }
+		};
+		binaryFieldProcessors[6] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "Bitfield: 8 Bits"; }
+			@Override public int getByteCount()                            { return 1; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
+		};
+		binaryFieldProcessors[7] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint8"; }
+			@Override public int getByteCount()                            { return 1; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
+		};
+		binaryChecksumProcessors[0] = new BinaryChecksumProcessor() {
+			@Override public String toString()                                  { return "uint16 Checksum LSB First"; }
+			@Override public int getByteCount()                                 { return 2; }
+			@Override public boolean testChecksum(byte[] bytes, int offset, int length) {
+				
+				// skip past the sync word
+				offset++;
+				length--;
+				
+				// sanity check: a 16bit checksum requires an even number of bytes
+				if(length % 2 != 0)
+					return false;
+				
+				// calculate the sum
+				int wordCount = (length - getByteCount()) / 2; // 16bit words
+				
+				int sum = 0;
+				int lsb = 0;
+				int msb = 0;
+				for(int i = 0; i < wordCount; i++) {
+					lsb = 0xFF & bytes[offset + i*2];
+					msb = 0xFF & bytes[offset + i*2 + 1];
+					sum += (msb << 8 | lsb);
+				}
+				
+				// extract the reported checksum
+				lsb = 0xFF & bytes[offset + length - 2];
+				msb = 0xFF & bytes[offset + length - 1];
+				int checksum = (msb << 8 | lsb);
+				
+				// test
+				sum %= 65536;
+				if(sum == checksum)
+					return true;
+				else
+					return false;
+			}
+		};
+	}
+	
+	public static BinaryChecksumProcessor checksumProcessor = null;
+	public static int checksumProcessorOffset = -1;
 	
 	/**
 	 * @return    The number of fields in the data structure.
@@ -43,29 +141,78 @@ public class DatasetsController {
 	}
 	
 	/**
-	 * Creates and stores a new Dataset. If a Dataset already exists for the same location, the new Dataset will replace it.
+	 * Creates and stores a new Dataset.
 	 * 
 	 * @param location             CSV column number, or Binary packet byte offset.
-	 * @param processor            BinaryProcessor for the raw samples in the Binary packet. (Ignored in CSV mode, use null.)
+	 * @param processor            BinaryFieldProcessor for the raw samples in the Binary packet. (Ignored in CSV mode.)
 	 * @param name                 Descriptive name of what the samples represent.
 	 * @param color                Color to use when visualizing the samples.
 	 * @param unit                 Descriptive name of how the samples are quantified.
 	 * @param conversionFactorA    This many unprocessed LSBs...
 	 * @param conversionFactorB    ... equals this many units.
+	 * @return                     null on success, or a user-friendly String describing why the field could not be added.
 	 */
-	public static void insertDataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	public static String insertDataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
-		datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
+		if(CommunicationController.isPacketTypeCsv()) {
+			
+			// can't overlap existing fields
+			for(Dataset dataset : getDatasetsList())
+				if(dataset.location == location)
+					return "Error: A field already exists at column " + location + ".";
+			
+			// add the field
+			datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
+			return null;
+			
+		} else {
+			
+			// can't overlap the sync word
+			if(location == 0)
+				return "Error: Can not place a field that overlaps the sync word.";
+			
+			// can't overlap or follow the checksum
+			if(checksumProcessor != null)
+				if(location + processor.getByteCount() - 1 >= checksumProcessorOffset)
+					return "Error: Can not place a field that overlaps the checksum or is placed after the checksum.";
+			
+			// can't overlap existing fields
+			int proposedStartByte = location;
+			int proposedEndByte = proposedStartByte + processor.getByteCount() - 1;
+			for(Dataset dataset : getDatasetsList()) {
+				int existingStartByte = dataset.location;
+				int existingEndByte = existingStartByte + dataset.processor.getByteCount() - 1;
+				if(proposedStartByte >= existingStartByte && proposedStartByte <= existingEndByte)
+					return "Error: Can not place a field that overlaps an existing field."; // starting inside existing range
+				if(proposedEndByte >= existingStartByte && proposedEndByte <= existingEndByte)
+					return "Error: Can not place a field that overlaps an existing field."; // ending inside existing range
+				if(existingStartByte >= proposedStartByte && existingEndByte <= proposedEndByte)
+					return "Error: Can not place a field that overlaps an existing field."; // encompassing existing range
+			}
+			
+			// add the field
+			datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
+			return null;
+			
+		}
 		
 	}
 	
 	/**
 	 * Removes a specific dataset.
+	 * If any charts reference it, those charts will also be removed.
+	 * If no datasets exist any more, timestamps will also be removed.
 	 * 
-	 * @return    true on success, false if nothing existed there.
+	 * @param location    CSV column number, or Binary packet byte offset.
+	 * @return            null on success, or a user-friendly String describing why the field could not be removed.
 	 */
-	public static boolean removeDataset(int location) {
+	public static String removeDataset(int location) {
 		
+		// can't remove what doesn't exist
+		if(getDatasetByLocation(location) == null)
+			return "Error: No field exists at location " + location + ".";
+		
+		// remove corresponding charts
 		PositionedChart[] charts = ChartsController.getCharts().toArray(new PositionedChart[0]);
 		for(PositionedChart chart : charts)
 			if(chart.datasets != null)
@@ -74,9 +221,9 @@ public class DatasetsController {
 						ChartsController.removeChart(chart);
 		
 		Dataset removedDataset = datasets.remove(location);
-		if(removedDataset != null)
-			removedDataset.floats.dispose();
+		removedDataset.floats.dispose();
 		
+		// remove timestamps if nothing is left
 		if(datasets.isEmpty()) {
 			timestamps.clear();
 			sampleCount.set(0);
@@ -86,10 +233,8 @@ public class DatasetsController {
 			OpenGLChartsView.instance.switchToLiveView();
 		}
 		
-		if(removedDataset == null)
-			return false;
-		else
-			return true;
+		// success
+		return null;
 		
 	}
 	
@@ -98,22 +243,15 @@ public class DatasetsController {
 	 */
 	public static void removeAllDatasets() {
 		
-		ChartsController.removeAllCharts();
+		for(Dataset dataset : getDatasetsList())
+			removeDataset(dataset.location);
 		
-		for(Dataset dataset : getAllDatasets())
-			dataset.floats.dispose();
-		datasets.clear();
-		
-		timestamps.clear();
-		sampleCount.set(0);
-		firstTimestamp = 0;
-		
+		ChartsController.removeAllCharts(); // also remove cameras
 		for(Camera camera : cameras.keySet())
 			camera.dispose();
 		cameras.clear();
 		
-		CommunicationView.instance.allowExporting(false);
-		OpenGLChartsView.instance.switchToLiveView();
+		removeChecksum();
 		
 	}
 	
@@ -129,7 +267,7 @@ public class DatasetsController {
 	 */
 	public static void removeAllData() {
 		
-		for(Dataset dataset : getAllDatasets())
+		for(Dataset dataset : getDatasetsList())
 			dataset.floats.clear();
 		
 		timestamps.clear();
@@ -147,9 +285,151 @@ public class DatasetsController {
 	/**
 	 * @return    The Datasets.
 	 */
-	public static Dataset[] getAllDatasets() {
+	public static List<Dataset> getDatasetsList() {
 		
-		return datasets.values().toArray(new Dataset[datasets.size()]);
+		return new ArrayList<Dataset>(datasets.values());
+		
+	}
+	
+	/**
+	 * Adds a checksum field to the data structure if possible.
+	 * 
+	 * @param location     Binary packet byte offset.
+	 * @param processor    The type of checksum field.
+	 * @return             null on success, or a user-friendly String describing why the checksum field could not be added.
+	 */
+	public static String insertChecksum(int location, BinaryChecksumProcessor processor) {
+		
+		if(CommunicationController.isPacketTypeCsv())
+			return "Error: CSV mode does not support checksums.";
+
+		if(checksumProcessor != null)
+			return "Error: A checksum field already exists.";
+		
+		if(location == 0)
+			return "Error: A checksum field can not overlap with the sync word.";
+		
+		for(Dataset d : getDatasetsList())
+			if(location <= d.location + d.processor.getByteCount() - 1)
+				return "Error: A checksum field can not be placed in front of existing fields.";
+		
+		if((location - 1) % processor.getByteCount() != 0)
+			return "Error: The checksum must be aligned. The number of bytes before the checksum, not counting the sync word, must be a multiple of " + processor.getByteCount() + " for this checksum type.";
+		
+		// add the checksum processor
+		checksumProcessor = processor;
+		checksumProcessorOffset = location;
+		
+		// no errors
+		return null;
+		
+	}
+	
+	/**
+	 * Removes the checksum field from the data structure if possible.
+	 * 
+	 * @return    null on success, or a user-friendly String describing why the checksum field could not be removed.
+	 */
+	public static String removeChecksum() {
+		
+		if(CommunicationController.isPacketTypeCsv())
+			return "Error: CSV mode does not support checksums.";
+		
+		if(checksumProcessor == null)
+			return "Error: There is no checksum processor to remove.";
+		
+		// remove the checksum processor
+		checksumProcessor = null;
+		checksumProcessorOffset = -1;
+		return null;
+		
+	}
+	
+	/**
+	 * Tests if a telemetry packet contains a valid checksum.
+	 * 
+	 * @param packet          The packet, WITHOUT the sync word.
+	 * @param packetLength    Length of the packet, WITHOUT the sync word.
+	 * @return                True if the checksum is good or not used, false if the checksum failed.
+	 */
+	public static boolean checksumPassed(byte[] packet, int offset, int packetLength) {
+		
+		if(checksumProcessor == null) // no checksum
+			return true;
+		
+		if(checksumProcessor.testChecksum(packet, offset, packetLength)) // checksum passed
+			return true;
+		
+		// checksum failed
+		StringBuilder message = new StringBuilder(1024);
+		message.append("A corrupt telemetry packet was received:\n");
+		for(int i = 0; i < packetLength; i++)
+			message.append(String.format("%02X ", packet[offset + i]));
+		NotificationsController.showFailureForSeconds(message.toString(), 5, false);
+		return false;
+		
+	}
+	
+	/**
+	 * @return    The first unoccupied CSV column number or byte offset, or -1 if they are all occupied.
+	 */
+	public static int getFirstAvailableLocation() {
+		
+		if(CommunicationController.isPacketTypeCsv()) {
+			
+			// the packet is empty
+			if(DatasetsController.getDatasetsList().isEmpty())
+				return 0;
+			
+			// check for a sparse layout
+			int maxOccupiedLocation = 0;
+			for(Dataset d : getDatasetsList())
+				if(d.location > maxOccupiedLocation)
+					maxOccupiedLocation = d.location;
+			for(int i = 0; i < maxOccupiedLocation; i++)
+				if(getDatasetByLocation(i) == null)
+					return i;
+			
+			// layout is not sparse
+			return maxOccupiedLocation + 1;
+			
+		} else {
+			
+			// the packet is empty
+			if(DatasetsController.getDatasetsList().isEmpty())
+				return 1;
+			
+			// if a checksum exists, check for an opening before it
+			if(checksumProcessor != null) {
+				for(int i = 1; i < checksumProcessorOffset; i++) {
+					boolean available = true;
+					for(Dataset d : getDatasetsList())
+						if(i >= d.location && i <= d.location + d.processor.getByteCount() - 1)
+							available = false;
+					if(available)
+						return i;
+				}
+				return -1; // all bytes before the checksum are occupied
+			}
+			
+			// if no checksum, check for a sparse layout
+			int maxOccupiedLocation = 0;
+			for(Dataset d : getDatasetsList())
+				if(d.location + d.processor.getByteCount() - 1 > maxOccupiedLocation)
+					maxOccupiedLocation = d.location + d.processor.getByteCount() - 1;
+			for(int i = 1; i < maxOccupiedLocation; i++) {
+				boolean available = true;
+				for(Dataset d : getDatasetsList())
+					if(i >= d.location && i <= d.location + d.processor.getByteCount() - 1)
+						available = false;
+				if(available)
+					return i;
+			}
+			
+			// layout is not sparse
+			return maxOccupiedLocation + 1;
+			
+		}
 		
 	}
 	
@@ -164,6 +444,34 @@ public class DatasetsController {
 		
 		int newSampleCount = sampleCount.incrementAndGet();
 		if(newSampleCount == 1) {
+			firstTimestamp = timestamp;
+			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
+				CommunicationView.instance.allowExporting(true);
+		}
+		
+	}
+	
+	/**
+	 * Increments the sample count by an entire block, and processes any bitfields in that block.
+	 * Call this function after all datasets have received a block of values from a live connection.
+	 */
+	public static void incrementSampleCountBlock() {
+		
+		long timestamp = System.currentTimeMillis();
+		timestamps.fillBlock(timestamp);
+		
+		for(Dataset d : getDatasetsList()) {
+			if(d.isBitfield) {
+				int sampleNumber = sampleCount.get();
+				for(int i = 0; i < StorageFloats.BLOCK_SIZE; i++)
+					for(Dataset.Bitfield bitfield : d.bitfields)
+						bitfield.processValue((int) d.getSample(sampleNumber), sampleNumber++);
+			}
+		}
+		
+		boolean wasZero = sampleCount.get() == 0;
+		sampleCount.addAndGet(StorageFloats.BLOCK_SIZE);
+		if(wasZero) {
 			firstTimestamp = timestamp;
 			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
 				CommunicationView.instance.allowExporting(true);
@@ -294,11 +602,52 @@ public class DatasetsController {
 	 */
 	public static void flushOldValues() {
 		
-		for(Dataset d : getAllDatasets())
+		for(Dataset d : getDatasetsList())
 			d.floats.moveOldValuesToDisk();
 		
 		timestamps.moveOldValuesToDisk();
 		
+	}
+	
+	public interface BinaryFieldProcessor {
+		
+		/**
+		 * @return    Description for this field's data type. This will be displayed in the DataStructureBinaryView, and written to any saved settings files.
+		 */
+		public String toString();
+		
+		/**
+		 * @return    Number of bytes used by this field.
+		 */
+		public int getByteCount();
+		
+		/**
+		 * @param buffer    Unprocessed telemetry packet, without the sync word.
+		 * @param offset    Where in the buffer this value starts.
+		 * @return          The corresponding number, as a float. This number has *not* been scaled by the Dataset conversion factors.
+		 */
+		public float extractValue(byte[] buffer, int offset);
+
+	}
+	
+	public interface BinaryChecksumProcessor {
+		
+		/**
+		 * @return    Description for this type of checksum processor. This will be displayed in the DataStructureBinaryView, and written to any saved settings files.
+		 */
+		public String toString();
+		
+		/**
+		 * @return    Number of bytes occupied by the checksum field.
+		 */
+		public int getByteCount();
+		
+		/**
+		 * @param bytes    All of the packet bytes *after* (not including!) the sync word.
+		 * @return         True if the checksum is valid, false otherwise.
+		 */
+		public boolean testChecksum(byte[] bytes, int offset, int length);
+
 	}
 	
 }

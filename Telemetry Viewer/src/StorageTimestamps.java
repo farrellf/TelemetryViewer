@@ -7,14 +7,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+
 import com.jogamp.common.nio.Buffers;
 
 public class StorageTimestamps {
 	
 	// timestamps are buffered into "slots" which each hold 1M values.
 	// to speed up timestamp queries, the min and max value is tracked for smaller "blocks" of 1K values.
-	private final int BLOCK_SIZE = 1024;    // 1K
-	private final int SLOT_SIZE  = 1048576; // 1M
+	private final int BLOCK_SIZE = StorageFloats.BLOCK_SIZE;
+	private final int SLOT_SIZE  = StorageFloats.SLOT_SIZE;
 	private final int MAX_SAMPLE_NUMBER = Integer.MAX_VALUE;
 	private final int BYTES_PER_VALUE = 8; // 8 bytes per long
 	
@@ -85,6 +87,30 @@ public class StorageTimestamps {
 		}
 		
 		sampleCount++;
+		
+	}
+	
+	/**
+	 * Set the timestamp for an entire block, and sets the min/max records.
+	 * This method must only be called if the current sample count is a multiple of the block size.
+	 * This method is NOT reentrant! Only one thread may call this at a time.
+	 * 
+	 * @param value    The new value.
+	 */
+	public void fillBlock(long value) {
+		
+		int slotN      = sampleCount / SLOT_SIZE;
+		int slotOffset = sampleCount % SLOT_SIZE;
+		int blockN     = sampleCount / BLOCK_SIZE;
+		
+		if(slotOffset == 0)
+			slot[slotN] = new Slot();
+		
+		Arrays.fill(slot[slotN].value, slotOffset, slotOffset + BLOCK_SIZE, value);
+		minimumValueInBlock[blockN] = value;
+		maximumValueInBlock[blockN] = value;
+		
+		sampleCount += BLOCK_SIZE;
 		
 	}
 	
@@ -324,6 +350,15 @@ public class StorageTimestamps {
 			// skip this slot if it is already moved to disk
 			if(slot[slotN].flushing || !slot[slotN].inRam)
 				continue;
+			
+			// in stress test mode just delete the data
+			// because even high-end SSDs will become the bottleneck
+			if(CommunicationController.getPort().equals(CommunicationController.PORT_STRESS_TEST_MODE)) {
+				slot[slotN].inRam = false;
+				slot[slotN].value = null;
+				slot[slotN].flushing = false;
+				continue;
+			}
 			
 			// move this slot to disk
 			final int SLOT_N = slotN;

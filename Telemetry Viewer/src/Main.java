@@ -50,7 +50,7 @@ public class Main {
 		
 		// size the window
 		int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
-		int dataStructureViewWidth = Integer.max(PacketCsv.instance.getDataStructureGui().getPreferredSize().width, PacketBinary.instance.getDataStructureGui().getPreferredSize().width);
+		int dataStructureViewWidth = Integer.max(DataStructureCsvView.getUpdatedGui().getPreferredSize().width, DataStructureBinaryView.getUpdatedGui().getPreferredSize().width);
 		int configureViewWidth = ConfigureView.instance.getPreferredSize().width;
 		int notificationHeight = NotificationsView.instance.getPreferredSize().height;
 		int settingsViewHeight = SettingsView.instance.preferredSize.height;
@@ -129,8 +129,8 @@ public class Main {
 				if(c == OpenGLChartsView.instance)
 					return;
 					
-			window.remove(PacketBinary.BinaryDataStructureGui.instance);
-			window.remove(PacketCsv.CsvDataStructureGui.instance);
+			window.remove(DataStructureBinaryView.getUpdatedGui());
+			window.remove(DataStructureCsvView.getUpdatedGui());
 			window.add(OpenGLChartsView.instance, BorderLayout.CENTER);
 			window.revalidate();
 			window.repaint();

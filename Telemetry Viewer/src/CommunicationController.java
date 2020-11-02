@@ -14,36 +14,51 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.function.Consumer;
 
+import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+
 import com.fazecast.jSerialComm.SerialPort;
 
+/**
+ * CommunicationController receives a stream of telemetry (via UART/TCP/UDP/File) and if checksums are used, discards bad packets.
+ * CommunicationController and DatasetsController then processes the received telemetry (extracting numbers/bools/enums, and storing them in memory or on disk.)
+ * ChartsController reads telemetry from memory or disk, and visualizes it on screen.
+ */
 public class CommunicationController {
 	
-	public final static String PORT_UART = "UART"; // the DUT sends data over a serial port
-	public final static String PORT_TCP  = "TCP";  // the DUT is a TCP client, so we spawn a TCP server
-	public final static String PORT_UDP  = "UDP";  // the DUT sends UDP packets, so we listen for them
-	public final static String PORT_TEST = "Test"; // dummy mode that generates test waveforms
-	public final static String PORT_FILE = "File"; // dummy mode for importing CSV log files
+	public final static String PORT_UART             = "UART";             // telemetry received from a serial port
+	public final static String PORT_TCP              = "TCP";              // telemetry received from a TCP client (we are the server)
+	public final static String PORT_UDP              = "UDP";              // telemetry received from UDP packets (we listen for them)
+	public final static String PORT_DEMO_MODE        = "Demo Mode";        // dummy mode that generates test waveforms
+	public final static String PORT_STRESS_TEST_MODE = "Stress Test Mode"; // dummy mode that floods the PC with simulated telemetry as fast as possible
+	public final static String PORT_FILE             = "File";             // telemetry imported from a CSV log file
 	
 	// volatile fields shared with threads
 	private static Thread receiverThread;
+	private static Thread processorThread;
 	private static volatile boolean connected = false;
 	private static volatile String importFilePath = null;
+	private static volatile boolean dataStructureDefined = false;
+	public static final byte syncWord = (byte) 0xAA;
 	
 	private static String port = PORT_UART;
 	private static String portUsedBeforeImport = null;
-	private static Packet packet = PacketCsv.instance;
-	private static int    sampleRate = 10000;
-	private static int    uartBaudRate = 9600;
-	private static int    tcpUdpPort = 8080;
+	private static boolean csvMode = true; // false = binary mode
+	private static int sampleRate = 10000;
+	private static int uartBaudRate = 9600;
+	private static int tcpUdpPort = 8080;
 	private final static int MAX_TCP_IDLE_MILLISECONDS = 10000; // if connected but no new samples after than much time, disconnect and wait for a new connection
 	private final static int MAX_UDP_PACKET_SIZE = 65507; // 65535 - (8byte UDP header) - (20byte IP header)
 	
@@ -70,7 +85,7 @@ public class CommunicationController {
 	 * Sets the port and updates the GUI.
 	 * If a connection currently exists, it will be closed first.
 	 * 
-	 * @param newPort    Communication.PORT_UART + ": port name" or .PORT_TCP or .PORT_UDP or .PORT_TEST or .PORT_FILE
+	 * @param newPort    One of the options from getPorts() or CommunicationController.PORT_FILE.
 	 */
 	public static void setPort(String newPort) {
 		
@@ -82,19 +97,22 @@ public class CommunicationController {
 		if(!newPort.startsWith(PORT_UART + ": ") &&
 		   !newPort.equals(PORT_TCP) &&
 		   !newPort.equals(PORT_UDP) &&
-		   !newPort.equals(PORT_TEST) &&
+		   !newPort.equals(PORT_DEMO_MODE) &&
+		   !newPort.equals(PORT_STRESS_TEST_MODE) &&
 		   !newPort.equals(PORT_FILE))
 			return;
 		
 		// prepare
 		if(isConnected())
 			disconnect(null);
-		if(port == PORT_TEST && newPort != PORT_TEST && newPort != PORT_FILE) {
-			ChartsController.removeAllCharts();
-			packet.reset();
-		}
 		
-		// set
+		// if leaving a test mode, reset the data structure
+		if(port == PORT_DEMO_MODE && newPort != PORT_DEMO_MODE)
+			DatasetsController.removeAllDatasets();
+		if(port == PORT_STRESS_TEST_MODE && newPort != PORT_STRESS_TEST_MODE)
+			DatasetsController.removeAllDatasets();
+		
+		// set and update the GUI
 		if(port != PORT_FILE && newPort.equals(PORT_FILE))
 			portUsedBeforeImport = port;
 		port = newPort;
@@ -103,7 +121,7 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * @return    The current port (Communication.MODE_UART + ": port name" or .MODE_TCP or .MODE_UDP or .MODE_TEST or .MODE_FILE)
+	 * @return    The current port (one of the options from getPorts(), or CommunicationController.PORT_FILE.)
 	 */
 	public static String getPort() {
 		
@@ -112,21 +130,22 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Gets names for every supported port (every serial port + TCP + UDP + Test)
+	 * Gets names for every supported port (every UART + TCP + UDP + Demo Mode + Stress Test Mode.)
 	 *  
 	 * @return    A String[] of port names.
 	 */
 	public static String[] getPorts() {
 		
 		SerialPort[] ports = SerialPort.getCommPorts();
-		String[] names = new String[ports.length + 3];
+		String[] names = new String[ports.length + 4];
 		
 		for(int i = 0; i < ports.length; i++)
 			names[i] = "UART: " + ports[i].getSystemPortName();
 		
-		names[names.length - 3] = PORT_TCP;
-		names[names.length - 2] = PORT_UDP;
-		names[names.length - 1] = PORT_TEST;
+		names[names.length - 4] = PORT_TCP;
+		names[names.length - 3] = PORT_UDP;
+		names[names.length - 2] = PORT_DEMO_MODE;
+		names[names.length - 1] = PORT_STRESS_TEST_MODE;
 		
 		port = names[0];
 		
@@ -135,49 +154,35 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Sets the packet type, empties the packet, and updates the GUI.
+	 * Sets the packet type and updates the GUI.
 	 * If a connection currently exists, it will be closed first.
-	 * Any existing charts and datasets will be removed.
+	 * If the packet type is changing, the data structure will be reset (which also removes all charts.)
 	 * 
-	 * @param newType    One of the options from getPacketTypes().
+	 * @param isCsvMode    True for CSV mode, or false for Binary mode.
 	 */
-	public static void setPacketType(String newType) {
+	public static void setPacketTypeCsv(boolean isCsvMode) {
 		
 		// ignore if unchanged
-		if((newType.equals("CSV") && packet == PacketCsv.instance) || (newType.equals("Binary") && packet == PacketBinary.instance))
-			return;
-		
-		// sanity check
-		if(!newType.equals("CSV") &&
-		   !newType.equals("Binary"))
+		if((isCsvMode && csvMode) || (!isCsvMode && !csvMode))
 			return;
 		
 		// prepare
 		if(isConnected())
 			disconnect(null);
 		
-		// set
-		packet = newType.equals("CSV") ? PacketCsv.instance : PacketBinary.instance;
-		packet.reset();
-		CommunicationView.instance.setPacketType(newType);
+		// set and update the GUI
+		csvMode = isCsvMode;
+		DatasetsController.removeAllDatasets();
+		CommunicationView.instance.setPacketTypeCsv(isCsvMode);
 		
 	}
 	
 	/**
-	 * @return    The current packet type.
+	 * @return    True for CSV mode, or false for binary mode.
 	 */
-	public static String getPacketType() {
+	public static boolean isPacketTypeCsv() {
 		
-		return packet.toString();
-		
-	}
-	
-	/**
-	 * @return    A String[] of the supported packet types.
-	 */
-	public static String[] getPacketTypes() {
-		
-		return new String[] {"CSV", "Binary"};
+		return csvMode;
 		
 	}
 	
@@ -186,7 +191,7 @@ public class CommunicationController {
 	 */
 	public static JPanel getDataStructureGui() {
 		
-		return packet.getDataStructureGui();
+		return csvMode ? DataStructureCsvView.getUpdatedGui() : DataStructureBinaryView.getUpdatedGui();
 		
 	}
 	
@@ -316,7 +321,7 @@ public class CommunicationController {
 	/**
 	 * @return    The possible local IP addresses, with the port number appended.
 	 */
-	public static String getLoclIpAddress() {
+	public static String getLocalIpAddress() {
 		
 		return localIp + ":" + tcpUdpPort;
 		
@@ -332,11 +337,330 @@ public class CommunicationController {
 	}
 	
 	/**
+	 * Specifies if the data structure has been defined, which would allow incoming data to be processed.
+	 * 
+	 * @param isDefined    True if the data structure has been defined.
+	 */
+	public static void setDataStructureDefined(boolean isDefined) {
+		
+		dataStructureDefined = isDefined;
+		
+	}
+	
+	/**
 	 * @return    True if the data structure has been defined.
 	 */
 	public static boolean isDataStructureDefined() {
 		
-		return packet.dataStructureDefined;
+		return dataStructureDefined;
+		
+	}
+	
+	/**
+	 * Spawns a new thread that starts processing received telemetry packets.
+	 * 
+	 * @param stream    Bytes of received telemetry.
+	 */
+	private static void startProcessingTelemetry(SharedByteStream stream) {
+		
+		processorThread = new Thread(() -> {
+			
+			// wait for the data structure to be defined
+			while(!dataStructureDefined) {
+				try {
+					Thread.sleep(1);
+				} catch (InterruptedException e) {
+					return;
+				}
+			}
+			
+			// cache a list of the datasets
+			List<Dataset> datasets = DatasetsController.getDatasetsList();
+			
+			// if no telemetry after 100ms, notify the user
+			String waitingForTelemetry = getPort().startsWith(PORT_UART) ? getPort().substring(6) + " is connected. Send telemetry." :
+			                             getPort().equals(PORT_TCP)      ? "The TCP server is running. Send telemetry to " + getLocalIpAddress() :
+			                             getPort().equals(PORT_UDP)      ? "The UDP listener is running. Send telemetry to " + getLocalIpAddress() : "";
+			String receivingTelemetry  = getPort().startsWith(PORT_UART) ? getPort().substring(6) + " is connected and receiving telemetry." :
+			                             getPort().equals(PORT_TCP)      ? "The TCP server is running and receiving telemetry." :
+			                             getPort().equals(PORT_UDP)      ? "The UDP listener is running and receiving telemetry." : "";
+			int oldSampleCount = DatasetsController.getSampleCount();
+			Timer t = new Timer(100, event -> {
+				
+				if(getPort().equals(PORT_DEMO_MODE) || getPort().equals(PORT_STRESS_TEST_MODE))
+					return;
+				
+				if(isConnected()) {
+					if(DatasetsController.getSampleCount() == oldSampleCount)
+						NotificationsController.showHintUntil(waitingForTelemetry, () -> DatasetsController.getSampleCount() > oldSampleCount, true);
+					else
+						NotificationsController.showVerboseForSeconds(receivingTelemetry, 5, true);
+				}
+				
+			});
+			t.setRepeats(false);
+			t.start();
+			
+			if(csvMode) {
+				
+				// prepare for CSV mode
+				stream.setPacketSize(0);
+				int maxLocation = 0;
+				for(Dataset d : datasets)
+					if(d.location > maxLocation)
+						maxLocation = d.location;
+				float[] numberForLocation = new float[maxLocation + 1];
+				String line = null;
+				
+				while(true) {
+					
+					try {
+
+						if(Thread.interrupted())
+							throw new InterruptedException();
+						
+						// read and parse each line of text
+						line = stream.readLine();
+						String[] tokens = line.split(",");
+						for(int i = 0; i < numberForLocation.length; i++)
+							numberForLocation[i] = Float.parseFloat(tokens[i]);
+						int sampleNumber = DatasetsController.getSampleCount();
+						for(Dataset d : datasets)
+							d.setSample(sampleNumber, numberForLocation[d.location]);
+						DatasetsController.incrementSampleCount();
+						
+					} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
+						
+						NotificationsController.showFailureForSeconds("A corrupt or incomplete telemetry packet was received:\n\"" + line + "\"", 5, false);
+						
+					} catch(InterruptedException e2) {
+						
+						return;
+						
+					}
+					
+				}
+				
+			} else {
+				
+				// prepare for binary mode 
+				int packetLength = 0; // INCLUDING the sync word and optional checksum
+				if(DatasetsController.checksumProcessor != null)
+					packetLength = DatasetsController.checksumProcessorOffset + DatasetsController.checksumProcessor.getByteCount();
+				else
+					for(Dataset d : datasets)
+						if(d.location + d.processor.getByteCount() - 1 > packetLength)
+							packetLength = d.location + d.processor.getByteCount();
+				stream.setPacketSize(packetLength);
+				
+				// use multiple threads to process incoming data in parallel, with each thread parsing up to 8 blocks at a time
+				final int THREAD_COUNT = Runtime.getRuntime().availableProcessors();
+				final int MAX_BLOCK_COUNT_PER_THREAD = 8;
+				CyclicBarrier allThreadsDone = new CyclicBarrier(THREAD_COUNT + 1);
+				Parser[] parsingThreads = new Parser[THREAD_COUNT];
+				for(int i = 0; i < THREAD_COUNT; i++)
+					parsingThreads[i] = new Parser(datasets, packetLength, MAX_BLOCK_COUNT_PER_THREAD, allThreadsDone);
+				
+				while(true) {
+					
+					try {
+						
+						if(Thread.interrupted())
+							throw new InterruptedException();
+						
+						// get all received telemetry packets, stopping early if there is a loss of sync or bad checksum
+						SharedByteStream.PacketsBuffer packets = stream.readPackets(syncWord);
+						
+						// process the received telemetry packets
+						while(packets.count > 0) {
+							
+							int sampleNumber = DatasetsController.getSampleCount();
+							boolean blockAligned = sampleNumber % StorageFloats.BLOCK_SIZE == 0;
+							int blocksRemaining = packets.count / StorageFloats.BLOCK_SIZE;
+							
+							if(blockAligned && blocksRemaining >= THREAD_COUNT) {
+								
+								// use the Parser threads to parse packets in parallel
+								int blocksPerThread = Integer.min(blocksRemaining / THREAD_COUNT, MAX_BLOCK_COUNT_PER_THREAD);
+								int packetsPerThread = StorageFloats.BLOCK_SIZE * blocksPerThread;
+								for(Parser thread : parsingThreads) {
+									thread.process(packets.buffer, packets.offset, blocksPerThread, sampleNumber);
+									packets.offset += packetLength * packetsPerThread;
+									packets.count  -= packetsPerThread;
+									sampleNumber   += packetsPerThread;
+								}
+								allThreadsDone.await();
+								allThreadsDone.reset();
+								for(int i = 0; i < blocksPerThread * THREAD_COUNT; i++)
+									DatasetsController.incrementSampleCountBlock();
+								
+							} else {
+								
+								// process packets individually
+								for(Dataset dataset : datasets) {
+									float rawNumber = dataset.processor.extractValue(packets.buffer, packets.offset + dataset.location);
+									dataset.setSample(sampleNumber, rawNumber);
+								}
+								DatasetsController.incrementSampleCount();
+								packets.count--;
+								packets.offset += packetLength;
+								
+							}
+
+						}
+					
+					} catch(InterruptedException | BrokenBarrierException e) {
+						
+						for(Parser thread : parsingThreads)
+							thread.dispose();
+						return;
+						
+					}
+					
+				}
+				
+			}
+			
+		});
+		
+		processorThread.setPriority(Thread.MAX_PRIORITY);
+		processorThread.setName("Telemetry Processing Thread");
+		processorThread.start();
+		
+	}
+	
+	private static class Parser {
+		
+		private final Thread thread;
+		private final CyclicBarrier newData;    // used to indicate when new data is ready to be parsed
+		
+		private volatile byte[] buffer;         // stream of telemetry packets
+		private volatile int offset;            // where in the buffer this object should start parsing
+		private volatile int blockCount;        // how many blocks this thread should parse
+		private volatile int firstSampleNumber; // which sample number the first packet corresponds to
+		
+		private final float[][] minimumValue;   // [blockN][datasetN]
+		private final float[][] maximumValue;   // [blockN][datasetN]
+		
+		/**
+		 * Configures this object, but does not start to parse any data.
+		 * 
+		 * @param datasets           List of Datasets that receive the parsed data.
+		 * @param packetByteCount    Number of bytes in each packet INCLUDING the sync word and optional checksum.
+		 * @param maxBlockCount      Maximum number of blocks that should be parsed by this object.
+		 * @param allThreadsDone     Barrier to await on after the data has been parsed.
+		 */
+		public Parser(List<Dataset> datasets, int packetByteCount, int maxBlockCount, CyclicBarrier allThreadsDone) {
+			
+			minimumValue = new float[maxBlockCount][datasets.size()];
+			maximumValue = new float[maxBlockCount][datasets.size()];
+			
+			newData = new CyclicBarrier(2);
+			thread = new Thread(() -> {
+				
+				while(true) {
+					
+					try {
+						
+						// wait for data to parse
+						newData.await();
+						
+						float[][] slots = new float[datasets.size()][];
+							
+						// parse each packet of each block
+						for(int blockN = 0; blockN < blockCount; blockN++) {
+							
+							for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+								slots[datasetN] = datasets.get(datasetN).getSlot(firstSampleNumber + (blockN * StorageFloats.BLOCK_SIZE));
+							
+							int slotOffset = (firstSampleNumber + (blockN * StorageFloats.BLOCK_SIZE)) % StorageFloats.SLOT_SIZE;
+							float[] minVal = minimumValue[blockN];
+							float[] maxVal = maximumValue[blockN];
+							for(int packetN = 0; packetN < StorageFloats.BLOCK_SIZE; packetN++) {
+								
+								for(int datasetN = 0; datasetN < datasets.size(); datasetN++) {
+									Dataset d = datasets.get(datasetN);
+									float f = d.processor.extractValue(buffer, offset + d.location) * d.conversionFactor;
+									slots[datasetN][slotOffset] = f;
+									if(f < minVal[datasetN])
+										minVal[datasetN] = f;
+									if (f > maxVal[datasetN])
+										maxVal[datasetN] = f;
+								}
+								
+								offset += packetByteCount;
+								slotOffset++;
+								
+							}
+						}
+						
+						// update datasets
+						for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+							for(int blockN = 0; blockN < blockCount; blockN++)
+								datasets.get(datasetN).setRangeOfBlock(firstSampleNumber + (blockN * StorageFloats.BLOCK_SIZE), minimumValue[blockN][datasetN], maximumValue[blockN][datasetN]);
+						
+						// done
+						allThreadsDone.await();
+							
+					} catch(InterruptedException | BrokenBarrierException e) {
+						return;
+					}
+				}
+				
+			});
+			
+			thread.setPriority(Thread.MAX_PRIORITY);
+			thread.setName("Parser Thread");
+			thread.start();
+			
+		}
+		
+		/**
+		 * Instructs this thread to start processing one or more blocks of packets.
+		 * Sync words and checksums are NOT tested here, they must be tested prior to this.
+		 * 
+		 * @param buffer               The byte[] containing telemetry packets.
+		 * @param offset               Index into the byte[] where this thread should start processing.
+		 * @param blockCount           Number of blocks to parse.
+		 * @param firstSampleNumber    Which sample number the first packet corresponds to.
+		 */
+		public void process(byte[] buffer, int offset, int blockCount, int firstSampleNumber) throws InterruptedException {
+			
+			this.buffer            = buffer;
+			this.offset            = offset;
+			this.blockCount        = blockCount;
+			this.firstSampleNumber = firstSampleNumber;
+			
+			try {
+				newData.await();
+				newData.reset();
+			} catch (BrokenBarrierException e) {
+				e.printStackTrace();
+			}
+			
+		}
+		
+		/**
+		 * Forces this thread to end. Blocks until done.
+		 */
+		public void dispose() {
+			
+			thread.interrupt();
+			while(thread.isAlive()); // wait
+			
+		}
+		
+	}
+	
+	/**
+	 * Stops the threads that process incoming telemetry packets, blocking until done.
+	 */
+	private static void stopProcessingTelemetry() {
+		
+		if(processorThread != null && processorThread.isAlive()) {
+			processorThread.interrupt();
+			while(processorThread.isAlive()); // wait
+		}
 		
 	}
 	
@@ -349,13 +673,14 @@ public class CommunicationController {
 		
 		NotificationsController.removeIfConnectionRelated();
 		
-		packet.dataStructureDefined = false;
+		dataStructureDefined = false;
 		
-		     if(port.startsWith(PORT_UART + ": ")) connectToUart(quiet);
-		else if(port.equals(PORT_TCP))             startTcpServer(quiet);
-		else if(port.equals(PORT_UDP))             startUdpServer(quiet);
-		else if(port.equals(PORT_TEST))            startTester(quiet);
-		else if(port.equals(PORT_FILE))            connectToFile();
+		     if(port.startsWith(PORT_UART + ": "))  connectToUart(quiet);
+		else if(port.equals(PORT_TCP))              startTcpServer(quiet);
+		else if(port.equals(PORT_UDP))              startUdpListener(quiet);
+		else if(port.equals(PORT_DEMO_MODE))        startDemo(quiet);
+		else if(port.equals(PORT_STRESS_TEST_MODE)) startStressTest();
+		else if(port.equals(PORT_FILE))             importCsvFile();
 		
 	}
 	
@@ -406,7 +731,7 @@ public class CommunicationController {
 	/**
 	 * Imports samples from a CSV file.
 	 */
-	private static void connectToFile() {
+	private static void importCsvFile() {
 		
 		CommunicationView.instance.allowImporting(false);
 		CommunicationView.instance.allowExporting(false);
@@ -474,6 +799,7 @@ public class CommunicationController {
 				long startTimeThread = System.currentTimeMillis();
 				long startTimeFile = Long.parseLong(line.split(",")[1]);
 				boolean realtimeImporting = true;
+				int sampleNumber = DatasetsController.getSampleCount();
 				while(true) {
 					tokens = line.split(",");
 					if(realtimeImporting) {
@@ -488,7 +814,8 @@ public class CommunicationController {
 						break; // not real-time, and interrupted again, so abort
 					}
 					for(int columnN = 2; columnN < columnCount; columnN++)
-						DatasetsController.getDatasetByIndex(columnN - 2).addConverted(Float.parseFloat(tokens[columnN]));
+						DatasetsController.getDatasetByIndex(columnN - 2).setConvertedSample(sampleNumber, Float.parseFloat(tokens[columnN]));
+					sampleNumber++;
 					DatasetsController.incrementSampleCountWithTimestamp(Long.parseLong(tokens[1]));
 					
 					if(file.hasNextLine()) {
@@ -558,7 +885,7 @@ public class CommunicationController {
 			
 			InputStream uart = uartPort.getInputStream();
 			SharedByteStream stream = new SharedByteStream();
-			packet.startReceivingData(stream);
+			startProcessingTelemetry(stream);
 			
 			// listen for packets
 			while(true) {
@@ -588,17 +915,15 @@ public class CommunicationController {
 						continue;
 					
 					// problem while reading from the UART
-					packet.stopReceivingData();
+					stopProcessingTelemetry();
 					uartPort.closePort();
 					SwingUtilities.invokeLater(() -> disconnect("Error while reading from the UART."));
 					return;
 					
 				}  catch(InterruptedException ie) {
 					
-					// thread got interrupted, so exit
-					packet.stopReceivingData();
+					stopProcessingTelemetry();
 					uartPort.closePort();
-					NotificationsController.showVerboseForSeconds("The UART receiver thread is stopping.", 5, false);
 					return;
 					
 				}
@@ -608,7 +933,7 @@ public class CommunicationController {
 		});
 		
 		receiverThread.setPriority(Thread.MAX_PRIORITY);
-		receiverThread.setName("UART Receiver");
+		receiverThread.setName("UART Receiver Thread");
 		receiverThread.start();
 		
 	}
@@ -642,7 +967,7 @@ public class CommunicationController {
 			if(!quiet)
 				Main.showDataStructureGui();
 			
-			packet.startReceivingData(stream);
+			startProcessingTelemetry(stream);
 			
 			// listen for a connection
 			while(true) {
@@ -695,7 +1020,7 @@ public class CommunicationController {
 						continue;
 					
 					// problem while accepting the socket connection, or getting the input stream, or reading from the input stream
-					packet.stopReceivingData();
+					stopProcessingTelemetry();
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
 					SwingUtilities.invokeLater(() -> disconnect("TCP connection failed."));
@@ -703,11 +1028,9 @@ public class CommunicationController {
 					
 				}  catch(InterruptedException ie) {
 					
-					// thread got interrupted, so exit.
-					packet.stopReceivingData();
+					stopProcessingTelemetry();
 					try { tcpSocket.close(); } catch(Exception e2) {}
 					try { tcpServer.close(); } catch(Exception e2) {}
-					NotificationsController.showVerboseForSeconds("The TCP Server thread is stopping.", 5, false);
 					return;
 					
 				}
@@ -723,11 +1046,11 @@ public class CommunicationController {
 	}
 	
 	/**
-	 * Spawns a UDP server and shows the DataStructureGUI if necessary.
+	 * Listens for UDP packets and shows the DataStructureGUI if necessary.
 	 * 
 	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void startUdpServer(boolean quiet) {
+	private static void startUdpListener(boolean quiet) {
 		
 		receiverThread = new Thread(() -> {
 			
@@ -751,7 +1074,7 @@ public class CommunicationController {
 			if(!quiet)
 				Main.showDataStructureGui();
 			
-			packet.startReceivingData(stream);
+			startProcessingTelemetry(stream);
 			
 			// listen for packets
 			byte[] buffer = new byte[MAX_UDP_PACKET_SIZE];
@@ -781,16 +1104,14 @@ public class CommunicationController {
 						continue;
 					
 					// problem while reading from the socket
-					packet.stopReceivingData();
+					stopProcessingTelemetry();
 					try { udpServer.close(); }   catch(Exception e) {}
 					SwingUtilities.invokeLater(() -> disconnect("UDP packet error."));
 					return;
 					
 				}  catch(InterruptedException ie) {
 					
-					// thread got interrupted while waiting for a connection, so exit.
-					packet.stopReceivingData();
-					NotificationsController.showVerboseForSeconds("The UDP Server thread is stopping.", 5, false);
+					stopProcessingTelemetry();
 					try { udpServer.close(); }   catch(Exception e) {}
 					return;
 					
@@ -801,21 +1122,166 @@ public class CommunicationController {
 		});
 		
 		receiverThread.setPriority(Thread.MAX_PRIORITY);
-		receiverThread.setName("UDP Server");
+		receiverThread.setName("UDP Listener Thread");
 		receiverThread.start();
 		
 	}
 	
 	/**
-	 * Starts transmission of the test data stream, and shows the DataStructureGUI if necessary.
+	 * Floods the PC with simulated telemetry as fast as possible.
+	 * This is for performance testing during development.
+	 * For most computers the bottleneck will be memory bandwidth, but the CPU/GPU will also be heavily taxed by this test.
+	 */
+	private static void startStressTest() {
+		
+		CommunicationController.disconnect(null);
+		ChartsController.removeAllCharts();
+		DatasetsController.removeAllDatasets();
+		
+		SettingsController.setTileColumns(6);
+		SettingsController.setTileRows(6);
+		SettingsController.setTimeFormat("Only Time");
+		SettingsController.setTimeFormat24hours(false);
+		SettingsController.setTooltipVisibility(true);
+		SettingsController.setSmoothScrolling(true);
+		SettingsController.setFpsVisibility(false);
+		SettingsController.setAntialiasingLevel(1);
+		
+		CommunicationController.setPort(PORT_STRESS_TEST_MODE);
+		CommunicationController.setBaudRate(9600);
+		CommunicationController.setPortNumber(8080);
+		CommunicationController.setPacketTypeCsv(false);
+		CommunicationController.setSampleRate(10000);
+		
+		DatasetsController.BinaryFieldProcessor processor = null;
+		for(DatasetsController.BinaryFieldProcessor p : DatasetsController.binaryFieldProcessors)
+			if(p.toString().equals("int16 LSB First"))
+				processor = p;
+		
+		DatasetsController.removeAllDatasets();
+		DatasetsController.insertDataset(1, processor, "a", Color.RED,   "", 1, 1);
+		DatasetsController.insertDataset(3, processor, "b", Color.GREEN, "", 1, 1);
+		DatasetsController.insertDataset(5, processor, "c", Color.BLUE,  "", 1, 1);
+		DatasetsController.insertDataset(7, processor, "d", Color.CYAN,  "", 1, 1);
+		
+		DatasetsController.BinaryChecksumProcessor checksumProcessor = null;
+		for(DatasetsController.BinaryChecksumProcessor p : DatasetsController.binaryChecksumProcessors)
+			if(p.toString().equals("uint16 Checksum LSB First"))
+				checksumProcessor = p;
+		DatasetsController.insertChecksum(9, checksumProcessor);
+		
+		dataStructureDefined = true;
+		
+		PositionedChart chart = ChartsController.createAndAddChart("Time Domain", 0, 0, 5, 5);
+		List<String> chartSettings = new ArrayList<String>();
+		chartSettings.add("normal datasets = 1");
+		chartSettings.add("bitfield edge states = ");
+		chartSettings.add("bitfield level states = ");
+		chartSettings.add("duration type = Samples");
+		chartSettings.add("duration = 10000000");
+		chartSettings.add("x-axis = Sample Count");
+		chartSettings.add("autoscale y-axis minimum = true");
+		chartSettings.add("manual y-axis minimum = -1.0");
+		chartSettings.add("autoscale y-axis maximum = true");
+		chartSettings.add("manual y-axis maximum = 1.0");
+		chartSettings.add("show x-axis title = true");
+		chartSettings.add("show x-axis scale = true");
+		chartSettings.add("show y-axis title = true");
+		chartSettings.add("show y-axis scale = true");
+		chartSettings.add("show legend = true");
+		chartSettings.add("cached mode = true");
+		chart.importChart(new QueueOfLines(chartSettings));
+		
+//		SettingsController.setBenchmarkedChart(chart);
+		
+		Main.window.setExtendedState(JFrame.NORMAL);
+		
+		receiverThread = new Thread(() -> {
+
+			SharedByteStream stream = new SharedByteStream();
+			CommunicationView.instance.setConnected(true);
+			connected = true;
+			startProcessingTelemetry(stream);
+
+			long bytesSent = 0;
+			final int repeat = 300;
+			byte[] buff = new byte[11*repeat]; // sync + 4 int16s + checksum
+			short a = 0;
+			short b = 1;
+			short c = 2;
+			short d = 3;
+			long start = System.currentTimeMillis();
+
+			while(true) {
+
+				try {
+					
+					if(Thread.interrupted() || !connected)
+						throw new InterruptedException();
+
+					int i = 0;
+					short checksum = 0;
+					
+					for(int n = 0; n < repeat; n++) {
+						buff[i++] = (byte) 0xAA;
+						buff[i++] = (byte) (a >> 0);
+						buff[i++] = (byte) (a >> 8);
+						buff[i++] = (byte) (b >> 0);
+						buff[i++] = (byte) (b >> 8);
+						buff[i++] = (byte) (c >> 0);
+						buff[i++] = (byte) (c >> 8);
+						buff[i++] = (byte) (d >> 0);
+						buff[i++] = (byte) (d >> 8);
+						
+						checksum = 0; // note: the checksum is a uint16, but java does not support unsigned math, so "& 0xFF" is used below to work around that
+						checksum += (buff[i-7] << 8) | (buff[i-8] & 0xFF);
+						checksum += (buff[i-5] << 8) | (buff[i-6] & 0xFF);
+						checksum += (buff[i-3] << 8) | (buff[i-4] & 0xFF);
+						checksum += (buff[i-1] << 8) | (buff[i-2] & 0xFF);
+						buff[i++] = (byte) ((checksum >> 0) & 0xFF);
+						buff[i++] = (byte) ((checksum >> 8) & 0xFF);
+					
+						a++;
+						b++;
+						c++;
+						d++;
+					}
+					
+					stream.write(buff, buff.length);
+					bytesSent += buff.length;
+					if(bytesSent % (500000*buff.length) == 0) {
+						long end = System.currentTimeMillis();
+						System.out.println(String.format("%1.1f Mbps, %d pps", (bytesSent / (double)(end-start) * 1000.0 * 8.0 / 1000000), (int)(bytesSent / 11 / (double)(end-start) * 1000.0)));
+						bytesSent = 0;
+						start = System.currentTimeMillis();
+					}
+					
+				}  catch(InterruptedException ie) {
+					
+					stopProcessingTelemetry();
+					return;
+					
+				}
+			
+			}
+			
+		});
+		
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("Stress Test Simulator Thread");
+		receiverThread.start();
+		
+	}
+	
+	/**
+	 * Starts transmission of a test data stream, and shows the DataStructureGUI if necessary.
 	 * 
 	 * @param quiet    If true, don't show the Data Structure GUI and don't show hint notifications.
 	 */
-	private static void startTester(boolean quiet) {
+	private static void startDemo(boolean quiet) {
 		
 		// force specific settings
-		if(!getPacketType().equals("CSV"))
-			setPacketType("CSV");
+		setPacketTypeCsv(true);
 		setSampleRate(10000);
 		setBaudRate(9600);
 		
@@ -840,6 +1306,7 @@ public class CommunicationController {
 		receiverThread = new Thread(() -> {
 			
 			double counter = 0;
+			int sampleNumber = DatasetsController.getSampleCount();
 			
 			while(true) {
 				float scalar = ((System.currentTimeMillis() % 30000) - 15000) / 100.0f;
@@ -849,25 +1316,26 @@ public class CommunicationController {
 					(System.nanoTime() / 100 % 100) * scalar * 0.6f / 14000f
 				};
 				for(int i = 0; i < 10; i++) {
-					DatasetsController.getDatasetByIndex(0).add(newSamples[0]);
-					DatasetsController.getDatasetByIndex(1).add(newSamples[1]);
-					DatasetsController.getDatasetByIndex(2).add(newSamples[2]);
-					DatasetsController.getDatasetByIndex(3).add((float) Math.sin(2 * Math.PI * 1000 * counter));
+					DatasetsController.getDatasetByIndex(0).setSample(sampleNumber, newSamples[0]);
+					DatasetsController.getDatasetByIndex(1).setSample(sampleNumber, newSamples[1]);
+					DatasetsController.getDatasetByIndex(2).setSample(sampleNumber, newSamples[2]);
+					DatasetsController.getDatasetByIndex(3).setSample(sampleNumber, (float) Math.sin(2 * Math.PI * 1000 * counter));
 					counter += 0.0001;
+					sampleNumber++;
 					DatasetsController.incrementSampleCount();
 				}
 				
 				try {
 					Thread.sleep(1);
 				} catch(InterruptedException e) {
-					return; // stop and end this thread if we get interrupted
+					return;
 				}
 			}
 			
 		});
 		
 		receiverThread.setPriority(Thread.MAX_PRIORITY);
-		receiverThread.setName("Test Data Server");
+		receiverThread.setName("Demo Waveform Simulator Thread");
 		receiverThread.start();
 		
 		CommunicationView.instance.setConnected(true);
@@ -1084,13 +1552,13 @@ public class CommunicationController {
 			file.println("\tport = "                + CommunicationController.getPort());
 			file.println("\tuart baud rate = "      + CommunicationController.getBaudRate());
 			file.println("\ttcp/udp port number = " + CommunicationController.getPortNumber());
-			file.println("\tpacket type = "         + CommunicationController.getPacketType());
+			file.println("\tpacket type = "         + (CommunicationController.isPacketTypeCsv() ? "CSV" : "Binary"));
 			file.println("\tsample rate = "         + CommunicationController.getSampleRate());
 			file.println("");
 			
 			file.println(DatasetsController.getDatasetsCount() + " Data Structure Locations:");
 			
-			for(Dataset dataset : DatasetsController.getAllDatasets()) {
+			for(Dataset dataset : DatasetsController.getDatasetsList()) {
 				
 				file.println("");
 				file.println("\tlocation = " + dataset.location);
@@ -1113,8 +1581,8 @@ public class CommunicationController {
 			file.println("");
 			file.println("Checksum:");
 			file.println("");
-			file.println("\tlocation = " + packet.getChecksumProcessorLocation());
-			file.println("\tchecksum processor = " + (packet.checksumProcessor == null ? "null" : packet.checksumProcessor.toString()));
+			file.println("\tlocation = " + DatasetsController.checksumProcessorOffset);
+			file.println("\tchecksum processor = " + (DatasetsController.checksumProcessor == null ? "null" : DatasetsController.checksumProcessor.toString()));
 			
 			file.println("");
 			file.println(ChartsController.getCharts().size() + " Charts:");
@@ -1155,7 +1623,7 @@ public class CommunicationController {
 		
 		CommunicationController.disconnect(null);
 		ChartsController.removeAllCharts();
-		packet.reset();
+		DatasetsController.removeAllDatasets();
 		
 		QueueOfLines lines = null;
 		
@@ -1198,7 +1666,7 @@ public class CommunicationController {
 			int baudRate      = ChartUtils.parseInteger(lines.remove(), "uart baud rate = %d");
 			int tcpUdpPort    = ChartUtils.parseInteger(lines.remove(), "tcp/udp port number = %d");
 			String packetType = ChartUtils.parseString (lines.remove(), "packet type = %s");
-			if(!Arrays.asList(CommunicationController.getPacketTypes()).contains(packetType))
+			if(!packetType.equals("CSV") && !packetType.equals("Binary"))
 				throw new AssertionError("Invalid packet type.");
 			int sampleRate    = ChartUtils.parseInteger(lines.remove(), "sample rate = %d");
 			ChartUtils.parseExact(lines.remove(), "");
@@ -1206,7 +1674,7 @@ public class CommunicationController {
 			CommunicationController.setPort(portName);
 			CommunicationController.setBaudRate(baudRate);
 			CommunicationController.setPortNumber(tcpUdpPort);
-			CommunicationController.setPacketType(packetType);
+			CommunicationController.setPacketTypeCsv(packetType.equals("CSV"));
 			CommunicationController.setSampleRate(sampleRate);
 			
 			// connect if requested
@@ -1230,12 +1698,12 @@ public class CommunicationController {
 				float conversionFactorB = ChartUtils.parseFloat  (lines.remove(), "conversion factor b = %f");
 				
 				Color color = new Color(Integer.parseInt(colorText, 16));
-				BinaryFieldProcessor processor = null;
-				for(BinaryFieldProcessor p : PacketBinary.getBinaryFieldProcessors())
+				DatasetsController.BinaryFieldProcessor processor = null;
+				for(DatasetsController.BinaryFieldProcessor p : DatasetsController.binaryFieldProcessors)
 					if(p.toString().equals(processorName))
 						processor = p;
 				
-				packet.insertField(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
+				DatasetsController.insertDataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 				
 				if(processor != null && processor.toString().startsWith("Bitfield")) {
 					Dataset dataset = DatasetsController.getDatasetByLocation(location);
@@ -1272,14 +1740,14 @@ public class CommunicationController {
 			String checksumName  = ChartUtils.parseString(lines.remove(), "checksum processor = %s");
 			
 			if(checksumOffset >= 1 && !checksumName.equals("null")) {
-				BinaryChecksumProcessor processor = null;
-				for(BinaryChecksumProcessor p : PacketBinary.getBinaryChecksumProcessors())
+				DatasetsController.BinaryChecksumProcessor processor = null;
+				for(DatasetsController.BinaryChecksumProcessor p : DatasetsController.binaryChecksumProcessors)
 					if(p.toString().equals(checksumName))
 						processor = p;
-				packet.insertChecksum(checksumOffset, processor);
+				DatasetsController.insertChecksum(checksumOffset, processor);
 			}
 			
-			packet.dataStructureDefined = true;
+			dataStructureDefined = true;
 
 			ChartUtils.parseExact(lines.remove(), "");
 			int chartsCount = ChartUtils.parseInteger(lines.remove(), "%d Charts:");

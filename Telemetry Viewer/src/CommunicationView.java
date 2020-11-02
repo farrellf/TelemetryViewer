@@ -209,9 +209,9 @@ public class CommunicationView extends JPanel {
 		CommunicationController.setSampleRate(Integer.parseInt(sampleRateTextfield.getText()));
 		
 		// packet type
-		packetTypeCombobox = new JComboBox<String>(CommunicationController.getPacketTypes());
-		packetTypeCombobox.addActionListener(event -> CommunicationController.setPacketType(packetTypeCombobox.getSelectedItem().toString()));
-		CommunicationController.setPacketType(packetTypeCombobox.getSelectedItem().toString());
+		packetTypeCombobox = new JComboBox<String>(new String[] {"CSV", "Binary"});
+		packetTypeCombobox.addActionListener(event -> CommunicationController.setPacketTypeCsv(packetTypeCombobox.getSelectedIndex() == 0));
+		CommunicationController.setPacketTypeCsv(packetTypeCombobox.getSelectedIndex() == 0);
 		
 		// port
 		portCombobox = new JComboBox<String>(CommunicationController.getPorts());
@@ -223,7 +223,7 @@ public class CommunicationView extends JPanel {
 		baudRatePadding = Box.createHorizontalStrut(Theme.padding);
 		baudRateCombobox = new JComboBox<String>(CommunicationController.getBaudRateDefaults());
 		baudRateCombobox.setMaximumRowCount(baudRateCombobox.getItemCount());
-		baudRateCombobox.setPreferredSize(baudRateCombobox.getPreferredSize());
+		baudRateCombobox.setMaximumSize(baudRateCombobox.getPreferredSize());
 		baudRateCombobox.setEditable(true);
 		baudRateCombobox.addActionListener(event -> {
 			try {
@@ -410,7 +410,7 @@ public class CommunicationView extends JPanel {
 				portNumberCombobox.setVisible(false);
 				sampleRateTextfield.setEditable(true);
 				packetTypeCombobox.setVisible(true);
-			} else if(newPort.equals(CommunicationController.PORT_TEST)) {
+			} else if(newPort.equals(CommunicationController.PORT_DEMO_MODE) || newPort.equals(CommunicationController.PORT_STRESS_TEST_MODE)) {
 				baudRatePadding.setVisible(false);
 				baudRateCombobox.setVisible(false);
 				portNumberCombobox.setVisible(false);
@@ -452,9 +452,9 @@ public class CommunicationView extends JPanel {
 	 * Updates the GUI to indicate the selected packet type.
 	 * This method is thread-safe.
 	 * 
-	 * @param newType    The packet type.
+	 * @param isCsv    True for CSV mode, or false for Binary mode.
 	 */
-	public void setPacketType(String newType) {
+	public void setPacketTypeCsv(boolean isCsv) {
 		
 		SwingUtilities.invokeLater(() -> {
 			
@@ -463,7 +463,7 @@ public class CommunicationView extends JPanel {
 			for(ActionListener listener : listeners)
 				packetTypeCombobox.removeActionListener(listener);
 			
-			packetTypeCombobox.setSelectedItem(newType);
+			packetTypeCombobox.setSelectedIndex(isCsv ? 0 : 1);
 			
 			// restore event handlers
 			for(ActionListener listener : listeners)
