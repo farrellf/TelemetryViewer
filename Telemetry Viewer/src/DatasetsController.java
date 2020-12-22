@@ -10,10 +10,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DatasetsController {
 
-	private static Map<Integer, Dataset> datasets = new TreeMap<Integer, Dataset>();
-	private static AtomicInteger sampleCount = new AtomicInteger(0);
-	private static StorageTimestamps timestamps = new StorageTimestamps("timestamps");
-	private static long firstTimestamp = 0;
+	public ConnectionTelemetry connection;
+	private Map<Integer, Dataset> datasets = new TreeMap<Integer, Dataset>();
+	private AtomicInteger sampleCount = new AtomicInteger(0);
+	private StorageTimestamps timestamps;
+	private long firstTimestamp = 0;
+	private BinaryChecksumProcessor checksumProcessor = null;
+	private int checksumProcessorOffset = -1;
 	
 	public static final BinaryFieldProcessor[]    binaryFieldProcessors    = new BinaryFieldProcessor[8];
 	public static final BinaryChecksumProcessor[] binaryChecksumProcessors = new BinaryChecksumProcessor[1];
@@ -108,33 +111,37 @@ public class DatasetsController {
 		};
 	}
 	
-	public static BinaryChecksumProcessor checksumProcessor = null;
-	public static int checksumProcessorOffset = -1;
+	public DatasetsController(ConnectionTelemetry connection) {
+		
+		this.connection = connection;
+		this.timestamps = new StorageTimestamps(connection);
+		
+	}
 	
 	/**
 	 * @return    The number of fields in the data structure.
 	 */
-	public static int getDatasetsCount() {
+	public int getCount() {
 		
 		return datasets.size();
 		
 	}
 	
 	/**
-	 * @param index    An index between 0 and getDatasetsCount()-1, inclusive.
+	 * @param index    An index between 0 and DatasetsController.getCount()-1, inclusive.
 	 * @return         The Dataset.
 	 */
-	public static Dataset getDatasetByIndex(int index) {
+	public Dataset getByIndex(int index) {
 		
 		return (Dataset) datasets.values().toArray()[index];
 		
 	}
 	
 	/**
-	 * @param location    CSV column number, or Binary packet byte offset. Locations may be sparse.
+	 * @param location    CSV column number, or Binary packet byte offset. (Locations may be sparse.)
 	 * @return            The Dataset, or null if it does not exist.
 	 */
-	public static Dataset getDatasetByLocation(int location) {
+	public Dataset getByLocation(int location) {
 		
 		return datasets.get(location);
 
@@ -152,17 +159,17 @@ public class DatasetsController {
 	 * @param conversionFactorB    ... equals this many units.
 	 * @return                     null on success, or a user-friendly String describing why the field could not be added.
 	 */
-	public static String insertDataset(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	public String insert(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
-		if(CommunicationController.isPacketTypeCsv()) {
+		if(connection.csvMode) {
 			
 			// can't overlap existing fields
-			for(Dataset dataset : getDatasetsList())
+			for(Dataset dataset : getList())
 				if(dataset.location == location)
 					return "Error: A field already exists at column " + location + ".";
 			
 			// add the field
-			datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
+			datasets.put(location, new Dataset(connection, location, processor, name, color, unit, conversionFactorA, conversionFactorB));
 			return null;
 			
 		} else {
@@ -179,7 +186,7 @@ public class DatasetsController {
 			// can't overlap existing fields
 			int proposedStartByte = location;
 			int proposedEndByte = proposedStartByte + processor.getByteCount() - 1;
-			for(Dataset dataset : getDatasetsList()) {
+			for(Dataset dataset : getList()) {
 				int existingStartByte = dataset.location;
 				int existingEndByte = existingStartByte + dataset.processor.getByteCount() - 1;
 				if(proposedStartByte >= existingStartByte && proposedStartByte <= existingEndByte)
@@ -191,7 +198,7 @@ public class DatasetsController {
 			}
 			
 			// add the field
-			datasets.put(location, new Dataset(location, processor, name, color, unit, conversionFactorA, conversionFactorB));
+			datasets.put(location, new Dataset(connection, location, processor, name, color, unit, conversionFactorA, conversionFactorB));
 			return null;
 			
 		}
@@ -206,22 +213,26 @@ public class DatasetsController {
 	 * @param location    CSV column number, or Binary packet byte offset.
 	 * @return            null on success, or a user-friendly String describing why the field could not be removed.
 	 */
-	public static String removeDataset(int location) {
+	public String remove(int location) {
+		
+		// ensure the configure panel isn't open
+		ConfigureView.instance.close();
 		
 		// can't remove what doesn't exist
-		if(getDatasetByLocation(location) == null)
+		Dataset specifiedDataset = getByLocation(location);
+		if(specifiedDataset == null)
 			return "Error: No field exists at location " + location + ".";
 		
-		// remove corresponding charts
-		PositionedChart[] charts = ChartsController.getCharts().toArray(new PositionedChart[0]);
-		for(PositionedChart chart : charts)
-			if(chart.datasets != null)
-				for(Dataset dataset : chart.datasets)
-					if(dataset.location == location)
-						ChartsController.removeChart(chart);
+		// remove charts containing the dataset
+		List<PositionedChart> chartsToRemove = new ArrayList<PositionedChart>();
+		for(PositionedChart chart : ChartsController.getCharts())
+			if(chart.datasets.contains(specifiedDataset))
+				chartsToRemove.add(chart);
+		for(PositionedChart chart : chartsToRemove)
+			ChartsController.removeChart(chart);
 		
-		Dataset removedDataset = datasets.remove(location);
-		removedDataset.floats.dispose();
+		datasets.remove(location);
+		specifiedDataset.floats.dispose();
 		
 		// remove timestamps if nothing is left
 		if(datasets.isEmpty()) {
@@ -229,7 +240,7 @@ public class DatasetsController {
 			sampleCount.set(0);
 			firstTimestamp = 0;
 			
-			CommunicationView.instance.allowExporting(false);
+			CommunicationView.instance.redraw();
 			OpenGLChartsView.instance.switchToLiveView();
 		}
 		
@@ -239,14 +250,14 @@ public class DatasetsController {
 	}
 	
 	/**
-	 * Removes all charts, Datasets and Cameras.
+	 * Removes all associated charts, Datasets and Cameras.
 	 */
-	public static void removeAllDatasets() {
+	public void removeAll() {
 		
-		for(Dataset dataset : getDatasetsList())
-			removeDataset(dataset.location);
+		for(Dataset dataset : getList())
+			remove(dataset.location);
 		
-		ChartsController.removeAllCharts(); // also remove cameras
+		// also remove cameras
 		for(Camera camera : cameras.keySet())
 			camera.dispose();
 		cameras.clear();
@@ -255,9 +266,9 @@ public class DatasetsController {
 		
 	}
 	
-	public static void dispose() {
+	public void dispose() {
 		
-		removeAllDatasets();
+		removeAll();
 		timestamps.dispose();
 		
 	}
@@ -265,9 +276,9 @@ public class DatasetsController {
 	/**
 	 * Removes all samples, timestamps and camera images, but does not remove the Dataset, Chart or Camera objects.
 	 */
-	public static void removeAllData() {
+	public void removeAllData() {
 		
-		for(Dataset dataset : getDatasetsList())
+		for(Dataset dataset : getList())
 			dataset.floats.clear();
 		
 		timestamps.clear();
@@ -277,7 +288,7 @@ public class DatasetsController {
 		for(Camera camera : cameras.keySet())
 			camera.dispose();
 		
-		CommunicationView.instance.allowExporting(false);
+		CommunicationView.instance.redraw();
 		OpenGLChartsView.instance.switchToLiveView();
 		
 	}
@@ -285,7 +296,7 @@ public class DatasetsController {
 	/**
 	 * @return    The Datasets.
 	 */
-	public static List<Dataset> getDatasetsList() {
+	public List<Dataset> getList() {
 		
 		return new ArrayList<Dataset>(datasets.values());
 		
@@ -298,9 +309,9 @@ public class DatasetsController {
 	 * @param processor    The type of checksum field.
 	 * @return             null on success, or a user-friendly String describing why the checksum field could not be added.
 	 */
-	public static String insertChecksum(int location, BinaryChecksumProcessor processor) {
+	public String insertChecksum(int location, BinaryChecksumProcessor processor) {
 		
-		if(CommunicationController.isPacketTypeCsv())
+		if(connection.csvMode)
 			return "Error: CSV mode does not support checksums.";
 
 		if(checksumProcessor != null)
@@ -309,7 +320,7 @@ public class DatasetsController {
 		if(location == 0)
 			return "Error: A checksum field can not overlap with the sync word.";
 		
-		for(Dataset d : getDatasetsList())
+		for(Dataset d : getList())
 			if(location <= d.location + d.processor.getByteCount() - 1)
 				return "Error: A checksum field can not be placed in front of existing fields.";
 		
@@ -330,9 +341,9 @@ public class DatasetsController {
 	 * 
 	 * @return    null on success, or a user-friendly String describing why the checksum field could not be removed.
 	 */
-	public static String removeChecksum() {
+	public String removeChecksum() {
 		
-		if(CommunicationController.isPacketTypeCsv())
+		if(connection.csvMode)
 			return "Error: CSV mode does not support checksums.";
 		
 		if(checksumProcessor == null)
@@ -346,13 +357,31 @@ public class DatasetsController {
 	}
 	
 	/**
+	 * @return    The checksum processor.
+	 */
+	public BinaryChecksumProcessor getChecksumProcessor() {
+		
+		return checksumProcessor;
+		
+	}
+	
+	/**
+	 * @return    The location (byte offset) of the checksum in the telemetry packet.
+	 */
+	public int getChecksumProcessorOffset() {
+		
+		return checksumProcessorOffset;
+		
+	}
+	
+	/**
 	 * Tests if a telemetry packet contains a valid checksum.
 	 * 
 	 * @param packet          The packet, WITHOUT the sync word.
 	 * @param packetLength    Length of the packet, WITHOUT the sync word.
 	 * @return                True if the checksum is good or not used, false if the checksum failed.
 	 */
-	public static boolean checksumPassed(byte[] packet, int offset, int packetLength) {
+	public boolean checksumPassed(byte[] packet, int offset, int packetLength) {
 		
 		if(checksumProcessor == null) // no checksum
 			return true;
@@ -373,21 +402,21 @@ public class DatasetsController {
 	/**
 	 * @return    The first unoccupied CSV column number or byte offset, or -1 if they are all occupied.
 	 */
-	public static int getFirstAvailableLocation() {
+	public int getFirstAvailableLocation() {
 		
-		if(CommunicationController.isPacketTypeCsv()) {
+		if(connection.csvMode) {
 			
 			// the packet is empty
-			if(DatasetsController.getDatasetsList().isEmpty())
+			if(getList().isEmpty())
 				return 0;
 			
 			// check for a sparse layout
 			int maxOccupiedLocation = 0;
-			for(Dataset d : getDatasetsList())
+			for(Dataset d : getList())
 				if(d.location > maxOccupiedLocation)
 					maxOccupiedLocation = d.location;
 			for(int i = 0; i < maxOccupiedLocation; i++)
-				if(getDatasetByLocation(i) == null)
+				if(getByLocation(i) == null)
 					return i;
 			
 			// layout is not sparse
@@ -396,14 +425,14 @@ public class DatasetsController {
 		} else {
 			
 			// the packet is empty
-			if(DatasetsController.getDatasetsList().isEmpty())
+			if(getList().isEmpty())
 				return 1;
 			
 			// if a checksum exists, check for an opening before it
 			if(checksumProcessor != null) {
 				for(int i = 1; i < checksumProcessorOffset; i++) {
 					boolean available = true;
-					for(Dataset d : getDatasetsList())
+					for(Dataset d : getList())
 						if(i >= d.location && i <= d.location + d.processor.getByteCount() - 1)
 							available = false;
 					if(available)
@@ -414,12 +443,12 @@ public class DatasetsController {
 			
 			// if no checksum, check for a sparse layout
 			int maxOccupiedLocation = 0;
-			for(Dataset d : getDatasetsList())
+			for(Dataset d : getList())
 				if(d.location + d.processor.getByteCount() - 1 > maxOccupiedLocation)
 					maxOccupiedLocation = d.location + d.processor.getByteCount() - 1;
 			for(int i = 1; i < maxOccupiedLocation; i++) {
 				boolean available = true;
-				for(Dataset d : getDatasetsList())
+				for(Dataset d : getList())
 					if(i >= d.location && i <= d.location + d.processor.getByteCount() - 1)
 						available = false;
 				if(available)
@@ -437,7 +466,7 @@ public class DatasetsController {
 	 * Increments the sample count and saves the current timestamp.
 	 * Call this function after all datasets have received a new value from a live connection.
 	 */
-	public static void incrementSampleCount() {
+	public void incrementSampleCount() {
 		
 		long timestamp = System.currentTimeMillis();
 		timestamps.appendTimestamp(timestamp);
@@ -445,8 +474,7 @@ public class DatasetsController {
 		int newSampleCount = sampleCount.incrementAndGet();
 		if(newSampleCount == 1) {
 			firstTimestamp = timestamp;
-			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
-				CommunicationView.instance.allowExporting(true);
+			CommunicationView.instance.redraw();
 		}
 		
 	}
@@ -455,12 +483,12 @@ public class DatasetsController {
 	 * Increments the sample count by an entire block, and processes any bitfields in that block.
 	 * Call this function after all datasets have received a block of values from a live connection.
 	 */
-	public static void incrementSampleCountBlock() {
+	public void incrementSampleCountBlock() {
 		
 		long timestamp = System.currentTimeMillis();
 		timestamps.fillBlock(timestamp);
 		
-		for(Dataset d : getDatasetsList()) {
+		for(Dataset d : getList()) {
 			if(d.isBitfield) {
 				int sampleNumber = sampleCount.get();
 				for(int i = 0; i < StorageFloats.BLOCK_SIZE; i++)
@@ -473,8 +501,7 @@ public class DatasetsController {
 		sampleCount.addAndGet(StorageFloats.BLOCK_SIZE);
 		if(wasZero) {
 			firstTimestamp = timestamp;
-			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
-				CommunicationView.instance.allowExporting(true);
+			CommunicationView.instance.redraw();
 		}
 		
 	}
@@ -483,20 +510,19 @@ public class DatasetsController {
 	 * Increments the sample count and sets the timestamp to a specific value.
 	 * Call this function when importing a file, after all datasets have received a new value.
 	 */
-	public static void incrementSampleCountWithTimestamp(long timestamp) {
+	public void incrementSampleCountWithTimestamp(long timestamp) {
 		
 		timestamps.appendTimestamp(timestamp);
 		
 		int newSampleCount = sampleCount.incrementAndGet();
 		if(newSampleCount == 1) {
 			firstTimestamp = timestamp;
-			if(!CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
-				CommunicationView.instance.allowExporting(true);
+			CommunicationView.instance.redraw();
 		}
 		
 	}
 	
-	private static Map<Camera, Boolean> cameras = new HashMap<Camera, Boolean>(); // the Boolean is true if the camera is currently owned by a chart
+	private Map<Camera, Boolean> cameras = new HashMap<Camera, Boolean>(); // the Boolean is true if the camera is currently owned by a chart
 	
 	/**
 	 * Obtains ownership of a camera, preventing other charts from using it.
@@ -505,7 +531,7 @@ public class DatasetsController {
 	 * @param isMjpeg    True if using MJPEG-over-HTTP.
 	 * @return           The camera object, or null if the camera is already owned or does not exist.
 	 */
-	public static Camera acquireCamera(String name, boolean isMjpeg) {
+	public Camera acquireCamera(String name, boolean isMjpeg) {
 		
 		// check if the camera is already known
 		for(Map.Entry<Camera, Boolean> entry : cameras.entrySet())
@@ -529,7 +555,7 @@ public class DatasetsController {
 	 * 
 	 * @param c    The camera.
 	 */
-	public static void releaseCamera(Camera c) {
+	public void releaseCamera(Camera c) {
 		
 		c.disconnect();
 		if(c.getFrameCount() == 0) {
@@ -546,22 +572,22 @@ public class DatasetsController {
 	/**
 	 * @return    A List of the cameras that are/were used.
 	 */
-	public static Set<Camera> getExistingCameras() {
+	public Set<Camera> getExistingCameras() {
 		
 		return cameras.keySet();
 		
 	}
 	
-	public static int getClosestSampleNumberBefore(long timestamp, int maxSampleNumber) {
+	public int getClosestSampleNumberAtOrBefore(long timestamp, int maxSampleNumber) {
 		
-		return timestamps.getClosestSampleNumberBefore(timestamp, maxSampleNumber);
+		return timestamps.getClosestSampleNumberAtOrBefore(timestamp, maxSampleNumber);
 		
 	}
 	
 	/**
 	 * @return    The timestamp for sample number 0, or 0 if there are no samples.
 	 */
-	public static long getFirstTimestamp() {
+	public long getFirstTimestamp() {
 		
 		return firstTimestamp;
 		
@@ -573,7 +599,7 @@ public class DatasetsController {
 	 * @param sampleNumber    Which sample to check.
 	 * @return                The corresponding UNIX timestamp.
 	 */
-	public static long getTimestamp(int sampleNumber) {
+	public long getTimestamp(int sampleNumber) {
 		
 		if(sampleNumber < 0)
 			return 0;
@@ -582,7 +608,7 @@ public class DatasetsController {
 		
 	}
 	
-	public static FloatBuffer getTimestampsBuffer(int firstSampleNumber, int lastSampleNumber, long plotMinX) {
+	public FloatBuffer getTimestampsBuffer(int firstSampleNumber, int lastSampleNumber, long plotMinX) {
 		
 		return timestamps.getTampstamps(firstSampleNumber, lastSampleNumber, plotMinX);
 		
@@ -591,7 +617,7 @@ public class DatasetsController {
 	/**
 	 * @return    The current number of samples stored in the Datasets.
 	 */
-	public static int getSampleCount() {
+	public int getSampleCount() {
 		
 		return sampleCount.get();
 		
@@ -600,9 +626,9 @@ public class DatasetsController {
 	/**
 	 * Moves older samples and timestamps to disk.
 	 */
-	public static void flushOldValues() {
+	public void flushOldValues() {
 		
-		for(Dataset d : getDatasetsList())
+		for(Dataset d : getList())
 			d.floats.moveOldValuesToDisk();
 		
 		timestamps.moveOldValuesToDisk();

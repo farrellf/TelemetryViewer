@@ -23,13 +23,18 @@ public class WidgetDuration extends Widget {
 	int intDuration;
 	float floatDuration;
 	
+	PositionedChart chart;
+	
 	/**
 	 * A widget that lets the user specify a duration and pick the duration type (sample count, seconds, etc.) from a drop-down list.
 	 * 
 	 * @param defaultSampleCount    Default sample count.
+	 * @param lowerLimit            Minimum allowed sample count.
+	 * @param upperLimit            Maximum allowed sample count.
+	 * @param chart                 Chart using this widget.
 	 * @param eventHandler          Will be notified when the duration or x-axis mode changes. The String will be "Sample Count" or "Timestamps" or "Time Elapsed".
 	 */
-	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, Consumer<String> eventHandler) {
+	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, PositionedChart chart, Consumer<String> eventHandler) {
 		
 		super();
 		
@@ -37,6 +42,7 @@ public class WidgetDuration extends Widget {
 		this.defaultSampleCount = defaultSampleCount;
 		this.lowerLimit = lowerLimit;
 		this.upperLimit = upperLimit;
+		this.chart = chart;
 		
 		textfield = new JTextField(Integer.toString((int) defaultSampleCount));
 		textfield.addFocusListener(new FocusListener() {
@@ -75,20 +81,25 @@ public class WidgetDuration extends Widget {
 		for(ActionListener al : xAxisCombobox.getActionListeners())
 			xAxisCombobox.removeActionListener(al);
 		
+		float sampleRate = !chart.datasets.isEmpty()       ? (float) chart.datasets.get(0).connection.sampleRate :
+		                   !chart.bitfieldEdges.isEmpty()  ? (float) chart.bitfieldEdges.get(0).dataset.connection.sampleRate :
+		                   !chart.bitfieldLevels.isEmpty() ? (float) chart.bitfieldLevels.get(0).dataset.connection.sampleRate :
+		                                                     1;
+		
 		String currentType = durationTypeCombobox.getSelectedItem().toString();
 		if(!currentType.equals(previousType)) {
 			// the type changed, so scale the value to roughly match
 			if(previousType.equals("Samples") && currentType.equals("Seconds"))
-				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / (float) CommunicationController.getSampleRate()));
+				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / sampleRate));
 			else if(previousType.equals("Samples") && currentType.equals("Minutes"))
-				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / (float) CommunicationController.getSampleRate() / 60f));
+				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / sampleRate / 60f));
 			else if(previousType.equals("Samples") && currentType.equals("Hours"))
-				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / (float) CommunicationController.getSampleRate() / 3600f));
+				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / sampleRate / 3600f));
 			else if(previousType.equals("Samples") && currentType.equals("Days"))
-				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / (float) CommunicationController.getSampleRate() / 86400f));
+				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / sampleRate / 86400f));
 			
 			else if(previousType.equals("Seconds") && currentType.equals("Samples"))
-				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * (float) CommunicationController.getSampleRate())));
+				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * sampleRate)));
 			else if(previousType.equals("Seconds") && currentType.equals("Minutes"))
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / 60f));
 			else if(previousType.equals("Seconds") && currentType.equals("Hours"))
@@ -97,7 +108,7 @@ public class WidgetDuration extends Widget {
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / 86400f));
 			
 			else if(previousType.equals("Minutes") && currentType.equals("Samples"))
-				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * (float) CommunicationController.getSampleRate() * 60f)));
+				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * sampleRate * 60f)));
 			else if(previousType.equals("Minutes") && currentType.equals("Seconds"))
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) * 60f));
 			else if(previousType.equals("Minutes") && currentType.equals("Hours"))
@@ -106,7 +117,7 @@ public class WidgetDuration extends Widget {
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / 1440f));
 			
 			else if(previousType.equals("Hours") && currentType.equals("Samples"))
-				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * (float) CommunicationController.getSampleRate() * 3600f)));
+				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * sampleRate * 3600f)));
 			else if(previousType.equals("Hours") && currentType.equals("Seconds"))
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) * 3600f));
 			else if(previousType.equals("Hours") && currentType.equals("Minutes"))
@@ -115,7 +126,7 @@ public class WidgetDuration extends Widget {
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) / 24f));
 			
 			else if(previousType.equals("Days") && currentType.equals("Samples"))
-				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * (float) CommunicationController.getSampleRate() * 86400f)));
+				textfield.setText(Integer.toString((int) (Float.parseFloat(textfield.getText()) * sampleRate * 86400f)));
 			else if(previousType.equals("Days") && currentType.equals("Seconds"))
 				textfield.setText(Float.toString(Float.parseFloat(textfield.getText()) * 86400f));
 			else if(previousType.equals("Days") && currentType.equals("Minutes"))
@@ -206,7 +217,7 @@ public class WidgetDuration extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
 		String type = ChartUtils.parseString(lines.remove(), "duration type = %s");

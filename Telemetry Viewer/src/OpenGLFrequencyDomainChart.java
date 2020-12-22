@@ -207,7 +207,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
@@ -236,8 +236,9 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// calculate the range and ensure it's >0
 		// for "Waterfall View" the y-axis is time
 		// for "Live View" and "Waveform View" the y-axis is power
+		float sampleRate = haveDatasets ? datasets.get(0).connection.sampleRate : 1;
 		float plotMinTime = 0;
-		float plotMaxTime = (float) totalSampleCount / (float) CommunicationController.getSampleRate();
+		float plotMaxTime = (float) totalSampleCount / sampleRate;
 
 		float plotMinPower = haveDatasets ? cache.getMinPower() : -12;
 		float plotMaxPower = haveDatasets ? cache.getMaxPower() : 1;

@@ -1,5 +1,4 @@
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -15,6 +14,7 @@ import javax.swing.border.EmptyBorder;
 
 import net.miginfocom.swing.MigLayout;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
 @SuppressWarnings("serial")
@@ -59,21 +59,17 @@ public class NotificationsView extends JPanel {
 	/**
 	 * Displays a progress bar notification on screen, and removes the oldest notification if more than 5 are on screen.
 	 * 
-	 * @param color       Background color.
-	 * @param message     The text message to display.
+	 * @param color            Background color.
+	 * @param message          The text message to display.
+	 * @param currentAmount    How much progress has been made. This is will periodically queried.
+	 * @param totalAmount      The amount that represents 100%. If currentAmount >= this, the progress bar will show 100% and start to fade away.
 	 */
-	public void showProgressBar(Color color, String message) {
-		
-		// remove any pre-existing progress bar
-		Component[] components = getComponents();
-		for(int i = 0; i < components.length; i++)
-			if(components[i] instanceof Notification && ((Notification) components[i]).isProgressBar)
-				remove(components[i]);
+	public void showProgressBar(Color color, String message, AtomicLong currentAmount, long totalAmount) {
 		
 		if(getComponentCount() > 5)
 			remove(getComponent(0)); // remove oldest
 		
-		add(new Notification(color, message));
+		add(new Notification(color, message, currentAmount, totalAmount));
 		revalidate();
 		setPreferredSize(null); // recalculate the preferred size
 		setPreferredSize(getPreferredSize());
@@ -97,6 +93,8 @@ public class NotificationsView extends JPanel {
 		Timer autoRemoveTimer;
 		boolean isProgressBar;
 		long progressFinishedTimestamp;
+		
+		double percent = 0.0;
 		
 		/**
 		 * A message shown to the user.
@@ -156,10 +154,12 @@ public class NotificationsView extends JPanel {
 		/**
 		 * A progress bar shown to the user.
 		 * 
-		 * @param color       Notification.SUCCESS or .HINT or .WARNING or .FAILURE or .DEBUG or .VERBOSE
-		 * @param message     The text message to display.
+		 * @param color            Notification.SUCCESS or .HINT or .WARNING or .FAILURE or .DEBUG or .VERBOSE
+		 * @param message          The text message to display.
+		 * @param currentAmount    How much progress has been made. This is will periodically queried.
+		 * @param totalAmount      The amount that represents 100%. If currentAmount >= this, the progress bar will show 100% and start to fade away.
 		 */
-		public Notification(Color color, String message) {
+		public Notification(Color color, String message, AtomicLong currentAmount, long totalAmount) {
 			
 			// replace newlines with <br>'s so the JLabel will display them correctly
 			// https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#lineending
@@ -178,8 +178,10 @@ public class NotificationsView extends JPanel {
 			// periodically test for progress or expiration
 			String text = message;
 			autoRemoveTimer = new Timer(50, event -> {
-				double percent = NotificationsController.getProgress();
-				if(percent < 0) {
+				percent = (double) currentAmount.get() / (double) totalAmount;
+				if(percent > 1)
+					percent = 1;
+				if(percent == 1) {
 					label.setText(text + " Done.");
 					setBackground(idleColor);
 					if(progressFinishedTimestamp == 0)
@@ -210,10 +212,7 @@ public class NotificationsView extends JPanel {
 			super.paintComponent(g);
 			if(isProgressBar) {
 				g.setColor(idleColor);
-				double progress = NotificationsController.getProgress();
-				if(progress < 0)
-					progress = 1;
-				int width = (int) (getWidth() * progress);
+				int width = (int) (getWidth() * percent);
 				g.fillRect(0, 0, width, getHeight());
 			}
 		}

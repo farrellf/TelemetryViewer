@@ -8,7 +8,10 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -54,10 +57,12 @@ public class OpenGLChartsView extends JPanel {
 	int endY;
 	
 	// time and zoom settings
-	boolean liveView;
-	int lastSampleNumber;
-	int nonLiveViewSampleNumber;
 	double zoomLevel;
+	boolean liveView;
+	long pausedTimestamp;
+	ConnectionTelemetry pausedPrimaryConnection; // if the mouse was over a chart while timeshifting, or if there was only one connection, we also track the corresponding connection and its sample number, to allow sub-millisecond time shifting.
+	int pausedPrimaryConnectionSampleNumber;
+	Map<ConnectionTelemetry, Integer> lastSampleNumbers = new HashMap<ConnectionTelemetry, Integer>();
 	
 	// mouse pointer's current location (pixels, origin at bottom-left)
 	int mouseX;
@@ -108,8 +113,6 @@ public class OpenGLChartsView extends JPanel {
 		endY    = -1;
 		
 		liveView = true;
-		lastSampleNumber = 0;
-		nonLiveViewSampleNumber = 0;
 		zoomLevel = 1;
 		
 		mouseX = -1;
@@ -228,8 +231,8 @@ public class OpenGLChartsView extends JPanel {
 
 			@Override public void display(GLAutoDrawable drawable) {
 				
-				int tileWidth   = canvasWidth  / tileColumns;
-				int tileHeight  = canvasHeight / tileRows;
+				int tileWidth    = canvasWidth  / tileColumns;
+				int tileHeight   = canvasHeight / tileRows;
 				int tilesYoffset = canvasHeight - (tileHeight * tileRows);
 				
 				// prepare OpenGL
@@ -253,11 +256,15 @@ public class OpenGLChartsView extends JPanel {
 				
 				List<PositionedChart> charts = ChartsController.getCharts();
 				
-				// if there is no connection and no charts, we're done, do not draw any tiles
-				if(!(CommunicationController.isConnected() && CommunicationController.isDataStructureDefined()) && charts.isEmpty())
+				// if there are no connections and no charts, we're done, do not draw any tiles
+				boolean telemetryPossible = false;
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					if(connection.connected && connection.dataStructureDefined)
+						telemetryPossible = true;
+				if(charts.isEmpty() && !telemetryPossible)
 					return;
 				
-				// if there are no charts, ensure we switch back to live view
+				// if there are no charts, switch back to live view
 				if(charts.isEmpty())
 					liveView = true;
 				
@@ -287,14 +294,49 @@ public class OpenGLChartsView extends JPanel {
 				               (Math.abs(endX - startX) + 1) * tileWidth,
 				               (Math.abs(endY - startY) + 1) * tileHeight);
 				
-				lastSampleNumber = liveView ? DatasetsController.getSampleCount() - 1 : nonLiveViewSampleNumber;
+				// get the last sample numbers
+				synchronized(instance) {
+					lastSampleNumbers.clear();
+//					long nowTimestamp = System.currentTimeMillis();
+//					for(ConnectionTelemetry connection : ConnectionsController.connections) {
+//						int lastSampleNumber = connection.datasets.getSampleCount() - 1;
+//						if(!liveView && connection == pausedPrimaryConnection)
+//							lastSampleNumber = pausedPrimaryConnectionSampleNumber;
+//						else if(!liveView)
+//							lastSampleNumber = connection.datasets.getClosestSampleNumberBefore(pausedTimestamp, lastSampleNumber);
+//						long timeSinceLastSample = liveView ? nowTimestamp    - connection.datasets.getTimestamp(lastSampleNumber) :
+//						                                      pausedTimestamp - connection.datasets.getTimestamp(lastSampleNumber);
+//						if(liveView && lastSampleNumber == -1) {
+//							lastSampleNumbers.put(connection, -1);
+//						} else if(timeSinceLastSample >= -10 && timeSinceLastSample <= 10) {
+//							lastSampleNumbers.put(connection, lastSampleNumber);
+//						} else {
+//							if(timeSinceLastSample > 0) {
+//								long trueLastTimestamp = connection.datasets.getTimestamp(lastSampleNumber);
+//								for(ConnectionTelemetry connection2 : ConnectionsController.connections) {
+//									long timestamp = connection2.datasets.getTimestamp(connection2.datasets.getSampleCount() - 1);
+//									if(timestamp > trueLastTimestamp)
+//										trueLastTimestamp = timestamp;
+//								}
+//								timeSinceLastSample = trueLastTimestamp - connection.datasets.getTimestamp(lastSampleNumber);
+//							}
+//							int fakeSampleCount = (int) Math.round((double) connection.sampleRate * (double) timeSinceLastSample / 1000.0); 
+//							lastSampleNumbers.put(connection, lastSampleNumber + fakeSampleCount);
+//						}
+//					}
+					for(ConnectionTelemetry connection : ConnectionsController.connections) {
+						int trueLastSampleNumber = connection.datasets.getSampleCount() - 1;
+						lastSampleNumbers.put(connection, liveView ? trueLastSampleNumber :
+						                                  connection == pausedPrimaryConnection ? pausedPrimaryConnectionSampleNumber :
+						                                  connection.datasets.getClosestSampleNumberAtOrBefore(pausedTimestamp, trueLastSampleNumber));
+					}
+				}
 				
 				// draw the charts
 				//
 				// the modelview matrix is translated so the origin will be at the bottom-left for each chart.
 				// the scissor test is used to clip rendering to the region allocated for each chart.
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
-				// after the chart is drawn with OpenGL, any text queued for rendering will be drawn on top.
 				eventHandler = null;
 				chartUnderMouse = null;
 				for(PositionedChart chart : charts) {
@@ -410,7 +452,22 @@ public class OpenGLChartsView extends JPanel {
 					OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
 					OpenGL.useMatrix(gl, chartMatrix);
 					
-					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
+					int lastSampleNumber = -1;
+					synchronized(instance) {
+						lastSampleNumber = !chart.datasets.isEmpty() ?       lastSampleNumbers.get(chart.datasets.get(0).connection) :
+						                   !chart.bitfieldEdges.isEmpty() ?  lastSampleNumbers.get(chart.bitfieldEdges.get(0).dataset.connection) :
+						                   !chart.bitfieldLevels.isEmpty() ? lastSampleNumbers.get(chart.bitfieldLevels.get(0).dataset.connection) :
+						                                                     -1;
+					}
+					
+					long nowTimestamp = Long.MIN_VALUE;
+					for(ConnectionTelemetry connection : ConnectionsController.connections) {
+						long timestamp = connection.datasets.getTimestamp(lastSampleNumbers.get(connection));
+						if(timestamp > nowTimestamp)
+							nowTimestamp = timestamp;
+					}
+					
+					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, nowTimestamp, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
 					
 					// draw the CPU/GPU benchmarks for this chart if benchmarking
 					// GPU benchmarking is not possible with OpenGL ES
@@ -472,7 +529,8 @@ public class OpenGLChartsView extends JPanel {
 				}
 				
 				// move old samples and timestamps to disk
-				DatasetsController.flushOldValues();
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					connection.datasets.flushOldValues();
 				
 			}
 			
@@ -502,7 +560,12 @@ public class OpenGLChartsView extends JPanel {
 			// the mouse was pressed, attempting to start a new chart region, or to interact with an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
+				// if there are no connections and no charts, ignore the event
+				boolean telemetryPossible = false;
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					if(connection.connected && connection.dataStructureDefined)
+						telemetryPossible = true;
+				if(ChartsController.getCharts().isEmpty() && !telemetryPossible)
 					return;
 				
 				if(SettingsController.awaitingBenchmarkedChart()) {
@@ -532,7 +595,12 @@ public class OpenGLChartsView extends JPanel {
 			// the mouse was released, attempting to create a new chart
 			@Override public void mouseReleased(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
+				// if there are no connections and no charts, ignore the event
+				boolean telemetryPossible = false;
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					if(connection.connected && connection.dataStructureDefined)
+						telemetryPossible = true;
+				if(ChartsController.getCharts().isEmpty() && !telemetryPossible)
 					return;
 
 				if(endX == -1 || endY == -1)
@@ -577,7 +645,12 @@ public class OpenGLChartsView extends JPanel {
 			// the mouse was dragged while attempting to create a new chart
 			@Override public void mouseDragged(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
+				// if there are no connections and no charts, ignore the event
+				boolean telemetryPossible = false;
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					if(connection.connected && connection.dataStructureDefined)
+						telemetryPossible = true;
+				if(ChartsController.getCharts().isEmpty() && !telemetryPossible)
 					return;
 				
 				mouseX = (int) (me.getX() * displayScalingFactorJava9);
@@ -604,7 +677,12 @@ public class OpenGLChartsView extends JPanel {
 			// log the mouse position so a chart close icon can be drawn
 			@Override public void mouseMoved(MouseEvent me) {
 				
-				if(!CommunicationController.isConnected() && ChartsController.getCharts().isEmpty())
+				// if there are no connections and no charts, ignore the event
+				boolean telemetryPossible = false;
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					if(connection.connected && connection.dataStructureDefined)
+						telemetryPossible = true;
+				if(ChartsController.getCharts().isEmpty() && !telemetryPossible)
 					return;
 				
 				mouseX = (int) (me.getX() * displayScalingFactorJava9);
@@ -620,7 +698,6 @@ public class OpenGLChartsView extends JPanel {
 			@Override public void mouseWheelMoved(MouseWheelEvent mwe) {
 
 				double scrollAmount = mwe.getPreciseWheelRotation();
-				double samplesPerScroll = CommunicationController.getSampleRate() / 4;
 				double zoomPerScroll = 0.1;
 				float  displayScalingPerScroll = 0.1f;
 				
@@ -630,30 +707,102 @@ public class OpenGLChartsView extends JPanel {
 				if(scrollAmount == 0)
 					return;
 				
-				if(mwe.isControlDown() == false && mwe.isShiftDown() == false) {
+				if(mwe.isControlDown() == false && mwe.isShiftDown() == false && !ChartsController.getCharts().isEmpty()) {
 					
 					// no modifiers held down, so we're timeshifting
-					if(liveView == true) {
-						liveView = false;
-						nonLiveViewSampleNumber = (DatasetsController.getSampleCount() - 1);
+					
+					// don't timeshift if there is no data
+					int activeConnections = 0;
+					for(ConnectionTelemetry connection : ConnectionsController.connections)
+						if(connection.datasets.getSampleCount() > 0)
+							activeConnections++;
+					if(activeConnections == 0)
+						return;
+					
+					// can't fast-forward in liveView
+					if(liveView && scrollAmount > 0)
+						return;
+					
+					// should we scroll by sample count?
+					PositionedChart chart = null;
+					if(chartUnderMouse != null && chartUnderMouse.sampleCount > 1 && (!chartUnderMouse.datasets.isEmpty() || !chartUnderMouse.bitfieldEdges.isEmpty() || !chartUnderMouse.bitfieldLevels.isEmpty())) {
+						chart = chartUnderMouse;
+					} else if(activeConnections == 1) {
+						for(PositionedChart c : ChartsController.getCharts())
+							if(c.sampleCount > 1 && (!c.datasets.isEmpty() || !c.bitfieldEdges.isEmpty() || !c.bitfieldLevels.isEmpty()))
+								if(chart == null || chart.sampleCount < c.sampleCount)
+									chart = c;
+					}
+					if(chart != null) {
+						if(!chart.datasets.isEmpty() && chart.datasets.get(0).controller.getSampleCount() < 1)
+							chart = null;
+						else if(!chart.bitfieldEdges.isEmpty() && chart.bitfieldEdges.get(0).dataset.controller.getSampleCount() < 1)
+							chart = null;
+						else if(!chart.bitfieldLevels.isEmpty() && chart.bitfieldLevels.get(0).dataset.controller.getSampleCount() < 1)
+							chart = null;
 					}
 					
-					double delta = scrollAmount * samplesPerScroll * zoomLevel;
-					if(delta < -0.5 || delta > 0.5)
-						delta = Math.round(delta);
-					else if(delta < 0)
-						delta = -1;
-					else if(delta >= 0)
-						delta = 1;
-					nonLiveViewSampleNumber += delta;
+					if(chart != null) {
+						
+						// logic for rewinding and fast-forwarding based on sample count: 10% of the domain per scroll wheel notch
+						ConnectionTelemetry connection = !chart.datasets.isEmpty()      ? chart.datasets.get(0).connection :
+						                                 !chart.bitfieldEdges.isEmpty() ? chart.bitfieldEdges.get(0).dataset.connection :
+						                                                                  chart.bitfieldLevels.get(0).dataset.connection;
+						
+						double samplesPerScroll = chart.sampleCount * 0.10; // FIXME need to read the domain, not sample count! a partial chart from PlotMilliseconds will have a small sampleCount
+						double delta = scrollAmount * samplesPerScroll * zoomLevel;
+						if(delta < -0.5 || delta > 0.5)
+							delta = Math.round(delta);
+						else if(delta < 0)
+							delta = -1;
+						else if(delta >= 0)
+							delta = 1;
+						
+						int oldSampleNumber = liveView ? connection.datasets.getSampleCount() - 1 :
+						                      !liveView && pausedPrimaryConnection == connection ? pausedPrimaryConnectionSampleNumber :
+						                      connection.datasets.getClosestSampleNumberAtOrBefore(pausedTimestamp, connection.datasets.getSampleCount() - 1);
+						int newSampleNumber = oldSampleNumber + (int) delta;
+						if(newSampleNumber < 0)
+							newSampleNumber = 0;
+						if(newSampleNumber >= connection.datasets.getSampleCount() - 1) {
+							setLiveView();
+						} else {
+							long newTimestamp = connection.datasets.getTimestamp(newSampleNumber);
+							setPausedView(newTimestamp, connection, newSampleNumber);
+						}
+						
+					} else {
 					
-					if(nonLiveViewSampleNumber >= DatasetsController.getSampleCount() - 1)
-						liveView = true;
-					
-					if(nonLiveViewSampleNumber < 0)
-						nonLiveViewSampleNumber = -1;
+						// logic for rewinding and fast-forwarding based on time: 100ms per scroll wheel notch
+						double delta = (100.0 * scrollAmount * zoomLevel);
+						if(delta < -0.5 || delta > 0.5)
+							delta = Math.round(delta);
+						else if(delta < 0)
+							delta = -1;
+						else if(delta >= 0)
+							delta = 1;
+						long deltaMilliseconds = (long) delta;
+						
+						long nowTimestamp = Long.MIN_VALUE;
+						long firstTimestamp = Long.MAX_VALUE;
+						for(ConnectionTelemetry connection : ConnectionsController.connections)
+							if(connection.datasets.getSampleCount() > 0) {
+								int lastSampleNumber = connection.datasets.getSampleCount() - 1;
+								long lastTimestamp   = connection.datasets.getTimestamp(lastSampleNumber);
+								if(lastTimestamp > nowTimestamp)
+									nowTimestamp = lastTimestamp;
+								if(connection.datasets.getFirstTimestamp() < firstTimestamp)
+									firstTimestamp = connection.datasets.getFirstTimestamp();
+							}
+						long newTimestamp = liveView ? nowTimestamp + deltaMilliseconds :
+						                               pausedTimestamp + deltaMilliseconds;
+						if(newTimestamp < firstTimestamp)
+							newTimestamp = firstTimestamp;
+						setPausedView(newTimestamp, null, 0);
+						
+					}
 				
-				} else if(mwe.isControlDown() == true) {
+				} else if(mwe.isControlDown() == true && !ChartsController.getCharts().isEmpty()) {
 					
 					// ctrl is down, so we're zooming
 					zoomLevel *= 1 + (scrollAmount * zoomPerScroll);
@@ -701,7 +850,6 @@ public class OpenGLChartsView extends JPanel {
 		
 		// save state
 		boolean liveView = instance.liveView;
-		int nonLiveViewSampleNumber = instance.nonLiveViewSampleNumber;
 		double zoomLevel = instance.zoomLevel;
 		PositionedChart maximizedChart = instance.maximizedChart;
 
@@ -711,7 +859,6 @@ public class OpenGLChartsView extends JPanel {
 		
 		// restore state
 		instance.liveView = liveView;
-		instance.nonLiveViewSampleNumber = nonLiveViewSampleNumber;
 		instance.zoomLevel = zoomLevel;
 		instance.maximizedChart = maximizedChart;
 		
@@ -725,10 +872,32 @@ public class OpenGLChartsView extends JPanel {
 	
 	public boolean isLiveView() { return liveView; }
 	public void setLiveView()   { liveView = true; }
-	public void setNonLiveView(int sampleNumber) {
+	public void setPausedView(long timestamp, ConnectionTelemetry connection, int sampleNumber) {
 		
 		liveView = false;
-		nonLiveViewSampleNumber = sampleNumber;
+		pausedTimestamp = timestamp;
+		pausedPrimaryConnection = connection;
+		pausedPrimaryConnectionSampleNumber = (connection == null) ? 0 : sampleNumber;
+		
+		long endOfTime = Long.MIN_VALUE;
+		for(ConnectionTelemetry con : ConnectionsController.connections)
+			if(con.datasets.getSampleCount() > 0) {
+				long endTimestamp = con.datasets.getTimestamp(con.datasets.getSampleCount() - 1);
+				if(endTimestamp > endOfTime)
+					endOfTime = endTimestamp;
+			}
+		if(timestamp >= endOfTime && endOfTime != Long.MIN_VALUE)
+			liveView = true;
+		
+	}
+	
+	public int getLastSampleNumber(ConnectionTelemetry connection) {
+		
+		synchronized(instance) {
+			
+			return lastSampleNumbers.get(connection);
+			
+		}
 		
 	}
 	

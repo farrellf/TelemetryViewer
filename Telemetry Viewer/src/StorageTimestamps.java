@@ -36,15 +36,19 @@ public class StorageTimestamps {
 	private int startOfCache = 0;
 	private int firstCachedSampleNumber = startOfCache - 1;
 	private int lastCachedSampleNumber  = startOfCache - 1;
+	
+	private ConnectionTelemetry connection;
 
 	/**
 	 * Prepares storage space for a sequence of timestamps.
 	 * 
-	 * @param filename    The filename to use, without a path or file extension.
+	 * @param connection    The corresponding connection.
 	 */
-	public StorageTimestamps(String filename) {
+	public StorageTimestamps(ConnectionTelemetry connection) {
 		
-		filePath = Paths.get("cache/" + filename + ".bin");
+		this.connection = connection;
+		
+		filePath = Paths.get("cache/" + this.toString() + ".bin");
 		
 		FileChannel temp = null;
 		try {
@@ -114,7 +118,7 @@ public class StorageTimestamps {
 		
 	}
 	
-	public int getClosestSampleNumberBefore(long timestamp, int maxSampleNumber) {
+	public int getClosestSampleNumberAtOrBefore(long timestamp, int maxSampleNumber) {
 		
 		int lastBlock = maxSampleNumber / BLOCK_SIZE;
 		
@@ -124,17 +128,17 @@ public class StorageTimestamps {
 		
 		// check the blocks
 		for(int i = lastBlock; i >= 0; i--) {
-			if(minimumValueInBlock[i] < timestamp) {
+			if(minimumValueInBlock[i] <= timestamp) {
 				int firstSampleNumber = i * BLOCK_SIZE;
 				int lastSampleNumber = Integer.min((i+1) * BLOCK_SIZE, maxSampleNumber);
 				for(int sampleN = lastSampleNumber; sampleN >= firstSampleNumber; sampleN--)
-					if(getTimestamp(sampleN) < timestamp)
+					if(getTimestamp(sampleN) <= timestamp)
 						return sampleN;
 			}
 		}
 		
 		// all timestamps are older
-		return 0;
+		return -1;
 		
 	}
 	
@@ -238,12 +242,14 @@ public class StorageTimestamps {
 	 */
 	private void updateCacheIfAppropriate(int firstSampleNumber, int lastSampleNumber) {
 		
+		int lastVisibleSampleNumber = OpenGLChartsView.instance.getLastSampleNumber(connection);
+		
 		// don't bother caching if the range is larger than one slot
 		if(lastSampleNumber - firstSampleNumber + 1 > SLOT_SIZE)
 			return;
 		
 		// don't bother caching if the range would not be plotted on screen
-		if(lastSampleNumber > OpenGLChartsView.instance.lastSampleNumber || firstSampleNumber < OpenGLChartsView.instance.lastSampleNumber - SLOT_SIZE)
+		if(lastSampleNumber > lastVisibleSampleNumber || firstSampleNumber < lastVisibleSampleNumber - SLOT_SIZE)
 			return;
 		
 		// flush cache if necessary
@@ -353,7 +359,7 @@ public class StorageTimestamps {
 			
 			// in stress test mode just delete the data
 			// because even high-end SSDs will become the bottleneck
-			if(CommunicationController.getPort().equals(CommunicationController.PORT_STRESS_TEST_MODE)) {
+			if(connection.mode == ConnectionTelemetry.Mode.STRESS_TEST) {
 				slot[slotN].inRam = false;
 				slot[slotN].value = null;
 				slot[slotN].flushing = false;

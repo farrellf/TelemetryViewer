@@ -38,7 +38,7 @@ public class WidgetCombobox extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
 		String text = ChartUtils.parseString(lines.remove(), label.trim().toLowerCase() + " = %s");

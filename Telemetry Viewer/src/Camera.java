@@ -26,8 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.function.Consumer;
-
+import java.util.concurrent.atomic.AtomicLong;
 import javax.imageio.ImageIO;
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
@@ -108,7 +107,7 @@ public class Camera {
 		disconnect();
 		
 		// don't actually connect if importing from a file
-		if(CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
+		if(ConnectionsController.importing)
 			return;
 		
 		// if we previously imported a file, close it and create a new cache file
@@ -332,6 +331,16 @@ public class Camera {
 	}
 	
 	/**
+	 * @return    Approximate number of bytes that can be exported to a file. If connected, more bytes may be ready by the time exporting begins.
+	 */
+	public long getFileSize() {
+		
+		int frameCount = getFrameCount();
+		return frames.get(frameCount - 1).offset + frames.get(frameCount - 1).length;
+		
+	}
+	
+	/**
 	 * Disconnects from the camera and deletes all acquired images.
 	 */
 	public void dispose() {
@@ -440,10 +449,10 @@ public class Camera {
 	/**
 	 * Saves all images to a MJPG file, and saves the corresponding index data to a BIN file.
 	 * 
-	 * @param filepath           An absolute path, including the first part of the file name. The camera name, and .mjpg/.bin, will be appended to this.
-	 * @param progressTracker    Consumer<Double> that will be notified as progress is made. (0.0 = 0%, 1.0 = 100%.)
+	 * @param filepath              An absolute path, including the first part of the file name. The camera name, and .mjpg/.bin, will be appended to this.
+	 * @param completedByteCount    Variable to increment as progress is made (this is periodically queried by a progress bar.)
 	 */
-	public void exportFiles(String filepath, Consumer<Double> progressTracker) {
+	public void exportFiles(String filepath, AtomicLong completedByteCount) {
 		
 		filepath += " " + name.replaceAll("[^a-zA-Z0-9.-]", "_");
 		
@@ -476,14 +485,13 @@ public class Camera {
 			// https://bugs.openjdk.java.net/browse/JDK-4715154
 			long offset = 0;
 			long remainingBytes = frames.get(frameCount - 1).offset + frames.get(frameCount - 1).length;
-			long fileSize = remainingBytes;
 			while(remainingBytes > 0) {
 				long amount = Long.min(remainingBytes, 16777216); // 16MB chunks
 				file.transferTo(offset, amount, mjpgFile);
 				mjpgFile.force(true);
 				remainingBytes -= amount;
 				offset += amount;
-				progressTracker.accept((double) offset / (double) fileSize);
+				completedByteCount.addAndGet(amount);
 			}
 			mjpgFile.close();
 		} catch(Exception e) {

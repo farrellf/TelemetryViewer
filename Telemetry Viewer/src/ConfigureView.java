@@ -13,7 +13,6 @@ import java.util.Map;
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -95,11 +94,13 @@ public class ConfigureView extends JPanel {
 		buttonsPanel.removeAll();
 
 		for(Widget widget : chart.widgets) {
-			if(widget == null)
+			if(widget == null) {
 				widgetsPanel.add(Box.createVerticalStrut(Theme.padding), "span 4");
-			else
+			} else {
+				widget.update();
 				for(Map.Entry<Component, String> thing : widget.widgets.entrySet())
 					widgetsPanel.add(thing.getKey(), thing.getValue());
+			}
 		}
 		
 		JButton doneButton = new JButton("Done");
@@ -123,12 +124,6 @@ public class ConfigureView extends JPanel {
 	 * @param y2    The x-coordinate of the opposite bounding-box corner in the OpenGLChartsRegion grid.
 	 */
 	public void forNewChart(int x1, int y1, int x2, int y2) {
-		
-		if(DatasetsController.getDatasetsCount() == 0) {
-			JOptionPane.showMessageDialog(null, "Error: The packet's data structure must be defined before adding charts.\nUse the controls at the bottom-right corner of the main window to make a connection and define the data structure.", "Error", JOptionPane.ERROR_MESSAGE);
-			close();
-			return;
-		}
 		
 		activeChart = null;
 		

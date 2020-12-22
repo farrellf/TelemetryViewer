@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import javax.swing.JFrame;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
@@ -50,7 +51,8 @@ public class Main {
 		
 		// size the window
 		int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
-		int dataStructureViewWidth = Integer.max(DataStructureCsvView.getUpdatedGui().getPreferredSize().width, DataStructureBinaryView.getUpdatedGui().getPreferredSize().width);
+		int dataStructureViewWidth = Integer.max(new DataStructureCsvView(ConnectionsController.connections.get(0)).getPreferredSize().width,
+		                                         new DataStructureBinaryView(ConnectionsController.connections.get(0)).getPreferredSize().width);
 		int configureViewWidth = ConfigureView.instance.getPreferredSize().width;
 		int notificationHeight = NotificationsView.instance.getPreferredSize().height;
 		int settingsViewHeight = SettingsView.instance.preferredSize.height;
@@ -79,16 +81,16 @@ public class Main {
 					String[] filepaths = new String[files.size()];
 					for(int i = 0; i < files.size(); i++)
 						filepaths[i] = files.get(i).getAbsolutePath();
-					CommunicationController.importFiles(filepaths);
+					ConnectionsController.importFiles(filepaths);
 				} catch(Exception e) {}
 			}
 		});
 		
-		// remove the cache on exit
+		// remove the caches on exit
 		window.addWindowListener(new WindowAdapter() {
 			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-				CommunicationController.disconnect(null);
-				DatasetsController.dispose();
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					connection.dispose();
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}
 		});
@@ -103,14 +105,14 @@ public class Main {
 	 * Hides the charts and settings panels, then shows the data structure screen in the middle of the main window.
 	 * This method is thread-safe.
 	 */
-	public static void showDataStructureGui() {
+	public static void showConfigurationGui(JPanel gui) {
 		
 		SwingUtilities.invokeLater(() -> {
 			OpenGLChartsView.instance.animator.pause();
 			CommunicationView.instance.showSettings(false);
 			ConfigureView.instance.close();
 			window.remove(OpenGLChartsView.instance);
-			window.add(CommunicationController.getDataStructureGui(), BorderLayout.CENTER);
+			window.add(gui, BorderLayout.CENTER);
 			window.revalidate();
 			window.repaint();
 		});
@@ -121,16 +123,19 @@ public class Main {
 	 * Hides the data structure screen and shows the charts in the middle of the main window.
 	 * This method is thread-safe.
 	 */
-	public static void hideDataStructureGui() {
+	public static void hideConfigurationGui() {
 		
 		SwingUtilities.invokeLater(() -> {
 			// do nothing if already hidden
 			for(Component c : window.getContentPane().getComponents())
 				if(c == OpenGLChartsView.instance)
 					return;
-					
-			window.remove(DataStructureBinaryView.getUpdatedGui());
-			window.remove(DataStructureCsvView.getUpdatedGui());
+			
+			// remove the configuration GUI
+			for(Component c : window.getContentPane().getComponents())
+				if(c instanceof DataStructureCsvView || c instanceof DataStructureBinaryView)
+					window.remove(c);
+			
 			window.add(OpenGLChartsView.instance, BorderLayout.CENTER);
 			window.revalidate();
 			window.repaint();

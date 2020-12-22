@@ -39,7 +39,7 @@ public class WidgetCheckbox extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
 		boolean checked = ChartUtils.parseBoolean(lines.remove(), label.trim().toLowerCase() + " = %b");

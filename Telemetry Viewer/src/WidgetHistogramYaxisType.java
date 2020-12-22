@@ -227,7 +227,7 @@ public class WidgetHistogramYaxisType extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
 		boolean yAxisShowsRelativeFrequency = ChartUtils.parseBoolean(lines.remove(), "y-axis shows relative frequency = %b");
@@ -240,7 +240,7 @@ public class WidgetHistogramYaxisType extends Widget {
 		// update the widget
 		String type = (yAxisShowsRelativeFrequency && yAxisShowsFrequency) ? "Both" : yAxisShowsRelativeFrequency ? "Relative Frequency" : "Frequency";
 		for(int i = 0; i < axisTypeCombobox.getItemCount(); i++)
-			if(axisTypeCombobox.equals(type))
+			if(axisTypeCombobox.getSelectedItem().toString().equals(type))
 				axisTypeCombobox.setSelectedIndex(i);
 
 		minCheckbox.setSelected(yMinimumIsZero);

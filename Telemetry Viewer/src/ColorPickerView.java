@@ -378,15 +378,16 @@ public class ColorPickerView extends JDialog {
 				
 				// draw a dot if this color is used by any dataset or bitfield state
 				boolean colorUsed = false;
-				for(Dataset d : DatasetsController.getDatasetsList()) {
-					if(d.color.equals(c))
-						colorUsed = true;
-					if(d.isBitfield)
-						for(Dataset.Bitfield b : d.getBitfields())
-							for(Dataset.Bitfield.State s : b.states)
-								if(s.color.equals(c))
-									colorUsed = true;
-				}
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					for(Dataset dataset : connection.datasets.getList()) {
+						if(dataset.color.equals(c))
+							colorUsed = true;
+						if(dataset.isBitfield)
+							for(Dataset.Bitfield b : dataset.getBitfields())
+								for(Dataset.Bitfield.State s : b.states)
+									if(s.color.equals(c))
+										colorUsed = true;
+					}
 				if(colorUsed) {
 					g2.setColor(p.x < width / 2 ? Color.BLACK : Color.WHITE);
 					g2.fillOval(p.x - swatchDiameter/8, p.y - swatchDiameter/8, swatchDiameter/4, swatchDiameter/4);
@@ -423,18 +424,19 @@ public class ColorPickerView extends JDialog {
 				
 				// draw a tooltip if any datasets or bitfield states use this color
 				List<String> datasetNames = new ArrayList<String>();
-				for(Dataset d : DatasetsController.getDatasetsList()) {
-					
-					if(d.color.equals(mouseOverColor))
-						datasetNames.add(d.name);
-
-					if(d.isBitfield)
-						for(Dataset.Bitfield b : d.getBitfields())
-							for(Dataset.Bitfield.State s : b.states)
-								if(s.color.equals(mouseOverColor))
-									datasetNames.add(d.name + ": " + s.name);
-					
-				}
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					for(Dataset dataset : connection.datasets.getList()) {
+						
+						if(dataset.color.equals(mouseOverColor))
+							datasetNames.add(dataset.name);
+	
+						if(dataset.isBitfield)
+							for(Dataset.Bitfield b : dataset.getBitfields())
+								for(Dataset.Bitfield.State s : b.states)
+									if(s.color.equals(mouseOverColor))
+										datasetNames.add(dataset.name + ": " + s.name);
+						
+					}
 				
 				if(!datasetNames.isEmpty()) {
 					

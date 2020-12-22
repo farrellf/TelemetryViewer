@@ -11,9 +11,9 @@ public abstract class PositionedChart {
 	int bottomRightY;
 	
 	int sampleCount;
-	List<Dataset> datasets;
-	List<Dataset.Bitfield.State> bitfieldEdges;
-	List<Dataset.Bitfield.State> bitfieldLevels;
+	List<Dataset> datasets                      = new ArrayList<Dataset>();
+	List<Dataset.Bitfield.State> bitfieldEdges  = new ArrayList<Dataset.Bitfield.State>();
+	List<Dataset.Bitfield.State> bitfieldLevels = new ArrayList<Dataset.Bitfield.State>();
 	Widget[] widgets;
 	
 	public PositionedChart(int x1, int y1, int x2, int y2) {
@@ -47,9 +47,9 @@ public abstract class PositionedChart {
 		
 	}
 	
-	public abstract EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
+	public abstract EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
 	
-	public final void importChart(CommunicationController.QueueOfLines lines) {
+	public final void importChart(ConnectionsController.QueueOfLines lines) {
 
 		for(Widget widget : widgets)
 			if(widget != null)

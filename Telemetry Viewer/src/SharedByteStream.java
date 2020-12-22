@@ -18,13 +18,16 @@ public class SharedByteStream {
 	private int[] occupiedSize; // [0 or 1]
 	private boolean writeIntoA;
 	
+	private ConnectionTelemetry connection;
+	
 	/**
 	 * Creates a placeholder for sharing data between one reading thread and one writing thread.
 	 * Before data can be written or read, the setPacketSize() method must be called.
 	 */
-	public SharedByteStream() {
+	public SharedByteStream(ConnectionTelemetry connection) {
 		
 		ready = false;
+		this.connection = connection;
 		
 	}
 	
@@ -181,7 +184,7 @@ public class SharedByteStream {
 		}
 		
 		// show an error message if sync was lost, unless this is the first packet (because we may have connected in the middle of a packet)
-		if(lostSync && DatasetsController.getSampleCount() > 0)
+		if(lostSync && connection.datasets.getSampleCount() > 0)
 			NotificationsController.showWarningForSeconds("Lost sync with the telemetry packet stream.", 5, true);
 		
 		// stop at the first loss of sync or failed checksum
@@ -192,7 +195,7 @@ public class SharedByteStream {
 				packetCount = i;
 				break;
 			}
-			if(!DatasetsController.checksumPassed(buffer[readBuffer], index, packetByteCount)) {
+			if(!connection.datasets.checksumPassed(buffer[readBuffer], index, packetByteCount)) {
 				packetCount = i;
 				break;
 			}
@@ -222,7 +225,7 @@ public class SharedByteStream {
 	 */
 	public synchronized String readLine() throws InterruptedException {
 		
-		StringBuilder text = new StringBuilder(16 * DatasetsController.getDatasetsCount());
+		StringBuilder text = new StringBuilder(16 * connection.datasets.getCount());
 		
 		// skip past any line terminators
 		while(true) {

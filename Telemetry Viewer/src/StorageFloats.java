@@ -32,15 +32,19 @@ public class StorageFloats {
 	private int startOfCache = 0;
 	private int firstCachedSampleNumber = startOfCache - 1;
 	private int lastCachedSampleNumber  = startOfCache - 1;
+	
+	private ConnectionTelemetry connection;
 
 	/**
 	 * Prepares storage space for a sequence of floats.
 	 * 
-	 * @param filename    The filename to use, without a path or file extension.
+	 * @param connection    The corresponding connection.
 	 */
-	public StorageFloats(String filename) {
+	public StorageFloats(ConnectionTelemetry connection) {
 		
-		filePath = Paths.get("cache/" + filename + ".bin");
+		this.connection = connection;
+		
+		filePath = Paths.get("cache/" + this.toString() + ".bin");
 		
 		FileChannel temp = null;
 		try {
@@ -361,7 +365,7 @@ public class StorageFloats {
 	 */
 	public void moveOldValuesToDisk() {
 		
-		int lastSlotN = (DatasetsController.getSampleCount() - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
+		int lastSlotN = (connection.datasets.getSampleCount() - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
 		
 		for(int slotN = 0; slotN < lastSlotN; slotN++) {
 			
@@ -371,7 +375,7 @@ public class StorageFloats {
 			
 			// in stress test mode just delete the data
 			// because even high-end SSDs will become the bottleneck
-			if(CommunicationController.getPort().equals(CommunicationController.PORT_STRESS_TEST_MODE)) {
+			if(connection.mode == ConnectionTelemetry.Mode.STRESS_TEST) {
 				slot[slotN].inRam = false;
 				slot[slotN].value = null;
 				slot[slotN].flushing = false;

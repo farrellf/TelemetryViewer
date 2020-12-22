@@ -46,7 +46,7 @@ public class WidgetCamera extends Widget {
 		mjpegUrlLabel = new JLabel("URL: ");
 		mjpegUrlTextfield = new JTextField("http://example.com:8080/video");
 		// crude attempt to make the default URL be the IP address of the default gateway
-		String ip = CommunicationController.getLocalIpAddress();
+		String ip = ConnectionTelemetry.localIp;
 		if(ip.split("\\.").length == 4)
 			mjpegUrlTextfield.setText("http://" + ip.substring(0, ip.lastIndexOf(".")) + ".1:8080/video");
 
@@ -134,7 +134,7 @@ public class WidgetCamera extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 		
 		// pause events
 		removeActionListeners();

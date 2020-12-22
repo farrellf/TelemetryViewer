@@ -97,25 +97,25 @@ public class OpenGLCameraChart extends PositionedChart {
 		
 		// switching to a different camera
 		if(c != null)
-			DatasetsController.releaseCamera(c);
-		c = DatasetsController.acquireCamera(name, isMjpeg);
+			ConnectionsController.connections.get(0).datasets.releaseCamera(c);
+		c = ConnectionsController.connections.get(0).datasets.acquireCamera(name, isMjpeg);
 		if(c != null)
 			c.connect(requestedResolution);
 		
 	}
 
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 
 		// get the image
 		Camera.GLframe f = null;
 		if(c == null)
 			f = new Camera.GLframe(null, true, 1, 1, "[camera unavailable]", 0);
-		else if(OpenGLChartsView.instance.liveView && !CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
+		else if(OpenGLChartsView.instance.liveView && !ConnectionsController.importing)
 			f = c.getLiveImage();
-		else if(OpenGLChartsView.instance.liveView && CommunicationController.getPort().equals(CommunicationController.PORT_FILE))
-			f = c.getImageBeforeTimestamp(DatasetsController.getTimestamp(lastSampleNumber));
-		else
-			f = c.getImageBeforeTimestamp(DatasetsController.getTimestamp(OpenGLChartsView.instance.nonLiveViewSampleNumber));
+		else {
+			long lastTimestamp   = ConnectionsController.connections.get(0).datasets.getTimestamp(lastSampleNumber);
+			f = c.getImageBeforeTimestamp(lastTimestamp);
+		}
 		
 		// calculate x and y positions of everything
 		xDisplayLeft = Theme.tilePadding;
@@ -189,7 +189,7 @@ public class OpenGLCameraChart extends PositionedChart {
 		
 		// disconnect from the camera
 		if(c != null)
-			DatasetsController.releaseCamera(c);
+			ConnectionsController.connections.get(0).datasets.releaseCamera(c);
 		c = null;
 		
 	}

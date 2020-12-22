@@ -31,56 +31,38 @@ import net.miginfocom.swing.MigLayout;
 @SuppressWarnings("serial")
 public class DataStructureCsvView extends JPanel {
 	
-	private static DataStructureCsvView instance = new DataStructureCsvView();
+	private ConnectionTelemetry connection;
+	private DatasetsController datasets;
 	
-	/**
-	 * Updates the GUI to reflect the current state.
-	 * 
-	 * @return    The JPanel GUI.
-	 */
-	public static JPanel getUpdatedGui() {
-		
-		if(DatasetsController.getFirstAvailableLocation() != -1)
-			instance.columnTextfield.setText(Integer.toString(DatasetsController.getFirstAvailableLocation()));
-		instance.nameTextfield.setText("");
-		instance.colorButton.setForeground(Theme.defaultDatasetColor);
-		instance.unitTextfield.setText("");
-		instance.conversionFactorAtextfield.setText("1.0");
-		instance.conversionFactorBtextfield.setText("1.0");
-		instance.unitLabel.setText("");
-		SwingUtilities.invokeLater(() -> instance.updateGui(true)); // invokeLater to ensure focus isn't taken away
-		
-		return instance;
-		
-	}
-	
-	JLabel     dsdLabel;
-	JTextField columnTextfield;
-	JTextField nameTextfield;
-	JButton    colorButton;
-	JTextField unitTextfield;
-	JTextField conversionFactorAtextfield;
-	JTextField conversionFactorBtextfield;
-	JLabel     unitLabel;
-	JButton    addButton;
-	JButton    doneButton;
-	
-	JTable dataStructureTable;
-	
-	JTabbedPane exampleCodePane;
+	private JLabel      dsdLabel;
+	private JTextField  columnTextfield;
+	private JTextField  nameTextfield;
+	private JButton     colorButton;
+	private JTextField  unitTextfield;
+	private JTextField  conversionFactorAtextfield;
+	private JTextField  conversionFactorBtextfield;
+	private JLabel      unitLabel;
+	private JButton     addButton;
+	private JButton     doneButton;
+	private JTable      dataStructureTable;
+	private JTabbedPane exampleCodePane;
 	
 	/**
 	 * Private constructor to enforce singleton usage.
 	 */
-	private DataStructureCsvView() {
+	public DataStructureCsvView(ConnectionTelemetry connection) {
 		
 		super();
+		
+		this.connection = connection;
+		this.datasets = connection.datasets;
 		
 		// all JTextFields let the user press enter to add the field
 		ActionListener pressEnterToAddRow = event -> addButton.doClick();
 		
 		// column number of the field
-		columnTextfield = new JTextField(Integer.toString(DatasetsController.getFirstAvailableLocation()), 3);
+		int column = datasets.getFirstAvailableLocation();
+		columnTextfield = new JTextField(column == -1 ? " - " : Integer.toString(column), 3);
 		columnTextfield.addActionListener(pressEnterToAddRow);
 		columnTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe) {
@@ -88,7 +70,7 @@ public class DataStructureCsvView extends JPanel {
 					columnTextfield.setText(columnTextfield.getText().trim());
 					Integer.parseInt(columnTextfield.getText());
 				} catch(Exception e) {
-					columnTextfield.setText(Integer.toString(DatasetsController.getFirstAvailableLocation()));
+					columnTextfield.setText(Integer.toString(datasets.getFirstAvailableLocation()));
 				}
 			}
 			@Override public void focusGained(FocusEvent fe) {
@@ -182,13 +164,13 @@ public class DataStructureCsvView extends JPanel {
 			float conversionFactorB = Float.parseFloat(conversionFactorBtextfield.getText());
 				
 			if(name.equals("")) {
-				JOptionPane.showMessageDialog(instance, "Error: A name is required.", "Error", JOptionPane.ERROR_MESSAGE);
+				JOptionPane.showMessageDialog(DataStructureCsvView.this, "Error: A name is required.", "Error", JOptionPane.ERROR_MESSAGE);
 				return;
 			}
 			
-			String errorMessage = DatasetsController.insertDataset(location, null, name, color, unit, conversionFactorA, conversionFactorB);
+			String errorMessage = datasets.insert(location, null, name, color, unit, conversionFactorA, conversionFactorB);
 			if(errorMessage != null)
-				JOptionPane.showMessageDialog(instance, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+				JOptionPane.showMessageDialog(DataStructureCsvView.this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 			
 			updateGui(true);
 
@@ -197,13 +179,13 @@ public class DataStructureCsvView extends JPanel {
 		// done button for when the data structure is complete
 		doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> {
-			if(DatasetsController.getDatasetsCount() == 0) {
-				JOptionPane.showMessageDialog(instance, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
+			if(datasets.getCount() == 0) {
+				JOptionPane.showMessageDialog(DataStructureCsvView.this, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
 			} else {
-				CommunicationController.setDataStructureDefined(true);
+				connection.dataStructureDefined = true;
 				if(ChartsController.getCharts().isEmpty())
 					NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
-				Main.hideDataStructureGui();
+				Main.hideConfigurationGui();
 			}
 		});
 		
@@ -220,7 +202,7 @@ public class DataStructureCsvView extends JPanel {
 			}
 			
 			@Override public Object getValueAt(int row, int column) {
-				Dataset dataset = DatasetsController.getDatasetByIndex(row);
+				Dataset dataset = datasets.getByIndex(row);
 				if(column == 0)      return Integer.toString(dataset.location);
 				else if(column == 1) return dataset.name;
 				else if(column == 2) return "<html><font color=\"rgb(" + dataset.color.getRed() + "," + dataset.color.getGreen() + "," + dataset.color.getBlue() + ")\">\u25B2</font></html>";
@@ -230,7 +212,7 @@ public class DataStructureCsvView extends JPanel {
 			}
 			
 			@Override public int getRowCount() {
-				return DatasetsController.getDatasetsCount();
+				return datasets.getCount();
 			}
 			
 			@Override public int getColumnCount() {
@@ -241,7 +223,7 @@ public class DataStructureCsvView extends JPanel {
 		dataStructureTable.getColumn("").setCellRenderer(new TableCellRenderer() {
 			@Override public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 				JButton b = new JButton("Remove");
-				if(CommunicationController.getPort().equals(CommunicationController.PORT_DEMO_MODE))
+				if(connection.mode == ConnectionTelemetry.Mode.DEMO)
 					b.setEnabled(false);
 				return b;
 			}
@@ -250,14 +232,14 @@ public class DataStructureCsvView extends JPanel {
 			
 			// ask the user to confirm
 			@Override public void mousePressed(MouseEvent e) {
-				if(CommunicationController.getPort().equals(CommunicationController.PORT_DEMO_MODE))
+				if(connection.mode == ConnectionTelemetry.Mode.DEMO)
 					return;
-				Dataset dataset = DatasetsController.getDatasetByIndex(dataStructureTable.getSelectedRow());
+				Dataset dataset = datasets.getByIndex(dataStructureTable.getSelectedRow());
 				String title = "Remove " + dataset.name + "?";
 				String message = "<html>Remove the " + dataset.name + " dataset?";
-				if(DatasetsController.getSampleCount() > 0)
+				if(datasets.getSampleCount() > 0)
 					message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
-				boolean remove = JOptionPane.showConfirmDialog(instance, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+				boolean remove = JOptionPane.showConfirmDialog(DataStructureCsvView.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 				if(remove) {
 					columnTextfield.setText(Integer.toString(dataset.location));
 					nameTextfield.setText(dataset.name);
@@ -266,8 +248,8 @@ public class DataStructureCsvView extends JPanel {
 					unitLabel.setText(dataset.unit);
 					conversionFactorAtextfield.setText(Float.toString(dataset.conversionFactorA));
 					conversionFactorBtextfield.setText(Float.toString(dataset.conversionFactorB));
-					DatasetsController.removeAllData();
-					DatasetsController.removeDataset(dataset.location);
+					datasets.removeAllData();
+					datasets.remove(dataset.location);
 				}
 				dataStructureTable.clearSelection();
 				updateGui(false);
@@ -322,17 +304,17 @@ public class DataStructureCsvView extends JPanel {
 		add(efLabel, "grow, span");
 		add(exampleCodePane, "grow, span");
 		
-		updateGui(true);
 		setMinimumSize(new Dimension(getPreferredSize().width, 32 * (int) (getFontMetrics(dataStructureTable.getFont())).getHeight()));
-		setVisible(true);
+		
+		SwingUtilities.invokeLater(() -> updateGui(true)); // invokeLater to ensure focus isn't taken away
 		
 	}
 	
 	private void updateGui(boolean updateColumnNumber) {
 		
-		if(CommunicationController.getPort().equals(CommunicationController.PORT_DEMO_MODE)) {
+		if(connection.mode == ConnectionTelemetry.Mode.DEMO) {
 			
-			dsdLabel.setText("Data Structure Definition: (Not Editable in Test Mode)");
+			dsdLabel.setText("Data Structure Definition: (Not Editable in Demo Mode)");
 			columnTextfield.setEnabled(false);
 			nameTextfield.setEnabled(false);
 			colorButton.setEnabled(false);
@@ -358,8 +340,8 @@ public class DataStructureCsvView extends JPanel {
 			doneButton.setEnabled(true);
 			
 			if(updateColumnNumber) {
-				int newColumn = DatasetsController.getFirstAvailableLocation();
-				columnTextfield.setText(Integer.toString(newColumn));
+				int column = datasets.getFirstAvailableLocation();
+				columnTextfield.setText(column == -1 ? " - " : Integer.toString(column));
 			}
 			
 			SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
@@ -382,14 +364,13 @@ public class DataStructureCsvView extends JPanel {
 	private void updateExampleCode() {
 
 		// get the commonly used data
-		int baudRate = CommunicationController.getBaudRate();
-		int datasetsCount = DatasetsController.getDatasetsCount();
-		List<Dataset> datasets = DatasetsController.getDatasetsList();
+		int baudRate = connection.baudRate;
+		int datasetsCount = datasets.getCount();
 		
 		List<String> datasetNames = new ArrayList<String>(datasetsCount);
 		String intPrintfVariables = new String();
 		String floatPrintfVariables = new String();
-		for(Dataset dataset : datasets) {
+		for(Dataset dataset : datasets.getList()) {
 			String name = dataset.name.replace(' ', '_').toLowerCase();
 			datasetNames.add(name);
 			intPrintfVariables += name + ", ";
@@ -404,7 +385,7 @@ public class DataStructureCsvView extends JPanel {
 		int intPrintfLength = 1;
 		int floatPrintfLength = 1;
 		int i = 0;
-		for(Dataset dataset : datasets) {
+		for(Dataset dataset : datasets.getList()) {
 			while(i < dataset.location) {
 				printfFormatString += "0,";
 				intPrintfLength += 2;
@@ -421,8 +402,8 @@ public class DataStructureCsvView extends JPanel {
 		
 		exampleCodePane.removeAll();
 		
-		// show basic arduino code for uart mode and test mode
-		if(CommunicationController.getPort().startsWith("UART") || CommunicationController.getPort().startsWith("Test")) {
+		// show basic arduino code for UART mode and demo mode
+		if(connection.mode == ConnectionTelemetry.Mode.UART || connection.mode == ConnectionTelemetry.Mode.DEMO) {
 			
 			JTextArea code = new JTextArea();
 			code.setEditable(false);
@@ -483,7 +464,7 @@ public class DataStructureCsvView extends JPanel {
 		}
 		
 		// show arduino/esp8266 code for udp mode
-		if(CommunicationController.getPort().startsWith("UDP")) {
+		if(connection.mode == ConnectionTelemetry.Mode.UDP) {
 			
 			JTextArea code = new JTextArea();
 			code.setEditable(false);
@@ -508,7 +489,7 @@ public class DataStructureCsvView extends JPanel {
 				code.append("\t   esp8266_reset() &&\n");
 				code.append("\t   esp8266_client_mode() &&\n");
 				code.append("\t   esp8266_join_ap(\"your_wifi_network_name_here\", \"your_wifi_password_here\") && // EDIT THIS LINE\n");
-				code.append("\t   esp8266_start_udp(\"" + CommunicationController.getLocalIpAddress() + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
+				code.append("\t   esp8266_start_udp(\"" + ConnectionTelemetry.localIp + "\", " + connection.portNumber + ")) { // EDIT THIS LINE\n");
 				code.append("\n");
 				code.append("\t\t// success, turn on LED\n");
 				code.append("\t\tdigitalWrite(LED_BUILTIN, HIGH);\n");
@@ -669,8 +650,8 @@ public class DataStructureCsvView extends JPanel {
 			
 		}
 		
-		// show java code for tcp mode
-		if(CommunicationController.getPort().startsWith("TCP")) {
+		// show java code for TCP mode
+		if(connection.mode == ConnectionTelemetry.Mode.TCP) {
 			
 			JTextArea code = new JTextArea();
 			code.setEditable(false);
@@ -697,7 +678,7 @@ public class DataStructureCsvView extends JPanel {
 				code.append("\t\t// enter an infinite loop that tries to connect to the TCP server once every 3 seconds\n");
 				code.append("\t\twhile(true) {\n");
 				code.append("\n");
-				code.append("\t\t\ttry(Socket socket = new Socket(\"" + CommunicationController.getLocalIpAddress() + "\", " + CommunicationController.getPortNumber() + ")) { // EDIT THIS LINE\n");
+				code.append("\t\t\ttry(Socket socket = new Socket(\"" + ConnectionTelemetry.localIp + "\", " + connection.portNumber + ")) { // EDIT THIS LINE\n");
 				code.append("\n");
 				code.append("\t\t\t\t// enter another infinite loop that sends packets of telemetry\n");
 				code.append("\t\t\t\tPrintWriter output = new PrintWriter(socket.getOutputStream(), true);\n");
@@ -707,7 +688,7 @@ public class DataStructureCsvView extends JPanel {
 				code.append("\t\t\t\t\toutput.println(String.format(\"" + printfFormatString.replace('d', 'f') + "\", " + intPrintfVariables + "));\n");
 				code.append("\t\t\t\t\tif(output.checkError())\n");
 				code.append("\t\t\t\t\t\tthrow new Exception();\n");
-				code.append("\t\t\t\t\tThread.sleep(" + Math.round(1000.0 / CommunicationController.getSampleRate())  + ");\n");
+				code.append("\t\t\t\t\tThread.sleep(" + Math.round(1000.0 / connection.sampleRate) + ");\n");
 				code.append("\t\t\t\t}\n");
 				code.append("\n");
 				code.append("\t\t\t} catch(Exception e) {\n");
@@ -729,8 +710,8 @@ public class DataStructureCsvView extends JPanel {
 			
 		}
 		
-		// show java code for udp mode
-		if(CommunicationController.getPort().startsWith("UDP")) {
+		// show java code for UDP mode
+		if(connection.mode == ConnectionTelemetry.Mode.UDP) {
 			
 			JTextArea code = new JTextArea();
 			code.setEditable(false);
@@ -765,9 +746,9 @@ public class DataStructureCsvView extends JPanel {
 				for(String name : datasetNames)
 					code.append("\t\t\t\t\tfloat " + name + " = ...; // EDIT THIS LINE\n");
 				code.append("\t\t\t\t\tbyte[] buffer = String.format(\"" + printfFormatString.replace('d', 'f') + "\\n\", " + intPrintfVariables + ").getBytes();\n");
-				code.append("\t\t\t\t\tDatagramPacket packet = new DatagramPacket(buffer, 0, buffer.length, InetAddress.getByName(\"" + CommunicationController.getLocalIpAddress() + "\"), " + CommunicationController.getPortNumber() + "); // EDIT THIS LINE\n");
+				code.append("\t\t\t\t\tDatagramPacket packet = new DatagramPacket(buffer, 0, buffer.length, InetAddress.getByName(\"" + ConnectionTelemetry.localIp + "\"), " + connection.portNumber + "); // EDIT THIS LINE\n");
 				code.append("\t\t\t\t\tsocket.send(packet);\n");
-				code.append("\t\t\t\t\tThread.sleep(" + Math.round(1000.0 / CommunicationController.getSampleRate())  + ");\n");
+				code.append("\t\t\t\t\tThread.sleep(" + Math.round(1000.0 / connection.sampleRate) + ");\n");
 				code.append("\t\t\t\t}\n");
 				code.append("\n");
 				code.append("\t\t\t} catch(Exception e) {\n");

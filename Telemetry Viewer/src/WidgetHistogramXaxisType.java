@@ -221,7 +221,7 @@ public class WidgetHistogramXaxisType extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
 		boolean xAxisIsCentered = ChartUtils.parseBoolean(lines.remove(), "x-axis is centered = %b");

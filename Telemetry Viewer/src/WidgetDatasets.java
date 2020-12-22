@@ -1,3 +1,4 @@
+import java.awt.Component;
 import java.awt.Insets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -6,25 +7,36 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
 
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JToggleButton;
 import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 
 public class WidgetDatasets extends Widget {
 	
-	Map<Dataset, JCheckBox>  datasetCheckboxes; // used if any number        of normal datasets (not bitfields) may  be selected
-	List<JComboBox<Dataset>> datasetComboboxes; // used if a specific number of normal datasets (not bitfields) must be selected
-	Map<Dataset.Bitfield.State, JToggleButton> bitfieldEdgeButtons;  // used if any number of bitfields edges  may be selected
-	Map<Dataset.Bitfield.State, JToggleButton> bitfieldLevelButtons; // used if any number of bitfields levels may be selected
-	Map<Dataset, JToggleButton> bitfieldEdgeButtonsForDataset;  // the buttons that select all/none of the bitfield states
-	Map<Dataset, JToggleButton> bitfieldLevelButtonsForDataset; // the buttons that select all/none of the bitfield states
+	List<Dataset>                selectedDatasets       = new ArrayList<Dataset>();
+	List<Dataset.Bitfield.State> selectedBitfieldEdges  = new ArrayList<Dataset.Bitfield.State>();
+	List<Dataset.Bitfield.State> selectedBitfieldLevels = new ArrayList<Dataset.Bitfield.State>();
 	
-	Consumer<List<Dataset>>                datasetsHandler;
-	Consumer<List<Dataset.Bitfield.State>> bitfieldEdgesHandler;
-	Consumer<List<Dataset.Bitfield.State>> bitfieldLevelsHandler;
+	Consumer<List<Dataset>>                datasetsEventHandler;
+	Consumer<List<Dataset.Bitfield.State>> bitfieldEdgesEventHandler;
+	Consumer<List<Dataset.Bitfield.State>> bitfieldLevelsEventHandler;
+	
+	boolean  showNormalDatasets;
+	boolean  showBitfieldDatasets;
+	boolean  comboboxesMode; // if we show comboboxes or checkboxes
+	String[] comboboxLabels;
+	
+	Map<Dataset, JCheckBox>  datasetCheckboxes = new LinkedHashMap<Dataset, JCheckBox>();
+	List<JComboBox<Dataset>> datasetComboboxes = new ArrayList<JComboBox<Dataset>>();
+	Map<Dataset.Bitfield.State, JToggleButton> edgeButtons  = new LinkedHashMap<Dataset.Bitfield.State, JToggleButton>();
+	Map<Dataset.Bitfield.State, JToggleButton> levelButtons = new LinkedHashMap<Dataset.Bitfield.State, JToggleButton>();
+	Map<Dataset, JToggleButton> bitfieldEdgeButtonsForDataset  = new LinkedHashMap<Dataset, JToggleButton>();
+	Map<Dataset, JToggleButton> bitfieldLevelButtonsForDataset = new LinkedHashMap<Dataset, JToggleButton>();
 	
 	/**
 	 * A widget that lets the user pick zero or more normal datasets (not bitfields) from a list.
@@ -35,35 +47,13 @@ public class WidgetDatasets extends Widget {
 		
 		super();
 		
-		datasetCheckboxes = new LinkedHashMap<Dataset, JCheckBox>();
-		datasetComboboxes = null;
-		bitfieldEdgeButtons = null;
-		bitfieldLevelButtons = null;
-		bitfieldEdgeButtonsForDataset = null;
-		bitfieldLevelButtonsForDataset = null;
+		showNormalDatasets = true;
+		showBitfieldDatasets = false;
+		comboboxesMode = false;
 		
-		int rowCount = 0;
-		widgets.put(new JLabel("Datasets: "), "");
+		datasetsEventHandler = datasetsHandler;
 		
-		for(Dataset dataset : DatasetsController.getDatasetsList()) {
-			
-			if(dataset.isBitfield)
-				continue;
-			
-			JCheckBox checkbox = new JCheckBox(dataset.name);
-			checkbox.addActionListener(event -> notifyHandlers());
-			datasetCheckboxes.put(dataset, checkbox);
-			
-			if(rowCount++ != 0)
-				widgets.put(new JLabel(""), "");
-			widgets.put(checkbox, "span 3, growx");
-			
-		}
-		
-		this.datasetsHandler = datasetsHandler;
-		this.bitfieldEdgesHandler = null;
-		this.bitfieldLevelsHandler = null;
-		notifyHandlers();
+		update();
 		
 	}
 	
@@ -75,32 +65,15 @@ public class WidgetDatasets extends Widget {
 	public WidgetDatasets(int datasetCount, String[] labels, Consumer<List<Dataset>> datasetsHandler) {
 		
 		super();
-		
-		datasetCheckboxes = null;
-		datasetComboboxes = new ArrayList<JComboBox<Dataset>>(datasetCount);
-		bitfieldEdgeButtons = null;
-		bitfieldLevelButtons = null;
-		bitfieldEdgeButtonsForDataset = null;
-		bitfieldLevelButtonsForDataset = null;
-		
-		for(int i = 0; i < datasetCount; i++) {
-			JComboBox<Dataset> combobox = new JComboBox<Dataset>();
-			for(Dataset dataset : DatasetsController.getDatasetsList()) {
-				if(dataset.isBitfield)
-					continue;
-				combobox.addItem(dataset);
-			}
-			combobox.addActionListener(event -> notifyHandlers());
-			datasetComboboxes.add(combobox);
-		}
 
-		for(int i = 0; i < datasetCount; i++) {
-			widgets.put(new JLabel(labels[i] + ": "), "");
-			widgets.put(datasetComboboxes.get(i), "span 3, growx");
-		}
+		showNormalDatasets = true;
+		showBitfieldDatasets = false;
+		comboboxesMode = true;
+		comboboxLabels = labels;
 		
-		this.datasetsHandler = datasetsHandler;
-		notifyHandlers();
+		datasetsEventHandler = datasetsHandler;
+		
+		update();
 		
 	}
 	
@@ -114,85 +87,14 @@ public class WidgetDatasets extends Widget {
 		
 		super();
 		
-		datasetCheckboxes = null;
-		datasetComboboxes = null;
-		bitfieldEdgeButtons  = new LinkedHashMap<Dataset.Bitfield.State, JToggleButton>();
-		bitfieldLevelButtons = new LinkedHashMap<Dataset.Bitfield.State, JToggleButton>();
-		bitfieldEdgeButtonsForDataset = new LinkedHashMap<Dataset, JToggleButton>();
-		bitfieldLevelButtonsForDataset = new LinkedHashMap<Dataset, JToggleButton>();
+		showNormalDatasets = false;
+		showBitfieldDatasets = true;
+		comboboxesMode = false;
 		
-		int rowCount = 0;
-		widgets.put(new JLabel("Bitfields: "), "");
-		for(Dataset dataset : DatasetsController.getDatasetsList()) {
-			
-			if(!dataset.isBitfield)
-				continue;
-			
-			// use a narrow border for the edge and level buttons, to make them smaller
-			JToggleButton temp = new JToggleButton("_");
-			Insets insets = temp.getBorder().getBorderInsets(temp);
-			Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
-			
-			// show toggle button for the complete dataset
-			JToggleButton edgeButton = new JToggleButton("_\u20D2\u203E");
-			edgeButton.setBorder(narrowBorder);
-			edgeButton.setToolTipText("Show edges");
-			edgeButton.addActionListener(event -> {
-				for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldEdgeButtons.entrySet())
-					if(entry.getKey().dataset == dataset)
-						entry.getValue().setSelected(((JToggleButton) event.getSource()).isSelected());
-				notifyHandlers();
-			});
-			
-			JToggleButton levelButton = new JToggleButton(" \u0332\u0305 \u0332\u0305 \u0332\u0305 ");
-			levelButton.setBorder(narrowBorder);
-			levelButton.setToolTipText("Show levels");
-			levelButton.addActionListener(event -> {
-				for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldLevelButtons.entrySet())
-					if(entry.getKey().dataset == dataset)
-						entry.getValue().setSelected(((JToggleButton) event.getSource()).isSelected());
-				notifyHandlers();
-			});
-			
-			if(rowCount++ != 0)
-				widgets.put(new JLabel(""), "");
-			widgets.put(edgeButton, "");
-			widgets.put(levelButton, "");
-			widgets.put(new JLabel("<html><b>" + dataset.name + " (All / None)</b></html>"), "");
-			
-			bitfieldEdgeButtonsForDataset.put(dataset, edgeButton);
-			bitfieldLevelButtonsForDataset.put(dataset, levelButton);
-			
-			// also show toggle buttons for each state of each bitfield
-			for(Dataset.Bitfield bitfield : dataset.bitfields) {
-				for(Dataset.Bitfield.State state : bitfield.states) {
-					
-					edgeButton = new JToggleButton("_\u20D2\u203E");
-					edgeButton.setBorder(narrowBorder);
-					edgeButton.setToolTipText("Show edges");
-					edgeButton.addActionListener(event -> notifyHandlers());
-					bitfieldEdgeButtons.put(state, edgeButton);
-					
-					levelButton = new JToggleButton(" \u0332\u0305 \u0332\u0305 \u0332\u0305 ");
-					levelButton.setBorder(narrowBorder);
-					levelButton.setToolTipText("Show levels");
-					levelButton.addActionListener(event -> notifyHandlers());
-					bitfieldLevelButtons.put(state, levelButton);
-					
-					widgets.put(new JLabel(""), "");
-					widgets.put(edgeButton, "");
-					widgets.put(levelButton, "");
-					widgets.put(new JLabel(state.name), "");
-					
-				}
-			}
-			
-		}
+		bitfieldEdgesEventHandler = bitfieldEdgesHandler;
+		bitfieldLevelsEventHandler = bitfieldLevelsHandler;
 		
-		this.datasetsHandler = null;
-		this.bitfieldEdgesHandler = bitfieldEdgesHandler;
-		this.bitfieldLevelsHandler = bitfieldLevelsHandler;
-		notifyHandlers();
+		update();
 		
 	}
 	
@@ -207,103 +109,325 @@ public class WidgetDatasets extends Widget {
 	
 		super();
 		
-		datasetCheckboxes = new LinkedHashMap<Dataset, JCheckBox>();
-		datasetComboboxes = null;
-		bitfieldEdgeButtons  = new LinkedHashMap<Dataset.Bitfield.State, JToggleButton>();
-		bitfieldLevelButtons = new LinkedHashMap<Dataset.Bitfield.State, JToggleButton>();
-		bitfieldEdgeButtonsForDataset = new LinkedHashMap<Dataset, JToggleButton>();
-		bitfieldLevelButtonsForDataset = new LinkedHashMap<Dataset, JToggleButton>();
+		showNormalDatasets = true;
+		showBitfieldDatasets = true;
+		comboboxesMode = false;
 		
-		int rowCount = 0;
-		widgets.put(new JLabel("Datasets: "), "");
-		for(Dataset dataset : DatasetsController.getDatasetsList()) {
+		datasetsEventHandler = datasetsHandler;
+		bitfieldEdgesEventHandler = bitfieldEdgesHandler;
+		bitfieldLevelsEventHandler = bitfieldLevelsHandler;
+		
+		update();
+	
+	}
+	
+	@SuppressWarnings("serial")
+	@Override public void update() {
+		
+		widgets.clear();
+		
+		datasetCheckboxes.clear();
+		datasetComboboxes.clear();
+		edgeButtons.clear();
+		levelButtons.clear();
+		bitfieldEdgeButtonsForDataset.clear();
+		bitfieldLevelButtonsForDataset.clear();
+		
+		// ensure the selected datasets still exist
+		selectedDatasets.removeIf(item -> !ConnectionsController.connections.contains(item.connection));
+		selectedBitfieldEdges.removeIf(item -> !ConnectionsController.connections.contains(item.dataset.connection));
+		selectedBitfieldLevels.removeIf(item -> !ConnectionsController.connections.contains(item.dataset.connection));
+		
+		if(!comboboxesMode) {
 			
-			if(dataset.isBitfield)
-				continue;
-			
-			JCheckBox checkbox = new JCheckBox(dataset.name);
-			checkbox.addActionListener(event -> notifyHandlers());
-			datasetCheckboxes.put(dataset, checkbox);
-			
-			if(rowCount++ != 0)
-				widgets.put(new JLabel(""), "");
-			widgets.put(checkbox, "span 3, growx");
-			
-		}
-
-		rowCount = 0;
-		widgets.put(new JLabel("Bitfields: "), "");
-		for(Dataset dataset : DatasetsController.getDatasetsList()) {
-			
-			if(!dataset.isBitfield)
-				continue;
-			
-			// use a narrow border for the edge and level buttons, to make them smaller
-			JToggleButton temp = new JToggleButton("_");
-			Insets insets = temp.getBorder().getBorderInsets(temp);
-			Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
-			
-			// show toggle button for the complete dataset
-			JToggleButton edgeButton = new JToggleButton("_\u20D2\u203E");
-			edgeButton.setBorder(narrowBorder);
-			edgeButton.setToolTipText("Show edges");
-			edgeButton.addActionListener(event -> {
-				for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldEdgeButtons.entrySet())
-					if(entry.getKey().dataset == dataset)
-						entry.getValue().setSelected(((JToggleButton) event.getSource()).isSelected());
-				notifyHandlers();
-			});
-			
-			JToggleButton levelButton = new JToggleButton(" \u0332\u0305 \u0332\u0305 \u0332\u0305 ");
-			levelButton.setBorder(narrowBorder);
-			levelButton.setToolTipText("Show levels");
-			levelButton.addActionListener(event -> {
-				for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldLevelButtons.entrySet())
-					if(entry.getKey().dataset == dataset)
-						entry.getValue().setSelected(((JToggleButton) event.getSource()).isSelected());
-				notifyHandlers();
-			});
-			
-			if(rowCount++ != 0)
-				widgets.put(new JLabel(""), "");
-			widgets.put(edgeButton, "");
-			widgets.put(levelButton, "");
-			widgets.put(new JLabel("<html><b>" + dataset.name + " (All / None)</b></html>"), "");
-			
-			bitfieldEdgeButtonsForDataset.put(dataset, edgeButton);
-			bitfieldLevelButtonsForDataset.put(dataset, levelButton);
-			
-			// also show toggle buttons for each state of each bitfield
-			for(Dataset.Bitfield bitfield : dataset.bitfields) {
-				for(Dataset.Bitfield.State state : bitfield.states) {
+			if(showNormalDatasets) {
+				
+				for(ConnectionTelemetry connection : ConnectionsController.connections) {
 					
-					edgeButton = new JToggleButton("_\u20D2\u203E");
-					edgeButton.setBorder(narrowBorder);
-					edgeButton.setToolTipText("Show edges");
-					edgeButton.addActionListener(event -> notifyHandlers());
-					bitfieldEdgeButtons.put(state, edgeButton);
+					if(!connection.dataStructureDefined)
+						continue;
 					
-					levelButton = new JToggleButton(" \u0332\u0305 \u0332\u0305 \u0332\u0305 ");
-					levelButton.setBorder(narrowBorder);
-					levelButton.setToolTipText("Show levels");
-					levelButton.addActionListener(event -> notifyHandlers());
-					bitfieldLevelButtons.put(state, levelButton);
+					int rowCount = 0;
+					String label = ConnectionsController.connections.size() == 1 ? "Datasets: " : connection.name + " Datasets: ";
+					widgets.put(new JLabel(label), "");
 					
-					widgets.put(new JLabel(""), "");
-					widgets.put(edgeButton, "");
-					widgets.put(levelButton, "");
-					widgets.put(new JLabel(state.name), "");
+					for(Dataset dataset : connection.datasets.getList()) {
+						
+						if(dataset.isBitfield)
+							continue;
+						
+						JCheckBox checkbox = new JCheckBox(dataset.name);
+						checkbox.setSelected(selectedDatasets.contains(dataset));
+						checkbox.addActionListener(event -> {
+							selectedDatasets.remove(dataset);
+							if(checkbox.isSelected())
+								selectedDatasets.add(dataset);
+							disableDatasetsFromOtherConnections();
+							notifyHandlers();
+						});
+						datasetCheckboxes.put(dataset, checkbox);
+						
+						if(rowCount++ != 0)
+							widgets.put(new JLabel(""), "");
+						widgets.put(checkbox, "span 3, growx");
+						
+					}
 					
 				}
+			
+			}
+			
+			if(showBitfieldDatasets) {
+		
+				// use a narrow border for the edge and level buttons, to make them smaller
+				JToggleButton temp = new JToggleButton("_");
+				Insets insets = temp.getBorder().getBorderInsets(temp);
+				Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
+				
+				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+					
+					if(!connection.dataStructureDefined)
+						continue;
+					
+					int rowCount = 0;
+					String label = ConnectionsController.connections.size() == 1 ? "Bitfields: " : connection.name + " Bitfields: ";
+					
+					for(Dataset dataset : connection.datasets.getList()) {
+						
+						if(!dataset.isBitfield)
+							continue;
+						
+						// show toggle buttons for the entire dataset
+						JToggleButton allEdgesButton = new JToggleButton("_\u20D2\u203E");
+						allEdgesButton.setBorder(narrowBorder);
+						allEdgesButton.setToolTipText("Show edges");
+						boolean allEdgesSelected = true;
+						for(Dataset.Bitfield b : dataset.bitfields)
+							for(Dataset.Bitfield.State s : b.states)
+								if(!selectedBitfieldEdges.contains(s))
+									allEdgesSelected = false;
+						allEdgesButton.setSelected(allEdgesSelected);
+						allEdgesButton.addActionListener(event -> {
+							selectedBitfieldEdges.removeIf(item -> item.dataset == dataset);
+							if(allEdgesButton.isSelected()) {
+								for(Dataset.Bitfield bitfield : dataset.bitfields)
+									for(Dataset.Bitfield.State state : bitfield.states)
+										selectedBitfieldEdges.add(state);
+								for(Entry<Dataset.Bitfield.State, JToggleButton> entry : edgeButtons.entrySet())
+									if(entry.getKey().dataset == dataset)
+										entry.getValue().setSelected(true);
+							} else {
+								for(Entry<Dataset.Bitfield.State, JToggleButton> entry : edgeButtons.entrySet())
+									if(entry.getKey().dataset == dataset)
+										entry.getValue().setSelected(false);
+							}
+							disableDatasetsFromOtherConnections();
+							notifyHandlers();
+						});
+						
+						JToggleButton allLevelsButton = new JToggleButton(" \u0332\u0305 \u0332\u0305 \u0332\u0305 ");
+						allLevelsButton.setBorder(narrowBorder);
+						allLevelsButton.setToolTipText("Show levels");
+						boolean allLevelsSelected = true;
+						for(Dataset.Bitfield b : dataset.bitfields)
+							for(Dataset.Bitfield.State s : b.states)
+								if(!selectedBitfieldLevels.contains(s))
+									allLevelsSelected = false;
+						allLevelsButton.setSelected(allLevelsSelected);
+						allLevelsButton.addActionListener(event -> {
+							selectedBitfieldLevels.removeIf(item -> item.dataset == dataset);
+							if(allLevelsButton.isSelected()) {
+								for(Dataset.Bitfield bitfield : dataset.bitfields)
+									for(Dataset.Bitfield.State state : bitfield.states)
+										selectedBitfieldLevels.add(state);
+								for(Entry<Dataset.Bitfield.State, JToggleButton> entry : levelButtons.entrySet())
+									if(entry.getKey().dataset == dataset)
+										entry.getValue().setSelected(true);
+							} else {
+								for(Entry<Dataset.Bitfield.State, JToggleButton> entry : levelButtons.entrySet())
+									if(entry.getKey().dataset == dataset)
+										entry.getValue().setSelected(false);
+							}
+							disableDatasetsFromOtherConnections();
+							notifyHandlers();
+						});
+						
+						if(rowCount++ == 0)
+							widgets.put(new JLabel(label), "");
+						else
+							widgets.put(new JLabel(""), "");
+						widgets.put(allEdgesButton, "");
+						widgets.put(allLevelsButton, "");
+						widgets.put(new JLabel("<html><b>" + dataset.name + " (All / None)</b></html>"), "");
+						
+						bitfieldEdgeButtonsForDataset.put(dataset, allEdgesButton);
+						bitfieldLevelButtonsForDataset.put(dataset, allLevelsButton);
+						
+						// also show toggle buttons for each state of each bitfield
+						for(Dataset.Bitfield bitfield : dataset.bitfields) {
+							for(Dataset.Bitfield.State state : bitfield.states) {
+								
+								JToggleButton edgeButton = new JToggleButton("_\u20D2\u203E");
+								edgeButton.setBorder(narrowBorder);
+								edgeButton.setToolTipText("Show edges");
+								edgeButton.setSelected(selectedBitfieldEdges.contains(state));
+								edgeButton.addActionListener(event -> {
+									selectedBitfieldEdges.remove(state);
+									if(edgeButton.isSelected())
+										selectedBitfieldEdges.add(state);
+									boolean allSelected = true;
+									for(Dataset.Bitfield.State s : bitfield.states)
+										if(!selectedBitfieldEdges.contains(s))
+											allSelected = false;
+									allEdgesButton.setSelected(allSelected);
+									disableDatasetsFromOtherConnections();
+									notifyHandlers();
+								});
+								edgeButtons.put(state, edgeButton);
+								
+								JToggleButton levelButton = new JToggleButton(" \u0332\u0305 \u0332\u0305 \u0332\u0305 ");
+								levelButton.setBorder(narrowBorder);
+								levelButton.setToolTipText("Show levels");
+								levelButton.setSelected(selectedBitfieldLevels.contains(state));
+								levelButton.addActionListener(event -> {
+									selectedBitfieldLevels.remove(state);
+									if(levelButton.isSelected())
+										selectedBitfieldLevels.add(state);
+									boolean allSelected = true;
+									for(Dataset.Bitfield.State s : bitfield.states)
+										if(!selectedBitfieldLevels.contains(s))
+											allSelected = false;
+									allLevelsButton.setSelected(allSelected);
+									disableDatasetsFromOtherConnections();
+									notifyHandlers();
+								});
+								levelButtons.put(state, levelButton);
+								
+								widgets.put(new JLabel(""), "");
+								widgets.put(edgeButton, "");
+								widgets.put(levelButton, "");
+								widgets.put(new JLabel(state.name), "");
+								
+							}
+						}
+						
+					}
+						
+				}
+				
+			}
+
+		} else if(showNormalDatasets && !showBitfieldDatasets && comboboxesMode) {
+			
+			if(selectedDatasets.size() != comboboxLabels.length) {
+				selectedDatasets.clear();
+				Dataset firstDataset = null;
+				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+					if(!connection.dataStructureDefined)
+						continue;
+					firstDataset = connection.datasets.getList().get(0);
+					break;
+				}
+				if(firstDataset != null)
+					for(int i = 0; i < comboboxLabels.length; i++)
+						selectedDatasets.add(firstDataset);
+			}
+			
+			for(int i = 0; i < comboboxLabels.length; i++) {
+				JComboBox<Dataset> combobox = new JComboBox<Dataset>();
+				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+					if(!connection.dataStructureDefined)
+						continue;
+					for(Dataset dataset : connection.datasets.getList()) {
+						if(dataset.isBitfield)
+							continue;
+						combobox.addItem(dataset);
+					}
+				}
+				int connectionCount = 0;
+				for(ConnectionTelemetry connection : ConnectionsController.connections)
+					if(connection.dataStructureDefined)
+						connectionCount++;
+				if(connectionCount > 1)
+					combobox.setRenderer(new DefaultListCellRenderer() {
+						@Override public Component getListCellRendererComponent(final JList<?> list, Object value, final int index, final boolean isSelected, final boolean cellHasFocus) {
+							return super.getListCellRendererComponent(list, ((Dataset)value).connection.name + ": " + value.toString(), index, isSelected, cellHasFocus);
+						}
+					});
+				combobox.setSelectedItem(selectedDatasets.get(i));
+				int index = i;
+				combobox.addActionListener(event -> {
+					Dataset d = (Dataset) combobox.getSelectedItem();
+					selectedDatasets.set(index, d);
+					for(JComboBox<Dataset> box : datasetComboboxes)
+						if(box != combobox && ((Dataset)box.getSelectedItem()).connection != d.connection)
+							box.setSelectedItem(d);
+					notifyHandlers();
+				});
+				datasetComboboxes.add(combobox);
+				
+				widgets.put(new JLabel(comboboxLabels[i] + ": "), "");
+				widgets.put(datasetComboboxes.get(i), "span 3, growx");
 			}
 			
 		}
 		
-		this.datasetsHandler = datasetsHandler;
-		this.bitfieldEdgesHandler = bitfieldEdgesHandler;
-		this.bitfieldLevelsHandler = bitfieldLevelsHandler;
+		disableDatasetsFromOtherConnections();
 		notifyHandlers();
+		
+	}
 	
+
+	/**
+	 * Grays out datasets from other connections.
+	 */
+	private void disableDatasetsFromOtherConnections() {
+		
+		// not needed if only one connection
+		if(ConnectionsController.connections.size() < 2)
+			return;
+		
+		// re-enable all widgets if nothing is selected
+		if(selectedDatasets.isEmpty() && selectedBitfieldEdges.isEmpty() && selectedBitfieldLevels.isEmpty()) {
+			for(JCheckBox checkbox : datasetCheckboxes.values())
+				checkbox.setEnabled(true);
+			for(JToggleButton button : bitfieldEdgeButtonsForDataset.values())
+				button.setEnabled(true);
+			for(JToggleButton button : bitfieldLevelButtonsForDataset.values())
+				button.setEnabled(true);
+			for(JToggleButton button : edgeButtons.values())
+				button.setEnabled(true);
+			for(JToggleButton button : levelButtons.values())
+				button.setEnabled(true);
+			return;
+		}
+		
+		// determine which connection has been selected
+		ConnectionTelemetry connection = !selectedDatasets.isEmpty()      ? selectedDatasets.get(0).connection :
+		                                 !selectedBitfieldEdges.isEmpty() ? selectedBitfieldEdges.get(0).dataset.connection :
+		                                                                    selectedBitfieldLevels.get(0).dataset.connection;
+		
+		// disable widgets for datasets from the other connections
+		for(Map.Entry<Dataset, JCheckBox> entry : datasetCheckboxes.entrySet())
+			if(entry.getKey().connection != connection)
+				entry.getValue().setEnabled(false);
+		
+		for(Entry<Dataset, JToggleButton> entry : bitfieldEdgeButtonsForDataset.entrySet())
+			if(entry.getKey().connection != connection)
+				entry.getValue().setEnabled(false);
+		
+		for(Entry<Dataset, JToggleButton> entry : bitfieldLevelButtonsForDataset.entrySet())
+			if(entry.getKey().connection != connection)
+				entry.getValue().setEnabled(false);
+		
+		for(Entry<Dataset.Bitfield.State, JToggleButton> entry : edgeButtons.entrySet())
+			if(entry.getKey().dataset.connection != connection)
+				entry.getValue().setEnabled(false);
+		
+		for(Entry<Dataset.Bitfield.State, JToggleButton> entry : levelButtons.entrySet())
+			if(entry.getKey().dataset.connection != connection)
+				entry.getValue().setEnabled(false);
+		
 	}
 	
 	/**
@@ -311,57 +435,14 @@ public class WidgetDatasets extends Widget {
 	 */
 	private void notifyHandlers() {
 		
-		if(datasetsHandler != null) {
-			List<Dataset> datasets = new ArrayList<Dataset>();
-			if(datasetCheckboxes != null) 
-				for(Entry<Dataset, JCheckBox> entry : datasetCheckboxes.entrySet())
-					if(entry.getValue().isSelected())
-						datasets.add(entry.getKey());
-			if(datasetComboboxes != null)
-				for(JComboBox<Dataset> combobox : datasetComboboxes)
-					datasets.add((Dataset) combobox.getSelectedItem());
-			datasetsHandler.accept(datasets);
-		}
+		if(datasetsEventHandler != null)
+			datasetsEventHandler.accept(selectedDatasets);
 
-		if(bitfieldEdgesHandler != null) {
-			List<Dataset.Bitfield.State> states = new ArrayList<Dataset.Bitfield.State>();
-			for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldEdgeButtons.entrySet())
-				if(entry.getValue().isSelected())
-					states.add(entry.getKey());
-			bitfieldEdgesHandler.accept(states);
-			
-			// check if every state for every bitfield of a dataset are enabled/disabled
-			for(Dataset d : DatasetsController.getDatasetsList()) {
-				boolean allSelected = true;
-				if(d.isBitfield) {
-					for(Dataset.Bitfield bitfield : d.bitfields)
-						for(Dataset.Bitfield.State state : bitfield.states)
-							if(!bitfieldEdgeButtons.get(state).isSelected())
-								allSelected = false;
-					bitfieldEdgeButtonsForDataset.get(d).setSelected(allSelected);
-				}
-			}
-		}
+		if(bitfieldEdgesEventHandler != null)
+			bitfieldEdgesEventHandler.accept(selectedBitfieldEdges);
 		
-		if(bitfieldLevelsHandler != null) {
-			List<Dataset.Bitfield.State> states = new ArrayList<Dataset.Bitfield.State>();
-			for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldLevelButtons.entrySet())
-				if(entry.getValue().isSelected())
-					states.add(entry.getKey());
-			bitfieldLevelsHandler.accept(states);
-			
-			// check if every state for every bitfield of a dataset are enabled/disabled
-			for(Dataset d : DatasetsController.getDatasetsList()) {
-				boolean allSelected = true;
-				if(d.isBitfield) {
-					for(Dataset.Bitfield bitfield : d.bitfields)
-						for(Dataset.Bitfield.State state : bitfield.states)
-							if(!bitfieldLevelButtons.get(state).isSelected())
-								allSelected = false;
-					bitfieldLevelButtonsForDataset.get(d).setSelected(allSelected);
-				}
-			}
-		}
+		if(bitfieldLevelsEventHandler != null)
+			bitfieldLevelsEventHandler.accept(selectedBitfieldLevels);
 		
 	}
 	
@@ -370,34 +451,26 @@ public class WidgetDatasets extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 		
-		// reset the GUI
-		if(datasetCheckboxes != null)
-			for(JCheckBox checkbox : datasetCheckboxes.values())
-				checkbox.setSelected(false);
-		if(bitfieldEdgeButtons != null)
-			for(JToggleButton button : bitfieldEdgeButtons.values())
-				button.setSelected(false);
-		if(bitfieldLevelButtons != null)
-			for(JToggleButton button : bitfieldLevelButtons.values())
-				button.setSelected(false);
+		selectedDatasets.clear();
+		selectedBitfieldEdges.clear();
+		selectedBitfieldLevels.clear();
 		
-		// parse the normal datasets line
-		String line = ChartUtils.parseString(lines.remove(), "normal datasets = %s");
+		// parse the telemetry datasets line
+		String line = ChartUtils.parseString(lines.remove(), "datasets = %s");
 		if(!line.equals("")) {
 			try {
-				String[] indices = line.split(",");
-				if(datasetComboboxes != null && indices.length != datasetComboboxes.size())
+				String[] tokens = line.split(",");
+				if(comboboxesMode && tokens.length != comboboxLabels.length)
 					throw new Exception();
-				for(int i = 0; i < indices.length; i++) {
-					Dataset d = DatasetsController.getDatasetByLocation(Integer.parseInt(indices[i]));
+				for(String token : tokens) {
+					int connectionN = Integer.parseInt(token.split(" ")[1]);
+					int locationN   = Integer.parseInt(token.split(" ")[3]);
+					Dataset d = ConnectionsController.connections.get(connectionN).datasets.getByLocation(locationN);
 					if(d == null)
 						throw new Exception();
-					if(datasetCheckboxes != null)
-						datasetCheckboxes.get(d).setSelected(true);
-					if(datasetComboboxes != null)
-						datasetComboboxes.get(i).setSelectedItem(d);
+					selectedDatasets.add(d);
 				}
 			} catch(Exception e) { throw new AssertionError("Invalid datasets list."); }
 		}
@@ -409,12 +482,15 @@ public class WidgetDatasets extends Widget {
 				String[] states = line.split(",");
 				for(String state : states) {
 					boolean found = false;
-					for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldEdgeButtons.entrySet())
-						if(entry.getKey().toString().equals(state)) {
-							entry.getValue().setSelected(true);
-							found = true;
-							break;
-						}
+					for(ConnectionTelemetry connection : ConnectionsController.connections)
+						for(Dataset dataset : connection.datasets.getList())
+							if(dataset.isBitfield)
+								for(Dataset.Bitfield bitfield : dataset.bitfields)
+									for(Dataset.Bitfield.State s : bitfield.states)
+										if(s.toString().equals(state)) {
+											found = true;
+											selectedBitfieldEdges.add(s);
+										}
 					if(!found)
 						throw new Exception();
 				}
@@ -428,12 +504,15 @@ public class WidgetDatasets extends Widget {
 				String[] states = line.split(",");
 				for(String state : states) {
 					boolean found = false;
-					for(Entry<Dataset.Bitfield.State, JToggleButton> entry : bitfieldLevelButtons.entrySet())
-						if(entry.getKey().toString().equals(state)) {
-							entry.getValue().setSelected(true);
-							found = true;
-							break;
-						}
+					for(ConnectionTelemetry connection : ConnectionsController.connections)
+						for(Dataset dataset : connection.datasets.getList())
+							if(dataset.isBitfield)
+								for(Dataset.Bitfield bitfield : dataset.bitfields)
+									for(Dataset.Bitfield.State s : bitfield.states)
+										if(s.toString().equals(state)) {
+											found = true;
+											selectedBitfieldLevels.add(s);
+										}
 					if(!found)
 						throw new Exception();
 				}
@@ -454,31 +533,24 @@ public class WidgetDatasets extends Widget {
 		
 		String[] lines = new String[3];
 		
-		lines[0] = new String("normal datasets = ");
-		lines[1] = new String("bitfield edge states = ");
-		lines[2] = new String("bitfield level states = ");
-		
-		if(datasetCheckboxes != null)
-			for(Entry<Dataset, JCheckBox> dataset : datasetCheckboxes.entrySet())
-				if(dataset.getValue().isSelected())
-					lines[0] += dataset.getKey().location + ",";
-		if(datasetComboboxes != null)
-			for(JComboBox<Dataset> combobox : datasetComboboxes)
-				lines[0] += ((Dataset) (combobox.getSelectedItem())).location + ",";
+		// selected datasets
+		lines[0] = new String("datasets = ");
+		for(Dataset d : selectedDatasets)
+			lines[0] += "connection " + ConnectionsController.connections.indexOf(d.connection) + " location " + d.location + ",";
 		if(lines[0].endsWith(","))
 			lines[0] = lines[0].substring(0, lines[0].length() - 1);
 		
-		if(bitfieldEdgeButtons != null)
-			for(Entry<Dataset.Bitfield.State, JToggleButton> bitfieldState : bitfieldEdgeButtons.entrySet())
-				if(bitfieldState.getValue().isSelected())
-					lines[1] += bitfieldState.getKey().toString() + ",";
+		// selected bitfield edges
+		lines[1] = new String("bitfield edge states = ");
+		for(Dataset.Bitfield.State s : selectedBitfieldEdges)
+			lines[1] += s.toString() + ",";
 		if(lines[1].endsWith(","))
 			lines[1] = lines[1].substring(0, lines[1].length() - 1);
 		
-		if(bitfieldLevelButtons != null)
-			for(Entry<Dataset.Bitfield.State, JToggleButton> bitfieldState : bitfieldLevelButtons.entrySet())
-				if(bitfieldState.getValue().isSelected())
-					lines[2] += bitfieldState.getKey().toString() + ",";
+		// selected bitfield levels
+		lines[2] = new String("bitfield level states = ");
+		for(Dataset.Bitfield.State s : selectedBitfieldLevels)
+			lines[2] += s.toString() + ",";
 		if(lines[2].endsWith(","))
 			lines[2] = lines[2].substring(0, lines[2].length() - 1);
 

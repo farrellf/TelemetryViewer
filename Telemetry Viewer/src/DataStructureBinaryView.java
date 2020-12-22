@@ -35,70 +35,40 @@ import net.miginfocom.swing.MigLayout;
 @SuppressWarnings("serial")
 public class DataStructureBinaryView extends JPanel {
 	
-	private static DataStructureBinaryView instance = new DataStructureBinaryView();
+	private ConnectionTelemetry connection;
+	private DatasetsController datasets;
 	
-	/**
-	 * Updates the GUI to reflect the current state.
-	 * 
-	 * @return    The JPanel GUI.
-	 */
-	public static JPanel getUpdatedGui() {
-		
-		// reset the GUI
-		if(DatasetsController.getFirstAvailableLocation() != -1)
-			instance.offsetTextfield.setText(Integer.toString(DatasetsController.getFirstAvailableLocation()));
-		instance.processorCombobox.setSelectedIndex(0);
-		instance.nameTextfield.setText("");
-		instance.colorButton.setForeground(Theme.defaultDatasetColor);
-		instance.unitTextfield.setText("");
-		instance.conversionFactorAtextfield.setText("1.0");
-		instance.conversionFactorBtextfield.setText("1.0");
-		instance.unitLabel.setText("");
-		if(instance.bitfieldDefinitionInProgress) {
-			for(Component c : instance.getComponents())
-				if(c instanceof BitfieldPanel) {
-					instance.remove(c);
-					break;
-				}
-			instance.add(instance.scrollableDataStructureTable, "grow, span, cell 0 2");
-			instance.bitfieldDefinitionInProgress = false;
-		}
-		
-		SwingUtilities.invokeLater(() -> instance.updateGui(true)); // invokeLater to ensure focus isn't taken away
-		
-		return instance;
-		
-	}
-	
-	JLabel            dsdLabel;
-	JTextField        offsetTextfield;
-	JComboBox<Object> processorCombobox;
-	JTextField        nameTextfield;
-	JButton           colorButton;
-	JTextField        unitTextfield;
-	JTextField        conversionFactorAtextfield;
-	JTextField        conversionFactorBtextfield;
-	JLabel            unitLabel;
-	JButton           addButton;
-	JButton           doneButton;
-	
-	JTable dataStructureTable;
-	JScrollPane scrollableDataStructureTable;
-	
-	boolean bitfieldDefinitionInProgress;
+	private JLabel            dsdLabel;
+	private JTextField        offsetTextfield;
+	private JComboBox<Object> processorCombobox;
+	private JTextField        nameTextfield;
+	private JButton           colorButton;
+	private JTextField        unitTextfield;
+	private JTextField        conversionFactorAtextfield;
+	private JTextField        conversionFactorBtextfield;
+	private JLabel            unitLabel;
+	private JButton           addButton;
+	private JButton           doneButton;
+	private JTable            dataStructureTable;
+	private JScrollPane       scrollableDataStructureTable;
+	private boolean bitfieldDefinitionInProgress;
 	
 	/**
 	 * Private constructor to enforce singleton usage.
 	 */
-	private DataStructureBinaryView() {
+	public DataStructureBinaryView(ConnectionTelemetry connection) {
 		
 		super();
+		
+		this.connection = connection;
+		this.datasets = connection.datasets;
 		
 		// all JTextFields let the user press enter to add the field
 		ActionListener pressEnterToAddField = event -> addButton.doClick();
 		
 		// offset (first byte) of the field
-		offsetTextfield = new JTextField(Integer.toString(DatasetsController.getFirstAvailableLocation()), 3);
+		int offset = datasets.getFirstAvailableLocation();
+		offsetTextfield = new JTextField(offset == -1 ? " - " : Integer.toString(offset), 3);
 		offsetTextfield.addActionListener(pressEnterToAddField);
 		offsetTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe) {
@@ -106,8 +76,8 @@ public class DataStructureBinaryView extends JPanel {
 					offsetTextfield.setText(offsetTextfield.getText().trim());
 					Integer.parseInt(offsetTextfield.getText());
 				} catch(Exception e) {
-					offsetTextfield.setText(Integer.toString(DatasetsController.getFirstAvailableLocation()));
-					if(DatasetsController.getFirstAvailableLocation() == -1)
+					offsetTextfield.setText(Integer.toString(datasets.getFirstAvailableLocation()));
+					if(datasets.getFirstAvailableLocation() == -1)
 						addButton.setEnabled(false);
 				}
 			}
@@ -213,17 +183,17 @@ public class DataStructureBinaryView extends JPanel {
 			if(processor instanceof DatasetsController.BinaryFieldProcessor) {
 				
 				if(name.equals("")) {
-					JOptionPane.showMessageDialog(instance, "A name is required.", "Error: Name Required", JOptionPane.ERROR_MESSAGE);
+					JOptionPane.showMessageDialog(this, "A name is required.", "Error: Name Required", JOptionPane.ERROR_MESSAGE);
 					return;
 				}
 				
-				String errorMessage = DatasetsController.insertDataset(location, (DatasetsController.BinaryFieldProcessor) processor, name, color, unit, conversionFactorA, conversionFactorB);
+				String errorMessage = connection.datasets.insert(location, (DatasetsController.BinaryFieldProcessor) processor, name, color, unit, conversionFactorA, conversionFactorB);
 				if(errorMessage != null)
-					JOptionPane.showMessageDialog(instance, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+					JOptionPane.showMessageDialog(this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 				
 				if(((DatasetsController.BinaryFieldProcessor) processor).toString().startsWith("Bitfield") && errorMessage == null) {
 
-					BitfieldPanel bitfieldPanel = new BitfieldPanel(((DatasetsController.BinaryFieldProcessor) processor).getByteCount() * 8, DatasetsController.getDatasetByLocation(location));
+					BitfieldPanel bitfieldPanel = new BitfieldPanel(((DatasetsController.BinaryFieldProcessor) processor).getByteCount() * 8, connection.datasets.getByLocation(location));
 					
 					remove(scrollableDataStructureTable);
 					add(bitfieldPanel, "grow, span, cell 0 2");
@@ -233,9 +203,9 @@ public class DataStructureBinaryView extends JPanel {
 				
 			} else if(processor instanceof DatasetsController.BinaryChecksumProcessor) {
 				
-				String errorMessage = DatasetsController.insertChecksum(location, (DatasetsController.BinaryChecksumProcessor) processor);
+				String errorMessage = connection.datasets.insertChecksum(location, (DatasetsController.BinaryChecksumProcessor) processor);
 				if(errorMessage != null)
-					JOptionPane.showMessageDialog(instance, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+					JOptionPane.showMessageDialog(this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 				
 			}
 			
@@ -246,13 +216,13 @@ public class DataStructureBinaryView extends JPanel {
 		// done button for when the data structure is complete
 		doneButton = new JButton("Done");
 		doneButton.addActionListener(event -> {
-			if(DatasetsController.getDatasetsCount() == 0) {
-				JOptionPane.showMessageDialog(instance, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
+			if(connection.datasets.getCount() == 0) {
+				JOptionPane.showMessageDialog(this, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
 			} else {
-				CommunicationController.setDataStructureDefined(true);
+				connection.dataStructureDefined = true;
 				if(ChartsController.getCharts().isEmpty())
 					NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
-				Main.hideDataStructureGui();
+				Main.hideConfigurationGui();
 			}
 		});
 		
@@ -272,14 +242,14 @@ public class DataStructureBinaryView extends JPanel {
 				// the first row is always the sync word
 				if(row == 0) {
 					if(column == 0)      return "0, [Sync Word]";
-					else if(column == 1) return String.format("0x%02X", CommunicationController.syncWord);
+					else if(column == 1) return String.format("0x%02X", connection.syncWord);
 					else                 return "";
 				}
 				
 				// subsequent rows are the fields
 				row--;
-				if(row < DatasetsController.getDatasetsCount()) {
-					Dataset dataset = DatasetsController.getDatasetByIndex(row);
+				if(row < connection.datasets.getCount()) {
+					Dataset dataset = connection.datasets.getByIndex(row);
 					if(column == 0)      return dataset.location + ", " + dataset.processor.toString();
 					else if(column == 1) return dataset.name;
 					else if(column == 2) return "<html><font color=\"rgb(" + dataset.color.getRed() + "," + dataset.color.getGreen() + "," + dataset.color.getBlue() + ")\">\u25B2</font></html>";
@@ -289,9 +259,9 @@ public class DataStructureBinaryView extends JPanel {
 				}
 				
 				// last row is the checksum if it exists
-				if(DatasetsController.checksumProcessor != null) {
-					if(column == 0)      return DatasetsController.checksumProcessorOffset + ", [Checksum]";
-					else if(column == 1) return DatasetsController.checksumProcessor.toString();
+				if(connection.datasets.getChecksumProcessor() != null) {
+					if(column == 0)      return connection.datasets.getChecksumProcessorOffset() + ", [Checksum]";
+					else if(column == 1) return connection.datasets.getChecksumProcessor().toString();
 					else                 return "";
 				}
 				
@@ -301,8 +271,8 @@ public class DataStructureBinaryView extends JPanel {
 			
 			@Override public int getRowCount() {
 				int count = 1; // the syncWord
-				count += DatasetsController.getDatasetsCount();
-				if(DatasetsController.checksumProcessor != null)
+				count += connection.datasets.getCount();
+				if(connection.datasets.getChecksumProcessor() != null)
 					count++;
 				
 				return count;
@@ -317,7 +287,7 @@ public class DataStructureBinaryView extends JPanel {
 		dataStructureTable.getColumn("").setCellRenderer(new TableCellRenderer() {
 			@Override public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 				JButton b = new JButton("Remove");
-				if(CommunicationController.getPort().equals(CommunicationController.PORT_DEMO_MODE))
+				if(connection.mode == ConnectionTelemetry.Mode.DEMO)
 					b.setEnabled(false);
 				return row != 0 ? b : new JLabel("");
 			}
@@ -326,19 +296,19 @@ public class DataStructureBinaryView extends JPanel {
 			
 			// ask the user to confirm
 			@Override public void mousePressed(MouseEvent e) {
-				if(CommunicationController.getPort().equals(CommunicationController.PORT_DEMO_MODE))
+				if(connection.mode == ConnectionTelemetry.Mode.DEMO)
 					return;
 				int datasetNumber = dataStructureTable.getSelectedRow() - 1; // -1 because of the syncword
 				if(datasetNumber < 0) {
-					// syncword clicked, do nothing
-				} else if(datasetNumber < DatasetsController.getDatasetsCount()) {
+					// sync word clicked, do nothing
+				} else if(datasetNumber < connection.datasets.getCount()) {
 					// remove button for a dataset was clicked
-					Dataset dataset = DatasetsController.getDatasetByIndex(datasetNumber);
+					Dataset dataset = connection.datasets.getByIndex(datasetNumber);
 					String title = "Remove " + dataset.name + "?";
 					String message = "<html>Remove the " + dataset.name + " dataset?";
-					if(DatasetsController.getSampleCount() > 0)
+					if(connection.datasets.getSampleCount() > 0)
 						message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
-					boolean remove = JOptionPane.showConfirmDialog(instance, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+					boolean remove = JOptionPane.showConfirmDialog(DataStructureBinaryView.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 					if(remove) {
 						offsetTextfield.setText(Integer.toString(dataset.location));
 						for(ActionListener al : processorCombobox.getActionListeners())
@@ -353,21 +323,21 @@ public class DataStructureBinaryView extends JPanel {
 						unitLabel.setText(dataset.unit);
 						conversionFactorAtextfield.setText(Float.toString(dataset.conversionFactorA));
 						conversionFactorBtextfield.setText(Float.toString(dataset.conversionFactorB));
-						DatasetsController.removeAllData();
-						DatasetsController.removeDataset(dataset.location);
+						connection.datasets.removeAllData();
+						connection.datasets.remove(dataset.location);
 					}
 				} else {
 					// remove button for the checksum was clicked
 					String title = "Remove checksum?";
-					String message = "<html>Remove the " + DatasetsController.checksumProcessor + "?";
-					if(DatasetsController.getSampleCount() > 0)
+					String message = "<html>Remove the " + connection.datasets.getChecksumProcessor() + "?";
+					if(connection.datasets.getSampleCount() > 0)
 						message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
-					boolean remove = JOptionPane.showConfirmDialog(instance, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+					boolean remove = JOptionPane.showConfirmDialog(DataStructureBinaryView.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 					if(remove) {
-						offsetTextfield.setText(Integer.toString(DatasetsController.checksumProcessorOffset));
-						processorCombobox.setSelectedItem(DatasetsController.checksumProcessor);
-						DatasetsController.removeAllData();
-						DatasetsController.removeChecksum();
+						offsetTextfield.setText(Integer.toString(connection.datasets.getChecksumProcessorOffset()));
+						processorCombobox.setSelectedItem(connection.datasets.getChecksumProcessor());
+						connection.datasets.removeAllData();
+						connection.datasets.removeChecksum();
 					}
 				}
 				dataStructureTable.clearSelection();
@@ -415,9 +385,9 @@ public class DataStructureBinaryView extends JPanel {
 		scrollableDataStructureTable = new JScrollPane(dataStructureTable);
 		add(scrollableDataStructureTable, "grow, span");
 		
-		updateGui(true);
 		setMinimumSize(new Dimension(getPreferredSize().width, 500));
-		setVisible(true);
+		
+		SwingUtilities.invokeLater(() -> updateGui(true)); // invokeLater to ensure focus isn't taken away
 		
 	}
 	
@@ -426,9 +396,9 @@ public class DataStructureBinaryView extends JPanel {
 	 */
 	private void updateGui(boolean updateOffsetNumber) {
 		
-		if(CommunicationController.getPort().equals(CommunicationController.PORT_DEMO_MODE)) {
+		if(connection.mode == ConnectionTelemetry.Mode.DEMO) {
 			
-			dsdLabel.setText("Data Structure Definition: (Not Editable in Test Mode)");
+			dsdLabel.setText("Data Structure Definition: (Not Editable in Demo Mode)");
 			offsetTextfield.setEnabled(false);
 			processorCombobox.setEnabled(false);
 			nameTextfield.setEnabled(false);
@@ -459,7 +429,7 @@ public class DataStructureBinaryView extends JPanel {
 			conversionFactorAtextfield.setText("1.0");
 			conversionFactorBtextfield.setText("1.0");
 			
-		} else if(DatasetsController.getFirstAvailableLocation() == -1) {
+		} else if(datasets.getFirstAvailableLocation() == -1) {
 			
 			dsdLabel.setText("Data Structure Definition:");
 			offsetTextfield.setEnabled(false);
@@ -491,8 +461,10 @@ public class DataStructureBinaryView extends JPanel {
 			unitLabel.setText("");
 			conversionFactorAtextfield.setText("1.0");
 			conversionFactorBtextfield.setText("1.0");
-			if(updateOffsetNumber)
-				offsetTextfield.setText(Integer.toString(DatasetsController.getFirstAvailableLocation()));
+			if(updateOffsetNumber) {
+				int offset = datasets.getFirstAvailableLocation();
+				offsetTextfield.setText(offset == -1 ? " - " : Integer.toString(offset));
+			}
 			SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
 				nameTextfield.requestFocus();
 				nameTextfield.selectAll();
@@ -511,7 +483,8 @@ public class DataStructureBinaryView extends JPanel {
 			addButton.setEnabled(true);
 			doneButton.setEnabled(true);
 			if(updateOffsetNumber) {
-				offsetTextfield.setText(Integer.toString(DatasetsController.getFirstAvailableLocation()));
+				int offset = datasets.getFirstAvailableLocation();
+				offsetTextfield.setText(offset == -1 ? " - " : Integer.toString(offset));
 				if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof DatasetsController.BinaryChecksumProcessor)
 					processorCombobox.setSelectedIndex(0);
 			}
@@ -555,7 +528,7 @@ public class DataStructureBinaryView extends JPanel {
 	/**
 	 * The GUI for defining a Bitfield Dataset.
 	 */
-	private static class BitfieldPanel extends JPanel {
+	private class BitfieldPanel extends JPanel {
 		
 		JPanel widgets = new JPanel(new MigLayout("wrap 3, gap " + Theme.padding, "[pref][pref][grow]"));
 		Dataset dataset;
@@ -567,10 +540,10 @@ public class DataStructureBinaryView extends JPanel {
 			
 			JButton doneButton = new JButton("Done With Bitfield");
 			doneButton.addActionListener(event -> {
-				instance.remove(this);
-				instance.add(instance.scrollableDataStructureTable, "grow, span, cell 0 2");
-				instance.bitfieldDefinitionInProgress = false;
-				instance.updateGui(true);
+				DataStructureBinaryView.this.remove(this);
+				DataStructureBinaryView.this.add(DataStructureBinaryView.this.scrollableDataStructureTable, "grow, span, cell 0 2");
+				DataStructureBinaryView.this.bitfieldDefinitionInProgress = false;
+				DataStructureBinaryView.this.updateGui(true);
 			});
 			JPanel bottom = new JPanel();
 			bottom.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));

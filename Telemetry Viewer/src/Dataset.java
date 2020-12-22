@@ -10,6 +10,8 @@ import com.jogamp.common.nio.Buffers;
  */
 public class Dataset {
 	
+	final ConnectionTelemetry connection;
+	final DatasetsController controller;
 	final int location;
 	final DatasetsController.BinaryFieldProcessor processor;
 	String name;
@@ -28,6 +30,7 @@ public class Dataset {
 	/**
 	 * Creates a new object that describes one dataset and stores all of its samples.
 	 * 
+	 * @param connection           Which connection this Dataset belongs to.
 	 * @param location             CSV column number, or Binary byte offset.
 	 * @param processor            Data processor for the raw samples in the Binary data packet. (Ignored in CSV mode.)
 	 * @param name                 Descriptive name of what the samples represent.
@@ -36,8 +39,10 @@ public class Dataset {
 	 * @param conversionFactorA    This many unprocessed LSBs...
 	 * @param conversionFactorB    ... equals this many units.
 	 */
-	public Dataset(int location, DatasetsController.BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
+	public Dataset(ConnectionTelemetry connection, int location, DatasetsController.BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
+		this.connection        = connection;
+		this.controller        = connection.datasets;
 		this.location          = location;
 		this.processor         = processor;
 		this.name              = name;
@@ -50,7 +55,16 @@ public class Dataset {
 		this.isBitfield        = false;
 		this.bitfields         = new ArrayList<Bitfield>();
 		
-		floats = new StorageFloats(super.toString());
+		floats = new StorageFloats(connection);
+		
+	}
+	
+	/**
+	 * @return    A text description that uniquely identifies this dataset.
+	 */
+	public String getLabel() {
+		
+		return ConnectionsController.connections.size() == 1 ? name : connection.name + ": " + name;
 		
 	}
 	
@@ -313,7 +327,7 @@ public class Dataset {
 			// test for a change of state
 			int state = (value >> LSBit) & bitmask;
 			if(state != previousState) {
-				states[state].sampleNumbers.add(sampleNumber);
+				states[state].transitionedSampleNumbers.add(sampleNumber);
 				previousState = state;
 			}
 			previousValue = value;
@@ -347,14 +361,14 @@ public class Dataset {
 		 */
 		public class State implements Comparable<State> {
 			
-			String label;                // Example: "Bit 7 = 1" (shown in the PacketBinary.BitfieldPanel.Visualization)
-			int value;                   // Example: "1"
-			String name;                 // Example: "Some Fault Occurred" (shown on markers on the charts)
-			Color color;                 // shown in the PacketBinary.BitfieldPanel
-			float[] glColor;             // shown on markers on the charts
-			List<Integer> sampleNumbers; // transitioned to the "Some Fault" state at these sample numbers
-			Dataset dataset;             // owner of this State
-			Bitfield bitfield;           // owner of this State
+			String label;                            // Example: "Bit 7 = 1" (shown in the PacketBinary.BitfieldPanel.Visualization)
+			int value;                               // Example: "1"
+			String name;                             // Example: "Some Fault Occurred" (shown on markers on the charts)
+			Color color;                             // shown in the PacketBinary.BitfieldPanel
+			float[] glColor;                         // shown on markers on the charts
+			List<Integer> transitionedSampleNumbers; // transitioned to the "Some Fault" state at these sample numbers
+			Dataset dataset;                         // owner of this State
+			Bitfield bitfield;                       // owner of this State
 			
 			public State(int value, String label) {
 				this.label = label;
@@ -362,13 +376,13 @@ public class Dataset {
 				this.name = "";
 				this.color = Dataset.this.color;
 				this.glColor = Dataset.this.glColor;
-				sampleNumbers = new ArrayList<Integer>();
+				transitionedSampleNumbers = new ArrayList<Integer>();
 				dataset = Dataset.this;
 				bitfield = Bitfield.this;
 			}
 			
 			@Override public String toString() {
-				return Dataset.this.location + "[" + Bitfield.this.MSBit + ":" + Bitfield.this.LSBit + "]=" + value;
+				return "connection " + ConnectionsController.connections.indexOf(dataset.connection) + " location " + Dataset.this.location + " [" + Bitfield.this.MSBit + ":" + Bitfield.this.LSBit + "] = " + value;
 			}
 			
 			/**

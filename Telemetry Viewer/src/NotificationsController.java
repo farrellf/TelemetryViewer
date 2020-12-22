@@ -2,6 +2,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import javax.swing.SwingUtilities;
 
@@ -246,35 +247,18 @@ public class NotificationsController {
 	
 	/**
 	 * Shows a progress bar with message. The message will be printed to the console as a verbose log, and a progress bar will be shown in the GUI.
-	 * Only one progress bar can be on screen at a time. (The previous progress bar will be removed.)
 	 * This method is thread-safe.
 	 * 
 	 * @param message     The message to show.
 	 */
-	public static void showProgressBar(String message) {
+	public static AtomicLong showProgressBar(String message, long totalAmount) {
 		
 		System.out.println(timestamp.format(new Date()) + "   [VERBOSE]   " + message);
-		SwingUtilities.invokeLater(() -> NotificationsView.instance.showProgressBar(HINT, message));
 		
-	}
-	
-	private static double progress = 0;
-	
-	/**
-	 * @param amount    The amount of progress to show in the progress bar. 1.0 = 100%, <0 triggers the progress bar to fade away.
-	 */
-	public static void setProgress(double amount) {
+		AtomicLong currentAmount = new AtomicLong(0);
+		SwingUtilities.invokeLater(() -> NotificationsView.instance.showProgressBar(HINT, message, currentAmount, totalAmount));
 		
-		progress = amount;
-		
-	}
-	
-	/**
-	 * @return    The amount of progress to show in a progress bar.
-	 */
-	public static double getProgress() {
-		
-		return progress;
+		return currentAmount;
 		
 	}
 

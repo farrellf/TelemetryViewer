@@ -347,8 +347,8 @@ public class PlotSampleCount extends Plot {
 		
 		// draw any bitfield changes
 		if(!datasets.isEmpty() && plotSampleCount >= 2) {
-			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers (sampleNumber -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
-			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers(sampleNumber -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
+			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers ((connection, sampleNumber) -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
+			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers((connection, sampleNumber) -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
 			ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom, -1, -1);
 		}
 
@@ -462,8 +462,8 @@ public class PlotSampleCount extends Plot {
 		
 		// draw any bitfield changes
 		if(!datasets.isEmpty() && plotSampleCount >= 2) {
-			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers (sampleNumber -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
-			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers(sampleNumber -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
+			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers ((connection, sampleNumber) -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
+			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers((connection, sampleNumber) -> (sampleNumber - plotMinX) / (float) plotDomain * plotWidth);
 			ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom, -1, -1);
 		}
 

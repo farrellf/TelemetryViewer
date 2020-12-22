@@ -228,7 +228,7 @@ public class WidgetFrequencyDomainType extends Widget {
 	 * 
 	 * @param lines    A queue of remaining lines from the layout file.
 	 */
-	@Override public void importState(CommunicationController.QueueOfLines lines) {
+	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
 		int sampleCount      = ChartUtils.parseInteger(lines.remove(), "sample count = %d");
