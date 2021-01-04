@@ -17,6 +17,7 @@ public abstract class Connection {
 	Thread receiverThread;  // listens for the stream of data
 	Thread processorThread; // processes the received data
 	volatile boolean connected = false;
+	volatile String name = "";
 	
 	/**
 	 * @return    A GUI with widgets for controlling this connection.
@@ -51,7 +52,26 @@ public abstract class Connection {
 	 * @param path    Path to the file.
 	 * @return        Timestamp for the first item, or Long.MAX_VALUE on error.
 	 */
-	public abstract long getFirstTimestamp(String path);
+	public abstract long readFirstTimestamp(String path);
+	
+	/**
+	 * Reads the timestamp for a specific sample number or frame number.
+	 * 
+	 * @param sampleNumber    The sample or frame number.
+	 * @return                Corresponding timestamp.
+	 */
+	public abstract long getTimestamp(int sampleNumber);
+	
+	/**
+	 * @return    The number of samples or frames available.
+	 */
+	public abstract int getSampleCount();
+	
+	/**
+	 * Removes all samples or frames. This is a non-permanent version of dispose().
+	 * This does not close the connection, so this code must ensure there is no race condition.
+	 */
+	public abstract void removeAllData();
 	
 	/**
 	 * Reads data (samples or images or ...) from a file, instead of a live connection.
@@ -61,6 +81,18 @@ public abstract class Connection {
 	 * @param completedByteCount    Variable to increment as progress is made (this is periodically queried by a progress bar.)
 	 */
 	public abstract void importDataFile(String path, long firstTimestamp, AtomicLong completedByteCount);
+	
+
+	
+	/**
+	 * Causes the file import thread to finish importing the file as fast as possible (instead of using a real-time playback speed.)
+	 */
+	public final void finishImportingFile() {
+		
+		if(receiverThread != null && receiverThread.isAlive())
+			receiverThread.interrupt();
+		
+	}
 	
 	/**
 	 * Writes data (samples or images or ...) to a file, so it can be replayed later on.

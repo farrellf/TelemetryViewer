@@ -89,25 +89,13 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 		EventHandler handler = null;
 
-		boolean haveTelemetry = false;
-		long minTimestamp = Long.MAX_VALUE;
-		long maxTimestamp = Long.MIN_VALUE;
-		for(ConnectionTelemetry connection : ConnectionsController.connections) {
-			if(connection.datasets.getSampleCount() > 0) {
-				haveTelemetry = true;
-				long min = connection.datasets.getFirstTimestamp();
-				if(min < minTimestamp)
-					minTimestamp = min;
-				long max = connection.datasets.getTimestamp(connection.datasets.getSampleCount() - 1);
-				if(max > maxTimestamp)
-					maxTimestamp = max;
-			}
-		}
-		if(!haveTelemetry) {
+		boolean haveTelemetry = ConnectionsController.telemetryExists();
+		if(!haveTelemetry)
 			nowTimestamp = 0;
-			minTimestamp = 0;
-			maxTimestamp = 0;
-		}
+		long minTimestamp = haveTelemetry ? ConnectionsController.getFirstTimestamp() : 0;
+		long maxTimestamp = haveTelemetry ? ConnectionsController.getLastTimestamp()  : 0;
+		if(OpenGLChartsView.instance.isLiveView())
+			maxTimestamp = nowTimestamp;
 		
 		boolean twoLineTimestamps = SettingsController.isTimeFormatTwoLines();
 		
@@ -224,8 +212,8 @@ public class OpenGLTimelineChart extends PositionedChart {
 				int[] originalScissorArgs = new int[4];
 				gl.glGetIntegerv(GL3.GL_SCISSOR_BOX, originalScissorArgs, 0);
 				gl.glScissor(originalScissorArgs[0] + (int) xTimelineLeft, originalScissorArgs[1] + (int) (y + 2*markerWidth), (int) timelineWidth, (int) (height - yTimelineBottom));
-				int trueLastSampleNumber = bitfieldEdges.isEmpty() ? bitfieldLevels.get(0).dataset.controller.getSampleCount() - 1 :
-				                                                     bitfieldEdges.get(0).dataset.controller.getSampleCount() - 1;
+				int trueLastSampleNumber = bitfieldEdges.isEmpty() ? bitfieldLevels.get(0).connection.getSampleCount() - 1 :
+				                                                     bitfieldEdges.get(0).connection.getSampleCount() - 1;
 				BitfieldEvents events = new BitfieldEvents(false, false, bitfieldEdges, bitfieldLevels, 0, trueLastSampleNumber);
 				long min = minTimestamp;
 				long max = maxTimestamp;
@@ -240,46 +228,69 @@ public class OpenGLTimelineChart extends PositionedChart {
 				
 				double mousePercentage = (mouseX - xTimelineLeft) / timelineWidth;
 				long mouseTimestamp = minTimestamp + (long) (mousePercentage * (double) (maxTimestamp - minTimestamp));
-				long[] connectionErrors       = new long[ConnectionsController.connections.size()];
-				int[] connectionSampleNumbers = new  int[ConnectionsController.connections.size()];
-				for(int i = 0; i < ConnectionsController.connections.size(); i++) {
-					ConnectionTelemetry connection = ConnectionsController.connections.get(i);
-					int trueLastSampleNumber = connection.datasets.getSampleCount() - 1;
-					int closestSampleNumberBefore = connection.datasets.getClosestSampleNumberAtOrBefore(mouseTimestamp, trueLastSampleNumber);
-					int closestSampleNumberAfter = closestSampleNumberBefore + 1;
-					if(closestSampleNumberAfter > trueLastSampleNumber)
-						closestSampleNumberAfter = trueLastSampleNumber;
+				
+				if(!ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.cameraConnections.isEmpty()) {
 					
-					long beforeError = mouseTimestamp - connection.datasets.getTimestamp(closestSampleNumberBefore);
-					long afterError  = connection.datasets.getTimestamp(closestSampleNumberAfter) - mouseTimestamp;
-					beforeError = Math.abs(beforeError);
-					afterError = Math.abs(afterError);
+					// only telemetry connections exist, so focus on sample numbers
+					long[] connectionErrors       = new long[ConnectionsController.telemetryConnections.size()];
+					int[] connectionSampleNumbers = new  int[ConnectionsController.telemetryConnections.size()];
+					for(int i = 0; i < ConnectionsController.telemetryConnections.size(); i++) {
+						ConnectionTelemetry connection = ConnectionsController.telemetryConnections.get(i);
+						int trueLastSampleNumber = connection.getSampleCount() - 1;
+						int closestSampleNumberBefore = connection.datasets.getClosestSampleNumberAtOrBefore(mouseTimestamp, trueLastSampleNumber);
+						int closestSampleNumberAfter = closestSampleNumberBefore + 1;
+						if(closestSampleNumberAfter > trueLastSampleNumber)
+							closestSampleNumberAfter = trueLastSampleNumber;
+						
+						long beforeError = mouseTimestamp - connection.datasets.getTimestamp(closestSampleNumberBefore);
+						long afterError  = connection.datasets.getTimestamp(closestSampleNumberAfter) - mouseTimestamp;
+						beforeError = Math.abs(beforeError);
+						afterError = Math.abs(afterError);
+						
+						connectionErrors[i] = Long.min(beforeError, afterError);
+						connectionSampleNumbers[i] = beforeError < afterError ? closestSampleNumberBefore : closestSampleNumberAfter;
+					}
 					
-					connectionErrors[i] = Long.min(beforeError, afterError);
-					connectionSampleNumbers[i] = beforeError < afterError ? closestSampleNumberBefore : closestSampleNumberAfter;
-				}
-				
-				int n = 0;
-				for(int i = 1; i < connectionErrors.length; i++)
-					if(connectionErrors[i] < connectionErrors[n])
-						n = i;
-				ConnectionTelemetry connection = ConnectionsController.connections.get(n);
-				int sampleNumber = connectionSampleNumbers[n];
-				
-				handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setPausedView(connection.datasets.getTimestamp(sampleNumber), connection, sampleNumber));
-				
-				mouseTimestamp = connection.datasets.getTimestamp(sampleNumber);
-				float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
-				String[] text = new String[twoLineTimestamps ? 3 : 2];
-				text[0] = "Sample " + sampleNumber;
-				if(twoLineTimestamps) {
-					String[] timestampLine = SettingsController.formatTimestampToMilliseconds(mouseTimestamp).split("\n");
-					text[1] = timestampLine[0];
-					text[2] = timestampLine[1];
+					int n = 0;
+					for(int i = 1; i < connectionErrors.length; i++)
+						if(connectionErrors[i] < connectionErrors[n])
+							n = i;
+					ConnectionTelemetry connection = ConnectionsController.telemetryConnections.get(n);
+					int sampleNumber = connectionSampleNumbers[n];
+					
+					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setPausedView(connection.datasets.getTimestamp(sampleNumber), connection, sampleNumber));
+					
+					mouseTimestamp = connection.datasets.getTimestamp(sampleNumber);
+					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
+					String[] text = new String[twoLineTimestamps ? 3 : 2];
+					text[0] = "Sample " + sampleNumber;
+					if(twoLineTimestamps) {
+						String[] timestampLine = SettingsController.formatTimestampToMilliseconds(mouseTimestamp).split("\n");
+						text[1] = timestampLine[0];
+						text[2] = timestampLine[1];
+					} else {
+						text[1] = SettingsController.formatTimestampToMilliseconds(mouseTimestamp);
+					}
+					ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
+					
 				} else {
-					text[1] = SettingsController.formatTimestampToMilliseconds(mouseTimestamp);
+					
+					// cameras exist, so focus on timestamps
+					long timestamp = mouseTimestamp;
+					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setPausedView(timestamp, null, 0));
+					
+					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
+					String[] text = new String[twoLineTimestamps ? 2 : 1];
+					if(twoLineTimestamps) {
+						String[] timestampLine = SettingsController.formatTimestampToMilliseconds(mouseTimestamp).split("\n");
+						text[0] = timestampLine[0];
+						text[1] = timestampLine[1];
+					} else {
+						text[0] = SettingsController.formatTimestampToMilliseconds(mouseTimestamp);
+					}
+					ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
+					
 				}
-				ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
 
 			}
 			

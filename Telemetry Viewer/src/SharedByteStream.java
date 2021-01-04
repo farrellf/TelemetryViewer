@@ -184,7 +184,7 @@ public class SharedByteStream {
 		}
 		
 		// show an error message if sync was lost, unless this is the first packet (because we may have connected in the middle of a packet)
-		if(lostSync && connection.datasets.getSampleCount() > 0)
+		if(lostSync && connection.getSampleCount() > 0)
 			NotificationsController.showWarningForSeconds("Lost sync with the telemetry packet stream.", 5, true);
 		
 		// stop at the first loss of sync or failed checksum

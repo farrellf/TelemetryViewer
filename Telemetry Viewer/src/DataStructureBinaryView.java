@@ -306,7 +306,7 @@ public class DataStructureBinaryView extends JPanel {
 					Dataset dataset = connection.datasets.getByIndex(datasetNumber);
 					String title = "Remove " + dataset.name + "?";
 					String message = "<html>Remove the " + dataset.name + " dataset?";
-					if(connection.datasets.getSampleCount() > 0)
+					if(connection.getSampleCount() > 0)
 						message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
 					boolean remove = JOptionPane.showConfirmDialog(DataStructureBinaryView.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 					if(remove) {
@@ -330,7 +330,7 @@ public class DataStructureBinaryView extends JPanel {
 					// remove button for the checksum was clicked
 					String title = "Remove checksum?";
 					String message = "<html>Remove the " + connection.datasets.getChecksumProcessor() + "?";
-					if(connection.datasets.getSampleCount() > 0)
+					if(connection.getSampleCount() > 0)
 						message += "<br>WARNING: This will also remove all acquired samples from EVERY dataset!</html>";
 					boolean remove = JOptionPane.showConfirmDialog(DataStructureBinaryView.this, message, title, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
 					if(remove) {

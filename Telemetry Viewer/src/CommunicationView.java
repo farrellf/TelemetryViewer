@@ -52,7 +52,7 @@ public class CommunicationView extends JPanel {
 			
 			JFileChooser inputFiles = new JFileChooser(System.getProperty("user.home") + "/Desktop/");
 			inputFiles.setMultiSelectionEnabled(true);
-			inputFiles.setFileFilter(new FileNameExtensionFilter("Files Exported from Telemetry Viewer", "txt", "csv", "mjpg", "bin"));
+			inputFiles.setFileFilter(new FileNameExtensionFilter("Files Exported from Telemetry Viewer", "txt", "csv", "mkv"));
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(this);
 			if(inputFiles.showOpenDialog(parentWindow) == JFileChooser.APPROVE_OPTION) {
 				File[] files = inputFiles.getSelectedFiles();
@@ -74,14 +74,14 @@ public class CommunicationView extends JPanel {
 			
 			JCheckBox settingsFileCheckbox = new JCheckBox("Settings file (the data structures, chart settings, and GUI settings)", true);
 			List<Map.Entry<JCheckBox, ConnectionTelemetry>> csvFileCheckboxes = new ArrayList<Map.Entry<JCheckBox, ConnectionTelemetry>>();
-			List<Map.Entry<JCheckBox, Camera>> cameraFileCheckboxes = new ArrayList<Map.Entry<JCheckBox, Camera>>();
+			List<Map.Entry<JCheckBox, ConnectionCamera>> cameraFileCheckboxes = new ArrayList<Map.Entry<JCheckBox, ConnectionCamera>>();
 			
-			for(ConnectionTelemetry connection : ConnectionsController.connections)
-				if(connection.datasets.getSampleCount() > 0)
+			for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
+				if(connection.getSampleCount() > 0)
 					csvFileCheckboxes.add(new AbstractMap.SimpleEntry<JCheckBox, ConnectionTelemetry>(new JCheckBox("CSV file for \"" + connection.name + "\" (the acquired samples and corresponding timestamps)", true), connection));
-			for(Camera camera : ConnectionsController.connections.get(0).datasets.getExistingCameras())
-				if(camera.getFrameCount() > 0)
-					cameraFileCheckboxes.add(new AbstractMap.SimpleEntry<JCheckBox, Camera>(new JCheckBox("Camera files for \"" + camera.name + "\"", true), camera));
+			for(ConnectionCamera camera : ConnectionsController.cameraConnections)
+				if(camera.getSampleCount() > 0)
+					cameraFileCheckboxes.add(new AbstractMap.SimpleEntry<JCheckBox, ConnectionCamera>(new JCheckBox("Camera files for \"" + camera.name + "\"", true), camera));
 			
 			JButton cancelButton = new JButton("Cancel");
 			cancelButton.addActionListener(event2 -> exportWindow.dispose());
@@ -96,7 +96,7 @@ public class CommunicationView extends JPanel {
 				for(Entry<JCheckBox, ConnectionTelemetry> entry : csvFileCheckboxes)
 					if(entry.getKey().isSelected())
 						nothingSelected = false;
-				for(Entry<JCheckBox, Camera> entry : cameraFileCheckboxes)
+				for(Entry<JCheckBox, ConnectionCamera> entry : cameraFileCheckboxes)
 					if(entry.getKey().isSelected())
 						nothingSelected = false;
 				if(nothingSelected) {
@@ -114,11 +114,11 @@ public class CommunicationView extends JPanel {
 						absolutePath = absolutePath.substring(0, absolutePath.lastIndexOf("."));
 					boolean exportSettingsFile = settingsFileCheckbox.isSelected();
 					List<ConnectionTelemetry> connectionsList = new ArrayList<ConnectionTelemetry>();
-					List<Camera>              camerasList     = new ArrayList<Camera>();
+					List<ConnectionCamera>    camerasList     = new ArrayList<ConnectionCamera>();
 					for(Entry<JCheckBox, ConnectionTelemetry> entry : csvFileCheckboxes)
 						if(entry.getKey().isSelected())
 							connectionsList.add(entry.getValue());
-					for(Entry<JCheckBox, Camera> entry : cameraFileCheckboxes)
+					for(Entry<JCheckBox, ConnectionCamera> entry : cameraFileCheckboxes)
 						if(entry.getKey().isSelected())
 							camerasList.add(entry.getValue());
 					ConnectionsController.exportFiles(absolutePath, exportSettingsFile, connectionsList, camerasList);
@@ -135,7 +135,7 @@ public class CommunicationView extends JPanel {
 			exportWindow.add(settingsFileCheckbox);
 			for(Entry<JCheckBox, ConnectionTelemetry> entry : csvFileCheckboxes)
 				exportWindow.add(entry.getKey());
-			for(Entry<JCheckBox, Camera> entry : cameraFileCheckboxes)
+			for(Entry<JCheckBox, ConnectionCamera> entry : cameraFileCheckboxes)
 				exportWindow.add(entry.getKey());
 			exportWindow.add(buttonsPanel, "grow x");
 			exportWindow.pack();
@@ -150,7 +150,7 @@ public class CommunicationView extends JPanel {
 		helpButton.addActionListener(event -> {
 			
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(CommunicationView.instance);
-			String helpText = "<html><b>Telemetry Viewer v0.7 (2020-07-17)</b><br>" +
+			String helpText = "<html><b>" + Main.versionString + "</b><br>" +
 			                  "A fast and easy tool for visualizing data received over a UART/TCP/UDP connection.<br><br>" +
 			                  "Step 1: Use the controls at the lower-right corner of the window to connect to a serial port or to start a TCP/UDP server.<br>" +
 			                  "Step 2: A \"Data Structure Definition\" screen will appear. Use it to specify how your data is laid out, then click \"Done.\"<br>" +
@@ -187,10 +187,7 @@ public class CommunicationView extends JPanel {
 		});
 		
 		connectionButton = new JButton("New Connection");
-		connectionButton.addActionListener(event -> {
-			ConnectionsController.connections.add(new ConnectionTelemetry());
-			CommunicationView.instance.redraw();
-		});
+		connectionButton.addActionListener(event -> ConnectionsController.addConnection(new ConnectionTelemetry()));
 		
 		// show the components
 		redraw();
@@ -202,8 +199,8 @@ public class CommunicationView extends JPanel {
 		SwingUtilities.invokeLater(() -> {
 			
 			boolean haveSamples = false;
-			for(ConnectionTelemetry connection : ConnectionsController.connections)
-				if(connection.datasets.getSampleCount() > 0)
+			for(Connection connection : ConnectionsController.allConnections)
+				if(connection.getSampleCount() > 0)
 					haveSamples = true;
 			
 			importButton.setEnabled(!ConnectionsController.importing && !ConnectionsController.exporting);
@@ -215,27 +212,24 @@ public class CommunicationView extends JPanel {
 			add(exportButton);
 			add(helpButton);
 			add(connectionButton);
-			for(int i = 0; i < ConnectionsController.connections.size(); i++)
-				add(ConnectionsController.connections.get(i).getGui(), "align right, cell 5 " + i);
+			for(int i = 0; i < ConnectionsController.allConnections.size(); i++)
+				add(ConnectionsController.allConnections.get(i).getGui(), "align right, cell 5 " + i);
 			
 			if(!ConnectionsController.importing) {
 				connectionButton.setVisible(true);
 				connectionButton.setText("New Connection");
 				for(ActionListener listener : connectionButton.getActionListeners())
 					connectionButton.removeActionListener(listener);
-				connectionButton.addActionListener(event -> {
-					ConnectionsController.connections.add(new ConnectionTelemetry());
-					CommunicationView.instance.redraw();
-				});
-			} else if(ConnectionsController.importing && ConnectionsController.connections.size() < 2) {
+				connectionButton.addActionListener(event -> ConnectionsController.addConnection(new ConnectionTelemetry()));
+			} else if(ConnectionsController.importing && ConnectionsController.allConnections.size() < 2) {
 				connectionButton.setVisible(false);
-			} else if(ConnectionsController.importing && ConnectionsController.connections.size() > 1) {
+			} else if(ConnectionsController.importing && ConnectionsController.allConnections.size() > 1) {
 				connectionButton.setVisible(true);
 				connectionButton.setText(ConnectionsController.realtimeImporting ? "Finish Importing" : "Abort Importing");
 				for(ActionListener listener : connectionButton.getActionListeners())
 					connectionButton.removeActionListener(listener);
 				connectionButton.addActionListener(event -> {
-					for(ConnectionTelemetry connection : ConnectionsController.connections)
+					for(Connection connection : ConnectionsController.allConnections)
 						connection.finishImportingFile();
 					CommunicationView.instance.redraw();
 				});

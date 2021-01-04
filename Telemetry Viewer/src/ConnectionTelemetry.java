@@ -35,10 +35,21 @@ import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 
 import com.fazecast.jSerialComm.SerialPort;
-
 import net.miginfocom.swing.MigLayout;
 
 public class ConnectionTelemetry extends Connection {
+	
+	static List<String> names = new ArrayList<String>();
+	static {
+		for(SerialPort port : SerialPort.getCommPorts())
+			names.add("UART: " + port.getSystemPortName());
+		Collections.sort(names);
+		
+		names.add("TCP");
+		names.add("UDP");
+		names.add("Demo Mode");
+		names.add("Stress Test Mode");
+	}
 	
 	// reminder: fields are shared with multiple threads, so they must be final or volatile or atomic.
 	public final DatasetsController datasets = new DatasetsController(this); // used to store "normal telemetry"
@@ -48,7 +59,6 @@ public class ConnectionTelemetry extends Connection {
 	
 	public volatile int sampleRate = 1000;
 	public volatile boolean csvMode = true;
-	public volatile String name = "";
 	public volatile int baudRate = 9600; // for UART mode
 	public volatile int portNumber = 8080; // for TCP/UDP modes
 	
@@ -82,8 +92,17 @@ public class ConnectionTelemetry extends Connection {
 	 */
 	public ConnectionTelemetry() {
 		
+		this(getNames().get(0));
+		
+	}
+	
+	/**
+	 * Prepares, but does not connect to, a connection that can receive "normal telemetry" (a stream of numbers to visualize.)
+	 */
+	public ConnectionTelemetry(String name) {
+		
 		// determine the connection name and mode
-		name = getNames().get(0);
+		this.name = name;
 		if(name.startsWith("UART"))
 			mode = Mode.UART;
 		else if(name.equals("TCP"))
@@ -113,18 +132,7 @@ public class ConnectionTelemetry extends Connection {
 	 * @return List of possible telemetry connections to show the user.
 	 */
 	public static List<String> getNames() {
-		
-		List<String> names = new ArrayList<String>();
-		
-		for(SerialPort port : SerialPort.getCommPorts())
-			names.add("UART: " + port.getSystemPortName());
-		Collections.sort(names);
-		
-		names.add("TCP");
-		names.add("UDP");
-		names.add("Demo Mode");
-		names.add("Stress Test Mode");
-		
+
 		return names;
 		
 	}
@@ -138,7 +146,7 @@ public class ConnectionTelemetry extends Connection {
 		panel.setLayout(new MigLayout("hidemode 3, gap " + Theme.padding  + ", insets 0 " + Theme.padding + " 0 0"));
 			
 		// sample rate
-		JLabel sampleRateLabel = new JLabel("Sample Rate (Hz)");
+		JLabel sampleRateLabel = new JLabel("Sample Rate: (Hz)");
 		sampleRateLabel.setMinimumSize(sampleRateLabel.getPreferredSize());
 		
 		JTextField sampleRateTextfield = new JTextField(sampleRate == Integer.MAX_VALUE ? "maximum" : Integer.toString(sampleRate), 7);
@@ -171,7 +179,6 @@ public class ConnectionTelemetry extends Connection {
 		JComboBox<String> connectionNamesCombobox = new JComboBox<String>();
 		for(String name : ConnectionsController.getNames())
 			connectionNamesCombobox.addItem(name);
-		connectionNamesCombobox.setMinimumSize(connectionNamesCombobox.getPreferredSize());
 		connectionNamesCombobox.setMaximumRowCount(connectionNamesCombobox.getItemCount());
 		connectionNamesCombobox.setSelectedItem(name);
 		if(!connectionNamesCombobox.getSelectedItem().equals(name)) {
@@ -183,11 +190,24 @@ public class ConnectionTelemetry extends Connection {
 			connectionNamesCombobox.addItem(importName);
 			connectionNamesCombobox.setSelectedItem(importName);
 		}
+		connectionNamesCombobox.setMinimumSize(connectionNamesCombobox.getPreferredSize());
 		connectionNamesCombobox.addActionListener(event -> {
 			
 			String newConnectionName = connectionNamesCombobox.getSelectedItem().toString();
 			if(newConnectionName.equals(name))
 				return;
+			
+			for(Connection conneection : ConnectionsController.allConnections)
+				if(conneection.name.equals(newConnectionName)) {
+					connectionNamesCombobox.setSelectedItem(name);
+					return;
+				}
+			
+			// change connection types if needed
+			if(!getNames().contains(newConnectionName)) {
+				ConnectionsController.replaceConnection(ConnectionTelemetry.this, new ConnectionCamera(newConnectionName));
+				return;
+			}
 
 			// if leaving demo mode or stress test mode, reset the data structure
 			Mode oldMode = mode;
@@ -287,7 +307,7 @@ public class ConnectionTelemetry extends Connection {
 			else if(connectButton.getText().equals("Finish") || connectButton.getText().equals("Abort"))
 				finishImportingFile();
 		});
-		if(ConnectionsController.importing && ConnectionsController.connections.size() > 1)
+		if(ConnectionsController.importing && ConnectionsController.allConnections.size() > 1)
 			connectButton.setVisible(false);
 		
 		// remove connection button
@@ -298,11 +318,10 @@ public class ConnectionTelemetry extends Connection {
 		JButton removeButton = new JButton("\uD83D\uDDD9");
 		removeButton.setBorder(narrowBorder);
 		removeButton.addActionListener(event -> {
-			ConnectionTelemetry.this.dispose();
-			ConnectionsController.connections.remove(ConnectionTelemetry.this);
+			ConnectionsController.removeConnection(ConnectionTelemetry.this);
 			CommunicationView.instance.redraw();
 		});
-		if(ConnectionsController.connections.size() < 2 || ConnectionsController.importing)
+		if(ConnectionsController.allConnections.size() < 2 || ConnectionsController.importing)
 			removeButton.setVisible(false);
 		
 		// populate the panel
@@ -338,7 +357,7 @@ public class ConnectionTelemetry extends Connection {
 		connectionNamesCombobox.setEnabled(!ConnectionsController.importing && !connected);
 		baudRateCombobox.setEnabled(!ConnectionsController.importing && !connected);
 		portNumberCombobox.setEnabled(!ConnectionsController.importing && !connected);
-		connectButton.setEnabled(!ConnectionsController.importing && !ConnectionsController.exporting);
+		connectButton.setEnabled(!ConnectionsController.exporting);
 		
 		return panel;
 		
@@ -350,6 +369,12 @@ public class ConnectionTelemetry extends Connection {
 			disconnect(null);
 		
 		NotificationsController.removeIfConnectionRelated();
+		
+		if(ConnectionsController.previouslyImported) {
+			for(Connection connection : ConnectionsController.allConnections)
+				connection.removeAllData();
+			ConnectionsController.previouslyImported = false;
+		}
 		
 		if(showGui)
 			dataStructureDefined = false;
@@ -484,7 +509,7 @@ public class ConnectionTelemetry extends Connection {
 					
 					// enter an infinite loop that checks for activity. if the TCP port is idle for >10 seconds, abandon it so another device can try to connect.
 					long previousTimestamp = System.currentTimeMillis();
-					int previousSampleNumber = datasets.getSampleCount();
+					int previousSampleNumber = getSampleCount();
 					while(true) {
 						int byteCount = is.available();
 						if(byteCount > 0) {
@@ -494,7 +519,7 @@ public class ConnectionTelemetry extends Connection {
 							continue;
 						}
 						Thread.sleep(1);
-						int sampleNumber = datasets.getSampleCount();
+						int sampleNumber = getSampleCount();
 						long timestamp = System.currentTimeMillis();
 						if(sampleNumber > previousSampleNumber) {
 							previousSampleNumber = sampleNumber;
@@ -649,7 +674,7 @@ public class ConnectionTelemetry extends Connection {
 		receiverThread = new Thread(() -> {
 			
 			double counter = 0;
-			int sampleNumber = datasets.getSampleCount();
+			int sampleNumber = getSampleCount();
 			
 			while(true) {
 				float scalar = ((System.currentTimeMillis() % 30000) - 15000) / 100.0f;
@@ -1014,7 +1039,7 @@ public class ConnectionTelemetry extends Connection {
 
 	}
 	
-	@Override public long getFirstTimestamp(String path) {
+	@Override public long readFirstTimestamp(String path) {
 		
 		try {
 			
@@ -1038,10 +1063,29 @@ public class ConnectionTelemetry extends Connection {
 		}
 		
 	}
+	
+	@Override public long getTimestamp(int sampleNumber) {
+		
+		return datasets.getTimestamp(sampleNumber);
+		
+	}
+	
+	@Override public int getSampleCount() {
+		
+		return datasets.getSampleCount();
+		
+	}
+	
+	@Override public void removeAllData() {
+		
+		datasets.removeAllData();
+		OpenGLChartsView.instance.switchToLiveView();
+		
+	}
 
 	@Override public void importDataFile(String path, long firstTimestamp, AtomicLong completedByteCount) {
 
-		datasets.removeAllData();
+		removeAllData();
 		
 		receiverThread = new Thread(() -> {
 			
@@ -1095,7 +1139,7 @@ public class ConnectionTelemetry extends Connection {
 				String line = file.nextLine();
 				completedByteCount.addAndGet((long) (line.length() + 2));
 				long startTimeThread = System.currentTimeMillis();
-				int sampleNumber = datasets.getSampleCount();
+				int sampleNumber = getSampleCount();
 				while(true) {
 					tokens = line.split(",");
 					if(ConnectionsController.realtimeImporting) {
@@ -1135,7 +1179,7 @@ public class ConnectionTelemetry extends Connection {
 		});
 		
 		receiverThread.setPriority(Thread.MAX_PRIORITY);
-		receiverThread.setName("File Import Thread");
+		receiverThread.setName("CSV File Import Thread");
 		receiverThread.start();
 
 	}
@@ -1143,17 +1187,17 @@ public class ConnectionTelemetry extends Connection {
 	/**
 	 * Exports all samples to a CSV file.
 	 * 
-	 * @param path                  Full path with file name.
+	 * @param path                  Full path with file name but without the file extension.
 	 * @param completedByteCount    Variable to increment as progress is made (this is periodically queried by a progress bar.)
 	 */
 	@Override public void exportDataFile(String path, AtomicLong completedByteCount) { // FIXME improve exporting to use getValues()!
 		
 		int datasetsCount = datasets.getCount();
-		int sampleCount = datasets.getSampleCount();
+		int sampleCount = getSampleCount();
 		
 		try {
 			
-			PrintWriter logFile = new PrintWriter(path, "UTF-8");
+			PrintWriter logFile = new PrintWriter(path + ".csv", "UTF-8");
 			logFile.print("Sample Number (" + sampleRate + " samples per second),UNIX Timestamp (Milliseconds since 1970-01-01)");
 			for(int i = 0; i < datasetsCount; i++) {
 				Dataset d = datasets.getByIndex(i);
@@ -1187,16 +1231,6 @@ public class ConnectionTelemetry extends Connection {
 	}
 	
 	/**
-	 * Causes the file import thread to finish importing the file as fast as possible (instead of using a real-time playback speed.)
-	 */
-	public void finishImportingFile() {
-		
-		if(receiverThread != null && receiverThread.isAlive())
-			receiverThread.interrupt();
-		
-	}
-	
-	/**
 	 * Spawns a new thread that starts processing received telemetry packets.
 	 * 
 	 * @param stream    Bytes of received telemetry.
@@ -1226,15 +1260,15 @@ public class ConnectionTelemetry extends Connection {
 			                             mode == Mode.TCP  ? "The TCP server is running and receiving telemetry." :
 			                             mode == Mode.UDP  ? "The UDP listener is running and receiving telemetry." :
 			                                                                    "";
-			int oldSampleCount = datasets.getSampleCount();
+			int oldSampleCount = getSampleCount();
 			Timer t = new Timer(100, event -> {
 				
 				if(mode == Mode.DEMO || mode == Mode.STRESS_TEST)
 					return;
 				
 				if(connected) {
-					if(datasets.getSampleCount() == oldSampleCount)
-						NotificationsController.showHintUntil(waitingForTelemetry, () -> datasets.getSampleCount() > oldSampleCount, true);
+					if(getSampleCount() == oldSampleCount)
+						NotificationsController.showHintUntil(waitingForTelemetry, () -> getSampleCount() > oldSampleCount, true);
 					else
 						NotificationsController.showVerboseForSeconds(receivingTelemetry, 5, true);
 				}
@@ -1266,7 +1300,7 @@ public class ConnectionTelemetry extends Connection {
 						String[] tokens = line.split(",");
 						for(int i = 0; i < numberForLocation.length; i++)
 							numberForLocation[i] = Float.parseFloat(tokens[i]);
-						int sampleNumber = datasets.getSampleCount();
+						int sampleNumber = getSampleCount();
 						for(Dataset d : list)
 							d.setSample(sampleNumber, numberForLocation[d.location]);
 						datasets.incrementSampleCount();
@@ -1316,7 +1350,7 @@ public class ConnectionTelemetry extends Connection {
 						// process the received telemetry packets
 						while(packets.count > 0) {
 							
-							int sampleNumber = datasets.getSampleCount();
+							int sampleNumber = getSampleCount();
 							boolean blockAligned = sampleNumber % StorageFloats.BLOCK_SIZE == 0;
 							int blocksRemaining = packets.count / StorageFloats.BLOCK_SIZE;
 							

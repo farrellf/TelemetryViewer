@@ -6,8 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -18,10 +21,141 @@ public class ConnectionsController {
 	public static volatile boolean importing = false;
 	public static volatile boolean exporting = false;
 	public static volatile boolean realtimeImporting = true; // false = importing files as fast as possible
+	public static volatile boolean previouslyImported = false; // true = the Connections contain imported data
 	
-	public static List<ConnectionTelemetry> connections = new ArrayList<ConnectionTelemetry>();
+	public static List<Connection>                allConnections = new ArrayList<Connection>();
+	public static List<ConnectionTelemetry> telemetryConnections = new ArrayList<ConnectionTelemetry>();
+	public static List<ConnectionCamera>       cameraConnections = new ArrayList<ConnectionCamera>();
 	static {
-		connections.add(new ConnectionTelemetry());
+		addConnection(new ConnectionTelemetry());
+	}
+	
+	private static final String filenameSanitizer = "[^a-zA-Z0-9_\\.\\- ]"; // only allow letters, numbers, underscores, periods, hyphens and spaces.
+	
+	public static void addConnection(Connection connection) {
+		
+		allConnections.add(connection);
+		if(connection instanceof ConnectionTelemetry)
+			telemetryConnections.add((ConnectionTelemetry) connection);
+		else if(connection instanceof ConnectionCamera)
+			cameraConnections.add((ConnectionCamera) connection);
+		
+		CommunicationView.instance.redraw();
+		
+	}
+	
+	public static void removeConnection(Connection connection) {
+		
+		connection.dispose();
+		allConnections.remove(connection);
+		if(connection instanceof ConnectionTelemetry)
+			telemetryConnections.remove((ConnectionTelemetry) connection);
+		else if(connection instanceof ConnectionCamera)
+			cameraConnections.remove((ConnectionCamera) connection);
+		
+		CommunicationView.instance.redraw();
+		
+	}
+	
+	public static void replaceConnection(Connection oldConnection, Connection newConnection) {
+		
+		oldConnection.dispose();
+		int index = allConnections.indexOf(oldConnection);
+		allConnections.set(index, newConnection);
+		if(oldConnection instanceof ConnectionTelemetry && newConnection instanceof ConnectionTelemetry) {
+			index = telemetryConnections.indexOf(oldConnection);
+			telemetryConnections.set(index, (ConnectionTelemetry) newConnection);
+		} else if(oldConnection instanceof ConnectionCamera && newConnection instanceof ConnectionCamera) {
+			index = cameraConnections.indexOf(oldConnection);
+			cameraConnections.set(index, (ConnectionCamera) newConnection);
+		} else if(oldConnection instanceof ConnectionTelemetry) {
+			telemetryConnections.remove(oldConnection);
+			cameraConnections.add((ConnectionCamera) newConnection);
+		} else if(oldConnection instanceof ConnectionCamera) {
+			cameraConnections.remove(oldConnection);
+			telemetryConnections.add((ConnectionTelemetry) newConnection);
+		}
+		
+		CommunicationView.instance.redraw();
+		
+	}
+	
+	public static void removeAllConnections() {
+		
+		for(Connection connection : allConnections)
+			connection.dispose();
+		allConnections.clear();
+		telemetryConnections.clear();
+		cameraConnections.clear();
+		
+		CommunicationView.instance.redraw();
+		
+	}
+	
+	/**
+	 * @return    True if telemetry can be received.
+	 */
+	public static boolean telemetryPossible() {
+		
+		for(ConnectionTelemetry connection : telemetryConnections)
+			if(connection.connected && connection.dataStructureDefined)
+				return true;
+		
+		for(ConnectionCamera connection : cameraConnections)
+			if(connection.connected)
+				return true;
+		
+		return false;
+		
+	}
+	
+	/**
+	 * @return    True if at least one sample or camera image has been acquired.
+	 */
+	public static boolean telemetryExists() {
+		
+		for(Connection connection : ConnectionsController.allConnections)
+			if(connection.getSampleCount() > 0)
+				return true;
+		
+		return false;
+	}
+	
+	/**
+	 * @return    Timestamp of the first sample or camera image, or Long.MAX_VALUE if no telemetry has been acquired.
+	 */
+	public static long getFirstTimestamp() {
+		
+		long timestamp = Long.MAX_VALUE;
+		
+		for(Connection connection : ConnectionsController.allConnections)
+			if(connection.getSampleCount() > 0) {
+				long firstTimestamp = connection.getTimestamp(0);
+				if(firstTimestamp < timestamp)
+					timestamp = firstTimestamp;
+			}
+
+		return timestamp;
+		
+	}
+	
+	/**
+	 * @return    Timestamp of the last sample or camera image, or Long.MIN_VALUE if no telemetry has been acquired.
+	 */
+	public static long getLastTimestamp() {
+		
+		long timestamp = Long.MIN_VALUE;
+		
+		for(Connection connection : ConnectionsController.allConnections)
+			if(connection.getSampleCount() > 0) {
+				int lastSampleNumber = connection.getSampleCount() - 1;
+				long lastTimestamp = connection.getTimestamp(lastSampleNumber);
+				if(lastTimestamp > timestamp)
+					timestamp = lastTimestamp;
+			}
+		
+		return timestamp;
+		
 	}
 	
 	/**
@@ -29,7 +163,10 @@ public class ConnectionsController {
 	 */
 	public static List<String> getNames() {
 		
-		return ConnectionTelemetry.getNames();
+		List<String> names = new ArrayList<String>();
+		names.addAll(ConnectionTelemetry.getNames());
+		names.addAll(ConnectionCamera.getNames());
+		return names;
 		
 	}
 	
@@ -49,79 +186,70 @@ public class ConnectionsController {
 		// sanity check
 		int settingsFileCount = 0;
 		int csvFileCount = 0;
-		int cameraMjpgFileCount = 0;
-		int cameraBinFileCount = 0;
+		int mkvFileCount = 0;
 		int invalidFileCount = 0;
+		
+		Map<Connection, String> imports = new HashMap<Connection, String>(); // keys are Connections, values are the corresponding files
 		
 		for(String filepath : filepaths)
 			if(filepath.endsWith(".txt"))
 				settingsFileCount++;
 			else if(filepath.endsWith(".csv"))
 				csvFileCount++;
-			else if(filepath.endsWith(".mjpg"))
-				cameraMjpgFileCount++;
-			else if(filepath.endsWith(".bin"))
-				cameraBinFileCount++;
+			else if(filepath.endsWith(".mkv"))
+				mkvFileCount++;
 			else
 				invalidFileCount++;
 		
 		if(invalidFileCount > 0) {
-			NotificationsController.showFailureForSeconds("Unsupported file type. Only files exported from TelemetryViewer can be imported:\nSettings files (.txt)\nCSV files (.csv)\nCamera image files (.mjpg)\nCamera image index files (.bin)", 20, true);
-			return;
-		}
-		if(cameraMjpgFileCount != cameraBinFileCount) {
-			NotificationsController.showFailureForSeconds("MJPG and BIN files must be imported together.", 10, true);
+			NotificationsController.showFailureForSeconds("Unsupported file type. Only files exported from TelemetryViewer can be imported:\nSettings files (.txt)\nCSV files (.csv)\nCamera files (.mkv)", 20, true);
 			return;
 		}
 		if(settingsFileCount > 1) {
 			NotificationsController.showFailureForSeconds("Only one settings file can be opened at a time.", 10, true);
 			return;
 		}
-		if(cameraMjpgFileCount > 0)
-			for(String filepath : filepaths)
-				if(filepath.endsWith(".mjpg") && !Arrays.asList(filepaths).contains(filepath.substring(0, filepath.length() - 4) + "bin")) {
-					NotificationsController.showFailureForSeconds("Each MJPG file must have a corresponding BIN file.", 10, true);
-					return;
-				}
-		if(cameraMjpgFileCount > 0 && csvFileCount == 0) {
-			NotificationsController.showFailureForSeconds("Camera images can only be imported along with their corresponding CSV file.", 10, true);
-			return;
-		}
 		
-		// remove old data and charts
-		for(ConnectionTelemetry connection : connections)
-			connection.dispose();
-		connections.clear();
-		ChartsController.removeAllCharts();
-		
-		// import the settings file if requested
-		if(settingsFileCount == 1)
-			for(String filepath : filepaths)
-				if(filepath.endsWith(".txt"))
-					if(!importSettingsFile(filepath, csvFileCount == 0))
-						return;
-		
-		if(csvFileCount > 0) {
-			boolean allConnectionsExist = true;
-			for(String filepath : filepaths)
-				if(filepath.endsWith(".csv")) {
-					boolean found = false;
-					for(int connectionN = 0; connectionN < ConnectionsController.connections.size(); connectionN++)
-						if(filepath.endsWith(" - connection " + connectionN + " - " + ConnectionsController.connections.get(connectionN).name.replaceAll("[^a-zA-Z0-9_\\.\\- ]", "") + ".csv"))
-							found = true;
-					if(!found)
-						allConnectionsExist = false;
-				}
-			if(!allConnectionsExist) {
-				NotificationsController.showFailureForSeconds("CSV file does not correspond with an existing connection.", 10, true);
-				importing = false;
-				realtimeImporting = false;
-				CommunicationView.instance.redraw();
-				return;
+		// if not importing a settings file, disconnect and remove existing samples/frames
+		if(settingsFileCount == 0) {
+			for(Connection connection : ConnectionsController.allConnections) {
+				connection.disconnect(null);
+				connection.removeAllData();
 			}
 		}
 		
-		boolean importingInProgress = csvFileCount + cameraMjpgFileCount > 0;
+		// import the settings file if requested
+		if(settingsFileCount == 1) {
+			removeAllConnections();
+			ChartsController.removeAllCharts();
+			for(String filepath : filepaths)
+				if(filepath.endsWith(".txt"))
+					if(!importSettingsFile(filepath, csvFileCount + mkvFileCount == 0))
+						return;
+		}
+		
+		for(String filepath : filepaths) {
+			if(filepath.endsWith(".csv")) {
+				for(int connectionN = 0; connectionN < ConnectionsController.allConnections.size(); connectionN++) {
+					Connection connection = ConnectionsController.allConnections.get(connectionN);
+					if(filepath.endsWith(" - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "") + ".csv"))
+						imports.put(connection, filepath);
+				}
+			} else if(filepath.endsWith(".mkv")) {
+				for(int connectionN = 0; connectionN < ConnectionsController.allConnections.size(); connectionN++) {
+					Connection connection = ConnectionsController.allConnections.get(connectionN);
+					if(filepath.endsWith(" - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "") + ".mkv"))
+						imports.put(connection, filepath);
+				}
+			}
+		}
+		
+		if(csvFileCount + mkvFileCount != imports.size()) {
+			NotificationsController.showFailureForSeconds("Data file does not correspond with an existing connection.", 10, true);
+			return;
+		}
+		
+		boolean importingInProgress = csvFileCount + mkvFileCount > 0;
 		if(importingInProgress) {
 			
 			importing = true;
@@ -130,48 +258,36 @@ public class ConnectionsController {
 			
 			long totalByteCount = 0;
 			for(String filepath : filepaths)
-				if(filepath.endsWith(".csv") || filepath.endsWith(".mjpg") || filepath.endsWith(".bin"))
+				if(filepath.endsWith(".csv") || filepath.endsWith(".mkv"))
 					try { totalByteCount += Files.size(Paths.get(filepath)); } catch(Exception e) { }
 			
 			AtomicLong completedByteCount = NotificationsController.showProgressBar("Importing...", totalByteCount);
 		
-			// import the CSV files if requested
-			if(csvFileCount > 0) {
-				long firstTimestamp = Long.MAX_VALUE;
-				for(String filepath : filepaths)
-					if(filepath.endsWith(".csv"))
-						for(int connectionN = 0; connectionN < ConnectionsController.connections.size(); connectionN++)
-							if(filepath.endsWith(" - connection " + connectionN + " - " + ConnectionsController.connections.get(connectionN).name.replaceAll("[^a-zA-Z0-9_\\.\\- ]", "") + ".csv")) {
-								long timestamp = ConnectionsController.connections.get(connectionN).getFirstTimestamp(filepath);
-								if(timestamp < firstTimestamp)
-									firstTimestamp = timestamp;
-							}
-				
-				for(String filepath : filepaths)
-					if(filepath.endsWith(".csv"))
-						for(int connectionN = 0; connectionN < ConnectionsController.connections.size(); connectionN++)
-							if(filepath.endsWith(" - connection " + connectionN + " - " + ConnectionsController.connections.get(connectionN).name.replaceAll("[^a-zA-Z0-9_\\.\\- ]", "") + ".csv"))
-								ConnectionsController.connections.get(connectionN).importDataFile(filepath, firstTimestamp, completedByteCount);
+			// import the CSV / MKV files
+			long firstTimestamp = Long.MAX_VALUE;
+			for(Entry<Connection, String> entry : imports.entrySet()) {
+				long timestamp = entry.getKey().readFirstTimestamp(entry.getValue());
+				if(timestamp < firstTimestamp)
+					firstTimestamp = timestamp;
 			}
-			
-			// import the camera images if requested
-			if(cameraMjpgFileCount > 0)
-				for(String filepath : filepaths)
-					if(filepath.endsWith(".mjpg"))
-						importCameraFiles(filepath, filepath.substring(0, filepath.length() - 4) + "bin");
+			if(firstTimestamp != Long.MAX_VALUE)
+				for(Entry<Connection, String> entry : imports.entrySet())
+					entry.getKey().importDataFile(entry.getValue(), firstTimestamp, completedByteCount);
 
+			// have another thread clean up when importing finishes
 			long byteCount = totalByteCount;
 			new Thread(() -> {
 				while(true) {
 					boolean allDone = true;
-					for(ConnectionTelemetry connection : ConnectionsController.connections)
-						if(connection.receiverThread.isAlive())
+					for(Connection connection : ConnectionsController.allConnections)
+						if(connection.receiverThread != null && connection.receiverThread.isAlive())
 							allDone = false;
 					if(allDone) {
+						previouslyImported = true;
 						importing = false;
 						realtimeImporting = false;
 						CommunicationView.instance.redraw();
-						completedByteCount.addAndGet(byteCount); // ensure it gets marked done
+						completedByteCount.addAndGet(byteCount); // to ensure it gets marked done
 						return;
 					} else {
 						try { Thread.sleep(5); } catch(Exception e) { }
@@ -189,10 +305,10 @@ public class ConnectionsController {
 	 * 
 	 * @param filepath               The absolute path, including the part of the filename that will be common to all exported files.
 	 * @param exportSettingsFile     If true, export a settings file.
-	 * @param connectionsToExport    List of Connections to export.
-	 * @param camerasToExport        List of Cameras to export.
+	 * @param telemetryToExport      List of ConnectionTelemetrys to export.
+	 * @param camerasToExport        List of ConnectionCameras to export.
 	 */
-	public static void exportFiles(String filepath, boolean exportSettingsFile, List<ConnectionTelemetry> connectionsToExport, List<Camera> camerasToExport) {
+	public static void exportFiles(String filepath, boolean exportSettingsFile, List<ConnectionTelemetry> telemetryToExport, List<ConnectionCamera> camerasToExport) {
 		
 		Thread exportThread = new Thread(() -> {
 			
@@ -202,9 +318,9 @@ public class ConnectionsController {
 			long totalSampleCount = 0;
 			if(exportSettingsFile)
 				totalSampleCount++;
-			for(ConnectionTelemetry connection : connectionsToExport)
-				totalSampleCount += connection.datasets.getSampleCount();
-			for(Camera camera : camerasToExport)
+			for(ConnectionTelemetry connection : telemetryToExport)
+				totalSampleCount += connection.getSampleCount();
+			for(ConnectionCamera camera : camerasToExport)
 				totalSampleCount += camera.getFileSize(); // not equivalent to a sampleCount, but hopefully good enough
 			AtomicLong completedSampleCount = NotificationsController.showProgressBar("Exporting...", totalSampleCount);
 			
@@ -213,13 +329,17 @@ public class ConnectionsController {
 				completedSampleCount.incrementAndGet();
 			}
 	
-			for(ConnectionTelemetry connection : connectionsToExport) {
-				int connectionN = ConnectionsController.connections.indexOf(connection);
-				connection.exportDataFile(filepath + " - connection " + connectionN + " - " + connection.name.replaceAll("[^a-zA-Z0-9_\\.\\- ]", "") + ".csv", completedSampleCount);
+			for(ConnectionTelemetry connection : telemetryToExport) {
+				int connectionN = ConnectionsController.allConnections.indexOf(connection);
+				String filename = filepath + " - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "");
+				connection.exportDataFile(filename, completedSampleCount);
 			}
 	
-			for(Camera camera : camerasToExport)
-				camera.exportFiles(filepath, completedSampleCount);
+			for(ConnectionCamera connection : camerasToExport) {
+				int connectionN = ConnectionsController.allConnections.indexOf(connection);
+				String filename = filepath + " - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "");
+				connection.exportDataFile(filename, completedSampleCount);
+			}
 			
 			completedSampleCount.addAndGet(totalSampleCount); // ensure it gets marked done
 			
@@ -260,9 +380,9 @@ public class ConnectionsController {
 			file.println("\tantialiasing level = "         + SettingsController.getAntialiasingLevel());
 			file.println("");
 			
-			file.println(connections.size() + " Connections:");
+			file.println(allConnections.size() + " Connections:");
 			file.println("");
-			for(ConnectionTelemetry connection : connections)
+			for(Connection connection : allConnections)
 				connection.exportSettings(file);
 			
 			file.println(ChartsController.getCharts().size() + " Charts:");
@@ -339,14 +459,15 @@ public class ConnectionsController {
 			ChartUtils.parseExact(lines.remove(), "");
 			
 			for(int i = 0; i < connectionsCount; i++) {
-				ConnectionTelemetry newConnection = new ConnectionTelemetry();
+				Connection newConnection = lines.peek().trim().equals("connection type = Camera") ? new ConnectionCamera() :
+				                                                                                    new ConnectionTelemetry();
 				newConnection.importSettings(lines);
 				if(connect)
 					newConnection.connect(false);
-				connections.add(newConnection);
+				addConnection(newConnection);
 			}
 			if(connectionsCount == 0)
-				connections.add(new ConnectionTelemetry());
+				addConnection(new ConnectionTelemetry());
 
 			int chartsCount = ChartUtils.parseInteger(lines.remove(), "%d Charts:");
 			if(chartsCount == 0) {
@@ -405,30 +526,12 @@ public class ConnectionsController {
 		} catch(AssertionError ae) {
 		
 			ChartsController.removeAllCharts();
-			for(ConnectionTelemetry connection : connections)
+			for(Connection connection : allConnections)
 				connection.disconnect(null);
 			
 			NotificationsController.showFailureUntil("Error while parsing the settings file:\nLine " + lines.lineNumber + ": " + ae.getMessage(), () -> false, true);
 			return false;
 		
-		}
-		
-	}
-	
-	/**
-	 * Imports all images from a MJPG and corresponding BIN file.
-	 * 
-	 * @param mjpgFilepath    MJPEG file containing the concatenated JPEG images.
-	 * @param binFilepath     BIN file containing index data for those JPEGs.
-	 */
-	private static void importCameraFiles(String mjpgFilepath, String binFilepath) {
-		
-		for(Camera camera : ConnectionsController.connections.get(0).datasets.getExistingCameras()) {
-			String filesystemFriendlyName = camera.name.replaceAll("[^a-zA-Z0-9.-]", "_");
-			if(mjpgFilepath.endsWith(filesystemFriendlyName + ".mjpg")) {
-				camera.importFiles(mjpgFilepath, binFilepath);
-				return;
-			}
 		}
 		
 	}

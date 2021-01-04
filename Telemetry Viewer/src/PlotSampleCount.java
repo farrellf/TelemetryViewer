@@ -71,16 +71,17 @@ public class PlotSampleCount extends Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
-	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
-	 * @param datasets            Datasets to acquire from.
-	 * @param bitfieldEdges       Bitfield states to show edge events from.
-	 * @param bitfieldLevels      Bitfield states to show levels from.
-	 * @param duration            The sample count, before applying the zoom factor.
-	 * @param cachedMode          True to enable the cache.
-	 * @param showTimestamps      Ignored. This is only used by PlotMilliseconds.
+	 * @param maxTimestamp      The moment in time associated with the right edge of the plot.
+	 * @param maxX              The x-axis value at the right edge of the plot.
+	 * @param zoomLevel         Current zoom level. 1.0 = no zoom.
+	 * @param datasets          Datasets to acquire from.
+	 * @param bitfieldEdges     Bitfield states to show edge events from.
+	 * @param bitfieldLevels    Bitfield states to show levels from.
+	 * @param duration          The sample count, before applying the zoom factor.
+	 * @param cachedMode        True to enable the cache.
+	 * @param showTimestamps    Ignored. This is only used by PlotMilliseconds.
 	 */
-	@Override void initialize(int lastSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override void initialize(long maxTimestamp, int maxX, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.bitfieldEdges = bitfieldEdges;
@@ -88,35 +89,49 @@ public class PlotSampleCount extends Plot {
 		this.cachedMode = cachedMode;
 		xAxisTitle = "Sample Number";
 		
+		// calculate the domain, ensuring it's >= 1
+		plotDomain = (int) (duration * zoomLevel) + 1;
+		plotMaxX = maxX;
+		plotMinX = plotMaxX - plotDomain;
+		
 		// exit if there are no samples to acquire
-		if(lastSampleNumber < 1) {
+		int sampleCount = !datasets.isEmpty()       ? datasets.get(0).connection.getSampleCount() :
+		                  !bitfieldEdges.isEmpty()  ? bitfieldEdges.get(0).connection.getSampleCount() :
+		                  !bitfieldLevels.isEmpty() ? bitfieldLevels.get(0).connection.getSampleCount() :
+		                                              0;
+		
+		if(sampleCount < 1 || maxX < 0) {
 			maxSampleNumber = -1;
 			minSampleNumber = -1;
 			plotSampleCount = 0;
-			plotMaxX = 0;
-			plotMinX = plotMaxX - (int) (duration * zoomLevel) + 1;
-			plotDomain = plotMaxX - plotMinX;
 			samplesMinY = -1;
 			samplesMaxY =  1;
 			return;
 		}
 		
 		// determine which samples to acquire
-		maxSampleNumber = lastSampleNumber;
-		minSampleNumber = maxSampleNumber - (int) (duration * zoomLevel) + 1;
+		maxSampleNumber = maxX < sampleCount ? maxX : sampleCount - 1;
+		minSampleNumber = maxSampleNumber - (int) plotDomain;
+		
+		if(minSampleNumber < plotMinX)
+			minSampleNumber = (int) plotMinX;
 		
 		if(maxSampleNumber - minSampleNumber < 1)
 			minSampleNumber = maxSampleNumber - 1;
-		
-		// calculate the domain
-		plotMaxX = maxSampleNumber;
-		plotMinX = minSampleNumber;
-		plotDomain = plotMaxX - plotMinX;
 		
 		if(minSampleNumber < 0)
 			minSampleNumber = 0;
 		
 		plotSampleCount = maxSampleNumber - minSampleNumber + 1;
+		
+		if(maxSampleNumber < plotMinX) {
+			maxSampleNumber = -1;
+			minSampleNumber = -1;
+			plotSampleCount = 0;
+			samplesMinY = -1;
+			samplesMaxY =  1;
+			return;
+		}
 		
 		// calculate the range
 		samplesMinY = Float.MAX_VALUE;

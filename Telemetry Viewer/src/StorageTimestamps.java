@@ -142,6 +142,35 @@ public class StorageTimestamps {
 		
 	}
 	
+	public int getClosestSampleNumberAfter(long timestamp) {
+		
+		// abort if no samples
+		if(sampleCount == 0)
+			return -1;
+		
+		int maxSampleNumber = sampleCount - 1;
+		int lastBlock = maxSampleNumber / BLOCK_SIZE;
+		
+		// check if all timestamps are older
+		if(minimumValueInBlock[0] > timestamp)
+			return 0;
+		
+		// check the blocks
+		for(int i = 0; i <= lastBlock; i++) {
+			if(maximumValueInBlock[i] > timestamp) {
+				int firstSampleNumber = i * BLOCK_SIZE;
+				int lastSampleNumber = Integer.min((i+1) * BLOCK_SIZE, maxSampleNumber);
+				for(int sampleN = firstSampleNumber; sampleN <= lastSampleNumber; sampleN++)
+					if(getTimestamp(sampleN) > timestamp)
+						return sampleN;
+			}
+		}
+		
+		// all timestamps are younger
+		return maxSampleNumber;
+		
+	}
+	
 	/**
 	 * Reads the timestamp for a certain sample number.
 	 * This method is thread-safe.
@@ -426,6 +455,11 @@ public class StorageTimestamps {
 		slot                = new Slot[MAX_SAMPLE_NUMBER / SLOT_SIZE  + 1]; // +1 to round up
 		minimumValueInBlock = new long[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
 		maximumValueInBlock = new long[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
+		
+		// flush the cache
+		startOfCache = 0;
+		firstCachedSampleNumber = -1;
+		lastCachedSampleNumber = -1;
 		
 	}
 	

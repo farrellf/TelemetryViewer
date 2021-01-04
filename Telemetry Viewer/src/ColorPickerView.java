@@ -378,7 +378,7 @@ public class ColorPickerView extends JDialog {
 				
 				// draw a dot if this color is used by any dataset or bitfield state
 				boolean colorUsed = false;
-				for(ConnectionTelemetry connection : ConnectionsController.connections)
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
 					for(Dataset dataset : connection.datasets.getList()) {
 						if(dataset.color.equals(c))
 							colorUsed = true;
@@ -424,7 +424,7 @@ public class ColorPickerView extends JDialog {
 				
 				// draw a tooltip if any datasets or bitfield states use this color
 				List<String> datasetNames = new ArrayList<String>();
-				for(ConnectionTelemetry connection : ConnectionsController.connections)
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
 					for(Dataset dataset : connection.datasets.getList()) {
 						
 						if(dataset.color.equals(mouseOverColor))

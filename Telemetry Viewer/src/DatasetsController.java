@@ -1,10 +1,8 @@
 import java.awt.Color;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -225,9 +223,14 @@ public class DatasetsController {
 		
 		// remove charts containing the dataset
 		List<PositionedChart> chartsToRemove = new ArrayList<PositionedChart>();
-		for(PositionedChart chart : ChartsController.getCharts())
+		for(PositionedChart chart : ChartsController.getCharts()) {
 			if(chart.datasets.contains(specifiedDataset))
 				chartsToRemove.add(chart);
+			else if(!chart.bitfieldEdges.isEmpty() && chart.bitfieldEdges.get(0).dataset == specifiedDataset)
+				chartsToRemove.add(chart);
+			else if(!chart.bitfieldLevels.isEmpty() && chart.bitfieldLevels.get(0).dataset == specifiedDataset)
+				chartsToRemove.add(chart);
+		}
 		for(PositionedChart chart : chartsToRemove)
 			ChartsController.removeChart(chart);
 		
@@ -257,11 +260,6 @@ public class DatasetsController {
 		for(Dataset dataset : getList())
 			remove(dataset.location);
 		
-		// also remove cameras
-		for(Camera camera : cameras.keySet())
-			camera.dispose();
-		cameras.clear();
-		
 		removeChecksum();
 		
 	}
@@ -284,9 +282,6 @@ public class DatasetsController {
 		timestamps.clear();
 		sampleCount.set(0);
 		firstTimestamp = 0;
-		
-		for(Camera camera : cameras.keySet())
-			camera.dispose();
 		
 		CommunicationView.instance.redraw();
 		OpenGLChartsView.instance.switchToLiveView();
@@ -522,65 +517,15 @@ public class DatasetsController {
 		
 	}
 	
-	private Map<Camera, Boolean> cameras = new HashMap<Camera, Boolean>(); // the Boolean is true if the camera is currently owned by a chart
-	
-	/**
-	 * Obtains ownership of a camera, preventing other charts from using it.
-	 * 
-	 * @param name       The camera name or URL.
-	 * @param isMjpeg    True if using MJPEG-over-HTTP.
-	 * @return           The camera object, or null if the camera is already owned or does not exist.
-	 */
-	public Camera acquireCamera(String name, boolean isMjpeg) {
-		
-		// check if the camera is already known
-		for(Map.Entry<Camera, Boolean> entry : cameras.entrySet())
-			if(entry.getKey().name.equals(name))
-				if(entry.getValue() == false) {
-					entry.setValue(true);
-					return entry.getKey(); // the camera was previously owned but is currently available
-				} else {
-					return null; // the camera is currently owned by another chart
-				}
-		
-		// the camera is not already known
-		Camera c = new Camera(name, isMjpeg);
-		cameras.put(c, true);
-		return c; // the camera has been acquired
-		
-	}
-	
-	/**
-	 * Releases ownership of a camera, allowing another chart to acquire it.
-	 * 
-	 * @param c    The camera.
-	 */
-	public void releaseCamera(Camera c) {
-		
-		c.disconnect();
-		if(c.getFrameCount() == 0) {
-			c.dispose();
-			cameras.remove(c);
-		}
-		
-		for(Map.Entry<Camera, Boolean> entry : cameras.entrySet())
-			if(entry.getKey() == c)
-				entry.setValue(false);
-		
-	}
-	
-	/**
-	 * @return    A List of the cameras that are/were used.
-	 */
-	public Set<Camera> getExistingCameras() {
-		
-		return cameras.keySet();
-		
-	}
-	
 	public int getClosestSampleNumberAtOrBefore(long timestamp, int maxSampleNumber) {
 		
 		return timestamps.getClosestSampleNumberAtOrBefore(timestamp, maxSampleNumber);
+		
+	}
+	
+	public int getClosestSampleNumberAfter(long timestamp) {
+		
+		return timestamps.getClosestSampleNumberAfter(timestamp);
 		
 	}
 	
@@ -602,7 +547,7 @@ public class DatasetsController {
 	public long getTimestamp(int sampleNumber) {
 		
 		if(sampleNumber < 0)
-			return 0;
+			return firstTimestamp;
 		
 		return timestamps.getTimestamp(sampleNumber);
 		

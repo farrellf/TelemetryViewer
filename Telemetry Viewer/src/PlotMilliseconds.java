@@ -79,7 +79,8 @@ public class PlotMilliseconds extends Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param lastSampleNumber    The sample to render at the right edge of the plot.
+	 * @param maxTimestamp        The moment in time associated with the right edge of the plot.
+	 * @param maxX                The x-axis value at the right edge of the plot.
 	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
 	 * @param datasets            Datasets to acquire from.
 	 * @param bitfieldEdges       Bitfield states to show edge events from.
@@ -88,47 +89,48 @@ public class PlotMilliseconds extends Plot {
 	 * @param cachedMode          True to enable the cache.
 	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
 	 */
-	@Override public void initialize(int lastSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override public void initialize(long maxTimestamp, int lastSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.bitfieldEdges = bitfieldEdges;
 		this.bitfieldLevels = bitfieldLevels;
 		this.cachedMode = cachedMode;
 		
-		this.datasetsController = datasets.get(0).controller;
 		
+		// calculate the domain, ensuring it's >= 1ms
 		plotDomain = (long) Math.ceil(duration * zoomLevel);
-		
-		// exit if there are not enough samples to acquire
-		if(lastSampleNumber < 1) {
+		plotMaxX = maxTimestamp;
+		plotMinX = plotMaxX - plotDomain;
+		if(plotMinX == plotMaxX) {
+			plotMinX = plotMaxX - 1;
+			plotDomain = plotMaxX - plotMinX;
+		}
+
+		// determine which samples to acquire
+		datasetsController = !datasets.isEmpty()       ? datasets.get(0).controller :
+		                     !bitfieldEdges.isEmpty()  ? bitfieldEdges.get(0).dataset.controller :
+		                     !bitfieldLevels.isEmpty() ? bitfieldLevels.get(0).dataset.controller :
+		                                                 null;
+		boolean haveTelemetry = datasetsController != null && datasetsController.getSampleCount() > 0;
+		if(haveTelemetry) {
+			maxSampleNumber = datasetsController.getClosestSampleNumberAfter(plotMaxX);
+			minSampleNumber = datasetsController.getClosestSampleNumberAtOrBefore(plotMinX, lastSampleNumber - 1);
+	
+			if(minSampleNumber < 0)
+				minSampleNumber = 0;
+			
+			plotSampleCount = maxSampleNumber - minSampleNumber + 1;
+		} else {
+			// exit if there are no samples to acquire
 			maxSampleNumber = -1;
 			minSampleNumber = -1;
 			plotSampleCount = 0;
-			plotMaxX = 0;
-			plotMinX = plotMaxX - plotDomain;
-			if(plotMinX == 0) plotMinX = -1;
 			samplesMinY = -1;
 			samplesMaxY =  1;
 			xAxisMode = showTimestamps ? Mode.SHOWS_TIMESTAMPS : Mode.SHOWS_SECONDS;
 			xAxisTitle = showTimestamps ? "Time" : "Time Elapsed";
 			return;
 		}
-
-		// determine which samples to acquire
-		maxSampleNumber = lastSampleNumber;
-		long startTimestamp = datasetsController.getTimestamp(maxSampleNumber) - plotDomain;
-		minSampleNumber = datasetsController.getClosestSampleNumberAtOrBefore(startTimestamp, maxSampleNumber - 1);
-		
-		// calculate the domain
-		plotMaxX = datasetsController.getTimestamp(maxSampleNumber);
-		plotMinX = plotMaxX - plotDomain;
-		if(plotMinX == plotMaxX) {
-			// ensure at least 1 millisecond is visible
-			plotMinX = plotMaxX - 1;
-			plotDomain = plotMaxX - plotMinX;
-		}
-		
-		plotSampleCount = maxSampleNumber - minSampleNumber + 1;
 		
 		// calculate the range
 		samplesMinY = Float.MAX_VALUE;

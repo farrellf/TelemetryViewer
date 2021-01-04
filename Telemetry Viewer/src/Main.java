@@ -22,7 +22,8 @@ import javax.swing.UIManager;
 
 public class Main {
 
-	static JFrame window = new JFrame("Telemetry Viewer v0.7");
+	static String versionString = "Telemetry Viewer v0.7 (2020-07-17)";
+	static JFrame window = new JFrame(versionString);
 	static LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
 	
 	/**
@@ -51,8 +52,8 @@ public class Main {
 		
 		// size the window
 		int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
-		int dataStructureViewWidth = Integer.max(new DataStructureCsvView(ConnectionsController.connections.get(0)).getPreferredSize().width,
-		                                         new DataStructureBinaryView(ConnectionsController.connections.get(0)).getPreferredSize().width);
+		int dataStructureViewWidth = Integer.max(new DataStructureCsvView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width,
+		                                         new DataStructureBinaryView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width);
 		int configureViewWidth = ConfigureView.instance.getPreferredSize().width;
 		int notificationHeight = NotificationsView.instance.getPreferredSize().height;
 		int settingsViewHeight = SettingsView.instance.preferredSize.height;
@@ -89,7 +90,7 @@ public class Main {
 		// remove the caches on exit
 		window.addWindowListener(new WindowAdapter() {
 			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-				for(ConnectionTelemetry connection : ConnectionsController.connections)
+				for(Connection connection : ConnectionsController.allConnections)
 					connection.dispose();
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
 			}

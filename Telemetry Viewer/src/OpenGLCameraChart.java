@@ -1,5 +1,3 @@
-import java.awt.Dimension;
-
 import com.jogamp.opengl.GL2ES3;
 import com.jogamp.opengl.GL3;
 
@@ -8,13 +6,12 @@ import com.jogamp.opengl.GL3;
  * 
  * User settings:
  *     Camera to use.
- *     Image resolution.
  *     Rotation and mirroring.
  *     A label can be displayed.
  */
 public class OpenGLCameraChart extends PositionedChart {
 	
-	Camera c = null;
+	ConnectionCamera camera = null;
 	long previousFrameTimestamp = 0;
 	
 	// image region on screen
@@ -54,7 +51,11 @@ public class OpenGLCameraChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		cameraWidget = new WidgetCamera((String name, boolean isMjpeg, Dimension resolution) -> configureCamera(name, isMjpeg, resolution));
+		cameraWidget = new WidgetCamera(cameraName -> {
+			for(ConnectionCamera c : ConnectionsController.cameraConnections)
+				if(c.name.equals(cameraName))
+					camera = c;
+		});
 		
 		mirrorXwidget = new WidgetCheckbox("Mirror X-Axis \u2194",
 		                                   false,
@@ -80,41 +81,18 @@ public class OpenGLCameraChart extends PositionedChart {
 		widgets[4] = labelWidget;
 		
 	}
-	
-	private void configureCamera(String name, boolean isMjpeg, Dimension requestedResolution) {
-		
-		// if already connected, and nothing changed, do nothing
-		if(c != null && c.name.equals(name) && c.isConnected() && isMjpeg)
-			return;
-		if(c != null && c.name.equals(name) && c.isConnected() && !isMjpeg && c.getRequestedResolution().equals(requestedResolution))
-			return;
-		
-		// reconnect if using the same camera
-		if(c != null && c.name.equals(name)) {
-			c.connect(requestedResolution);
-			return;
-		}
-		
-		// switching to a different camera
-		if(c != null)
-			ConnectionsController.connections.get(0).datasets.releaseCamera(c);
-		c = ConnectionsController.connections.get(0).datasets.acquireCamera(name, isMjpeg);
-		if(c != null)
-			c.connect(requestedResolution);
-		
-	}
 
 	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 
 		// get the image
-		Camera.GLframe f = null;
-		if(c == null)
-			f = new Camera.GLframe(null, true, 1, 1, "[camera unavailable]", 0);
+		ConnectionCamera.GLframe f = null;
+		if(camera == null)
+			f = new ConnectionCamera.GLframe(null, true, 1, 1, "[select a camera]", 0);
 		else if(OpenGLChartsView.instance.liveView && !ConnectionsController.importing)
-			f = c.getLiveImage();
+			f = camera.getLiveImage();
 		else {
-			long lastTimestamp   = ConnectionsController.connections.get(0).datasets.getTimestamp(lastSampleNumber);
-			f = c.getImageBeforeTimestamp(lastTimestamp);
+			long lastTimestamp = OpenGLChartsView.instance.liveView ? ConnectionsController.getLastTimestamp() : OpenGLChartsView.instance.pausedTimestamp;
+			f = camera.getImageBeforeTimestamp(lastTimestamp);
 		}
 		
 		// calculate x and y positions of everything
@@ -163,7 +141,6 @@ public class OpenGLCameraChart extends PositionedChart {
 			OpenGL.createTexture(gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, true);
 			OpenGL.writeTexture (gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, f.buffer);
 			previousFrameTimestamp = f.timestamp;
-			cameraWidget.sanityCheck();
 		} else if(f.timestamp != previousFrameTimestamp) {
 			// only replace the texture if a new image is available
 			OpenGL.writeTexture(gl, texHandle, f.width, f.height, f.isBgr ? GL3.GL_BGR : GL3.GL_RGB, GL3.GL_UNSIGNED_BYTE, f.buffer);
@@ -182,15 +159,6 @@ public class OpenGLCameraChart extends PositionedChart {
 		}
 		
 		return null;
-		
-	}
-	
-	@Override public void disposeNonGpu() {
-		
-		// disconnect from the camera
-		if(c != null)
-			ConnectionsController.connections.get(0).datasets.releaseCamera(c);
-		c = null;
 		
 	}
 	

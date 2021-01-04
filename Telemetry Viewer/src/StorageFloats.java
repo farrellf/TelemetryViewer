@@ -365,7 +365,7 @@ public class StorageFloats {
 	 */
 	public void moveOldValuesToDisk() {
 		
-		int lastSlotN = (connection.datasets.getSampleCount() - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
+		int lastSlotN = (connection.getSampleCount() - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
 		
 		for(int slotN = 0; slotN < lastSlotN; slotN++) {
 			
@@ -441,6 +441,11 @@ public class StorageFloats {
 		slot                = new Slot [MAX_SAMPLE_NUMBER / SLOT_SIZE  + 1]; // +1 to round up
 		minimumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
 		maximumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
+		
+		// flush the cache
+		startOfCache = 0;
+		firstCachedSampleNumber = -1;
+		lastCachedSampleNumber = -1;
 		
 	}
 	

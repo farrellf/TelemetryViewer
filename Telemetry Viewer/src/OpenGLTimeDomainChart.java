@@ -76,7 +76,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float manualYmax;
 	
 	Plot plot;
-	boolean sampleCountMode;
 	boolean cachedMode;
 	List<Dataset> allDatasets; // normal and bitfields
 	
@@ -207,7 +206,24 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		EventHandler handler = null;
 		
-		plot.initialize(lastSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
+		boolean haveDatasets = allDatasets != null && !allDatasets.isEmpty();
+		int datasetsCount = haveDatasets ? allDatasets.size() : 0;
+		
+		// attempt to shift the x-axis as needed in case this connection does not have samples for this moment in time
+		int maxX = Integer.max(lastSampleNumber, 0);
+		if(haveDatasets && sampleCountMode) {
+			ConnectionTelemetry connection = allDatasets.get(0).connection;
+			if(connection.getSampleCount() > 0) {
+				long lastSampleTimestamp = connection.datasets.getTimestamp(lastSampleNumber);
+				long millisecondsError = nowTimestamp - lastSampleTimestamp;
+				if(millisecondsError < -10 || millisecondsError > 10) {
+					int fakeSampleCount = (int) Math.round((double) connection.sampleRate * (double) millisecondsError / 1000.0);
+					maxX += fakeSampleCount;
+				}
+			}
+		}
+		
+		plot.initialize(nowTimestamp, sampleCountMode ? maxX : lastSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
 		StorageFloats.MinMax requiredRange = plot.getRange();
@@ -223,9 +239,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		yPlotTop = height - Theme.tilePadding;
 		yPlotBottom = Theme.tilePadding;
 		plotHeight = yPlotTop - yPlotBottom;
-		
-		boolean haveDatasets = allDatasets != null && !allDatasets.isEmpty();
-		int datasetsCount = haveDatasets ? allDatasets.size() : 0;
 		
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
@@ -419,7 +432,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// acquire the samples
 		plot.acquireSamples(plotMinY, plotMaxY, (int) plotWidth, (int) plotHeight);
-		sampleCount = sampleCountMode ? durationWidget.getSampleCount() : plot.getPlotSampleCount();
+		sampleCount = sampleCountMode ? durationWidget.getSampleCount() : (int) plot.getPlotDomain();
 		
 		// draw the plot
 		plot.draw(gl, chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinY, plotMaxY);

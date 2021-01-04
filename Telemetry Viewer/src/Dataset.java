@@ -60,15 +60,6 @@ public class Dataset {
 	}
 	
 	/**
-	 * @return    A text description that uniquely identifies this dataset.
-	 */
-	public String getLabel() {
-		
-		return ConnectionsController.connections.size() == 1 ? name : connection.name + ": " + name;
-		
-	}
-	
-	/**
 	 * Updates the name, color and unit of this Dataset.
 	 * 
 	 * @param name     The new name.
@@ -367,6 +358,7 @@ public class Dataset {
 			Color color;                             // shown in the PacketBinary.BitfieldPanel
 			float[] glColor;                         // shown on markers on the charts
 			List<Integer> transitionedSampleNumbers; // transitioned to the "Some Fault" state at these sample numbers
+			ConnectionTelemetry connection;          // owner of this State
 			Dataset dataset;                         // owner of this State
 			Bitfield bitfield;                       // owner of this State
 			
@@ -377,12 +369,13 @@ public class Dataset {
 				this.color = Dataset.this.color;
 				this.glColor = Dataset.this.glColor;
 				transitionedSampleNumbers = new ArrayList<Integer>();
+				connection = Dataset.this.connection;
 				dataset = Dataset.this;
 				bitfield = Bitfield.this;
 			}
 			
 			@Override public String toString() {
-				return "connection " + ConnectionsController.connections.indexOf(dataset.connection) + " location " + Dataset.this.location + " [" + Bitfield.this.MSBit + ":" + Bitfield.this.LSBit + "] = " + value;
+				return "connection " + ConnectionsController.allConnections.indexOf(dataset.connection) + " location " + Dataset.this.location + " [" + Bitfield.this.MSBit + ":" + Bitfield.this.LSBit + "] = " + value;
 			}
 			
 			/**

@@ -134,21 +134,21 @@ public class WidgetDatasets extends Widget {
 		bitfieldLevelButtonsForDataset.clear();
 		
 		// ensure the selected datasets still exist
-		selectedDatasets.removeIf(item -> !ConnectionsController.connections.contains(item.connection));
-		selectedBitfieldEdges.removeIf(item -> !ConnectionsController.connections.contains(item.dataset.connection));
-		selectedBitfieldLevels.removeIf(item -> !ConnectionsController.connections.contains(item.dataset.connection));
+		selectedDatasets.removeIf(item -> !ConnectionsController.telemetryConnections.contains(item.connection));
+		selectedBitfieldEdges.removeIf(item -> !ConnectionsController.telemetryConnections.contains(item.dataset.connection));
+		selectedBitfieldLevels.removeIf(item -> !ConnectionsController.telemetryConnections.contains(item.dataset.connection));
 		
 		if(!comboboxesMode) {
 			
 			if(showNormalDatasets) {
 				
-				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
 					
 					if(!connection.dataStructureDefined)
 						continue;
 					
 					int rowCount = 0;
-					String label = ConnectionsController.connections.size() == 1 ? "Datasets: " : connection.name + " Datasets: ";
+					String label = ConnectionsController.telemetryConnections.size() == 1 ? "Datasets: " : connection.name + " Datasets: ";
 					widgets.put(new JLabel(label), "");
 					
 					for(Dataset dataset : connection.datasets.getList()) {
@@ -184,13 +184,13 @@ public class WidgetDatasets extends Widget {
 				Insets insets = temp.getBorder().getBorderInsets(temp);
 				Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
 				
-				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
 					
 					if(!connection.dataStructureDefined)
 						continue;
 					
 					int rowCount = 0;
-					String label = ConnectionsController.connections.size() == 1 ? "Bitfields: " : connection.name + " Bitfields: ";
+					String label = ConnectionsController.telemetryConnections.size() == 1 ? "Bitfields: " : connection.name + " Bitfields: ";
 					
 					for(Dataset dataset : connection.datasets.getList()) {
 						
@@ -322,7 +322,7 @@ public class WidgetDatasets extends Widget {
 			if(selectedDatasets.size() != comboboxLabels.length) {
 				selectedDatasets.clear();
 				Dataset firstDataset = null;
-				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
 					if(!connection.dataStructureDefined)
 						continue;
 					firstDataset = connection.datasets.getList().get(0);
@@ -335,7 +335,7 @@ public class WidgetDatasets extends Widget {
 			
 			for(int i = 0; i < comboboxLabels.length; i++) {
 				JComboBox<Dataset> combobox = new JComboBox<Dataset>();
-				for(ConnectionTelemetry connection : ConnectionsController.connections) {
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
 					if(!connection.dataStructureDefined)
 						continue;
 					for(Dataset dataset : connection.datasets.getList()) {
@@ -345,7 +345,7 @@ public class WidgetDatasets extends Widget {
 					}
 				}
 				int connectionCount = 0;
-				for(ConnectionTelemetry connection : ConnectionsController.connections)
+				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
 					if(connection.dataStructureDefined)
 						connectionCount++;
 				if(connectionCount > 1)
@@ -354,7 +354,10 @@ public class WidgetDatasets extends Widget {
 							return super.getListCellRendererComponent(list, ((Dataset)value).connection.name + ": " + value.toString(), index, isSelected, cellHasFocus);
 						}
 					});
-				combobox.setSelectedItem(selectedDatasets.get(i));
+				if(selectedDatasets.size() > i)
+					combobox.setSelectedItem(selectedDatasets.get(i));
+				else
+					combobox.setEnabled(false);
 				int index = i;
 				combobox.addActionListener(event -> {
 					Dataset d = (Dataset) combobox.getSelectedItem();
@@ -384,7 +387,7 @@ public class WidgetDatasets extends Widget {
 	private void disableDatasetsFromOtherConnections() {
 		
 		// not needed if only one connection
-		if(ConnectionsController.connections.size() < 2)
+		if(ConnectionsController.telemetryConnections.size() < 2)
 			return;
 		
 		// re-enable all widgets if nothing is selected
@@ -435,14 +438,16 @@ public class WidgetDatasets extends Widget {
 	 */
 	private void notifyHandlers() {
 		
+		// important: provide the chart with a NEW list, to ensure comparisons fail and caches flush
+		
 		if(datasetsEventHandler != null)
-			datasetsEventHandler.accept(selectedDatasets);
+			datasetsEventHandler.accept(new ArrayList<Dataset>(selectedDatasets));
 
 		if(bitfieldEdgesEventHandler != null)
-			bitfieldEdgesEventHandler.accept(selectedBitfieldEdges);
+			bitfieldEdgesEventHandler.accept(new ArrayList<Dataset.Bitfield.State>(selectedBitfieldEdges));
 		
 		if(bitfieldLevelsEventHandler != null)
-			bitfieldLevelsEventHandler.accept(selectedBitfieldLevels);
+			bitfieldLevelsEventHandler.accept(new ArrayList<Dataset.Bitfield.State>(selectedBitfieldLevels));
 		
 	}
 	
@@ -467,7 +472,7 @@ public class WidgetDatasets extends Widget {
 				for(String token : tokens) {
 					int connectionN = Integer.parseInt(token.split(" ")[1]);
 					int locationN   = Integer.parseInt(token.split(" ")[3]);
-					Dataset d = ConnectionsController.connections.get(connectionN).datasets.getByLocation(locationN);
+					Dataset d = ConnectionsController.telemetryConnections.get(connectionN).datasets.getByLocation(locationN);
 					if(d == null)
 						throw new Exception();
 					selectedDatasets.add(d);
@@ -482,7 +487,7 @@ public class WidgetDatasets extends Widget {
 				String[] states = line.split(",");
 				for(String state : states) {
 					boolean found = false;
-					for(ConnectionTelemetry connection : ConnectionsController.connections)
+					for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
 						for(Dataset dataset : connection.datasets.getList())
 							if(dataset.isBitfield)
 								for(Dataset.Bitfield bitfield : dataset.bitfields)
@@ -504,7 +509,7 @@ public class WidgetDatasets extends Widget {
 				String[] states = line.split(",");
 				for(String state : states) {
 					boolean found = false;
-					for(ConnectionTelemetry connection : ConnectionsController.connections)
+					for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
 						for(Dataset dataset : connection.datasets.getList())
 							if(dataset.isBitfield)
 								for(Dataset.Bitfield bitfield : dataset.bitfields)
@@ -536,7 +541,7 @@ public class WidgetDatasets extends Widget {
 		// selected datasets
 		lines[0] = new String("datasets = ");
 		for(Dataset d : selectedDatasets)
-			lines[0] += "connection " + ConnectionsController.connections.indexOf(d.connection) + " location " + d.location + ",";
+			lines[0] += "connection " + ConnectionsController.telemetryConnections.indexOf(d.connection) + " location " + d.location + ",";
 		if(lines[0].endsWith(","))
 			lines[0] = lines[0].substring(0, lines[0].length() - 1);
 		
