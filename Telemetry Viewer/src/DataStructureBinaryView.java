@@ -16,7 +16,6 @@ import java.awt.event.MouseMotionListener;
 import java.awt.font.FontRenderContext;
 import java.util.Collections;
 import java.util.List;
-import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -105,7 +104,7 @@ public class DataStructureBinaryView extends JPanel {
 		// color of the field
 		colorButton = new JButton("\u25B2");
 		colorButton.setForeground(Theme.defaultDatasetColor);
-		colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground())));
+		colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground(), true)));
 		
 		// unit of the field
 		unitTextfield = new JTextField("", 15);
@@ -220,6 +219,7 @@ public class DataStructureBinaryView extends JPanel {
 				JOptionPane.showMessageDialog(this, "Error: Define at least one field, or disconnect.", "Error", JOptionPane.ERROR_MESSAGE);
 			} else {
 				connection.dataStructureDefined = true;
+				CommunicationView.instance.redraw();
 				if(ChartsController.getCharts().isEmpty())
 					NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
 				Main.hideConfigurationGui();
@@ -357,29 +357,23 @@ public class DataStructureBinaryView extends JPanel {
 		
 		// layout the panel
 		Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
-		setLayout(new MigLayout("fill, gap " + Theme.padding, Theme.padding + "[][][][][][][][][][][][][][][][][][]push[][][]" + Theme.padding, "[][][100%]0"));
+		setLayout(new MigLayout("fill, insets " + Theme.padding + ", gap " + Theme.padding, "", "0[][][100%]0"));
 		dsdLabel = new JLabel("Data Structure Definition:");
 		dsdLabel.setFont(titleFont);
 		add(dsdLabel, "grow, span");
 		add(new JLabel("Byte Offset"));
-		add(offsetTextfield);
-		add(Box.createHorizontalStrut(Theme.padding));
-		add(processorCombobox);
-		add(Box.createHorizontalStrut(Theme.padding));
+		add(offsetTextfield,   "gapafter " + 2 * Theme.padding);
+		add(processorCombobox, "gapafter " + 2 * Theme.padding);
 		add(new JLabel("Name"));
-		add(nameTextfield);
-		add(Box.createHorizontalStrut(Theme.padding));
+		add(nameTextfield,     "gapafter " + 2 * Theme.padding);
 		add(new JLabel("Color"));
-		add(colorButton);
-		add(Box.createHorizontalStrut(Theme.padding));
+		add(colorButton,       "gapafter " + 2 * Theme.padding);
 		add(new JLabel("Unit"));
-		add(unitTextfield);
-		add(Box.createHorizontalStrut(Theme.padding * 4));
+		add(unitTextfield,     "gapafter " + 5 * Theme.padding);
 		add(conversionFactorAtextfield);
 		add(new JLabel(" = "));
 		add(conversionFactorBtextfield);
-		add(unitLabel);
-		add(Box.createHorizontalStrut(Theme.padding * 4));
+		add(unitLabel,   "push, gapafter " + 5 * Theme.padding);
 		add(addButton);
 		add(doneButton, "wrap");
 		scrollableDataStructureTable = new JScrollPane(dataStructureTable);
@@ -598,7 +592,7 @@ public class DataStructureBinaryView extends JPanel {
 					JButton colorButton = new JButton("\u25B2");
 					colorButton.setForeground(state.color);
 					colorButton.addActionListener(event -> {
-						Color color = ColorPickerView.getColor(state.name, colorButton.getForeground());
+						Color color = ColorPickerView.getColor(state.name, colorButton.getForeground(), true);
 						colorButton.setForeground(color);
 						state.color = color;
 						state.glColor = new float[] {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, 1};

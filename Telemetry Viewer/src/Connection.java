@@ -114,10 +114,6 @@ public abstract class Connection {
 	 * @param errorMessage    If not null, show this as a Notification until a connection is attempted. 
 	 */
 	public void disconnect(String errorMessage) {
-		
-		NotificationsController.removeIfConnectionRelated();
-		if(errorMessage != null)
-			NotificationsController.showFailureUntil(errorMessage, () -> false, true);
 
 		Main.hideConfigurationGui();
 		
@@ -137,6 +133,10 @@ public abstract class Connection {
 			});
 			
 		}
+		
+		NotificationsController.removeIfConnectionRelated();
+		if(errorMessage != null)
+			NotificationsController.showFailureUntil(errorMessage, () -> false, true);
 		
 		CommunicationView.instance.redraw();
 		

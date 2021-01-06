@@ -198,13 +198,16 @@ public class CommunicationView extends JPanel {
 		
 		SwingUtilities.invokeLater(() -> {
 			
-			boolean haveSamples = false;
-			for(Connection connection : ConnectionsController.allConnections)
-				if(connection.getSampleCount() > 0)
-					haveSamples = true;
+			boolean connectionsDefined = false;
+			for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
+				if(connection.dataStructureDefined)
+					connectionsDefined = true;
+			for(ConnectionCamera connection : ConnectionsController.cameraConnections)
+				if(connection.connected || connection.getSampleCount() > 0)
+					connectionsDefined = true;
 			
 			importButton.setEnabled(!ConnectionsController.importing && !ConnectionsController.exporting);
-			exportButton.setEnabled(!ConnectionsController.importing && !ConnectionsController.exporting && haveSamples);
+			exportButton.setEnabled(!ConnectionsController.importing && !ConnectionsController.exporting && connectionsDefined);
 			
 			removeAll();
 			add(settingsButton);

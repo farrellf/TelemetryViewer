@@ -23,7 +23,41 @@ import javax.swing.UIManager;
 public class Main {
 
 	static String versionString = "Telemetry Viewer v0.7 (2020-07-17)";
-	static JFrame window = new JFrame(versionString);
+	
+	@SuppressWarnings("serial")
+	static JFrame window = new JFrame(versionString) {
+		
+		@Override public Dimension getPreferredSize() {
+			
+			int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
+			int dataStructureViewWidth = 0;
+			if(!ConnectionsController.telemetryConnections.isEmpty()) {
+				dataStructureViewWidth = Integer.max(new DataStructureCsvView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width,
+			                                         new DataStructureBinaryView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width);
+			}
+			int configureViewWidth =     ConfigureView.instance.getPreferredSize().width;
+			int settingsViewHeight =      SettingsView.instance.getPreferredSize().height;
+			int controlsViewHeight = CommunicationView.instance.getPreferredSize().height;
+			int controlsViewWidth  = CommunicationView.instance.getPreferredSize().width;
+			
+			int width = controlsViewWidth;
+			if(width < dataStructureViewWidth)
+				width = dataStructureViewWidth;
+			if(width < settingsViewWidth + configureViewWidth)
+				width = settingsViewWidth + configureViewWidth;
+			int height = settingsViewHeight + controlsViewHeight + (8 * Theme.padding);
+
+			return new Dimension(width, height);
+			
+		}
+		
+		@Override public Dimension getMinimumSize() {
+			
+			return getPreferredSize();
+			
+		}
+		
+	};
 	static LogitechSmoothScrolling mouse = new LogitechSmoothScrolling();
 	
 	/**
@@ -43,26 +77,14 @@ public class Main {
 		
 		// populate the window
 		window.setLayout(new BorderLayout());
-		window.add(NotificationsView.instance, BorderLayout.NORTH);
 		window.add(OpenGLChartsView.instance,  BorderLayout.CENTER);
 		window.add(SettingsView.instance,      BorderLayout.WEST);
 		window.add(CommunicationView.instance, BorderLayout.SOUTH);
 		window.add(ConfigureView.instance,     BorderLayout.EAST);
 		NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> false, true);
 		
-		// size the window
-		int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
-		int dataStructureViewWidth = Integer.max(new DataStructureCsvView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width,
-		                                         new DataStructureBinaryView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width);
-		int configureViewWidth = ConfigureView.instance.getPreferredSize().width;
-		int notificationHeight = NotificationsView.instance.getPreferredSize().height;
-		int settingsViewHeight = SettingsView.instance.preferredSize.height;
-		int controlsViewHeight = CommunicationView.instance.getPreferredSize().height;
-		int width  = settingsViewWidth + dataStructureViewWidth + configureViewWidth + (4 * Theme.padding);
-		int height = notificationHeight + settingsViewHeight + controlsViewHeight + (8 * Theme.padding);
-		Dimension size = new Dimension(width, height);
-		window.setSize(size);
-		window.setMinimumSize(size);
+		window.setSize(window.getPreferredSize());
+		window.setMinimumSize(window.getMinimumSize());
 		window.setLocationRelativeTo(null);
 		window.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		

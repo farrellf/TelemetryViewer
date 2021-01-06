@@ -1,10 +1,10 @@
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.Hashtable;
 
 import javax.swing.Box;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -25,15 +25,24 @@ public class SettingsView extends JPanel {
 	
 	JTextField tileColumnsTextfield;
 	JTextField tileRowsTextfield;
+	
 	JComboBox<String> timeFormatCombobox;
 	JCheckBox timeFormat24hoursCheckbox;
+	
+	JCheckBox hintNotificationsCheckbox;
+	JButton   hintNotificationsColorButton;
+	JCheckBox warningNotificationsCheckbox;
+	JButton   warningNotificationsColorButton;
+	JCheckBox failureNotificationsCheckbox;
+	JButton   failureNotificationsColorButton;
+	JCheckBox verboseNotificationsCheckbox;
+	JButton   verboseNotificationsColorButton;
+	
 	JCheckBox showTooltipsCheckbox;
 	JCheckBox enableSmoothScrollingCheckbox;
 	JSlider   antialiasingLevelSlider;
 	JCheckBox showFpsCheckbox;
 	JCheckBox showBenchmarksCheckbox;
-	
-	Dimension preferredSize;
 	
 	/**
 	 * Private constructor to enforce singleton usage.
@@ -41,7 +50,7 @@ public class SettingsView extends JPanel {
 	private SettingsView() {
 		
 		super();
-		setLayout(new MigLayout("wrap 2, gap " + Theme.padding));
+		setLayout(new MigLayout("wrap 2, insets" + Theme.padding + " " + Theme.padding + " " + Theme.padding + " 0, gap " + Theme.padding));
 		
 		// tile columns and rows
 		tileColumnsTextfield = new JTextField(Integer.toString(SettingsController.getTileColumns()));
@@ -92,36 +101,70 @@ public class SettingsView extends JPanel {
 		
 		add(new JLabel("Time Format: "));
 		add(timeFormatCombobox);
-		add(timeFormat24hoursCheckbox, "span 2");
+		add(timeFormat24hoursCheckbox, "span 2, grow x");
+		add(Box.createVerticalStrut(2 * Theme.padding), "span 2");
+		
+		// notifications
+		hintNotificationsCheckbox = new JCheckBox("Show Hint Notifications", SettingsController.getHintNotificationVisibility());
+		hintNotificationsCheckbox.addActionListener(event -> SettingsController.setHintNotificationVisibility(hintNotificationsCheckbox.isSelected()));
+		hintNotificationsColorButton = new JButton("\u25B2");
+		hintNotificationsColorButton.setForeground(SettingsController.getHintNotificationColor());
+		hintNotificationsColorButton.addActionListener(event -> SettingsController.setHintNotificationColor(ColorPickerView.getColor("Hint Notifications", SettingsController.getHintNotificationColor(), false)));
+		
+		add(hintNotificationsCheckbox, "split 2, span 2, grow x");
+		add(hintNotificationsColorButton);
+		
+		warningNotificationsCheckbox = new JCheckBox("Show Warning Notifications", SettingsController.getWarningNotificationVisibility());
+		warningNotificationsCheckbox.addActionListener(event -> SettingsController.setWarningNotificationVisibility(warningNotificationsCheckbox.isSelected()));
+		warningNotificationsColorButton = new JButton("\u25B2");
+		warningNotificationsColorButton.setForeground(SettingsController.getWarningNotificationColor());
+		warningNotificationsColorButton.addActionListener(event -> SettingsController.setWarningNotificationColor(ColorPickerView.getColor("Warning Notifications", SettingsController.getWarningNotificationColor(), false)));
+		
+		add(warningNotificationsCheckbox, "split 2, span 2, grow x");
+		add(warningNotificationsColorButton);
+		
+		failureNotificationsCheckbox = new JCheckBox("Show Failure Notifications", SettingsController.getFailureNotificationVisibility());
+		failureNotificationsCheckbox.addActionListener(event -> SettingsController.setFailureNotificationVisibility(failureNotificationsCheckbox.isSelected()));
+		failureNotificationsColorButton = new JButton("\u25B2");
+		failureNotificationsColorButton.setForeground(SettingsController.getFailureNotificationColor());
+		failureNotificationsColorButton.addActionListener(event -> SettingsController.setFailureNotificationColor(ColorPickerView.getColor("Failure Notifications", SettingsController.getFailureNotificationColor(), false)));
+		
+		add(failureNotificationsCheckbox, "split 2, span 2, grow x");
+		add(failureNotificationsColorButton);
+		
+		verboseNotificationsCheckbox = new JCheckBox("Show Verbose Notifications", SettingsController.getVerboseNotificationVisibility());
+		verboseNotificationsCheckbox.addActionListener(event -> SettingsController.setVerboseNotificationVisibility(verboseNotificationsCheckbox.isSelected()));
+		verboseNotificationsColorButton = new JButton("\u25B2");
+		verboseNotificationsColorButton.setForeground(SettingsController.getVerboseNotificationColor());
+		verboseNotificationsColorButton.addActionListener(event -> SettingsController.setVerboseNotificationColor(ColorPickerView.getColor("Verbose Notifications", SettingsController.getVerboseNotificationColor(), false)));
+		
+		add(verboseNotificationsCheckbox, "split 2, span 2, grow x");
+		add(verboseNotificationsColorButton);
 		add(Box.createVerticalStrut(2 * Theme.padding), "span 2");
 		
 		// tooltips
 		showTooltipsCheckbox = new JCheckBox("Show Plot Tooltips", SettingsController.getTooltipVisibility());
-		showTooltipsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showTooltipsCheckbox.addActionListener(event -> SettingsController.setTooltipVisibility(showTooltipsCheckbox.isSelected()));
 		
-		add(showTooltipsCheckbox, "span 2");
+		add(showTooltipsCheckbox, "span 2, grow x");
 		
 		// logitech smooth scrolling
 		enableSmoothScrollingCheckbox = new JCheckBox("Enable Logitech Smooth Scrolling", SettingsController.getSmoothScrolling());
-		enableSmoothScrollingCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		enableSmoothScrollingCheckbox.addActionListener(event -> SettingsController.setSmoothScrolling(enableSmoothScrollingCheckbox.isSelected()));
 		
-		add(enableSmoothScrollingCheckbox, "span 2");
+		add(enableSmoothScrollingCheckbox, "span 2, grow x");
 		
 		// FPS
 		showFpsCheckbox = new JCheckBox("Show FPS and Period", SettingsController.getFpsVisibility());
-		showFpsCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		showFpsCheckbox.addActionListener(event -> SettingsController.setFpsVisibility(showFpsCheckbox.isSelected()));
 		
-		add(showFpsCheckbox, "span 2");
+		add(showFpsCheckbox, "span 2, grow x");
 		
 		// CPU and GPU times
-		showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);		
-		showBenchmarksCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);
 		showBenchmarksCheckbox.addActionListener(event -> {
 			if(ChartsController.getCharts().isEmpty()) {
-				NotificationsController.showFailureForSeconds("There are no charts to benchmark. Add a chart first.", 5, true);
+				NotificationsController.showFailureForMilliseconds("There are no charts to benchmark. Add a chart first.", 5000, true);
 				SettingsController.setBenchmarkedChart(null);
 			} else if(!showBenchmarksCheckbox.isSelected()) {
 				SettingsController.setBenchmarkedChart(null);
@@ -132,7 +175,7 @@ public class SettingsView extends JPanel {
 			}
 		});
 		
-		add(showBenchmarksCheckbox, "span 2");
+		add(showBenchmarksCheckbox, "span 2, grow x");
 		
 		// antialiasing
 		antialiasingLevelSlider = new JSlider(0, 5, (int) (Math.log(SettingsController.getAntialiasingLevel()) / Math.log(2)));
@@ -150,14 +193,13 @@ public class SettingsView extends JPanel {
 		antialiasingLevelSlider.addChangeListener(event -> SettingsController.setAntialiasingLevel((int) Math.pow(2, antialiasingLevelSlider.getValue())));
 		
 		add(new JLabel("Antialiasing: "));
-		add(antialiasingLevelSlider, "width 100%");
-		
-		// save the preferred size so this panel can be resized to hide or show
-		preferredSize = getPreferredSize();
+		add(antialiasingLevelSlider, "width 1, grow x"); // shrink it horizontally
 		
 		setVisible(false);
 		
 	}
+	
+	private boolean isVisible = true;
 	
 	/**
 	 * Shows or hides this panel.
@@ -166,7 +208,7 @@ public class SettingsView extends JPanel {
 	 */
 	@Override public void setVisible(boolean visible) {
 		
-		setPreferredSize(visible ? preferredSize : new Dimension(0, 0));
+		isVisible = visible;
 		revalidate();
 		
 	}
@@ -176,7 +218,17 @@ public class SettingsView extends JPanel {
 	 */
 	@Override public boolean isVisible() {
 		
-		return getPreferredSize().width != 0;
+		return isVisible;
+		
+	}
+	
+	@Override public Dimension getPreferredSize() {
+		
+		Dimension size = super.getPreferredSize();
+		if(!isVisible)
+			size.width = 0;
+		
+		return size;
 		
 	}
 

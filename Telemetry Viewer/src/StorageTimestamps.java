@@ -57,7 +57,7 @@ public class StorageTimestamps {
 			                                  StandardOpenOption.READ,
 			                                  StandardOpenOption.WRITE);
 		} catch (IOException e) {
-			NotificationsController.showFailureForSeconds("Critial Fault: Unable to create the cache file for \"" + filePath.toString() + "\"", 999, false);
+			NotificationsController.showCriticalFault("Unable to create the cache file for \"" + filePath.toString() + "\"");
 			e.printStackTrace();
 		}
 		file = temp;
@@ -200,7 +200,7 @@ public class StorageTimestamps {
 		try {
 			file.read(buffer, offset);
 		} catch (IOException e) {
-			NotificationsController.showFailureForSeconds("Critical Fault: Error while reading a value from the cache file at \"" + filePath.toString() + "\"", 999, false);
+			NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
 			e.printStackTrace();
 		}
 		return buffer.getLong(0);
@@ -252,7 +252,7 @@ public class StorageTimestamps {
 					for(int i = 0; i < valueCount; i++)
 						buffer.put(temp.getLong(i) - plotMinX);
 				} catch (IOException e) {
-					NotificationsController.showFailureForSeconds("Critical Fault: Error while reading a value from the cache file at \"" + filePath.toString() + "\"", 999, false);
+					NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
 					e.printStackTrace();
 				}
 				start += valueCount;
@@ -316,7 +316,7 @@ public class StorageTimestamps {
 					try {
 						file.read(buffer, offset);
 					} catch (IOException e) {
-						NotificationsController.showFailureForSeconds("Critical Fault: Error while reading a value from the cache file at \"" + filePath.toString() + "\"", 999, false);
+						NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
 						e.printStackTrace();
 					}
 					start += byteCount / BYTES_PER_VALUE;
@@ -350,7 +350,7 @@ public class StorageTimestamps {
 					try {
 						file.read(buffer, offset);
 					} catch (IOException e) {
-						NotificationsController.showFailureForSeconds("Critical Fault: Error while reading a value from the cache file at \"" + filePath.toString() + "\"", 999, false);
+						NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
 						e.printStackTrace();
 					}
 					buffer.rewind();
@@ -412,7 +412,7 @@ public class StorageTimestamps {
 					slot[SLOT_N].value = null;
 					slot[SLOT_N].flushing = false;
 				} catch(Exception e) {
-					NotificationsController.showFailureForSeconds("Critical Fault: Error while moving values to the cache file at \"" + filePath.toString() + "\"", 999, false);
+					NotificationsController.showCriticalFault("Error while moving values to the cache file at \"" + filePath.toString() + "\"");
 					e.printStackTrace();
 				}
 			}).start();
@@ -446,7 +446,7 @@ public class StorageTimestamps {
 		try {
 			file.truncate(0);
 		} catch (IOException e) {
-			NotificationsController.showFailureForSeconds("Critical Fault: Unable to clear the cache file at \"" + filePath.toString() + "\"", 999, false);
+			NotificationsController.showCriticalFault("Unable to clear the cache file at \"" + filePath.toString() + "\"");
 			e.printStackTrace();
 		}
 		
@@ -490,7 +490,7 @@ public class StorageTimestamps {
 			file.close();
 			Files.deleteIfExists(filePath);
 		} catch (IOException e) {
-			NotificationsController.showFailureForSeconds("Critical Fault: Unable to delete the cache file at \"" + filePath.toString() + "\"", 999, false);
+			NotificationsController.showCriticalFault("Unable to delete the cache file at \"" + filePath.toString() + "\"");
 			e.printStackTrace();
 		}
 		

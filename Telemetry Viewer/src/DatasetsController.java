@@ -389,7 +389,7 @@ public class DatasetsController {
 		message.append("A corrupt telemetry packet was received:\n");
 		for(int i = 0; i < packetLength; i++)
 			message.append(String.format("%02X ", packet[offset + i]));
-		NotificationsController.showFailureForSeconds(message.toString(), 5, false);
+		NotificationsController.showFailureForMilliseconds(message.toString(), 5000, false);
 		return false;
 		
 	}

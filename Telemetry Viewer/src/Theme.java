@@ -17,9 +17,11 @@ public class Theme {
 	public static int   padding             = Integer.parseInt(System.getProperty("java.version").split("\\.")[0]) >= 9 ? 5 : (int) (5 * ChartsController.getDisplayScalingFactor());
 	public static Color defaultDatasetColor = Color.RED;
 	
-	// general opengl
-	public static float lineWidth = 1.0f;
-	public static float pointWidth = 3.0f;
+	// general openGL
+	public static float  lineWidth = 1.0f;
+	public static float  pointWidth = 3.0f;
+	public static long   animationMilliseconds = 300;
+	public static double animationMillisecondsDouble = 300.0;
 	
 	// charts region
 	public static float[] tileColor               = new float[] {0.8f, 0.8f, 0.8f, 1.0f};

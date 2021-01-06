@@ -1,5 +1,6 @@
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
@@ -43,6 +44,7 @@ public class OpenGLChartsView extends JPanel {
 	GLCanvas glCanvas;
 	int canvasWidth;
 	int canvasHeight;
+	int notificationsHeight;
 	float displayScalingFactorJava9 = 1;
 	float displayScalingFactor = 1;
 	
@@ -69,17 +71,17 @@ public class OpenGLChartsView extends JPanel {
 	int mouseY;
 	EventHandler eventHandler;
 	PositionedChart chartUnderMouse;
+	Cursor defaultCursor = new Cursor(Cursor.DEFAULT_CURSOR);
+	Cursor handCursor = new Cursor(Cursor.HAND_CURSOR);
 	
 	boolean maximizing;
 	boolean demaximizing;
 	PositionedChart maximizedChart;
 	long maximizingAnimationEndTime;
-	final long maximizingAnimationDuration = 200; // milliseconds
 	
 	boolean removing;
 	PositionedChart removingChart;
 	long removingAnimationEndTime;
-	final long removingAnimationDuration = 300; // milliseconds
 	
 	// chart benchmarking
 	long cpuStartNanoseconds;
@@ -142,7 +144,7 @@ public class OpenGLChartsView extends JPanel {
 					capabilities.setNumSamples(SettingsController.getAntialiasingLevel());
 				}
 			} catch(Error | Exception e2) {
-				NotificationsController.showFailureForSeconds("Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\n\n" + e2.getMessage() + "\"", 999, false);
+				NotificationsController.showCriticalFault("Unable to create the OpenGL context.\nThis may be due to a graphics driver problem, or an outdated graphics card.\n\"" + e.getMessage() + "\n\n" + e2.getMessage() + "\"");
 				return;
 			}
 		}
@@ -203,7 +205,7 @@ public class OpenGLChartsView extends JPanel {
 					gl.glGetIntegerv(GL3.GL_MAX_COLOR_TEXTURE_SAMPLES, number, 0); text.append("GL_MAX_COLOR_TEXTURE_SAMPLES = " + number[0] + "\n");
 					gl.glGetIntegerv(GL3.GL_NUM_EXTENSIONS, number, 0);            text.append(number[0] + " EXTENSIONS: " + gl.glGetStringi(GL3.GL_EXTENSIONS, 0));
 					for(int i = 1; i < number[0]; i++)                             text.append(", " + gl.glGetStringi(GL3.GL_EXTENSIONS, i));
-					NotificationsController.showVerboseForSeconds("OpenGL Information:\n" + text.toString(), 999, true);
+					NotificationsController.showDebugMessage("OpenGL Information:\n" + text.toString());
 					
 				}
 				
@@ -231,9 +233,7 @@ public class OpenGLChartsView extends JPanel {
 
 			@Override public void display(GLAutoDrawable drawable) {
 				
-				int tileWidth    = canvasWidth  / tileColumns;
-				int tileHeight   = canvasHeight / tileRows;
-				int tilesYoffset = canvasHeight - (tileHeight * tileRows);
+				eventHandler = null;
 				
 				// prepare OpenGL
 				GL2ES3 gl = drawable.getGL().getGL2ES3();
@@ -254,11 +254,97 @@ public class OpenGLChartsView extends JPanel {
 					displayScalingFactor = newDisplayScalingFactor;
 				}
 				
+				// draw any notifications
+				int top = canvasHeight;
+				top -= Theme.tilePadding;
+				for(NotificationsController.Notification notification : NotificationsController.getNotifications()) {
+					
+					int lineCount = notification.lines.length;
+					if(lineCount > 6) {
+						notification.lines[5] = "[ ... see console for the rest ... ]";
+						lineCount = 6;
+					}
+					
+					double progressBarPercentage = 0;
+					String progressBarPercentageText = null;
+					if(notification.isProgressBar) {
+						progressBarPercentage = (double) notification.currentAmount.get() / (double) notification.totalAmount;
+						if(progressBarPercentage < 0)
+							progressBarPercentage = 0;
+						if(progressBarPercentage > 1)
+							progressBarPercentage = 1;
+						progressBarPercentageText = String.format(" %1.1f%%", progressBarPercentage * 100.0);
+					}
+					
+					int lineHeight = OpenGL.largeTextHeight;
+					int maxLineWidth = 0;
+					for(int i = 0; i < lineCount; i++) {
+						int width = (int) Math.ceil(OpenGL.largeTextWidth(gl, notification.isProgressBar ? notification.lines[i] + progressBarPercentageText : notification.lines[i]));
+						if(width > maxLineWidth)
+							maxLineWidth = width;
+					}
+					if(maxLineWidth > canvasWidth - (int) (Theme.tilePadding * 2f))
+						maxLineWidth = canvasWidth - (int) (Theme.tilePadding * 2f);
+					int lineSpacing = OpenGL.largeTextHeight / 2;
+					
+					// animate a slide-in / slide-out if new or expiring
+					double animationPosition = 0;
+					long now = System.currentTimeMillis();
+					int notificationHeight = (lineCount * lineHeight) + (lineSpacing * (lineCount - 1)) + (int) (3f * Theme.tilePadding);
+					if(now - notification.creationTimestamp < Theme.animationMilliseconds)
+						animationPosition = 1.0 - (now - notification.creationTimestamp) / Theme.animationMillisecondsDouble;
+					else if(notification.expiresAtTimestamp && notification.expirationTimestamp < now)
+						animationPosition = (now - notification.expirationTimestamp) / Theme.animationMillisecondsDouble;
+					animationPosition = smoothstep(animationPosition);
+					top += animationPosition * (notificationHeight + Theme.tilePadding);
+					
+					// draw the background
+					int backgroundWidth = canvasWidth - (int) (Theme.tilePadding * 2f);
+					int notificationWidth = backgroundWidth;
+					if(notification.isProgressBar)
+						backgroundWidth *= progressBarPercentage;
+					int backgroundHeight = (lineCount * lineHeight) + (lineSpacing * (lineCount - 1)) + (int) (3f * Theme.tilePadding);
+					int xBackgroundLeft = (int) Theme.tilePadding;
+					int yBackgroundBottom = top - backgroundHeight;
+					double age = System.currentTimeMillis() - notification.creationTimestamp;
+					double opacity = notification.isProgressBar || age >= 3.0 * Theme.animationMillisecondsDouble ? 0.2 :
+						0.2 + 0.8 * smoothstep((age % Theme.animationMillisecondsDouble) / Theme.animationMillisecondsDouble);
+					notification.glColor[3] = (float) opacity;
+					OpenGL.drawBox(gl, notification.glColor, xBackgroundLeft, yBackgroundBottom, backgroundWidth, backgroundHeight);
+					
+					// draw the text
+					int yTextBastline = top - (int) (1.5 * Theme.tilePadding) - lineHeight;
+					int xTextLeft = (canvasWidth / 2) - (maxLineWidth / 2);
+					if(xTextLeft < 0)
+						xTextLeft = 0;
+					for(int i = 0; i < lineCount; i++) {
+						OpenGL.drawLargeText(gl, notification.isProgressBar ? notification.lines[i] + progressBarPercentageText : notification.lines[i], xTextLeft, yTextBastline, 0);
+						yTextBastline -= lineSpacing + lineHeight;
+					}
+					
+					// register an event handler if appropriate
+					if(mouseX >= xBackgroundLeft && mouseX <= xBackgroundLeft + notificationWidth && mouseY >= yBackgroundBottom && mouseY <= yBackgroundBottom + backgroundHeight && animationPosition == 0.0) {
+						eventHandler = EventHandler.onPress(event -> {notification.expiresAtTimestamp = true;
+						                                              notification.expirationTimestamp = System.currentTimeMillis(); });
+					}
+					
+					top -= backgroundHeight;
+					top -= Theme.tilePadding;
+					
+				}
+				notificationsHeight = canvasHeight - (top + (int) Theme.tilePadding);
+				
+				int tileWidth    = canvasWidth  / tileColumns;
+				int tileHeight   = (canvasHeight - notificationsHeight) / tileRows;
+				int tilesYoffset = (canvasHeight - notificationsHeight) - (tileHeight * tileRows);
+				
 				List<PositionedChart> charts = ChartsController.getCharts();
 				
 				// if there are no connections and no charts, we're done, do not draw any tiles
-				if(charts.isEmpty() && !ConnectionsController.telemetryPossible())
+				if(charts.isEmpty() && !ConnectionsController.telemetryPossible()) {
+					setCursor(eventHandler == null ? defaultCursor : handCursor);
 					return;
+				}
 				
 				// if there are no charts, switch back to live view
 				if(charts.isEmpty())
@@ -269,7 +355,7 @@ public class OpenGLChartsView extends JPanel {
 					maximizedChart = null;
 				
 				// draw empty tiles if necessary
-				if(maximizing || demaximizing || maximizedChart == null) {
+				if(removing || maximizing || demaximizing || maximizedChart == null) {
 					boolean[][] tileOccupied = ChartsController.getTileOccupancy();
 					for(int column = 0; column < tileColumns; column++) {
 						for(int row = 0; row < tileRows; row++) {
@@ -286,7 +372,7 @@ public class OpenGLChartsView extends JPanel {
 				OpenGL.drawBox(gl,
 				               Theme.tileSelectedColor,
 				               startX < endX ? startX * tileWidth : endX * tileWidth,
-				               startY < endY ? canvasHeight - (endY + 1)*tileHeight : canvasHeight - (startY + 1)*tileHeight,
+				               startY < endY ? (canvasHeight - notificationsHeight) - (endY + 1)*tileHeight : (canvasHeight - notificationsHeight) - (startY + 1)*tileHeight,
 				               (Math.abs(endX - startX) + 1) * tileWidth,
 				               (Math.abs(endY - startY) + 1) * tileHeight);
 				
@@ -322,7 +408,6 @@ public class OpenGLChartsView extends JPanel {
 				// the modelview matrix is translated so the origin will be at the bottom-left for each chart.
 				// the scissor test is used to clip rendering to the region allocated for each chart.
 				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
-				eventHandler = null;
 				chartUnderMouse = null;
 				for(PositionedChart chart : charts) {
 					
@@ -361,18 +446,19 @@ public class OpenGLChartsView extends JPanel {
 					int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
 					int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
 					int xOffset = chart.topLeftX * tileWidth;
-					int yOffset = canvasHeight - (chart.topLeftY * tileHeight) - height;
+					int yOffset = (canvasHeight - notificationsHeight) - (chart.topLeftY * tileHeight) - height;
 					
 					// size the maximized chart correctly
+					double animationPosition = 0.0;
 					if(chart == maximizedChart) {
 						
-						double animationPosition = 1.0 - (double) (maximizingAnimationEndTime - System.currentTimeMillis()) / maximizingAnimationDuration;
+						animationPosition = 1.0 - (double) (maximizingAnimationEndTime - System.currentTimeMillis()) / Theme.animationMilliseconds;
 						animationPosition = smoothstep(animationPosition);
 						
 						int maximizedWidth = tileWidth * tileColumns;
 						int maximizedHeight = tileHeight * tileRows;
 						int maximizedXoffset = 0;
-						int maximizedYoffset = canvasHeight - maximizedHeight;
+						int maximizedYoffset = (canvasHeight - notificationsHeight) - maximizedHeight;
 
 						if(maximizing) {
 							
@@ -409,7 +495,7 @@ public class OpenGLChartsView extends JPanel {
 					// size the closing chart correctly
 					if(chart == removingChart) {
 						
-						double animationPosition = 1.0 - (double) (removingAnimationEndTime - System.currentTimeMillis()) / removingAnimationDuration;
+						animationPosition = 1.0 - (double) (removingAnimationEndTime - System.currentTimeMillis()) / Theme.animationMilliseconds;
 						animationPosition = smoothstep(animationPosition);
 						
 						xOffset = (int) Math.round(xOffset + (0.5 * width  * animationPosition));
@@ -467,7 +553,7 @@ public class OpenGLChartsView extends JPanel {
 						OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
 						OpenGL.drawSmallText(gl, line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding + OpenGL.smallTextHeight), 0);
 						OpenGL.drawSmallText(gl, line2, (int) Theme.tickTextPadding, (int) Theme.tickTextPadding, 0);
-						NotificationsController.showVerboseForSeconds(line1 + ", " + line2, 1, false);
+						NotificationsController.showDebugMessage(line1 + ", " + line2);
 					}
 					
 					OpenGL.useMatrix(gl, screenMatrix);
@@ -482,6 +568,14 @@ public class OpenGLChartsView extends JPanel {
 						drawChartCloseButton(gl, xOffset, yOffset, width, height);
 						drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
 						drawChartSettingsButton(gl, xOffset, yOffset, width, height);
+					}
+					
+					// fade away if chart is closing
+					if(chart == removingChart) {
+						
+						float[] glColor = new float[] { Theme.tileColor[0], Theme.tileColor[1], Theme.tileColor[2], 0.2f + (float) animationPosition };
+						OpenGL.drawBox(gl, glColor, xOffset, yOffset, width, height);
+						
 					}
 					
 				}
@@ -503,8 +597,11 @@ public class OpenGLChartsView extends JPanel {
 					float textWidth = OpenGL.largeTextWidth(gl, text);
 					OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + padding*2, textHeight + padding*2);
 					OpenGL.drawLargeText(gl, text, padding, padding, 0);
-					NotificationsController.showVerboseForSeconds(text, 1, false);
+					NotificationsController.showDebugMessage(text);
 				}
+				
+				// update the mouse cursor
+				setCursor(eventHandler == null ? defaultCursor : handCursor);
 				
 				// move old samples and timestamps to disk
 				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
@@ -538,6 +635,12 @@ public class OpenGLChartsView extends JPanel {
 			// the mouse was pressed, attempting to start a new chart region, or to interact with an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
+				
+				if(eventHandler != null && eventHandler.forPressEvent) {
+					eventHandler.handle(me);
+					return;
+				}
+				
 				// if there are no connections and no charts, ignore the event
 				if(ChartsController.getCharts().isEmpty() && !ConnectionsController.telemetryPossible())
 					return;
@@ -547,17 +650,17 @@ public class OpenGLChartsView extends JPanel {
 					return;
 				}
 				
-				if(eventHandler != null && eventHandler.forPressEvent) {
-					eventHandler.handle(me);
-					return;
-				}
-				
 				// don't start a new chart region if there is a maximized chart
 				if(maximizedChart != null)
 					return;
 				
-				int proposedStartX = me.getX() * tileColumns / getWidth();
-				int proposedStartY = me.getY() * tileRows / getHeight();
+				int x = (int) (me.getX() * displayScalingFactorJava9);
+				int y = (int) (me.getY() * displayScalingFactorJava9);
+				y -= notificationsHeight;
+				if(x < 0 || y < 0)
+					return;
+				int proposedStartX = x * tileColumns / canvasWidth;
+				int proposedStartY = y * tileRows / (canvasHeight - notificationsHeight);
 				
 				if(proposedStartX < tileColumns && proposedStartY < tileRows && ChartsController.gridRegionAvailable(proposedStartX, proposedStartY, proposedStartX, proposedStartY)) {
 					startX = endX = proposedStartX;
@@ -576,8 +679,13 @@ public class OpenGLChartsView extends JPanel {
 				if(endX == -1 || endY == -1)
 					return;
 			
-				int proposedEndX = me.getX() * tileColumns / getWidth();
-				int proposedEndY = me.getY() * tileRows / getHeight();
+				int x = (int) (me.getX() * displayScalingFactorJava9);
+				int y = (int) (me.getY() * displayScalingFactorJava9);
+				y -= notificationsHeight;
+				if(x < 0 || y < 0)
+					return;
+				int proposedEndX = x * tileColumns / canvasWidth;
+				int proposedEndY = y * tileRows / (canvasHeight - notificationsHeight);
 				
 				if(proposedEndX < tileColumns && proposedEndY < tileRows && ChartsController.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
 					endX = proposedEndX;
@@ -630,8 +738,13 @@ public class OpenGLChartsView extends JPanel {
 				if(endX == -1 || endY == -1)
 					return;
 				
-				int proposedEndX = me.getX() * tileColumns / getWidth();
-				int proposedEndY = me.getY() * tileRows / getHeight();
+				int x = (int) (me.getX() * displayScalingFactorJava9);
+				int y = (int) (me.getY() * displayScalingFactorJava9);
+				y -= notificationsHeight;
+				if(x < 0 || y < 0)
+					return;
+				int proposedEndX = x * tileColumns / canvasWidth;
+				int proposedEndY = y * tileRows / (canvasHeight - notificationsHeight);
 				
 				if(proposedEndX < tileColumns && proposedEndY < tileRows && ChartsController.gridRegionAvailable(startX, startY, proposedEndX, proposedEndY)) {
 					endX = proposedEndX;
@@ -642,10 +755,6 @@ public class OpenGLChartsView extends JPanel {
 			
 			// log the mouse position so a chart close icon can be drawn
 			@Override public void mouseMoved(MouseEvent me) {
-				
-				// if there are no connections and no charts, ignore the event
-				if(ChartsController.getCharts().isEmpty() && !ConnectionsController.telemetryPossible())
-					return;
 				
 				mouseX = (int) (me.getX() * displayScalingFactorJava9);
 				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * displayScalingFactorJava9);
@@ -969,7 +1078,7 @@ public class OpenGLChartsView extends JPanel {
 			eventHandler = EventHandler.onPress(event -> {
 				removing = true;
 				removingChart = chartUnderMouse;
-				removingAnimationEndTime = System.currentTimeMillis() + removingAnimationDuration;
+				removingAnimationEndTime = System.currentTimeMillis() + Theme.animationMilliseconds;
 				ChartsController.updateTileOccupancy(removingChart);
 			});
 		
@@ -1012,11 +1121,11 @@ public class OpenGLChartsView extends JPanel {
 				if(maximizedChart == null) {
 					maximizing = true;
 					maximizedChart = chartUnderMouse;
-					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
+					maximizingAnimationEndTime = System.currentTimeMillis() + Theme.animationMilliseconds;
 					ChartsController.drawChartLast(maximizedChart); // ensure the chart is drawn on top of the others during the maximize animation
 				} else {
 					demaximizing = true;
-					maximizingAnimationEndTime = System.currentTimeMillis() + maximizingAnimationDuration;
+					maximizingAnimationEndTime = System.currentTimeMillis() + Theme.animationMilliseconds;
 				}
 			});
 		

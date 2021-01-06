@@ -1103,7 +1103,7 @@ public class OpenGL {
 		
 		// check for errors
 		if(gl.glCheckFramebufferStatus(GL3.GL_FRAMEBUFFER) != GL3.GL_FRAMEBUFFER_COMPLETE)
-			NotificationsController.showFailureForSeconds("OpenGL Error: unable to create the framebuffer or texture.", 999, false);
+			NotificationsController.showFailureForMilliseconds("OpenGL Error: Unable to create the framebuffer or texture.\nThis chart will not display correctly.", 5000, false);
 		
 		// switch back to the screen framebuffer
 		gl.glBindFramebuffer(GL3.GL_FRAMEBUFFER, 0);
@@ -2594,7 +2594,7 @@ public class OpenGL {
 			if(length[0] > 0) {
 				byte[] errorMessage = new byte[length[0]];
 				gl.glGetShaderInfoLog(vertexShader, length[0], length, 0, errorMessage, 0);
-				NotificationsController.showFailureForSeconds("GLSL Vertex Shader Error:\n" + new String(errorMessage).trim(), 999, false);
+				NotificationsController.showFailureForMilliseconds("GLSL Vertex Shader Error:\n" + new String(errorMessage).trim(), 5000, false);
 			}
 		}
 		
@@ -2612,7 +2612,7 @@ public class OpenGL {
 				if(length[0] > 0) {
 					byte[] errorMessage = new byte[length[0]];
 					gl.glGetShaderInfoLog(geometryShader, length[0], length, 0, errorMessage, 0);
-					NotificationsController.showFailureForSeconds("GLSL Geometry Shader Error:\n" + new String(errorMessage).trim(), 999, false);
+					NotificationsController.showFailureForMilliseconds("GLSL Geometry Shader Error:\n" + new String(errorMessage).trim(), 5000, false);
 				}
 			}
 		}
@@ -2629,7 +2629,7 @@ public class OpenGL {
 			if(length[0] > 0) {
 				byte[] errorMessage = new byte[length[0]];
 				gl.glGetShaderInfoLog(fragmentShader, length[0], length, 0, errorMessage, 0);
-				NotificationsController.showFailureForSeconds("GLSL Fragment Shader Error:\n" + new String(errorMessage).trim(), 999, false);
+				NotificationsController.showFailureForMilliseconds("GLSL Fragment Shader Error:\n" + new String(errorMessage).trim(), 5000, false);
 			}
 		}
 		
@@ -2648,7 +2648,7 @@ public class OpenGL {
 			if(length[0] > 0) {
 				byte[] errorMessage = new byte[length[0]];
 				gl.glGetProgramInfoLog(handle, length[0], length, 0, errorMessage, 0);
-				NotificationsController.showFailureForSeconds("GLSL Shader Program Error:\n" + new String(errorMessage).trim(), 999, false);
+				NotificationsController.showFailureForMilliseconds("GLSL Shader Program Error:\n" + new String(errorMessage).trim(), 5000, false);
 			}
 		}
 		

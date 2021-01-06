@@ -118,7 +118,7 @@ public class ConnectionCamera extends Connection {
 			                                    StandardOpenOption.WRITE);
 			fileIsImported = false;
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the create the cache file for " + name + "\n" + e.getMessage(), 10, false);
+			NotificationsController.showCriticalFault("Unable the create the cache file for " + name + "\n" + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -295,7 +295,7 @@ public class ConnectionCamera extends Connection {
 				                                    StandardOpenOption.WRITE);
 				fileIsImported = false;
 			} catch(Exception e) {
-				NotificationsController.showFailureForSeconds("Unable the create the cache file for " + name + "\n" + e.getMessage(), 10, false);
+				NotificationsController.showCriticalFault("Unable the create the cache file for " + name + "\n" + e.getMessage());
 				e.printStackTrace();
 				return;
 			}
@@ -321,6 +321,9 @@ public class ConnectionCamera extends Connection {
 					
 					connected = true;
 					CommunicationView.instance.redraw();
+					
+					if(ChartsController.getCharts().isEmpty())
+						NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
 					
 					// enter an infinite loop that gets the frames
 					while(true) {
@@ -419,6 +422,9 @@ public class ConnectionCamera extends Connection {
 					
 					connected = true;
 					CommunicationView.instance.redraw();
+					
+					if(ChartsController.getCharts().isEmpty())
+						NotificationsController.showHintUntil("Add a chart by clicking on a tile, or by clicking-and-dragging across multiple tiles.", () -> !ChartsController.getCharts().isEmpty(), true);
 		
 					// enter an infinite loop that acquires images
 					int frameCount = framesIndex.size();
@@ -500,7 +506,7 @@ public class ConnectionCamera extends Connection {
 			framesIndex.clear();
 			CommunicationView.instance.redraw();
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the delete the cache file for " + name + "\n" + e.getMessage(), 10, false);
+			NotificationsController.showCriticalFault("Unable the delete the cache file for " + name + "\n" + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -515,7 +521,7 @@ public class ConnectionCamera extends Connection {
 				framesIndex.clear();
 				CommunicationView.instance.redraw();
 			} catch(Exception e) {
-				NotificationsController.showFailureForSeconds("Unable the clear the cache file for " + name + "\n" + e.getMessage(), 10, false);
+				NotificationsController.showCriticalFault("Unable the clear the cache file for " + name + "\n" + e.getMessage());
 				e.printStackTrace();
 			}
 		}
@@ -658,7 +664,7 @@ public class ConnectionCamera extends Connection {
 		try {
 			timestamp = new Mkv().getFramesIndex(path).getLong();
 		} catch(AssertionError | Exception e) {
-			NotificationsController.showFailureForSeconds("Error while parsing the MKV file " + path + "\n" + e.getMessage(), 10, true);
+			NotificationsController.showFailureForMilliseconds("Error while parsing the MKV file " + path + "\n" + e.getMessage(), 5000, true);
 		}
 		
 		return timestamp;
@@ -692,7 +698,7 @@ public class ConnectionCamera extends Connection {
 			file.close();
 			Files.deleteIfExists(pathOnDisk);
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable to delete the cache file for " + name + "\n" + e.getMessage(), 10, false);
+			NotificationsController.showCriticalFault("Unable to delete the cache file for " + name + "\n" + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -703,7 +709,7 @@ public class ConnectionCamera extends Connection {
 			file = FileChannel.open(Paths.get(path), StandardOpenOption.READ);
 			fileIsImported = true;
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable to import the MKV file for " + name + "\n" + e.getMessage(), 10, false);
+			NotificationsController.showFailureForMilliseconds("Unable to import the MKV file for " + name + "\n" + e.getMessage(), 5000, false);
 			e.printStackTrace();
 			return;
 		}
@@ -747,7 +753,7 @@ public class ConnectionCamera extends Connection {
 				
 			} catch(Exception e) {
 				
-				NotificationsController.showFailureForSeconds("Error while importing the MKV file for " + name + "\n" + e.getMessage(), 10, false);
+				NotificationsController.showFailureForMilliseconds("Error while importing the MKV file for " + name + "\n" + e.getMessage(), 5000, false);
 				e.printStackTrace();
 				SwingUtilities.invokeLater(() -> disconnect(null));
 				return;
@@ -788,7 +794,7 @@ public class ConnectionCamera extends Connection {
 			file.write(ByteBuffer.wrap(jpegBytes));
 			file.force(true);
 		} catch(Exception e) {
-			NotificationsController.showFailureForSeconds("Unable the save to the cache file for " + name + "\n" + e.getMessage(), 10, false);
+			NotificationsController.showCriticalFault("Unable the save to the cache file for " + name + "\n" + e.getMessage());
 			e.printStackTrace();
 			return;
 		}
@@ -844,7 +850,7 @@ public class ConnectionCamera extends Connection {
 				
 			} catch(Exception e) {
 				
-				NotificationsController.showFailureForSeconds("Unable to decode one of the frames from " + name + "\n" + e.getMessage(), 10, true);
+				NotificationsController.showFailureForMilliseconds("Unable to decode one of the frames from " + name + "\n" + e.getMessage(), 5000, true);
 				e.printStackTrace();
 				liveJpegThreads--;
 				
@@ -898,7 +904,7 @@ public class ConnectionCamera extends Connection {
 					jpegBytesLength = jpegBytes.length;
 					baos.close();
 				} catch(Exception e2) {
-					NotificationsController.showFailureForSeconds("Unable to encode one of the frames from " + name + "\n" + e.getMessage(), 10, true);
+					NotificationsController.showFailureForMilliseconds("Unable to encode one of the frames from " + name + "\n" + e.getMessage(), 5000, true);
 					e.printStackTrace();
 					liveJpegThreads--;
 					return;
@@ -916,7 +922,7 @@ public class ConnectionCamera extends Connection {
 				file.write(ByteBuffer.wrap(jpegBytes, 0, jpegBytesLength));
 				file.force(true);
 			} catch (Exception e) {
-				NotificationsController.showFailureForSeconds("Unable to save one of the frames from " + name + "\n" + e.getMessage(), 10, false);
+				NotificationsController.showCriticalFault("Unable to save one of the frames from " + name + "\n" + e.getMessage());
 				e.printStackTrace();
 				liveJpegThreads--;
 				return;
@@ -1198,7 +1204,7 @@ public class ConnectionCamera extends Connection {
 			
 			} catch(IOException e) {
 				
-				NotificationsController.showFailureForSeconds("Error while exporting file " + path + "\n" + e.getMessage(), 10, false);
+				NotificationsController.showFailureForMilliseconds("Error while exporting file " + path + "\n" + e.getMessage(), 5000, false);
 				e.printStackTrace();
 				try { outputFile.close(); } catch(Exception e2) { }
 				

@@ -42,10 +42,10 @@ public class ConfigureView extends JPanel {
 		super();
 		
 		widgetsPanel = new JPanel();
-		widgetsPanel.setLayout(new MigLayout("hidemode 3, wrap 4, insets 0, gap " + Theme.padding, "[pref][min!][min!][grow]"));
-		widgetsPanel.setBorder(new EmptyBorder(Theme.padding, Theme.padding, Theme.padding, Theme.padding));
+		widgetsPanel.setLayout(new MigLayout("hidemode 3, wrap 4, insets" + Theme.padding + " " + Theme.padding / 2 + " " + Theme.padding + " " + Theme.padding + ", gap " + Theme.padding, "[pref][min!][min!][grow]"));
 		scrollableRegion = new JScrollPane(widgetsPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		scrollableRegion.setBorder(null);
+		scrollableRegion.getVerticalScrollBar().setUnitIncrement(10);
 		buttonsPanel = new JPanel();
 		buttonsPanel.setLayout(new MigLayout("insets 0", "[33%!][grow][33%!]")); // 3 equal columns
 		buttonsPanel.setBorder(new EmptyBorder(Theme.padding * 2, Theme.padding, Theme.padding, Theme.padding)); // extra padding above
@@ -219,7 +219,7 @@ public class ConfigureView extends JPanel {
 		});
 		
 		colorButton.setForeground(dataset.color);
-		colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground())));
+		colorButton.addActionListener(event -> colorButton.setForeground(ColorPickerView.getColor(nameTextfield.getText(), colorButton.getForeground(), true)));
 		
 		unitTextfield.addActionListener(pressEnterToApply);
 		unitTextfield.addFocusListener(new FocusListener() {

@@ -376,8 +376,10 @@ public class ConnectionTelemetry extends Connection {
 			ConnectionsController.previouslyImported = false;
 		}
 		
-		if(showGui)
+		if(showGui) {
 			dataStructureDefined = false;
+			CommunicationView.instance.redraw();	
+		}
 		
 		if(mode == Mode.UART)
 			connectUart(showGui);
@@ -505,7 +507,7 @@ public class ConnectionTelemetry extends Connection {
 					tcpSocket.setSoTimeout(5000); // each valid packet of data must take <5 seconds to arrive
 					InputStream is = tcpSocket.getInputStream();
 
-					NotificationsController.showSuccessForSeconds("TCP connection established with a client at " + tcpSocket.getRemoteSocketAddress().toString().substring(1) + ".", 5, true); // trim leading "/" from the IP address
+					NotificationsController.showVerboseForMilliseconds("TCP connection established with a client at " + tcpSocket.getRemoteSocketAddress().toString().substring(1) + ".", 5000, true); // trim leading "/" from the IP address
 					
 					// enter an infinite loop that checks for activity. if the TCP port is idle for >10 seconds, abandon it so another device can try to connect.
 					long previousTimestamp = System.currentTimeMillis();
@@ -525,7 +527,7 @@ public class ConnectionTelemetry extends Connection {
 							previousSampleNumber = sampleNumber;
 							previousTimestamp = timestamp;
 						} else if(previousTimestamp < timestamp - MAX_TCP_IDLE_MILLISECONDS) {
-							NotificationsController.showFailureForSeconds("The TCP connection was idle for too long. It has been closed so another device can connect.", 5, true);
+							NotificationsController.showFailureForMilliseconds("The TCP connection was idle for too long. It has been closed so another device can connect.", 5000, true);
 							tcpSocket.close();
 							break;
 						}
@@ -534,7 +536,7 @@ public class ConnectionTelemetry extends Connection {
 				} catch(SocketTimeoutException ste) {
 					
 					// a client never connected, so do nothing and let the loop try again.
-					NotificationsController.showVerboseForSeconds("TCP socket timed out while waiting for a connection.", 5, true);
+					NotificationsController.showVerboseForMilliseconds("TCP socket timed out while waiting for a connection.", 5000, true);
 					
 				} catch(IOException ioe) {
 					
@@ -613,7 +615,7 @@ public class ConnectionTelemetry extends Connection {
 				} catch(SocketTimeoutException ste) {
 					
 					// a client never sent a packet, so do nothing and let the loop try again.
-					NotificationsController.showVerboseForSeconds("UDP socket timed out while waiting for a packet.", 5, true);
+					NotificationsController.showDebugMessage("UDP socket timed out while waiting for a packet.");
 					
 				} catch(IOException ioe) {
 					
@@ -716,6 +718,14 @@ public class ConnectionTelemetry extends Connection {
 		SettingsController.setTileRows(6);
 		SettingsController.setTimeFormat("Only Time");
 		SettingsController.setTimeFormat24hours(false);
+		SettingsController.setHintNotificationVisibility(true);
+		SettingsController.setHintNotificationColor(Color.GREEN);
+		SettingsController.setWarningNotificationVisibility(true);
+		SettingsController.setWarningNotificationColor(Color.YELLOW);
+		SettingsController.setFailureNotificationVisibility(true);
+		SettingsController.setFailureNotificationColor(Color.RED);
+		SettingsController.setVerboseNotificationVisibility(true);
+		SettingsController.setVerboseNotificationColor(Color.CYAN);
 		SettingsController.setTooltipVisibility(true);
 		SettingsController.setSmoothScrolling(true);
 		SettingsController.setFpsVisibility(false);
@@ -742,6 +752,7 @@ public class ConnectionTelemetry extends Connection {
 		datasets.insertChecksum(9, checksumProcessor);
 		
 		dataStructureDefined = true;
+		CommunicationView.instance.redraw();
 		
 		PositionedChart chart = ChartsController.createAndAddChart("Time Domain", 0, 0, 5, 5);
 		List<String> chartSettings = new ArrayList<String>();
@@ -820,9 +831,10 @@ public class ConnectionTelemetry extends Connection {
 					
 					stream.write(buff, buff.length);
 					bytesSent += buff.length;
-					if(bytesSent % (500000*buff.length) == 0) {
-						long end = System.currentTimeMillis();
-						System.out.println(String.format("%1.1f Mbps, %d pps", (bytesSent / (double)(end-start) * 1000.0 * 8.0 / 1000000), (int)(bytesSent / 11 / (double)(end-start) * 1000.0)));
+					long end = System.currentTimeMillis();
+					if(end - start > 3000) {
+						String text = String.format("%1.1f Mbps (%1.1f Mpackets/sec)", (bytesSent / (double)(end-start) * 1000.0 * 8.0 / 1000000), (bytesSent / 11 / (double)(end-start) * 1000.0) / 1000000.0);
+						NotificationsController.showVerboseForMilliseconds(text, 3000 - Theme.animationMilliseconds, true);
 						bytesSent = 0;
 						start = System.currentTimeMillis();
 					}
@@ -980,7 +992,6 @@ public class ConnectionTelemetry extends Connection {
 		}
 		
 		dataStructureDefined = true;
-		
 		CommunicationView.instance.redraw();
 
 	}
@@ -1270,7 +1281,7 @@ public class ConnectionTelemetry extends Connection {
 					if(getSampleCount() == oldSampleCount)
 						NotificationsController.showHintUntil(waitingForTelemetry, () -> getSampleCount() > oldSampleCount, true);
 					else
-						NotificationsController.showVerboseForSeconds(receivingTelemetry, 5, true);
+						NotificationsController.showVerboseForMilliseconds(receivingTelemetry, 5000, true);
 				}
 				
 			});
@@ -1307,7 +1318,7 @@ public class ConnectionTelemetry extends Connection {
 						
 					} catch(NumberFormatException | NullPointerException | ArrayIndexOutOfBoundsException e1) {
 						
-						NotificationsController.showFailureForSeconds("A corrupt or incomplete telemetry packet was received:\n\"" + line + "\"", 5, false);
+						NotificationsController.showFailureForMilliseconds("A corrupt or incomplete telemetry packet was received:\n\"" + line + "\"", 5000, false);
 						
 					} catch(InterruptedException e2) {
 						

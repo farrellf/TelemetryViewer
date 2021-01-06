@@ -465,8 +465,10 @@ public class ChartUtils {
 	 */
 	public static void parseExact(String text, String formatString) {
 		
-		if(!text.equals(formatString))
-			throw new AssertionError("Text does not match the expected value.");
+		if(!text.equals(formatString)) {
+			String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+			throw new AssertionError(message);
+		}
 		
 	}
 	
@@ -492,12 +494,15 @@ public class ChartUtils {
 					return true;
 				else if(token.toLowerCase().equals("false"))
 					return false;
-				else
-					throw new Exception();
+				else {
+					String message = "Text does not end with a boolean.\nExpected: " + formatString + "\nFound: " + text;
+					throw new AssertionError(message);
+				}
 			else
-				throw new AssertionError("Text does not match the expected value.");
+				throw new Exception();
 		} catch(Exception e) {
-			throw new AssertionError("Text does not end with a boolean.");
+			String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+			throw new AssertionError(message);
 		}
 		
 	}
@@ -527,10 +532,13 @@ public class ChartUtils {
 					remainingText += " " + tokens[i];
 				if(remainingText.equals(expectedText))
 					return number;
-				else
-					throw new AssertionError("Text does not match the expected value.");
+				else {
+					String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+					throw new AssertionError(message);
+				}
 			} catch(Exception e) {
-				throw new AssertionError("Text does not start with an integer.");
+				String message = "Text does not start with an integer.\nExpected: " + formatString + "\nFound: " + text;
+				throw new AssertionError(message);
 			}
 			
 		} else  {
@@ -545,10 +553,13 @@ public class ChartUtils {
 					remainingText += tokens[i] + " ";
 				if(remainingText.equals(expectedText))
 					return number;
-				else
-					throw new AssertionError("Text does not match the expected value.");
+				else {
+					String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+					throw new AssertionError(message);
+				}
 			} catch(Exception e) {
-				throw new AssertionError("Text does not end with an integer.");
+				String message = "Text does not end with an integer.\nExpected: " + formatString + "\nFound: " + text;
+				throw new AssertionError(message);
 			}
 			
 		}
@@ -580,10 +591,13 @@ public class ChartUtils {
 					remainingText += " " + tokens[i];
 				if(remainingText.equals(expectedText))
 					return number;
-				else
-					throw new AssertionError("Text does not match the expected value.");
+				else {
+					String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+					throw new AssertionError(message);
+				}
 			} catch(Exception e) {
-				throw new AssertionError("Text does not start with a floating point number.");
+				String message = "Text does not start with a floating point number.\nExpected: " + formatString + "\nFound: " + text;
+				throw new AssertionError(message);
 			}
 			
 		} else  {
@@ -598,10 +612,13 @@ public class ChartUtils {
 					remainingText += tokens[i] + " ";
 				if(remainingText.equals(expectedText))
 					return number;
-				else
-					throw new AssertionError("Text does not match the expected value.");
+				else {
+					String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+					throw new AssertionError(message);
+				}
 			} catch(Exception e) {
-				throw new AssertionError("Text does not end with a floating point number.");
+				String message = "Text does not end with a floating point number.\nExpected: " + formatString + "\nFound: " + text;
+				throw new AssertionError(message);
 			}
 			
 		}
@@ -628,9 +645,10 @@ public class ChartUtils {
 			if(actualText.equals(expectedText))
 				return token;
 			else
-				throw new AssertionError("Text does not match the expected value.");
+				throw new Exception();
 		} catch(Exception e) {
-			throw new AssertionError("Text does not match the expected value.");
+			String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
+			throw new AssertionError(message);
 		}
 		
 	}

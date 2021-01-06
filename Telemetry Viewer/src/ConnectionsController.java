@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -179,7 +180,7 @@ public class ConnectionsController {
 	public static void importFiles(String[] filepaths) {
 		
 		if(importing || exporting) {
-			NotificationsController.showFailureForSeconds("Unable to import more files while importing or exporting is in progress.", 10, true);
+			NotificationsController.showFailureForMilliseconds("Unable to import more files while importing or exporting is in progress.", 5000, true);
 			return;
 		}
 		
@@ -202,11 +203,11 @@ public class ConnectionsController {
 				invalidFileCount++;
 		
 		if(invalidFileCount > 0) {
-			NotificationsController.showFailureForSeconds("Unsupported file type. Only files exported from TelemetryViewer can be imported:\nSettings files (.txt)\nCSV files (.csv)\nCamera files (.mkv)", 20, true);
+			NotificationsController.showFailureForMilliseconds("Unsupported file type. Only files exported from TelemetryViewer can be imported:\nSettings files (.txt)\nCSV files (.csv)\nCamera files (.mkv)", 5000, true);
 			return;
 		}
 		if(settingsFileCount > 1) {
-			NotificationsController.showFailureForSeconds("Only one settings file can be opened at a time.", 10, true);
+			NotificationsController.showFailureForMilliseconds("Only one settings file can be opened at a time.", 5000, true);
 			return;
 		}
 		
@@ -224,8 +225,10 @@ public class ConnectionsController {
 			ChartsController.removeAllCharts();
 			for(String filepath : filepaths)
 				if(filepath.endsWith(".txt"))
-					if(!importSettingsFile(filepath, csvFileCount + mkvFileCount == 0))
+					if(!importSettingsFile(filepath, csvFileCount + mkvFileCount == 0)) {
+						ConnectionsController.addConnection(new ConnectionTelemetry());
 						return;
+					}
 		}
 		
 		for(String filepath : filepaths) {
@@ -245,7 +248,7 @@ public class ConnectionsController {
 		}
 		
 		if(csvFileCount + mkvFileCount != imports.size()) {
-			NotificationsController.showFailureForSeconds("Data file does not correspond with an existing connection.", 10, true);
+			NotificationsController.showFailureForMilliseconds("Data file does not correspond with an existing connection.", 5000, true);
 			return;
 		}
 		
@@ -369,15 +372,31 @@ public class ConnectionsController {
 			
 			file.println("GUI Settings:");
 			file.println("");
-			file.println("\ttile column count = "          + SettingsController.getTileColumns());
-			file.println("\ttile row count = "             + SettingsController.getTileRows());
-			file.println("\ttime format = "                + SettingsController.getTimeFormat());
-			file.println("\tshow 24-hour time = "          + SettingsController.getTimeFormat24hours());
-			file.println("\tshow plot tooltips = "         + SettingsController.getTooltipVisibility());
-			file.println("\tsmooth scrolling = "           + SettingsController.getSmoothScrolling());
-			file.println("\tshow fps and period = "        + SettingsController.getFpsVisibility());
-			file.println("\tchart index for benchmarks = " + SettingsController.getBenchmarkedChartIndex());
-			file.println("\tantialiasing level = "         + SettingsController.getAntialiasingLevel());
+			file.println("\ttile column count = "           + SettingsController.getTileColumns());
+			file.println("\ttile row count = "              + SettingsController.getTileRows());
+			file.println("\ttime format = "                 + SettingsController.getTimeFormat());
+			file.println("\tshow 24-hour time = "           + SettingsController.getTimeFormat24hours());
+			file.println("\tshow hint notifications = "     + SettingsController.getHintNotificationVisibility());
+			file.println("\thint notifications color = "    + String.format("0x%02X%02X%02X", SettingsController.getHintNotificationColor().getRed(),
+			                                                                                  SettingsController.getHintNotificationColor().getGreen(),
+			                                                                                  SettingsController.getHintNotificationColor().getBlue()));
+			file.println("\tshow warning notifications = "  + SettingsController.getWarningNotificationVisibility());
+			file.println("\twarning notifications color = " + String.format("0x%02X%02X%02X", SettingsController.getWarningNotificationColor().getRed(),
+			                                                                                  SettingsController.getWarningNotificationColor().getGreen(),
+			                                                                                  SettingsController.getWarningNotificationColor().getBlue()));
+			file.println("\tshow failure notifications = "  + SettingsController.getFailureNotificationVisibility());
+			file.println("\tfailure notifications color = " + String.format("0x%02X%02X%02X", SettingsController.getFailureNotificationColor().getRed(),
+			                                                                                  SettingsController.getFailureNotificationColor().getGreen(),
+			                                                                                  SettingsController.getFailureNotificationColor().getBlue()));
+			file.println("\tshow verbose notifications = "  + SettingsController.getVerboseNotificationVisibility());
+			file.println("\tverbose notifications color = " + String.format("0x%02X%02X%02X", SettingsController.getVerboseNotificationColor().getRed(),
+			                                                                                  SettingsController.getVerboseNotificationColor().getGreen(),
+			                                                                                  SettingsController.getVerboseNotificationColor().getBlue()));
+			file.println("\tshow plot tooltips = "          + SettingsController.getTooltipVisibility());
+			file.println("\tsmooth scrolling = "            + SettingsController.getSmoothScrolling());
+			file.println("\tshow fps and period = "         + SettingsController.getFpsVisibility());
+			file.println("\tchart index for benchmarks = "  + SettingsController.getBenchmarkedChartIndex());
+			file.println("\tantialiasing level = "          + SettingsController.getAntialiasingLevel());
 			file.println("");
 			
 			file.println(allConnections.size() + " Connections:");
@@ -405,7 +424,7 @@ public class ConnectionsController {
 			
 		} catch (IOException e) {
 			
-			NotificationsController.showFailureForSeconds("Unable to save the settings file.", 5, false);
+			NotificationsController.showFailureForMilliseconds("Unable to save the settings file.", 5000, false);
 			
 		}
 		
@@ -422,6 +441,7 @@ public class ConnectionsController {
 	private static boolean importSettingsFile(String path, boolean connect) {
 		
 		QueueOfLines lines = null;
+		NotificationsController.removeIfConnectionRelated();
 		
 		try {
 
@@ -439,6 +459,14 @@ public class ConnectionsController {
 			if(!Arrays.asList(SettingsController.getTimeFormats()).contains(timeFormat))
 				throw new AssertionError("Invalid time format.");
 			boolean timeFormat24hours = ChartUtils.parseBoolean(lines.remove(), "show 24-hour time = %b");
+			boolean hintVisibility    = ChartUtils.parseBoolean(lines.remove(), "show hint notifications = %b");
+			String hintColorText      = ChartUtils.parseString (lines.remove(), "hint notifications color = 0x%s");
+			boolean warningVisibility = ChartUtils.parseBoolean(lines.remove(), "show warning notifications = %b");
+			String warningColorText   = ChartUtils.parseString (lines.remove(), "warning notifications color = 0x%s");
+			boolean failureVisibility = ChartUtils.parseBoolean(lines.remove(), "show failure notifications = %b");
+			String failureColorText   = ChartUtils.parseString (lines.remove(), "failure notifications color = 0x%s");
+			boolean verboseVisibility = ChartUtils.parseBoolean(lines.remove(), "show verbose notifications = %b");
+			String verboseColorText   = ChartUtils.parseString (lines.remove(), "verbose notifications color = 0x%s");
 			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
 			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
 			boolean fpsVisibility     = ChartUtils.parseBoolean(lines.remove(), "show fps and period = %b");
@@ -446,10 +474,23 @@ public class ConnectionsController {
 			int antialiasingLevel     = ChartUtils.parseInteger(lines.remove(), "antialiasing level = %d");
 			ChartUtils.parseExact(lines.remove(), "");
 			
+			Color hintColor    = new Color(Integer.parseInt(hintColorText, 16));
+			Color warningColor = new Color(Integer.parseInt(warningColorText, 16));
+			Color failureColor = new Color(Integer.parseInt(failureColorText, 16));
+			Color verboseColor = new Color(Integer.parseInt(verboseColorText, 16));
+			
 			SettingsController.setTileColumns(tileColumns);
 			SettingsController.setTileRows(tileRows);
 			SettingsController.setTimeFormat(timeFormat);
 			SettingsController.setTimeFormat24hours(timeFormat24hours);
+			SettingsController.setHintNotificationVisibility(hintVisibility);
+			SettingsController.setHintNotificationColor(hintColor);
+			SettingsController.setWarningNotificationVisibility(warningVisibility);
+			SettingsController.setWarningNotificationColor(warningColor);
+			SettingsController.setFailureNotificationVisibility(failureVisibility);
+			SettingsController.setFailureNotificationColor(failureColor);
+			SettingsController.setVerboseNotificationVisibility(verboseVisibility);
+			SettingsController.setVerboseNotificationColor(verboseColor);
 			SettingsController.setTooltipVisibility(tooltipVisibility);
 			SettingsController.setSmoothScrolling(smoothScrolling);
 			SettingsController.setFpsVisibility(fpsVisibility);

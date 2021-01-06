@@ -29,6 +29,7 @@ public class ColorPickerView extends JDialog {
 	Color defaultColor;   // the color if the user does not pick a color
 	Color chosenColor;    // the color if the user clicked on a swatch or typed in a hex color code
 	Color mouseOverColor; // the color under the mouse cursor
+	boolean indicateUsedColors;
 	
 	final int count = 4; // number of swatches along the edge of the color cube
 	
@@ -46,13 +47,14 @@ public class ColorPickerView extends JDialog {
 	 * Shows the palette dialog box, and returns the chosen Color.
 	 * The user can pick a color, or type in a color code, or cancel (by closing the window or pressing ESC.)
 	 * 
-	 * @param name            Dataset name or Bitfield State name to show in the title bar.
-	 * @param defaultColor    The default color, in case the user does not choose a color.
-	 * @return                The color.
+	 * @param name                  Text to show in the title bar.
+	 * @param defaultColor          The default color, in case the user does not choose a color.
+	 * @param indicateUsedColors    If true, indicate which colors are currently used by telemetry datasets.
+	 * @return                      The color.
 	 */
-	public static Color getColor(String name, Color defaultColor) {
+	public static Color getColor(String name, Color defaultColor, boolean indicateUsedColors) {
 		
-		ColorPickerView picker = new ColorPickerView(name, defaultColor);
+		ColorPickerView picker = new ColorPickerView(name, defaultColor, indicateUsedColors);
 		return (picker.chosenColor != null) ? picker.chosenColor : picker.defaultColor;
 		
 	}
@@ -60,15 +62,17 @@ public class ColorPickerView extends JDialog {
 	/**
 	 * A palette where the user can pick a color or type in a hex color code.
 	 * 
-	 * @param name     Dataset name or Bitfield State name to show in the title bar.
-	 * @param color    The default color, in case the user does not choose a color.
+	 * @param name                  Dataset name or Bitfield State name to show in the title bar.
+	 * @param color                 The default color, in case the user does not choose a color.
+	 * @param indicateUsedColors    If true, indicate which colors are currently used by telemetry datasets.
 	 */
-	private ColorPickerView(String name, Color color) {
+	private ColorPickerView(String name, Color color, boolean indicateUsedColors) {
 		
 		super();
 		defaultColor = color;
 		chosenColor = null;
 		mouseOverColor = null;
+		this.indicateUsedColors = indicateUsedColors;
 		
 		setSize((int) (600 * ChartsController.getDisplayScalingFactorForGUI()), (int) (400 * ChartsController.getDisplayScalingFactorForGUI()));
 		setTitle("Pick a Color for \"" + name + "\"");
@@ -378,16 +382,17 @@ public class ColorPickerView extends JDialog {
 				
 				// draw a dot if this color is used by any dataset or bitfield state
 				boolean colorUsed = false;
-				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
-					for(Dataset dataset : connection.datasets.getList()) {
-						if(dataset.color.equals(c))
-							colorUsed = true;
-						if(dataset.isBitfield)
-							for(Dataset.Bitfield b : dataset.getBitfields())
-								for(Dataset.Bitfield.State s : b.states)
-									if(s.color.equals(c))
-										colorUsed = true;
-					}
+				if(indicateUsedColors)
+					for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
+						for(Dataset dataset : connection.datasets.getList()) {
+							if(dataset.color.equals(c))
+								colorUsed = true;
+							if(dataset.isBitfield)
+								for(Dataset.Bitfield b : dataset.getBitfields())
+									for(Dataset.Bitfield.State s : b.states)
+										if(s.color.equals(c))
+											colorUsed = true;
+						}
 				if(colorUsed) {
 					g2.setColor(p.x < width / 2 ? Color.BLACK : Color.WHITE);
 					g2.fillOval(p.x - swatchDiameter/8, p.y - swatchDiameter/8, swatchDiameter/4, swatchDiameter/4);
@@ -424,19 +429,20 @@ public class ColorPickerView extends JDialog {
 				
 				// draw a tooltip if any datasets or bitfield states use this color
 				List<String> datasetNames = new ArrayList<String>();
-				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
-					for(Dataset dataset : connection.datasets.getList()) {
-						
-						if(dataset.color.equals(mouseOverColor))
-							datasetNames.add(dataset.name);
-	
-						if(dataset.isBitfield)
-							for(Dataset.Bitfield b : dataset.getBitfields())
-								for(Dataset.Bitfield.State s : b.states)
-									if(s.color.equals(mouseOverColor))
-										datasetNames.add(dataset.name + ": " + s.name);
-						
-					}
+				if(indicateUsedColors)
+					for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
+						for(Dataset dataset : connection.datasets.getList()) {
+							
+							if(dataset.color.equals(mouseOverColor))
+								datasetNames.add(dataset.name);
+		
+							if(dataset.isBitfield)
+								for(Dataset.Bitfield b : dataset.getBitfields())
+									for(Dataset.Bitfield.State s : b.states)
+										if(s.color.equals(mouseOverColor))
+											datasetNames.add(dataset.name + ": " + s.name);
+							
+						}
 				
 				if(!datasetNames.isEmpty()) {
 					

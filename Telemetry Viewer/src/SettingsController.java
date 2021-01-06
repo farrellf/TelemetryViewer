@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.text.SimpleDateFormat;
 import java.util.List;
 
@@ -28,6 +29,16 @@ public class SettingsController {
 	public static SimpleDateFormat timestampFormatterMilliseconds = new SimpleDateFormat("hh:mm:ss.SSS a");
 	public static SimpleDateFormat timestampFormatterSeconds      = new SimpleDateFormat("hh:mm:ss a");
 	public static SimpleDateFormat timestampFormatterMinutes      = new SimpleDateFormat("hh:mm a");
+	
+	// if the various notification levels should be displayed
+	private static boolean hintNotificationVisibility = true;
+	private static boolean warningNotificationVisibility = true;
+	private static boolean failureNotificationVisibility = true;
+	private static boolean verboseNotificationVisibility = false;
+	private static Color hintColor    = Color.GREEN;
+	private static Color warningColor = Color.YELLOW;
+	private static Color failureColor = Color.RED;
+	private static Color verboseColor = Color.CYAN;
 	
 	// if plot tooltips should be drawn
 	private static boolean tooltipVisibility = true;
@@ -388,6 +399,194 @@ public class SettingsController {
 	public static int getAntialiasingLevel() {
 		
 		return antialiasingLevel;
+		
+	}
+	
+	/**
+	 * Changes the hint notifications visibility.
+	 * 
+	 * @param value    True to enable, false to disable.
+	 */
+	public static void setHintNotificationVisibility(boolean isVisible) {
+		
+		hintNotificationVisibility = isVisible;
+		SettingsView.instance.hintNotificationsCheckbox.setSelected(isVisible);
+		if(!isVisible)
+			NotificationsController.getNotifications().removeIf(item -> item.level.equals("hint"));
+		
+	}
+	
+	/**
+	 * @return    True if hint notifications should be displayed.
+	 */
+	public static boolean getHintNotificationVisibility() {
+		
+		return hintNotificationVisibility;
+		
+	}
+	
+	/**
+	 * Changes the hint notifications color.
+	 * 
+	 * @param color    The new color.
+	 */
+	public static void setHintNotificationColor(Color color) {
+		
+		hintColor = color;
+		SettingsView.instance.hintNotificationsColorButton.setForeground(color);
+		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
+			if(notification.level.equals("hint"))
+				notification.glColor = new float[] {hintColor.getRed() / 255f, hintColor.getGreen() / 255f, hintColor.getBlue() / 255f, 0.2f};
+		
+	}
+	
+	/**
+	 * @return    The background color used for hint notifications.
+	 */
+	public static Color getHintNotificationColor() {
+		
+		return hintColor;
+		
+	}
+	
+	/**
+	 * Changes the warning notifications visibility.
+	 * 
+	 * @param value    True to enable, false to disable.
+	 */
+	public static void setWarningNotificationVisibility(boolean isVisible) {
+		
+		warningNotificationVisibility = isVisible;
+		SettingsView.instance.warningNotificationsCheckbox.setSelected(isVisible);
+		if(!isVisible)
+			NotificationsController.getNotifications().removeIf(item -> item.level.equals("warning"));
+		
+	}
+	
+	/**
+	 * @return    True if warning notifications should be displayed.
+	 */
+	public static boolean getWarningNotificationVisibility() {
+		
+		return warningNotificationVisibility;
+		
+	}
+	
+	/**
+	 * Changes the warning notifications color.
+	 * 
+	 * @param color    The new color.
+	 */
+	public static void setWarningNotificationColor(Color color) {
+		
+		warningColor = color;
+		SettingsView.instance.warningNotificationsColorButton.setForeground(color);
+		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
+			if(notification.level.equals("warning"))
+				notification.glColor = new float[] {warningColor.getRed() / 255f, warningColor.getGreen() / 255f, warningColor.getBlue() / 255f, 0.2f};
+		
+	}
+	
+	/**
+	 * @return    The background color used for warning notifications.
+	 */
+	public static Color getWarningNotificationColor() {
+		
+		return warningColor;
+		
+	}
+	
+	/**
+	 * Changes the failure notifications visibility.
+	 * 
+	 * @param value    True to enable, false to disable.
+	 */
+	public static void setFailureNotificationVisibility(boolean isVisible) {
+		
+		failureNotificationVisibility = isVisible;
+		SettingsView.instance.failureNotificationsCheckbox.setSelected(isVisible);
+		if(!isVisible)
+			NotificationsController.getNotifications().removeIf(item -> item.level.equals("failure"));
+		
+	}
+	
+	/**
+	 * @return    True if warning notifications should be displayed.
+	 */
+	public static boolean getFailureNotificationVisibility() {
+		
+		return failureNotificationVisibility;
+		
+	}
+	
+	/**
+	 * Changes the failure notifications color.
+	 * 
+	 * @param color    The new color.
+	 */
+	public static void setFailureNotificationColor(Color color) {
+		
+		failureColor = color;
+		SettingsView.instance.failureNotificationsColorButton.setForeground(color);
+		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
+			if(notification.level.equals("failure"))
+				notification.glColor = new float[] {failureColor.getRed() / 255f, failureColor.getGreen() / 255f, failureColor.getBlue() / 255f, 0.2f};
+		
+	}
+	
+	/**
+	 * @return    The background color used for failure notifications.
+	 */
+	public static Color getFailureNotificationColor() {
+		
+		return failureColor;
+		
+	}
+	
+	/**
+	 * Changes the verbose notifications visibility.
+	 * 
+	 * @param value    True to enable, false to disable.
+	 */
+	public static void setVerboseNotificationVisibility(boolean isVisible) {
+		
+		verboseNotificationVisibility = isVisible;
+		SettingsView.instance.verboseNotificationsCheckbox.setSelected(isVisible);
+		if(!isVisible)
+			NotificationsController.getNotifications().removeIf(item -> item.level.equals("verbose"));
+		
+	}
+	
+	/**
+	 * @return    True if verbose notifications should be displayed.
+	 */
+	public static boolean getVerboseNotificationVisibility() {
+		
+		return verboseNotificationVisibility;
+		
+	}
+	
+	/**
+	 * Changes the verbose notifications color.
+	 * 
+	 * @param color    The new color.
+	 */
+	public static void setVerboseNotificationColor(Color color) {
+		
+		verboseColor = color;
+		SettingsView.instance.verboseNotificationsColorButton.setForeground(color);
+		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
+			if(notification.level.equals("verbose"))
+				notification.glColor = new float[] {verboseColor.getRed() / 255f, verboseColor.getGreen() / 255f, verboseColor.getBlue() / 255f, 0.2f};
+		
+	}
+	
+	/**
+	 * @return    The background color used for verbose notifications.
+	 */
+	public static Color getVerboseNotificationColor() {
+		
+		return verboseColor;
 		
 	}
 	
