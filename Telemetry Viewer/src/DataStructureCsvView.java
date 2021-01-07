@@ -265,6 +265,8 @@ public class DataStructureCsvView extends JPanel {
 			@Override public void mouseEntered(MouseEvent e) { }
 			@Override public void mouseClicked(MouseEvent e) { }
 		});
+		JScrollPane scrollableDataStructureTable = new JScrollPane(dataStructureTable);
+		scrollableDataStructureTable.getVerticalScrollBar().setUnitIncrement(10);
 
 		// tabs for displaying example code
 		exampleCodePane = new JTabbedPane();
@@ -289,7 +291,7 @@ public class DataStructureCsvView extends JPanel {
 		add(unitLabel, "push, gapafter " + 5 * Theme.padding);
 		add(addButton);
 		add(doneButton, "wrap");
-		add(new JScrollPane(dataStructureTable), "grow, span");
+		add(scrollableDataStructureTable, "grow, span");
 		
 		JLabel efLabel = new JLabel("Example Firmware / Software:");
 		efLabel.setFont(titleFont);
@@ -297,7 +299,7 @@ public class DataStructureCsvView extends JPanel {
 		spacerLabel.setFont(titleFont);
 		add(spacerLabel, "grow, span");
 		add(efLabel, "grow, span");
-		add(exampleCodePane, "grow, span");
+		add(exampleCodePane, "grow, span, width 100%"); // 100% ensures the prefWidth getting massive doesn't shrink the other widgets
 		
 		setMinimumSize(new Dimension(getPreferredSize().width, 32 * (int) (getFontMetrics(dataStructureTable.getFont())).getHeight()));
 		

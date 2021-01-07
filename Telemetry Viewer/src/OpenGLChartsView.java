@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -255,10 +256,8 @@ public class OpenGLChartsView extends JPanel {
 				}
 				
 				// draw any notifications
-				int top = canvasHeight;
-				top -= Theme.tilePadding;
-				for(NotificationsController.Notification notification : NotificationsController.getNotifications()) {
-					
+				AtomicInteger top = new AtomicInteger(canvasHeight - (int) Theme.tilePadding); // have to use forEach() below for thread-safety, and lambdas can't write to a shared integer, so using AtomicInteger
+				NotificationsController.getNotifications().forEach(notification -> {
 					int lineCount = notification.lines.length;
 					if(lineCount > 6) {
 						notification.lines[5] = "[ ... see console for the rest ... ]";
@@ -296,7 +295,7 @@ public class OpenGLChartsView extends JPanel {
 					else if(notification.expiresAtTimestamp && notification.expirationTimestamp < now)
 						animationPosition = (now - notification.expirationTimestamp) / Theme.animationMillisecondsDouble;
 					animationPosition = smoothstep(animationPosition);
-					top += animationPosition * (notificationHeight + Theme.tilePadding);
+					top.addAndGet((int) (animationPosition * (notificationHeight + Theme.tilePadding)));
 					
 					// draw the background
 					int backgroundWidth = canvasWidth - (int) (Theme.tilePadding * 2f);
@@ -305,7 +304,7 @@ public class OpenGLChartsView extends JPanel {
 						backgroundWidth *= progressBarPercentage;
 					int backgroundHeight = (lineCount * lineHeight) + (lineSpacing * (lineCount - 1)) + (int) (3f * Theme.tilePadding);
 					int xBackgroundLeft = (int) Theme.tilePadding;
-					int yBackgroundBottom = top - backgroundHeight;
+					int yBackgroundBottom = top.get() - backgroundHeight;
 					double age = System.currentTimeMillis() - notification.creationTimestamp;
 					double opacity = notification.isProgressBar || age >= 3.0 * Theme.animationMillisecondsDouble ? 0.2 :
 						0.2 + 0.8 * smoothstep((age % Theme.animationMillisecondsDouble) / Theme.animationMillisecondsDouble);
@@ -313,7 +312,7 @@ public class OpenGLChartsView extends JPanel {
 					OpenGL.drawBox(gl, notification.glColor, xBackgroundLeft, yBackgroundBottom, backgroundWidth, backgroundHeight);
 					
 					// draw the text
-					int yTextBastline = top - (int) (1.5 * Theme.tilePadding) - lineHeight;
+					int yTextBastline = top.get() - (int) (1.5 * Theme.tilePadding) - lineHeight;
 					int xTextLeft = (canvasWidth / 2) - (maxLineWidth / 2);
 					if(xTextLeft < 0)
 						xTextLeft = 0;
@@ -328,11 +327,9 @@ public class OpenGLChartsView extends JPanel {
 						                                              notification.expirationTimestamp = System.currentTimeMillis(); });
 					}
 					
-					top -= backgroundHeight;
-					top -= Theme.tilePadding;
-					
-				}
-				notificationsHeight = canvasHeight - (top + (int) Theme.tilePadding);
+					top.addAndGet(-1 * (backgroundHeight + (int) Theme.tilePadding));
+				});
+				notificationsHeight = canvasHeight - (top.get() + (int) Theme.tilePadding);
 				
 				int tileWidth    = canvasWidth  / tileColumns;
 				int tileHeight   = (canvasHeight - notificationsHeight) / tileRows;

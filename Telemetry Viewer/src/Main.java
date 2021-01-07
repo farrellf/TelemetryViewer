@@ -27,16 +27,17 @@ public class Main {
 	@SuppressWarnings("serial")
 	static JFrame window = new JFrame(versionString) {
 		
+		int dataStructureViewWidth = -1;
+		
 		@Override public Dimension getPreferredSize() {
 			
-			int settingsViewWidth = SettingsView.instance.getPreferredSize().width;
-			int dataStructureViewWidth = 0;
-			if(!ConnectionsController.telemetryConnections.isEmpty()) {
-				dataStructureViewWidth = Integer.max(new DataStructureCsvView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width,
-			                                         new DataStructureBinaryView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width);
-			}
-			int configureViewWidth =     ConfigureView.instance.getPreferredSize().width;
+			if(dataStructureViewWidth < 0)
+				dataStructureViewWidth = Integer.max(   new DataStructureCsvView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width,
+				                                     new DataStructureBinaryView(ConnectionsController.telemetryConnections.get(0)).getPreferredSize().width);
+			
+			int settingsViewWidth  =      SettingsView.instance.getPreferredSize().width;
 			int settingsViewHeight =      SettingsView.instance.getPreferredSize().height;
+			int configureViewWidth =     ConfigureView.instance.getPreferredSize().width;
 			int controlsViewHeight = CommunicationView.instance.getPreferredSize().height;
 			int controlsViewWidth  = CommunicationView.instance.getPreferredSize().width;
 			

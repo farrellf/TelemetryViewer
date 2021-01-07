@@ -21,30 +21,40 @@ public class DatasetsController {
 	static {
 		binaryFieldProcessors[0] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "uint16 LSB First"; }
+			@Override public String getJavaTypeName()                      { return "Short"; }
+			@Override public boolean isLittleEndian()                      { return true; }
 			@Override public int getByteCount()                            { return 2; }
 			@Override public float extractValue(byte[] buffer, int offset) { return (float) (((0xFF & buffer[0+offset]) << 0) |
 					                                                                         ((0xFF & buffer[1+offset]) << 8)); }
 		};
 		binaryFieldProcessors[1] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "uint16 MSB First"; }
+			@Override public String getJavaTypeName()                      { return "Short"; }
+			@Override public boolean isLittleEndian()                      { return false; }
 			@Override public int getByteCount()                            { return 2; }
 			@Override public float extractValue(byte[] buffer, int offset) { return (float) (((0xFF & buffer[1+offset]) << 0) |
 			                                                                                 ((0xFF & buffer[0+offset]) << 8)); }
 		};
 		binaryFieldProcessors[2] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "int16 LSB First"; }
+			@Override public String getJavaTypeName()                      { return "Short"; }
+			@Override public boolean isLittleEndian()                      { return true; }
 			@Override public int getByteCount()                            { return 2; }
 			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[0+offset]) << 0) |
 					                                                                                ((0xFF & buffer[1+offset]) << 8)); }
 		};
 		binaryFieldProcessors[3] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "int16 MSB First"; }
+			@Override public String getJavaTypeName()                      { return "Short"; }
+			@Override public boolean isLittleEndian()                      { return false; }
 			@Override public int getByteCount()                            { return 2; }
 			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[1+offset]) << 0) |
 			                                                                                        ((0xFF & buffer[0+offset]) << 8)); }
 		};
 		binaryFieldProcessors[4] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "float32 LSB First"; }
+			@Override public String getJavaTypeName()                      { return "Float"; }
+			@Override public boolean isLittleEndian()                      { return true; }
 			@Override public int getByteCount()                            { return 4; }
 			@Override public float extractValue(byte[] buffer, int offset) { return Float.intBitsToFloat(((0xFF & buffer[0+offset]) <<  0) |
 			                                                                                             ((0xFF & buffer[1+offset]) <<  8) |
@@ -53,6 +63,8 @@ public class DatasetsController {
 		};
 		binaryFieldProcessors[5] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "float32 MSB First"; }
+			@Override public String getJavaTypeName()                      { return "Float"; }
+			@Override public boolean isLittleEndian()                      { return false; }
 			@Override public int getByteCount()                            { return 4; }
 			@Override public float extractValue(byte[] buffer, int offset) { return Float.intBitsToFloat(((0xFF & buffer[3+offset]) <<  0) |
                                                                                                          ((0xFF & buffer[2+offset]) <<  8) |
@@ -61,17 +73,23 @@ public class DatasetsController {
 		};
 		binaryFieldProcessors[6] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "Bitfield: 8 Bits"; }
+			@Override public String getJavaTypeName()                      { return "Byte"; }
+			@Override public boolean isLittleEndian()                      { return true; }
 			@Override public int getByteCount()                            { return 1; }
 			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
 		};
 		binaryFieldProcessors[7] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "uint8"; }
+			@Override public String getJavaTypeName()                      { return "Byte"; }
+			@Override public boolean isLittleEndian()                      { return true; }
 			@Override public int getByteCount()                            { return 1; }
 			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
 		};
 		binaryChecksumProcessors[0] = new BinaryChecksumProcessor() {
-			@Override public String toString()                                  { return "uint16 Checksum LSB First"; }
-			@Override public int getByteCount()                                 { return 2; }
+			@Override public String toString()                             { return "uint16 Checksum LSB First"; }
+			@Override public String getJavaTypeName()                      { return "Short"; }
+			@Override public boolean isLittleEndian()                      { return true; }
+			@Override public int getByteCount()                            { return 2; }
 			@Override public boolean testChecksum(byte[] bytes, int offset, int length) {
 				
 				// skip past the sync word
@@ -253,7 +271,7 @@ public class DatasetsController {
 	}
 	
 	/**
-	 * Removes all associated charts, Datasets and Cameras.
+	 * Removes all datasets.
 	 */
 	public void removeAll() {
 		
@@ -588,6 +606,16 @@ public class DatasetsController {
 		public String toString();
 		
 		/**
+		 * @return    The closest Java primitive type, as a String with the first letter capitalized ("Byte", "Short", "Int", "Long", "Float" or "Double".)
+		 */
+		public String getJavaTypeName();
+		
+		/**
+		 * @return    True if little endian or one byte, false if big endian.
+		 */
+		public boolean isLittleEndian();
+		
+		/**
 		 * @return    Number of bytes used by this field.
 		 */
 		public int getByteCount();
@@ -607,6 +635,16 @@ public class DatasetsController {
 		 * @return    Description for this type of checksum processor. This will be displayed in the DataStructureBinaryView, and written to any saved settings files.
 		 */
 		public String toString();
+		
+		/**
+		 * @return    The closest Java primitive type, as a String with the first letter capitalized ("Byte", "Short", "Int", "Long", "Float" or "Double".)
+		 */
+		public String getJavaTypeName();
+		
+		/**
+		 * @return    True if little endian or one byte, false if big endian.
+		 */
+		public boolean isLittleEndian();
 		
 		/**
 		 * @return    Number of bytes occupied by the checksum field.

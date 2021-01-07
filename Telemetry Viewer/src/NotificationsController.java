@@ -95,14 +95,14 @@ public class NotificationsController {
 		
 		notifications.removeIf(item -> item.expiresAtTimestamp && item.expirationTimestamp + Theme.animationMilliseconds <= System.currentTimeMillis());
 		notifications.removeIf(item -> item.expiresAtEvent && item.event.getAsBoolean() == true);
-		for(Notification notification : notifications)
-			if(notification.isProgressBar && notification.currentAmount.get() >= notification.totalAmount) {
-				notification.expiresAtTimestamp = true;
-				notification.expirationTimestamp = System.currentTimeMillis() + 2000; // fade away 2 seconds after done
-				notification.lines[0] += " Done";
-				notification.isProgressBar = false;
+		notifications.forEach(item -> {
+			if(item.isProgressBar && item.currentAmount.get() >= item.totalAmount) {
+				item.expiresAtTimestamp = true;
+				item.expirationTimestamp = System.currentTimeMillis() + 2000; // fade away 2 seconds after done
+				item.lines[0] += " Done";
+				item.isProgressBar = false;
 			}
-		
+		});
 		if(notifications.size() > 5) {
 			long now = System.currentTimeMillis();
 			for(int i = 0; i < notifications.size() - 5; i++) {

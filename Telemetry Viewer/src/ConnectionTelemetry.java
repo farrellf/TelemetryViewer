@@ -171,6 +171,9 @@ public class ConnectionTelemetry extends Connection {
 		if(!csvMode)
 			packetTypeCombobox.setSelectedIndex(1);
 		packetTypeCombobox.addActionListener(event -> {
+			boolean changing = (csvMode && packetTypeCombobox.getSelectedIndex() == 1) || (!csvMode && packetTypeCombobox.getSelectedIndex() == 0);
+			if(changing)
+				datasets.removeAll();
 			csvMode = (packetTypeCombobox.getSelectedIndex() == 0);
 			CommunicationView.instance.redraw();
 		});
@@ -575,17 +578,17 @@ public class ConnectionTelemetry extends Connection {
 		
 		receiverThread = new Thread(() -> {
 			
-			DatagramSocket udpServer = null;
+			DatagramSocket udpListener = null;
 			SharedByteStream stream = new SharedByteStream(ConnectionTelemetry.this);
 			
-			// start the UDP server
+			// start the UDP listener
 			try {
-				udpServer = new DatagramSocket(portNumber);
-				udpServer.setSoTimeout(1000);
-				udpServer.setReceiveBufferSize(67108864); // 64MB
+				udpListener = new DatagramSocket(portNumber);
+				udpListener.setSoTimeout(1000);
+				udpListener.setReceiveBufferSize(67108864); // 64MB
 			} catch (Exception e) {
-				try { udpServer.close(); } catch(Exception e2) {}
-				SwingUtilities.invokeLater(() -> disconnect("Unable to start the UDP server. Make sure another program is not already using port " + portNumber + "."));
+				try { udpListener.close(); } catch(Exception e2) {}
+				SwingUtilities.invokeLater(() -> disconnect("Unable to start the UDP listener. Make sure another program is not already using port " + portNumber + "."));
 				return;
 			}
 			
@@ -607,10 +610,8 @@ public class ConnectionTelemetry extends Connection {
 					if(Thread.interrupted() || !connected)
 						throw new InterruptedException();
 					
-					udpServer.receive(udpPacket);
+					udpListener.receive(udpPacket);
 					stream.write(buffer, udpPacket.getLength());
-					
-//					NotificationsController.showVerbose("UDP packet received from a client at " + udpPacket.getAddress().getHostAddress() + ":" + udpPacket.getPort() + ".");
 					
 				} catch(SocketTimeoutException ste) {
 					
@@ -626,14 +627,14 @@ public class ConnectionTelemetry extends Connection {
 					
 					// problem while reading from the socket
 					stopProcessingTelemetry();
-					try { udpServer.close(); }   catch(Exception e) {}
+					try { udpListener.close(); }   catch(Exception e) {}
 					SwingUtilities.invokeLater(() -> disconnect("UDP packet error."));
 					return;
 					
 				}  catch(InterruptedException ie) {
 					
 					stopProcessingTelemetry();
-					try { udpServer.close(); }   catch(Exception e) {}
+					try { udpListener.close(); }   catch(Exception e) {}
 					return;
 					
 				}

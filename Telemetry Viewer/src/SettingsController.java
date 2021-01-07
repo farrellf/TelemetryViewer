@@ -434,9 +434,14 @@ public class SettingsController {
 		
 		hintColor = color;
 		SettingsView.instance.hintNotificationsColorButton.setForeground(color);
-		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
-			if(notification.level.equals("hint"))
-				notification.glColor = new float[] {hintColor.getRed() / 255f, hintColor.getGreen() / 255f, hintColor.getBlue() / 255f, 0.2f};
+
+		NotificationsController.getNotifications().forEach(item -> {
+			if(item.level.equals("hint"))
+				item.glColor = new float[] {hintColor.getRed()   / 255f,
+				                            hintColor.getGreen() / 255f,
+				                            hintColor.getBlue()  / 255f,
+				                            0.2f};
+		});
 		
 	}
 	
@@ -481,9 +486,14 @@ public class SettingsController {
 		
 		warningColor = color;
 		SettingsView.instance.warningNotificationsColorButton.setForeground(color);
-		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
-			if(notification.level.equals("warning"))
-				notification.glColor = new float[] {warningColor.getRed() / 255f, warningColor.getGreen() / 255f, warningColor.getBlue() / 255f, 0.2f};
+		
+		NotificationsController.getNotifications().forEach(item -> {
+			if(item.level.equals("warning"))
+				item.glColor = new float[] {warningColor.getRed()   / 255f,
+				                            warningColor.getGreen() / 255f,
+				                            warningColor.getBlue()  / 255f,
+				                            0.2f};
+		});
 		
 	}
 	
@@ -528,9 +538,14 @@ public class SettingsController {
 		
 		failureColor = color;
 		SettingsView.instance.failureNotificationsColorButton.setForeground(color);
-		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
-			if(notification.level.equals("failure"))
-				notification.glColor = new float[] {failureColor.getRed() / 255f, failureColor.getGreen() / 255f, failureColor.getBlue() / 255f, 0.2f};
+		
+		NotificationsController.getNotifications().forEach(item -> {
+			if(item.level.equals("failure"))
+				item.glColor = new float[] { failureColor.getRed()   / 255f,
+				                             failureColor.getGreen() / 255f,
+				                             failureColor.getBlue()  / 255f,
+				                             0.2f};
+		});
 		
 	}
 	
@@ -575,9 +590,14 @@ public class SettingsController {
 		
 		verboseColor = color;
 		SettingsView.instance.verboseNotificationsColorButton.setForeground(color);
-		for(NotificationsController.Notification notification : NotificationsController.getNotifications())
-			if(notification.level.equals("verbose"))
-				notification.glColor = new float[] {verboseColor.getRed() / 255f, verboseColor.getGreen() / 255f, verboseColor.getBlue() / 255f, 0.2f};
+
+		NotificationsController.getNotifications().forEach(item -> {
+			if(item.level.equals("verbose"))
+				item.glColor = new float[] {verboseColor.getRed()   / 255f,
+				                            verboseColor.getGreen() / 255f,
+				                            verboseColor.getBlue()  / 255f,
+				                            0.2f};
+		});
 		
 	}
 	

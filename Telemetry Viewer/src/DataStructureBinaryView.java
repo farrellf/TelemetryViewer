@@ -22,7 +22,9 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
@@ -50,6 +52,10 @@ public class DataStructureBinaryView extends JPanel {
 	private JButton           doneButton;
 	private JTable            dataStructureTable;
 	private JScrollPane       scrollableDataStructureTable;
+	private JLabel            efLabel;
+	private JLabel            spacerLabel;
+	private JTabbedPane       exampleCodePane;
+	
 	private boolean bitfieldDefinitionInProgress;
 	
 	/**
@@ -194,8 +200,28 @@ public class DataStructureBinaryView extends JPanel {
 
 					BitfieldPanel bitfieldPanel = new BitfieldPanel(((DatasetsController.BinaryFieldProcessor) processor).getByteCount() * 8, connection.datasets.getByLocation(location));
 					
-					remove(scrollableDataStructureTable);
-					add(bitfieldPanel, "grow, span, cell 0 2");
+					removeAll();
+					add(dsdLabel, "grow, span");
+					add(new JLabel("Byte Offset"));
+					add(offsetTextfield,   "gapafter " + 2 * Theme.padding);
+					add(processorCombobox, "gapafter " + 2 * Theme.padding);
+					add(new JLabel("Name"));
+					add(nameTextfield,     "gapafter " + 2 * Theme.padding);
+					add(new JLabel("Color"));
+					add(colorButton,       "gapafter " + 2 * Theme.padding);
+					add(new JLabel("Unit"));
+					add(unitTextfield,     "gapafter " + 5 * Theme.padding);
+					add(conversionFactorAtextfield);
+					add(new JLabel(" = "));
+					add(conversionFactorBtextfield);
+					add(unitLabel,   "push, gapafter " + 5 * Theme.padding);
+					add(addButton);
+					add(doneButton, "wrap");
+					add(bitfieldPanel, "grow, span");
+					add(spacerLabel, "grow, span");
+					add(efLabel, "grow, span");
+					add(exampleCodePane, "grow, span");
+					
 					bitfieldDefinitionInProgress = true;
 					
 				}
@@ -354,12 +380,23 @@ public class DataStructureBinaryView extends JPanel {
 			@Override public void mouseEntered(MouseEvent e) { }
 			@Override public void mouseClicked(MouseEvent e) { }
 		});
+		scrollableDataStructureTable = new JScrollPane(dataStructureTable);
+		scrollableDataStructureTable.getVerticalScrollBar().setUnitIncrement(10);
+
+		// tabs for displaying example code
+		exampleCodePane = new JTabbedPane();
 		
-		// layout the panel
+		// labels
 		Font titleFont = getFont().deriveFont(Font.BOLD, getFont().getSize() * 1.4f);
-		setLayout(new MigLayout("fill, insets " + Theme.padding + ", gap " + Theme.padding, "", "0[][][100%]0"));
+		setLayout(new MigLayout("fill, insets " + Theme.padding + ", gap " + Theme.padding, "", "0[][][50%][][][50%]0"));
 		dsdLabel = new JLabel("Data Structure Definition:");
 		dsdLabel.setFont(titleFont);
+		efLabel = new JLabel("Example Firmware / Software:");
+		efLabel.setFont(titleFont);
+		spacerLabel = new JLabel(" ");
+		spacerLabel.setFont(titleFont);
+		
+		// layout the panel
 		add(dsdLabel, "grow, span");
 		add(new JLabel("Byte Offset"));
 		add(offsetTextfield,   "gapafter " + 2 * Theme.padding);
@@ -376,10 +413,12 @@ public class DataStructureBinaryView extends JPanel {
 		add(unitLabel,   "push, gapafter " + 5 * Theme.padding);
 		add(addButton);
 		add(doneButton, "wrap");
-		scrollableDataStructureTable = new JScrollPane(dataStructureTable);
 		add(scrollableDataStructureTable, "grow, span");
+		add(spacerLabel, "grow, span");
+		add(efLabel, "grow, span");
+		add(exampleCodePane, "grow, span, width 100%"); // 100% ensures the prefWidth getting massive doesn't shrink the other widgets
 		
-		setMinimumSize(new Dimension(getPreferredSize().width, 500));
+		setMinimumSize(new Dimension(getPreferredSize().width, 32 * (int) (getFontMetrics(dataStructureTable.getFont())).getHeight()));
 		
 		SwingUtilities.invokeLater(() -> updateGui(true)); // invokeLater to ensure focus isn't taken away
 		
@@ -514,9 +553,179 @@ public class DataStructureBinaryView extends JPanel {
 		
 		dataStructureTable.revalidate();
 		dataStructureTable.repaint();
+		
+		updateExampleCode();
+		
 		revalidate();
 		repaint();
 		
+	}
+	
+	private void updateExampleCode() {
+
+		// get the commonly used data
+		int datasetsCount = datasets.getCount();
+		int byteCount = 1;
+		if(datasets.getChecksumProcessor() != null)
+			byteCount = datasets.getChecksumProcessorOffset() + datasets.getChecksumProcessor().getByteCount();
+		else if(datasetsCount > 0)
+			byteCount = datasets.getByIndex(datasetsCount - 1).location + datasets.getByIndex(datasetsCount - 1).processor.getByteCount();
+		String argumentsText = "";
+		for(int i = 0; i < datasetsCount; i++) {
+			Dataset d = datasets.getByIndex(i);
+			argumentsText += d.processor.getJavaTypeName().toLowerCase() + " " + d.name.replace(' ', '_').toLowerCase() + ", ";
+		}
+		if(argumentsText.length() > 2)
+			argumentsText = argumentsText.substring(0, argumentsText.length() - 2);
+		boolean littleEndianMode = false;
+		int position = 0;
+		
+		exampleCodePane.removeAll();
+		
+		// show java code for UDP mode
+		if(connection.mode == ConnectionTelemetry.Mode.UDP) {
+			
+			JTextArea code = new JTextArea();
+			code.setEditable(false);
+			code.setTabSize(4);
+			code.setFont(new Font("Consolas", Font.PLAIN, dataStructureTable.getFont().getSize()));
+			exampleCodePane.add("Java", new JScrollPane(code));
+			
+			if(datasetsCount == 0) {
+				
+				code.setText("[...waiting for at least one CSV column...]");
+					
+			} else {
+			
+				code.setText("// this code is a crude template\n");
+				code.append("// you will need to edit this\n");
+				code.append("// remember that Java doesn't support unsigned numbers, so ensure the underlying bits are actually what you expect\n");
+				code.append("\n");
+				code.append("import java.net.InetSocketAddress;\n");
+				code.append("import java.nio.ByteBuffer;\n");
+				code.append("import java.nio.ByteOrder;\n");
+				code.append("import java.nio.channels.DatagramChannel;\n");
+				code.append("import java.util.Random;\n");
+				code.append("\n");
+				code.append("public class Main {\n");
+				code.append("\n");
+				code.append("\tstatic DatagramChannel channel;\n");
+				code.append("\tstatic ByteBuffer buffer = ByteBuffer.allocateDirect(" + byteCount + ");\n");
+				code.append("\t\n");
+				code.append("\tpublic static void sendTelemetry(" + argumentsText + ") {\n");
+				code.append("\t\t\n");
+				code.append("\t\ttry {\n");
+				code.append("\t\t\t\t\n");
+				code.append("\t\t\tif(channel == null)\n");
+				code.append("\t\t\t\tchannel = DatagramChannel.open();\n");
+				code.append("\t\t\t\n");
+				code.append("\t\t\tbuffer.clear();\n");
+				code.append("\t\t\t\n");
+				code.append("\t\t\tbuffer.put((byte) 0xAA);\n");
+				
+				position = 1;
+				for(int i = 0; i < datasetsCount; i++) {
+					Dataset d = datasets.getByIndex(i);
+					if(position != d.location) {
+						code.append("\t\t\tbuffer.position(" + d.location + ");\n");
+						position = d.location;
+					}
+					boolean littleEndian = d.processor.isLittleEndian();
+					if(littleEndian && !littleEndianMode) {
+						code.append("\t\t\tbuffer.order(ByteOrder.LITTLE_ENDIAN);\n");
+						littleEndianMode = true;
+					} else if(!littleEndian && littleEndianMode) {
+						code.append("\t\t\tbuffer.order(ByteOrder.BIG_ENDIAN);\n");
+						littleEndianMode = false;
+					}
+					code.append("\t\t\tbuffer.put");
+					code.append(d.processor.getJavaTypeName().replace("Byte", "") + "(" + d.name.replace(' ', '_').toLowerCase() + ");\n");
+					position += d.processor.getByteCount();
+				}
+				code.append("\t\t\t\n");
+				
+				DatasetsController.BinaryChecksumProcessor bcp = datasets.getChecksumProcessor();
+				if(bcp != null) {
+					code.append("\t\t\tshort checksum = 0;\n");
+					code.append("\t\t\tbuffer.position(1);\n");
+					boolean littleEndian = bcp.isLittleEndian();
+					if(littleEndian && !littleEndianMode) {
+						code.append("\t\t\tbuffer.order(ByteOrder.LITTLE_ENDIAN);\n");
+						littleEndianMode = true;
+					} else if(!littleEndian && littleEndianMode) {
+						code.append("\t\t\tbuffer.order(ByteOrder.BIG_ENDIAN);\n");
+						littleEndianMode = false;
+					}
+					int count = (byteCount - 1 - bcp.getByteCount()) / 2;
+					code.append("\t\t\tfor(int i = 0; i < " + count + "; i++)\n");
+					code.append("\t\t\t\tchecksum += buffer.getShort();\n");
+					code.append("\t\t\tbuffer.putShort(checksum);\n");
+					code.append("\t\t\t\n");
+				}
+				
+				code.append("\t\t\tchannel.send(buffer.flip(), new InetSocketAddress(\"" + ConnectionTelemetry.localIp + "\", " + connection.portNumber + ")); // EDIT THIS LINE\n");
+				code.append("\t\t\t\n");
+				code.append("\t\t} catch(Exception e) {\n");
+				code.append("\t\t\t\n");
+				code.append("\t\t\tSystem.err.println(\"Error while attempting to send telemetry:\");\n");
+				code.append("\t\t\te.printStackTrace();\n");
+				code.append("\t\t\t\n");
+				code.append("\t\t}\n");
+				code.append("\t\n");
+				code.append("\t}\n");
+				code.append("\t\n");
+				code.append("\t// EDIT THIS FUNCTION\n");
+				code.append("\t// THIS DEMO IS AN INFINITE LOOP SENDING RANDOM NUMBERS FOR EACH DATASET AT ROUGHLY 1kHz\n");
+				code.append("\tpublic static void main(String[] args) {\n");
+				code.append("\t\t\n");
+				code.append("\t\tRandom rng = new Random();\n");
+				code.append("\t\t\n");
+				code.append("\t\twhile(true) {\n");
+				code.append("\t\t\t\n");
+				
+				for(int i = 0; i < datasetsCount; i++) {
+					if(i == 0)
+						code.append("\t\t\tsendTelemetry(");
+					else
+						code.append("\t\t\t              ");
+					
+					Dataset d = datasets.getByIndex(i);
+					String javaType = d.processor.getJavaTypeName();
+					if(javaType.equals("Byte"))
+						code.append("(byte) rng.nextInt()");
+					else if(javaType.equals("Short"))
+						code.append("(short) rng.nextInt()");
+					else if(javaType.equals("Int"))
+						code.append("rng.nextInt()");
+					else if(javaType.equals("Long"))
+						code.append("rng.nextLong()");
+					else if(javaType.equals("Float"))
+						code.append("rng.nextFloat()");
+					else if(javaType.equals("Double"))
+						code.append("rng.nextDouble()");
+					
+					if(i == datasetsCount - 1)
+						code.append(");\n");
+					else
+						code.append(",\n");
+				}
+				
+				code.append("\t\t\t\n");
+				code.append("\t\t\ttry { Thread.sleep(1); } catch(Exception e) { }\n");
+				code.append("\t\t\t\n");
+				code.append("\t\t}\n"); 
+				code.append("\t\t\t\n");
+				code.append("\t}\n");
+				code.append("\t\n");
+				code.append("}\n");
+				
+				// scroll back to the top
+				code.setCaretPosition(0);
+				
+			}
+			
+		}
+	
 	}
 
 	/**
@@ -534,8 +743,29 @@ public class DataStructureBinaryView extends JPanel {
 			
 			JButton doneButton = new JButton("Done With Bitfield");
 			doneButton.addActionListener(event -> {
-				DataStructureBinaryView.this.remove(this);
-				DataStructureBinaryView.this.add(DataStructureBinaryView.this.scrollableDataStructureTable, "grow, span, cell 0 2");
+				
+				DataStructureBinaryView.this.removeAll();
+				DataStructureBinaryView.this.add(dsdLabel, "grow, span");
+				DataStructureBinaryView.this.add(new JLabel("Byte Offset"));
+				DataStructureBinaryView.this.add(offsetTextfield,   "gapafter " + 2 * Theme.padding);
+				DataStructureBinaryView.this.add(processorCombobox, "gapafter " + 2 * Theme.padding);
+				DataStructureBinaryView.this.add(new JLabel("Name"));
+				DataStructureBinaryView.this.add(nameTextfield,     "gapafter " + 2 * Theme.padding);
+				DataStructureBinaryView.this.add(new JLabel("Color"));
+				DataStructureBinaryView.this.add(colorButton,       "gapafter " + 2 * Theme.padding);
+				DataStructureBinaryView.this.add(new JLabel("Unit"));
+				DataStructureBinaryView.this.add(unitTextfield,     "gapafter " + 5 * Theme.padding);
+				DataStructureBinaryView.this.add(conversionFactorAtextfield);
+				DataStructureBinaryView.this.add(new JLabel(" = "));
+				DataStructureBinaryView.this.add(conversionFactorBtextfield);
+				DataStructureBinaryView.this.add(unitLabel,   "push, gapafter " + 5 * Theme.padding);
+				DataStructureBinaryView.this.add(addButton);
+				DataStructureBinaryView.this.add(DataStructureBinaryView.this.doneButton, "wrap");
+				DataStructureBinaryView.this.add(DataStructureBinaryView.this.scrollableDataStructureTable, "grow, span");
+				DataStructureBinaryView.this.add(spacerLabel, "grow, span");
+				DataStructureBinaryView.this.add(efLabel, "grow, span");
+				DataStructureBinaryView.this.add(exampleCodePane, "grow, span");
+				
 				DataStructureBinaryView.this.bitfieldDefinitionInProgress = false;
 				DataStructureBinaryView.this.updateGui(true);
 			});
@@ -544,8 +774,11 @@ public class DataStructureBinaryView extends JPanel {
 			bottom.setBorder(new EmptyBorder(Theme.padding, 0, 0, 0));
 			bottom.add(doneButton);
 			
+			JScrollPane scrollableWidgets = new JScrollPane(widgets);
+			scrollableWidgets.getVerticalScrollBar().setUnitIncrement(10);
+			
 			add(new Visualization(bitCount), BorderLayout.NORTH);
-			add(new JScrollPane(widgets), BorderLayout.CENTER);
+			add(scrollableWidgets, BorderLayout.CENTER);
 			add(bottom, BorderLayout.SOUTH);
 			
 			this.dataset = dataset;
