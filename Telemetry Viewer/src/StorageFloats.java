@@ -72,13 +72,14 @@ public class StorageFloats {
 		int valueN = sampleNumber % SLOT_SIZE;
 		int blockN = sampleNumber / BLOCK_SIZE;
 		
-		if(valueN == 0) {
+		if(valueN == 0)
 			slot[slotN] = new Slot();
-			slot[slotN].value[valueN] = value;
+		slot[slotN].value[valueN] = value;
+		
+		if(sampleNumber % BLOCK_SIZE == 0) {
 			minimumValueInBlock[blockN] = value;
 			maximumValueInBlock[blockN] = value;
 		} else {
-			slot[slotN].value[valueN] = value;
 			if(value < minimumValueInBlock[blockN])
 				minimumValueInBlock[blockN] = value;
 			if(value > maximumValueInBlock[blockN])
