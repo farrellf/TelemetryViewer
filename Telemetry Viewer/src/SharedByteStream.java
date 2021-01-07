@@ -190,13 +190,16 @@ public class SharedByteStream {
 		// stop at the first loss of sync or failed checksum
 		int packetCount = occupiedSize[readBuffer] / packetByteCount;
 		int index = readIndex[readBuffer];
+		int skipCorruptByteCount = 0;
 		for(int i = 0; i < packetCount; i++) {
 			if(buffer[readBuffer][index] != syncWord) {
 				packetCount = i;
+				skipCorruptByteCount = 1;
 				break;
 			}
 			if(!connection.datasets.checksumPassed(buffer[readBuffer], index, packetByteCount)) {
 				packetCount = i;
+				skipCorruptByteCount = packetByteCount;
 				break;
 			}
 			index += packetByteCount;
@@ -209,7 +212,7 @@ public class SharedByteStream {
 		packets.count = packetCount;
 
 		// update state
-		int byteCount = packetCount * packetByteCount;
+		int byteCount = packetCount * packetByteCount + skipCorruptByteCount;
 		readIndex[readBuffer] = (readIndex[readBuffer] + byteCount) % bufferSize;
 		occupiedSize[readBuffer] -= byteCount;
 		
