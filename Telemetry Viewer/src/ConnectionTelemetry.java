@@ -64,7 +64,6 @@ public class ConnectionTelemetry extends Connection {
 	
 	public volatile boolean dataStructureDefined = false;
 	
-	public final byte syncWord = (byte) 0xAA; // for binary mode
 	private final int MAX_UDP_PACKET_SIZE = 65507; // 65535 - (8byte UDP header) - (20byte IP header)
 	private final int MAX_TCP_IDLE_MILLISECONDS = 10000; // if connected but no new samples after than much time, disconnect and wait for a new connection
 	
@@ -949,6 +948,17 @@ public class ConnectionTelemetry extends Connection {
 			
 		}
 		
+		String syncWord = ChartUtils.parseString(lines.remove(), "sync word = %s");
+		try {
+			datasets.syncWord = (byte) Integer.parseInt(syncWord.substring(2), 16);
+		} catch(Exception e) {
+			throw new AssertionError("Invalid sync word.");
+		}
+		int syncWordByteCount = ChartUtils.parseInteger(lines.remove(), "sync word byte count = %d");
+		if(syncWordByteCount < 0 || syncWordByteCount > 1)
+			throw new AssertionError("Invalud sync word size.");
+		datasets.syncWordByteCount = syncWordByteCount;
+		
 		int datasetsCount = ChartUtils.parseInteger(lines.remove(), "datasets count = %d");
 		if(datasetsCount < 1)
 			throw new AssertionError("Invalid datasets count.");
@@ -973,7 +983,7 @@ public class ConnectionTelemetry extends Connection {
 			
 			datasets.insert(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 			
-			if(processor != null && processor.toString().startsWith("Bitfield")) {
+			if(processor != null && processor.toString().endsWith("Bitfield")) {
 				Dataset dataset = datasets.getByLocation(location);
 				String line = lines.remove();
 				while(!line.equals("")){
@@ -1046,6 +1056,8 @@ public class ConnectionTelemetry extends Connection {
 			
 		}
 		
+		file.println("\tsync word = " + String.format("0x%0" + Integer.max(2, 2 * datasets.syncWordByteCount) + "X", datasets.syncWord));
+		file.println("\tsync word byte count = " + datasets.syncWordByteCount);
 		file.println("\tdatasets count = " + datasets.getCount());
 		file.println("");
 		for(Dataset dataset : datasets.getList()) {
@@ -1057,7 +1069,7 @@ public class ConnectionTelemetry extends Connection {
 			file.println("\t\tunit = " + dataset.unit);
 			file.println("\t\tconversion factor a = " + dataset.conversionFactorA);
 			file.println("\t\tconversion factor b = " + dataset.conversionFactorB);
-			if(dataset.processor != null && dataset.processor.toString().startsWith("Bitfield"))
+			if(dataset.processor != null && dataset.processor.toString().endsWith("Bitfield"))
 				for(Dataset.Bitfield bitfield : dataset.bitfields) {
 					file.print("\t\t[" + bitfield.MSBit + ":" + bitfield.LSBit + "] = " + String.format("0x%02X%02X%02X ", bitfield.states[0].color.getRed(), bitfield.states[0].color.getGreen(), bitfield.states[0].color.getBlue()) + bitfield.states[0].name);
 					for(int i = 1; i < bitfield.states.length; i++)
@@ -1380,7 +1392,7 @@ public class ConnectionTelemetry extends Connection {
 							throw new InterruptedException();
 						
 						// get all received telemetry packets, stopping early if there is a loss of sync or bad checksum
-						SharedByteStream.PacketsBuffer packets = stream.readPackets(syncWord);
+						SharedByteStream.PacketsBuffer packets = stream.readPackets(datasets.syncWord, datasets.syncWordByteCount);
 						
 						// process the received telemetry packets
 						while(packets.count > 0) {

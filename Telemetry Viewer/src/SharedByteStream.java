@@ -167,21 +167,23 @@ public class SharedByteStream {
 	 * Stopping early is intentional, so that error messages can be printed in the correct order even if packets are processed by parallel threads.
 	 * 
 	 * @param syncWord                 The first byte that marks the beginning of each telemetry packet.
+	 * @param syncWordByteCount        Byte count of the sync word.
 	 * @return                         A BufferObject containing the buffer, offset and length.
 	 * @throws InterruptedException    If the thread is interrupted while waiting for at least one packet to arrive.
 	 */
-	public PacketsBuffer readPackets(byte syncWord) throws InterruptedException {
+	public PacketsBuffer readPackets(byte syncWord, int syncWordByteCount) throws InterruptedException {
 		
 		int readBuffer = awaitPacket();
 		
 		// align with the sync word
 		boolean lostSync = false;
-		while(buffer[readBuffer][readIndex[readBuffer]] != syncWord) {
-			lostSync = true;
-			readIndex[readBuffer] = (readIndex[readBuffer] + 1) % bufferSize;
-			occupiedSize[readBuffer]--;
-			readBuffer = awaitPacket();
-		}
+		if(syncWordByteCount > 0)
+			while(buffer[readBuffer][readIndex[readBuffer]] != syncWord) {
+				lostSync = true;
+				readIndex[readBuffer] = (readIndex[readBuffer] + 1) % bufferSize;
+				occupiedSize[readBuffer]--;
+				readBuffer = awaitPacket();
+			}
 		
 		// show an error message if sync was lost, unless this is the first packet (because we may have connected in the middle of a packet)
 		if(lostSync && connection.getSampleCount() > 0)
@@ -192,7 +194,7 @@ public class SharedByteStream {
 		int index = readIndex[readBuffer];
 		int skipCorruptByteCount = 0;
 		for(int i = 0; i < packetCount; i++) {
-			if(buffer[readBuffer][index] != syncWord) {
+			if(syncWordByteCount > 0 && buffer[readBuffer][index] != syncWord) {
 				packetCount = i;
 				skipCorruptByteCount = 1;
 				break;

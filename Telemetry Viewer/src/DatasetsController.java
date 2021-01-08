@@ -13,13 +13,31 @@ public class DatasetsController {
 	private AtomicInteger sampleCount = new AtomicInteger(0);
 	private StorageTimestamps timestamps;
 	private long firstTimestamp = 0;
+	
+	public byte syncWord = (byte) 0xAA;
+	public int  syncWordByteCount = 1;
+	
 	private BinaryChecksumProcessor checksumProcessor = null;
 	private int checksumProcessorOffset = -1;
 	
 	public static final BinaryFieldProcessor[]    binaryFieldProcessors    = new BinaryFieldProcessor[8];
-	public static final BinaryChecksumProcessor[] binaryChecksumProcessors = new BinaryChecksumProcessor[1];
+	public static final BinaryChecksumProcessor[] binaryChecksumProcessors = new BinaryChecksumProcessor[2];
 	static {
 		binaryFieldProcessors[0] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint8"; }
+			@Override public String getJavaTypeName()                      { return "Byte"; }
+			@Override public boolean isLittleEndian()                      { return true; }
+			@Override public int getByteCount()                            { return 1; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
+		};
+		binaryFieldProcessors[1] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint8 Bitfield"; }
+			@Override public String getJavaTypeName()                      { return "Byte"; }
+			@Override public boolean isLittleEndian()                      { return true; }
+			@Override public int getByteCount()                            { return 1; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
+		};
+		binaryFieldProcessors[2] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "uint16 LSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return true; }
@@ -27,7 +45,7 @@ public class DatasetsController {
 			@Override public float extractValue(byte[] buffer, int offset) { return (float) (((0xFF & buffer[0+offset]) << 0) |
 					                                                                         ((0xFF & buffer[1+offset]) << 8)); }
 		};
-		binaryFieldProcessors[1] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[3] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "uint16 MSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return false; }
@@ -35,7 +53,7 @@ public class DatasetsController {
 			@Override public float extractValue(byte[] buffer, int offset) { return (float) (((0xFF & buffer[1+offset]) << 0) |
 			                                                                                 ((0xFF & buffer[0+offset]) << 8)); }
 		};
-		binaryFieldProcessors[2] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[4] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "int16 LSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return true; }
@@ -43,7 +61,7 @@ public class DatasetsController {
 			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[0+offset]) << 0) |
 					                                                                                ((0xFF & buffer[1+offset]) << 8)); }
 		};
-		binaryFieldProcessors[3] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[5] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "int16 MSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return false; }
@@ -51,7 +69,7 @@ public class DatasetsController {
 			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[1+offset]) << 0) |
 			                                                                                        ((0xFF & buffer[0+offset]) << 8)); }
 		};
-		binaryFieldProcessors[4] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[6] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "float32 LSB First"; }
 			@Override public String getJavaTypeName()                      { return "Float"; }
 			@Override public boolean isLittleEndian()                      { return true; }
@@ -61,7 +79,7 @@ public class DatasetsController {
 			                                                                                             ((0xFF & buffer[2+offset]) << 16) |
 			                                                                                             ((0xFF & buffer[3+offset]) << 24)); }
 		};
-		binaryFieldProcessors[5] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[7] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "float32 MSB First"; }
 			@Override public String getJavaTypeName()                      { return "Float"; }
 			@Override public boolean isLittleEndian()                      { return false; }
@@ -71,30 +89,40 @@ public class DatasetsController {
                                                                                                          ((0xFF & buffer[1+offset]) << 16) |
                                                                                                          ((0xFF & buffer[0+offset]) << 24)); }
 		};
-		binaryFieldProcessors[6] = new BinaryFieldProcessor() {
-			@Override public String toString()                             { return "Bitfield: 8 Bits"; }
-			@Override public String getJavaTypeName()                      { return "Byte"; }
-			@Override public boolean isLittleEndian()                      { return true; }
-			@Override public int getByteCount()                            { return 1; }
-			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
-		};
-		binaryFieldProcessors[7] = new BinaryFieldProcessor() {
-			@Override public String toString()                             { return "uint8"; }
-			@Override public String getJavaTypeName()                      { return "Byte"; }
-			@Override public boolean isLittleEndian()                      { return true; }
-			@Override public int getByteCount()                            { return 1; }
-			@Override public float extractValue(byte[] buffer, int offset) { return (float) (0xFF & buffer[offset]); }
-		};
 		binaryChecksumProcessors[0] = new BinaryChecksumProcessor() {
+			@Override public String toString()                             { return "uint8 Checksum"; }
+			@Override public String getJavaTypeName()                      { return "Byte"; }
+			@Override public boolean isLittleEndian()                      { return true; }
+			@Override public int getByteCount()                            { return 1; }
+			@Override public boolean testChecksum(byte[] bytes, int offset, int length, int syncWordByteCount) {
+				
+				// skip past the sync word
+				offset += syncWordByteCount;
+				length -= syncWordByteCount;
+				
+				// calculate the sum
+				byte sum = 0;
+				for(int i = 0; i < length - 1; i++)
+					sum += bytes[offset + i];
+				
+				// extract the reported checksum
+				byte checksum = bytes[offset + length - 1];
+				
+				// test
+				return (sum == checksum);
+				
+			}
+		};
+		binaryChecksumProcessors[1] = new BinaryChecksumProcessor() {
 			@Override public String toString()                             { return "uint16 Checksum LSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return true; }
 			@Override public int getByteCount()                            { return 2; }
-			@Override public boolean testChecksum(byte[] bytes, int offset, int length) {
+			@Override public boolean testChecksum(byte[] bytes, int offset, int length, int syncWordByteCount) {
 				
 				// skip past the sync word
-				offset++;
-				length--;
+				offset += syncWordByteCount;
+				length -= syncWordByteCount;
 				
 				// sanity check: a 16bit checksum requires an even number of bytes
 				if(length % 2 != 0)
@@ -111,6 +139,7 @@ public class DatasetsController {
 					msb = 0xFF & bytes[offset + i*2 + 1];
 					sum += (msb << 8 | lsb);
 				}
+				sum %= 65536;
 				
 				// extract the reported checksum
 				lsb = 0xFF & bytes[offset + length - 2];
@@ -118,11 +147,8 @@ public class DatasetsController {
 				int checksum = (msb << 8 | lsb);
 				
 				// test
-				sum %= 65536;
-				if(sum == checksum)
-					return true;
-				else
-					return false;
+				return (sum == checksum);
+				
 			}
 		};
 	}
@@ -191,13 +217,13 @@ public class DatasetsController {
 		} else {
 			
 			// can't overlap the sync word
-			if(location == 0)
-				return "Error: Can not place a field that overlaps the sync word.";
+			if(location < syncWordByteCount)
+				return "Error: Can not place a field that overlaps with the sync word.";
 			
 			// can't overlap or follow the checksum
 			if(checksumProcessor != null)
 				if(location + processor.getByteCount() - 1 >= checksumProcessorOffset)
-					return "Error: Can not place a field that overlaps the checksum or is placed after the checksum.";
+					return "Error: Can not place a field that overlaps with the checksum or is placed after the checksum.";
 			
 			// can't overlap existing fields
 			int proposedStartByte = location;
@@ -370,6 +396,52 @@ public class DatasetsController {
 	}
 	
 	/**
+	 * Adds a sync word to the data structure if possible.
+	 * 
+	 * @param syncWord     The sync word.
+	 * @return             null on success, or a user-friendly String describing why the sync word could not be added.
+	 */
+	public String insertSyncWord(byte word) {
+		
+		if(connection.csvMode)
+			return "Error: CSV mode does not support sync words.";
+
+		if(syncWordByteCount > 0)
+			return "Error: A sync word already exists.";
+		
+		for(Dataset d : getList())
+			if(d.location == 0)
+				return "Error: A dataset already exists at the start of the packet.";
+		
+		// add the sync word
+		syncWord = word;
+		syncWordByteCount = 1;
+		
+		// no errors
+		return null;
+		
+	}
+	
+	/**
+	 * Removes the sync word from the data structure if possible.
+	 * 
+	 * @return    null on success, or a user-friendly String describing why the sync word could not be removed.
+	 */
+	public String removeSyncWord() {
+		
+		if(connection.csvMode)
+			return "Error: CSV mode does not support sync words.";
+		
+		if(syncWordByteCount < 1)
+			return "Error: There is no sync word to remove.";
+		
+		// remove the checksum processor
+		syncWordByteCount = 0;
+		return null;
+		
+	}
+	
+	/**
 	 * @return    The checksum processor.
 	 */
 	public BinaryChecksumProcessor getChecksumProcessor() {
@@ -399,7 +471,7 @@ public class DatasetsController {
 		if(checksumProcessor == null) // no checksum
 			return true;
 		
-		if(checksumProcessor.testChecksum(packet, offset, packetLength)) // checksum passed
+		if(checksumProcessor.testChecksum(packet, offset, packetLength, syncWordByteCount)) // checksum passed
 			return true;
 		
 		// checksum failed
@@ -439,11 +511,11 @@ public class DatasetsController {
 			
 			// the packet is empty
 			if(getList().isEmpty())
-				return 1;
+				return syncWordByteCount;
 			
 			// if a checksum exists, check for an opening before it
 			if(checksumProcessor != null) {
-				for(int i = 1; i < checksumProcessorOffset; i++) {
+				for(int i = syncWordByteCount; i < checksumProcessorOffset; i++) {
 					boolean available = true;
 					for(Dataset d : getList())
 						if(i >= d.location && i <= d.location + d.processor.getByteCount() - 1)
@@ -459,7 +531,7 @@ public class DatasetsController {
 			for(Dataset d : getList())
 				if(d.location + d.processor.getByteCount() - 1 > maxOccupiedLocation)
 					maxOccupiedLocation = d.location + d.processor.getByteCount() - 1;
-			for(int i = 1; i < maxOccupiedLocation; i++) {
+			for(int i = syncWordByteCount; i < maxOccupiedLocation; i++) {
 				boolean available = true;
 				for(Dataset d : getList())
 					if(i >= d.location && i <= d.location + d.processor.getByteCount() - 1)
@@ -652,10 +724,13 @@ public class DatasetsController {
 		public int getByteCount();
 		
 		/**
-		 * @param bytes    All of the packet bytes *after* (not including!) the sync word.
-		 * @return         True if the checksum is valid, false otherwise.
+		 * @param bytes                The receive buffer.
+		 * @param offset               Offset where this packet starts.
+		 * @param length               Byte count of each packet.
+		 * @param syncWordByteCount    Byte count of the sync word.
+		 * @return                     True if the checksum is valid, false otherwise.
 		 */
-		public boolean testChecksum(byte[] bytes, int offset, int length);
+		public boolean testChecksum(byte[] bytes, int offset, int length, int syncWordByteCount);
 
 	}
 	

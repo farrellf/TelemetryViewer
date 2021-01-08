@@ -42,6 +42,7 @@ public class DataStructureBinaryView extends JPanel {
 	private JLabel            dsdLabel;
 	private JTextField        offsetTextfield;
 	private JComboBox<Object> processorCombobox;
+	private JLabel            nameLabel;
 	private JTextField        nameTextfield;
 	private JButton           colorButton;
 	private JTextField        unitTextfield;
@@ -93,17 +94,32 @@ public class DataStructureBinaryView extends JPanel {
 
 		// processor of the field (the processor converts raw bytes into numbers, or evaluates checksums) 
 		processorCombobox = new JComboBox<Object>();
+		processorCombobox.addItem("uint8 Sync Word");
 		for(DatasetsController.BinaryFieldProcessor processor : DatasetsController.binaryFieldProcessors)
 			processorCombobox.addItem(processor);
 		for(DatasetsController.BinaryChecksumProcessor processor : DatasetsController.binaryChecksumProcessors)
 			processorCombobox.addItem(processor);
 		processorCombobox.addActionListener(event -> updateGui(true));
 		
-		// name of the field
+		// name of the field or value of the sync word
+		nameLabel = new JLabel("Name");
 		nameTextfield = new JTextField("", 15);
 		nameTextfield.addActionListener(pressEnterToAddField);
 		nameTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent e)   { nameTextfield.setText(nameTextfield.getText().trim()); }
+			@Override public void focusLost(FocusEvent e) {
+				String text = nameTextfield.getText().trim();
+				if(processorCombobox.getSelectedItem().toString().contains("Sync Word")) {
+					try {
+						int number = text.toLowerCase().startsWith("0x") ? Integer.parseInt(text.substring(2), 16) : Integer.parseInt(text);
+						if(number < 0 || number > 255)
+							throw new Exception();
+						text = String.format("0x%02X", number);
+					} catch(Exception e2) {
+						text = "0xAA";
+					}
+				}
+				nameTextfield.setText(text);
+			}
 			@Override public void focusGained(FocusEvent e) { nameTextfield.selectAll(); }
 		});
 		
@@ -196,7 +212,7 @@ public class DataStructureBinaryView extends JPanel {
 				if(errorMessage != null)
 					JOptionPane.showMessageDialog(this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
 				
-				if(((DatasetsController.BinaryFieldProcessor) processor).toString().startsWith("Bitfield") && errorMessage == null) {
+				if(((DatasetsController.BinaryFieldProcessor) processor).toString().endsWith("Bitfield") && errorMessage == null) {
 
 					BitfieldPanel bitfieldPanel = new BitfieldPanel(((DatasetsController.BinaryFieldProcessor) processor).getByteCount() * 8, connection.datasets.getByLocation(location));
 					
@@ -205,7 +221,7 @@ public class DataStructureBinaryView extends JPanel {
 					add(new JLabel("Byte Offset"));
 					add(offsetTextfield,   "gapafter " + 2 * Theme.padding);
 					add(processorCombobox, "gapafter " + 2 * Theme.padding);
-					add(new JLabel("Name"));
+					add(nameLabel);
 					add(nameTextfield,     "gapafter " + 2 * Theme.padding);
 					add(new JLabel("Color"));
 					add(colorButton,       "gapafter " + 2 * Theme.padding);
@@ -231,6 +247,16 @@ public class DataStructureBinaryView extends JPanel {
 				String errorMessage = connection.datasets.insertChecksum(location, (DatasetsController.BinaryChecksumProcessor) processor);
 				if(errorMessage != null)
 					JOptionPane.showMessageDialog(this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+				
+			} else {
+				
+				int number = -1;
+				try { number = Integer.parseInt(nameTextfield.getText().substring(2), 16); } catch(Exception e) { }
+				String errorMessage = number == -1 ? "Invalid sync word value." : connection.datasets.insertSyncWord((byte) number);
+				if(errorMessage != null)
+					JOptionPane.showMessageDialog(this, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+				else
+					nameTextfield.setText("");
 				
 			}
 			
@@ -265,15 +291,17 @@ public class DataStructureBinaryView extends JPanel {
 			}
 			
 			@Override public Object getValueAt(int row, int column) {
-				// the first row is always the sync word
-				if(row == 0) {
-					if(column == 0)      return "0, [Sync Word]";
-					else if(column == 1) return String.format("0x%02X", connection.syncWord);
-					else                 return "";
+				if(datasets.syncWordByteCount > 0) {
+					// the sync word
+					if(row == 0) {
+						if(column == 0)      return "0, [Sync Word]";
+						else if(column == 1) return String.format("0x%02X", datasets.syncWord);
+						else                 return "";
+					}
+					row--;
 				}
 				
 				// subsequent rows are the fields
-				row--;
 				if(row < connection.datasets.getCount()) {
 					Dataset dataset = connection.datasets.getByIndex(row);
 					if(column == 0)      return dataset.location + ", " + dataset.processor.toString();
@@ -296,7 +324,7 @@ public class DataStructureBinaryView extends JPanel {
 			}
 			
 			@Override public int getRowCount() {
-				int count = 1; // the syncWord
+				int count = datasets.syncWordByteCount > 0 ? 1 : 0;
 				count += connection.datasets.getCount();
 				if(connection.datasets.getChecksumProcessor() != null)
 					count++;
@@ -315,7 +343,7 @@ public class DataStructureBinaryView extends JPanel {
 				JButton b = new JButton("Remove");
 				if(connection.mode == ConnectionTelemetry.Mode.DEMO)
 					b.setEnabled(false);
-				return row != 0 ? b : new JLabel("");
+				return b;
 			}
 		});
 		dataStructureTable.addMouseListener(new MouseListener() {
@@ -324,9 +352,20 @@ public class DataStructureBinaryView extends JPanel {
 			@Override public void mousePressed(MouseEvent e) {
 				if(connection.mode == ConnectionTelemetry.Mode.DEMO)
 					return;
-				int datasetNumber = dataStructureTable.getSelectedRow() - 1; // -1 because of the syncword
+				int datasetNumber = dataStructureTable.getSelectedRow() - datasets.syncWordByteCount;
 				if(datasetNumber < 0) {
-					// sync word clicked, do nothing
+					// sync word clicked
+					boolean remove = JOptionPane.showConfirmDialog(DataStructureBinaryView.this, "Remove the sync word?", "Remove the Sync Word?", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+					if(remove) {
+						byte oldValue = datasets.syncWord;
+						datasets.removeSyncWord();
+						int offset = datasets.getFirstAvailableLocation();
+						offsetTextfield.setText(offset == -1 ? " - " : Integer.toString(offset));
+						if(offset == 0) {
+							processorCombobox.setSelectedIndex(0);
+							nameTextfield.setText(String.format("0x%02X", oldValue));
+						}
+					}
 				} else if(datasetNumber < connection.datasets.getCount()) {
 					// remove button for a dataset was clicked
 					Dataset dataset = connection.datasets.getByIndex(datasetNumber);
@@ -401,7 +440,7 @@ public class DataStructureBinaryView extends JPanel {
 		add(new JLabel("Byte Offset"));
 		add(offsetTextfield,   "gapafter " + 2 * Theme.padding);
 		add(processorCombobox, "gapafter " + 2 * Theme.padding);
-		add(new JLabel("Name"));
+		add(nameLabel);
 		add(nameTextfield,     "gapafter " + 2 * Theme.padding);
 		add(new JLabel("Color"));
 		add(colorButton,       "gapafter " + 2 * Theme.padding);
@@ -434,6 +473,7 @@ public class DataStructureBinaryView extends JPanel {
 			dsdLabel.setText("Data Structure Definition: (Not Editable in Demo Mode)");
 			offsetTextfield.setEnabled(false);
 			processorCombobox.setEnabled(false);
+			nameLabel.setText("Name");
 			nameTextfield.setEnabled(false);
 			colorButton.setEnabled(false);
 			unitTextfield.setEnabled(false);
@@ -450,6 +490,7 @@ public class DataStructureBinaryView extends JPanel {
 			dsdLabel.setText("Data Structure Definition:");
 			offsetTextfield.setEnabled(false);
 			processorCombobox.setEnabled(false);
+			nameLabel.setText("Name");
 			nameTextfield.setEnabled(false);
 			colorButton.setEnabled(false);
 			unitTextfield.setEnabled(false);
@@ -467,6 +508,7 @@ public class DataStructureBinaryView extends JPanel {
 			dsdLabel.setText("Data Structure Definition:");
 			offsetTextfield.setEnabled(false);
 			processorCombobox.setEnabled(false);
+			nameLabel.setText("Name");
 			nameTextfield.setEnabled(false);
 			colorButton.setEnabled(false);
 			unitTextfield.setEnabled(false);
@@ -478,11 +520,12 @@ public class DataStructureBinaryView extends JPanel {
 				doneButton.requestFocus();
 			});
      		
-		} else if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield")) {
+		} else if(processorCombobox.getSelectedItem().toString().endsWith("Bitfield")) {
 			
 			dsdLabel.setText("Data Structure Definition:");
 			offsetTextfield.setEnabled(true);
 			processorCombobox.setEnabled(true);
+			nameLabel.setText("Name");
 			nameTextfield.setEnabled(true);
 			colorButton.setEnabled(true);
 			unitTextfield.setEnabled(false);
@@ -503,11 +546,47 @@ public class DataStructureBinaryView extends JPanel {
 				nameTextfield.selectAll();
 			});
 			
+		} else if(processorCombobox.getSelectedItem() instanceof String) {
+			
+			if(datasets.getFirstAvailableLocation() != 0) {
+				processorCombobox.setSelectedIndex(1);
+				updateGui(updateOffsetNumber);
+				return;
+			}
+			
+			dsdLabel.setText("Data Structure Definition:");
+			offsetTextfield.setEnabled(false);
+			offsetTextfield.setText("0");
+			processorCombobox.setEnabled(true);
+			nameLabel.setText("Value");
+			nameTextfield.setEnabled(true);
+			try {
+				String text = nameTextfield.getText();
+				int number = text.toLowerCase().startsWith("0x") ? Integer.parseInt(text.substring(2), 16) : Integer.parseInt(text);
+				if(number < 0 || number > 255)
+					throw new Exception();
+				text = String.format("0x%02X", number);
+				nameTextfield.setText(text);
+			} catch(Exception e2) {
+				nameTextfield.setText("0xAA");
+			}
+			colorButton.setEnabled(false);
+			unitTextfield.setEnabled(false);
+			conversionFactorAtextfield.setEnabled(false);
+			conversionFactorBtextfield.setEnabled(false);
+			addButton.setEnabled(true);
+			doneButton.setEnabled(true);
+			SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
+				nameTextfield.requestFocus();
+				nameTextfield.selectAll();
+			});
+			
 		} else if(processorCombobox.getSelectedItem() instanceof DatasetsController.BinaryFieldProcessor) {
 			
 			dsdLabel.setText("Data Structure Definition:");
 			offsetTextfield.setEnabled(true);
 			processorCombobox.setEnabled(true);
+			nameLabel.setText("Name");
 			nameTextfield.setEnabled(true);
 			colorButton.setEnabled(true);
 			unitTextfield.setEnabled(true);
@@ -518,7 +597,7 @@ public class DataStructureBinaryView extends JPanel {
 			if(updateOffsetNumber) {
 				int offset = datasets.getFirstAvailableLocation();
 				offsetTextfield.setText(offset == -1 ? " - " : Integer.toString(offset));
-				if(processorCombobox.getSelectedItem().toString().startsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof DatasetsController.BinaryChecksumProcessor)
+				if(processorCombobox.getSelectedItem().toString().endsWith("Bitfield") || processorCombobox.getSelectedItem() instanceof DatasetsController.BinaryChecksumProcessor)
 					processorCombobox.setSelectedIndex(0);
 			}
 			SwingUtilities.invokeLater(() -> { // invokeLater to ensure a following revalidate/repaint does not take focus away
@@ -526,12 +605,12 @@ public class DataStructureBinaryView extends JPanel {
 				nameTextfield.selectAll();
 			});
 			
-			
 		} else if(processorCombobox.getSelectedItem() instanceof DatasetsController.BinaryChecksumProcessor) {
 			
 			dsdLabel.setText("Data Structure Definition:");
 			offsetTextfield.setEnabled(true);
 			processorCombobox.setEnabled(true);
+			nameLabel.setText("Name");
 			nameTextfield.setEnabled(false);
 			colorButton.setEnabled(false);
 			unitTextfield.setEnabled(false);
@@ -621,7 +700,8 @@ public class DataStructureBinaryView extends JPanel {
 				code.append("\t\t\t\n");
 				code.append("\t\t\tbuffer.clear();\n");
 				code.append("\t\t\t\n");
-				code.append("\t\t\tbuffer.put((byte) 0xAA);\n");
+				if(datasets.syncWordByteCount > 0)
+					code.append("\t\t\tbuffer.put((byte) " + String.format("0x%02X", datasets.syncWord)  + ");\n");
 				
 				position = 1;
 				for(int i = 0; i < datasetsCount; i++) {
@@ -647,7 +727,7 @@ public class DataStructureBinaryView extends JPanel {
 				DatasetsController.BinaryChecksumProcessor bcp = datasets.getChecksumProcessor();
 				if(bcp != null) {
 					code.append("\t\t\tshort checksum = 0;\n");
-					code.append("\t\t\tbuffer.position(1);\n");
+					code.append("\t\t\tbuffer.position(" + datasets.syncWordByteCount + ");\n");
 					boolean littleEndian = bcp.isLittleEndian();
 					if(littleEndian && !littleEndianMode) {
 						code.append("\t\t\tbuffer.order(ByteOrder.LITTLE_ENDIAN);\n");
