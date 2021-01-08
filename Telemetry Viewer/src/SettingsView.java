@@ -160,20 +160,9 @@ public class SettingsView extends JPanel {
 		
 		add(showFpsCheckbox, "span 2, grow x");
 		
-		// CPU and GPU times
-		showBenchmarksCheckbox = new JCheckBox("Show Chart Benchmarks", SettingsController.getBenchmarkedChart() != null);
-		showBenchmarksCheckbox.addActionListener(event -> {
-			if(ChartsController.getCharts().isEmpty()) {
-				NotificationsController.showFailureForMilliseconds("There are no charts to benchmark. Add a chart first.", 5000, true);
-				SettingsController.setBenchmarkedChart(null);
-			} else if(!showBenchmarksCheckbox.isSelected()) {
-				SettingsController.setBenchmarkedChart(null);
-			} else {
-				SettingsController.awaitBenchmarkedChart();
-				showBenchmarksCheckbox.setEnabled(false);
-				NotificationsController.showHintUntil("Click on a chart to benchmark.", () -> !SettingsController.awaitingBenchmarkedChart(), true);
-			}
-		});
+		// benchmarking
+		showBenchmarksCheckbox = new JCheckBox("Show Benchmarks", SettingsController.getBenchmarking());
+		showBenchmarksCheckbox.addActionListener(event -> SettingsController.setBenchmarking(showBenchmarksCheckbox.isSelected()));
 		
 		add(showBenchmarksCheckbox, "span 2, grow x");
 		

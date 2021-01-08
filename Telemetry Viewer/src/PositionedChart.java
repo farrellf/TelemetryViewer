@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
 import com.jogamp.opengl.GL2ES3;
+import com.jogamp.opengl.GL3;
 
 public abstract class PositionedChart {
 	
@@ -46,6 +47,84 @@ public abstract class PositionedChart {
 					return true;
 		
 		return false;
+		
+	}
+	
+	long cpuStartNanoseconds;
+	long cpuStopNanoseconds;
+	double previousCpuMilliseconds;
+	double previousGpuMilliseconds;
+	double cpuMillisecondsAccumulator;
+	double gpuMillisecondsAccumulator;
+	int count;
+	final int SAMPLE_COUNT = 60;
+	double averageCpuMilliseconds;
+	double averageGpuMilliseconds;
+	int[] gpuQueryHandles;
+	long[] gpuTimes = new long[2];
+	String line1;
+	String line2;
+	
+	public final EventHandler draw(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+		
+		boolean openGLES = OpenGLChartsView.instance.openGLES;
+		if(!openGLES && gpuQueryHandles == null) {
+			gpuQueryHandles = new int[2];
+			gl.glGenQueries(2, gpuQueryHandles, 0);
+			gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP); // insert both queries to prevent a warning on the first time they are read
+			gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+		}
+		
+		// if benchmarking, calculate CPU/GPU time for the *previous frame*
+		// GPU benchmarking is not possible with OpenGL ES
+		if(SettingsController.getBenchmarking()) {
+			previousCpuMilliseconds = (cpuStopNanoseconds - cpuStartNanoseconds) / 1000000.0;
+			if(!openGLES) {
+				gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL3.GL_QUERY_RESULT, gpuTimes, 0);
+				gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL3.GL_QUERY_RESULT, gpuTimes, 1);
+			}
+			previousGpuMilliseconds = (gpuTimes[1] - gpuTimes[0]) / 1000000.0;
+			if(count < SAMPLE_COUNT) {
+				cpuMillisecondsAccumulator += previousCpuMilliseconds;
+				gpuMillisecondsAccumulator += previousGpuMilliseconds;
+				count++;
+			} else {
+				averageCpuMilliseconds = cpuMillisecondsAccumulator / 60.0;
+				averageGpuMilliseconds = gpuMillisecondsAccumulator / 60.0;
+				cpuMillisecondsAccumulator = 0;
+				gpuMillisecondsAccumulator = 0;
+				count = 0;
+			}
+			
+			// start timers for *this frame*
+			cpuStartNanoseconds = System.nanoTime();
+			if(!openGLES)
+				gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
+		}
+		
+		// draw the chart
+		EventHandler handler = drawChart(gl, chartMatrix, width, height, nowTimestamp, lastSampleNumber, zoomLevel, mouseX, mouseY);
+		
+		// if benchmarking, draw the CPU/GPU benchmarks over this chart
+		// GPU benchmarking is not possible with OpenGL ES
+		if(SettingsController.getBenchmarking()) {
+			// stop timers for *this frame*
+			cpuStopNanoseconds = System.nanoTime();
+			if(!openGLES)
+				gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+			
+			// show times of *previous frame*
+			line1 =             String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
+			line2 = !openGLES ? String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds) :
+			                                  "GPU = unknown";
+			float textHeight = 2 * OpenGL.smallTextHeight + Theme.tickTextPadding;
+			float textWidth = Float.max(OpenGL.smallTextWidth(gl, line1), OpenGL.smallTextWidth(gl, line2));
+			OpenGL.drawBox(gl, Theme.neutralColor, Theme.tileShadowOffset, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
+			OpenGL.drawSmallText(gl, line1, (int) (Theme.tickTextPadding + Theme.tileShadowOffset), (int) (2 * Theme.tickTextPadding + OpenGL.smallTextHeight), 0);
+			OpenGL.drawSmallText(gl, line2, (int) (Theme.tickTextPadding + Theme.tileShadowOffset), (int) Theme.tickTextPadding, 0);
+		}
+		
+		return handler;
 		
 	}
 	
@@ -101,6 +180,11 @@ public abstract class PositionedChart {
 	 * @param gl    The OpenGL context.
 	 */
 	public void disposeGpu(GL2ES3 gl) {
+		
+		if(gpuQueryHandles != null) {
+			gl.glDeleteQueries(2, gpuQueryHandles, 0);
+			gpuQueryHandles = null;
+		}
 		
 	}
 	

@@ -1,7 +1,5 @@
 import java.awt.Color;
 import java.text.SimpleDateFormat;
-import java.util.List;
-
 import javax.swing.SwingUtilities;
 
 /**
@@ -52,9 +50,8 @@ public class SettingsController {
 	// if the FPS and period should be drawn
 	private static boolean fpsVisibility = false;
 	
-	// which chart to measure for CPU/GPU times, or null to not measure
-	private static PositionedChart chartForBenchmarks = null;
-	private static boolean awaitingChartForBenchmark = false;
+	// if charts should be benchmarked
+	private static boolean benchmarking = false;
 	
 	/**
 	 * Changes the OpenGLChartsRegion tile column count if it is within the allowed range and would not obscure part of an existing chart.
@@ -312,69 +309,20 @@ public class SettingsController {
 	}
 	
 	/**
-	 * Call this function to indicate that the a chart needs to be selected for benchmarking.
-	 */
-	public static void awaitBenchmarkedChart() {
-		
-		awaitingChartForBenchmark = true;
-		
-	}
-	
-	/**
-	 * @return    True if the user is supposed to click on a chart they want to benchmark.
-	 */
-	public static boolean awaitingBenchmarkedChart() {
-		
-		return awaitingChartForBenchmark;
-		
-	}
-	
-	/**
 	 * Changes the chart to be benchmarked.
 	 * 
-	 * @param chart    The chart to benchmark, or null to disable benchmarking.
+	 * @param isBenchmarking    True to enable benchmarks, false to disable.
 	 */
-	public static void setBenchmarkedChart(PositionedChart chart) {
+	public static void setBenchmarking(boolean isBenchmarking) {
 		
-		chartForBenchmarks = chart;
-		awaitingChartForBenchmark = false;
-
-		SettingsView.instance.showBenchmarksCheckbox.setSelected(chart != null);
-		SettingsView.instance.showBenchmarksCheckbox.setEnabled(true);
+		benchmarking = isBenchmarking;
+		SettingsView.instance.showBenchmarksCheckbox.setSelected(isBenchmarking);
 		
 	}
 	
-	/**
-	 * Changes the chart to be benchmarked.
-	 * 
-	 * @param index    The index of the chart to benchmark, or -1 to disable benchmarking.
-	 */
-	public static void setBenchmarkedChartByIndex(int index) {
-
-		setBenchmarkedChart(index >= 0 ? ChartsController.getCharts().get(index) : null);
+	public static boolean getBenchmarking() {
 		
-	}
-	
-	/**
-	 * @return    The chart that is being benchmarked, or null if benchmarking is disabled.
-	 */
-	public static PositionedChart getBenchmarkedChart() {
-		
-		return chartForBenchmarks;
-		
-	}
-	
-	/**
-	 * @return    The index of the chart that is being benchmarked, or -1 if benchmarking is disabled.
-	 */
-	public static int getBenchmarkedChartIndex() {
-
-		List<PositionedChart> charts = ChartsController.getCharts();
-		for(int i = 0; i < charts.size(); i++)
-			if(charts.get(i) == chartForBenchmarks)
-				return i;
-		
-		return -1;
+		return benchmarking;
 		
 	}
 	

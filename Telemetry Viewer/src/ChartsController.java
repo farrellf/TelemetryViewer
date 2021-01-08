@@ -143,8 +143,6 @@ public class ChartsController {
 	 */
 	public static void removeChart(PositionedChart chart) {
 
-		if(SettingsController.getBenchmarkedChart() == chart)
-			SettingsController.setBenchmarkedChart(null);
 		ConfigureView.instance.closeIfUsedFor(chart);
 		
 		chart.dispose();

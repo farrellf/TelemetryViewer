@@ -476,6 +476,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	
 	@Override public void disposeGpu(GL2ES3 gl) {
 		
+		super.disposeGpu(gl);
 		plot.freeResources(gl);
 		
 	}

@@ -395,7 +395,7 @@ public class ConnectionsController {
 			file.println("\tshow plot tooltips = "          + SettingsController.getTooltipVisibility());
 			file.println("\tsmooth scrolling = "            + SettingsController.getSmoothScrolling());
 			file.println("\tshow fps and period = "         + SettingsController.getFpsVisibility());
-			file.println("\tchart index for benchmarks = "  + SettingsController.getBenchmarkedChartIndex());
+			file.println("\tbenchmarking = "                + SettingsController.getBenchmarking());
 			file.println("\tantialiasing level = "          + SettingsController.getAntialiasingLevel());
 			file.println("");
 			
@@ -470,7 +470,7 @@ public class ConnectionsController {
 			boolean tooltipVisibility = ChartUtils.parseBoolean(lines.remove(), "show plot tooltips = %b");
 			boolean smoothScrolling   = ChartUtils.parseBoolean(lines.remove(), "smooth scrolling = %b");
 			boolean fpsVisibility     = ChartUtils.parseBoolean(lines.remove(), "show fps and period = %b");
-			int chartIndex            = ChartUtils.parseInteger(lines.remove(), "chart index for benchmarks = %d");
+			boolean benchmarking      = ChartUtils.parseBoolean(lines.remove(), "benchmarking = %b");
 			int antialiasingLevel     = ChartUtils.parseInteger(lines.remove(), "antialiasing level = %d");
 			ChartUtils.parseExact(lines.remove(), "");
 			
@@ -494,6 +494,7 @@ public class ConnectionsController {
 			SettingsController.setTooltipVisibility(tooltipVisibility);
 			SettingsController.setSmoothScrolling(smoothScrolling);
 			SettingsController.setFpsVisibility(fpsVisibility);
+			SettingsController.setBenchmarking(benchmarking);
 			SettingsController.setAntialiasingLevel(antialiasingLevel);
 
 			int connectionsCount = ChartUtils.parseInteger(lines.remove(), "%d Connections:");
@@ -556,7 +557,6 @@ public class ConnectionsController {
 				
 			}
 			
-			SettingsController.setBenchmarkedChartByIndex(chartIndex);
 			return true;
 			
 		} catch (IOException ioe) {

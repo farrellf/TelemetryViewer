@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.imageio.ImageIO;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
@@ -152,9 +151,6 @@ public class ConnectionCamera extends Connection {
 		resolutionsCombobox.setSelectedItem(requestedResolution.width + " x " + requestedResolution.height);
 		
 		// MJPEG over HTTP address
-		JLabel urlLabel = new JLabel("URL:");
-		urlLabel.setMinimumSize(urlLabel.getPreferredSize());
-		
 		JTextField urlTextfield = new JTextField("http://example.com:8080/video", 20);
 		// crude attempt to make the default URL be the IP address of the default gateway
 		String ip = ConnectionTelemetry.localIp;
@@ -242,7 +238,6 @@ public class ConnectionCamera extends Connection {
 		
 		// populate the panel
 		panel.add(resolutionsCombobox);
-		panel.add(urlLabel);
 		panel.add(urlTextfield);
 		panel.add(connectionNamesCombobox);
 		panel.add(connectButton);
@@ -251,7 +246,6 @@ public class ConnectionCamera extends Connection {
 		if(connectionNamesCombobox.getSelectedItem().toString().equals("MJPEG over HTTP")) {
 			resolutionsCombobox.setVisible(false);
 		} else {
-			urlLabel.setVisible(false);
 			urlTextfield.setVisible(false);
 		}
 		
@@ -488,7 +482,8 @@ public class ConnectionCamera extends Connection {
 
 	@Override public void dispose() {
 		
-		disconnect(null);
+		if(connected)
+			disconnect(null);
 		
 		// remove charts containing the dataset
 		List<PositionedChart> chartsToRemove = new ArrayList<PositionedChart>();

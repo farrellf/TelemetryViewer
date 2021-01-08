@@ -146,18 +146,24 @@ public class ConnectionTelemetry extends Connection {
 		panel.setLayout(new MigLayout("hidemode 3, gap " + Theme.padding  + ", insets 0 " + Theme.padding + " 0 0"));
 			
 		// sample rate
-		JLabel sampleRateLabel = new JLabel("Sample Rate: (Hz)");
-		sampleRateLabel.setMinimumSize(sampleRateLabel.getPreferredSize());
-		
-		JTextField sampleRateTextfield = new JTextField(sampleRate == Integer.MAX_VALUE ? "maximum" : Integer.toString(sampleRate), 7);
+		JTextField sampleRateTextfield = new JTextField(sampleRate == Integer.MAX_VALUE ? "maximum Hz" : Integer.toString(sampleRate) + " Hz", 10);
+		sampleRateTextfield.setToolTipText("<html>Sample rate, in Hertz.<br>(The number of telemetry packets that will be sent to the PC each second.)<br>If this number is inaccurate, things like the frequency domain chart will be inaccurate.</html>");
 		sampleRateTextfield.setMinimumSize(sampleRateTextfield.getPreferredSize());
 		sampleRateTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe) {
 				try {
-					int rate = Integer.parseInt(sampleRateTextfield.getText().trim());
-					if(rate > 0)
+					String text = sampleRateTextfield.getText().trim();
+					if(text.endsWith("Hz"))
+						text = text.substring(0, text.length() - 2).trim();
+					int rate = Integer.parseInt(text);
+					if(rate > 0 && rate != sampleRate) {
 						sampleRate = rate;
-				} catch(Exception e) { }
+						sampleRateTextfield.setText(rate + " Hz");
+					} else if (rate <= 0)
+						throw new Exception();
+				} catch(Exception e) {
+					sampleRateTextfield.setText(sampleRate + " Hz");
+				}
 				CommunicationView.instance.redraw();
 			}
 			@Override public void focusGained(FocusEvent fe) {
@@ -166,7 +172,7 @@ public class ConnectionTelemetry extends Connection {
 		});
 		
 		// CSV or binary mode
-		JComboBox<String> packetTypeCombobox = new JComboBox<String>(new String[] {"CSV", "Binary"});
+		JComboBox<String> packetTypeCombobox = new JComboBox<String>(new String[] {"CSV Mode", "Binary Mode"});
 		packetTypeCombobox.setMinimumSize(packetTypeCombobox.getPreferredSize());
 		if(!csvMode)
 			packetTypeCombobox.setSelectedIndex(1);
@@ -252,40 +258,59 @@ public class ConnectionTelemetry extends Connection {
 		});
 		
 		// baud rate (only used in UART mode)
-		JComboBox<String> baudRateCombobox = new JComboBox<String>(new String[] {"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600", "1000000", "1500000", "2000000", "3000000"});
+		JComboBox<String> baudRateCombobox = new JComboBox<String>(new String[] {"9600 Baud", "19200 Baud", "38400 Baud", "57600 Baud", "115200 Baud", "230400 Baud", "460800 Baud", "921600 Baud", "1000000 Baud", "2000000 Baud"});
 		baudRateCombobox.setMaximumRowCount(baudRateCombobox.getItemCount() + 1);
 		baudRateCombobox.setMinimumSize(baudRateCombobox.getPreferredSize());
 		baudRateCombobox.setMaximumSize(baudRateCombobox.getPreferredSize());
 		baudRateCombobox.setEditable(true);
-		baudRateCombobox.setSelectedItem(Integer.toString(baudRate));
+		baudRateCombobox.setSelectedItem(Integer.toString(baudRate) + " Baud");
 		baudRateCombobox.addActionListener(event -> {
 			try {
-				int rate = Integer.parseInt(baudRateCombobox.getSelectedItem().toString().trim());
-				if(rate > 0)
+				String text = baudRateCombobox.getSelectedItem().toString().trim();
+				if(text.endsWith("Baud"))
+					text = text.substring(0, text.length() - 4).trim();
+				int rate = Integer.parseInt(text);
+				if(rate > 0 && rate != baudRate) {
 					baudRate = rate;
-			} catch(Exception e) { }
+					baudRateCombobox.setSelectedItem(rate + " Baud");
+				} else if(rate <= 0)
+					throw new Exception();
+			} catch(Exception e) {
+				baudRateCombobox.setSelectedItem(baudRate + " Baud");
+			}
 			CommunicationView.instance.redraw();
+		});
+		baudRateCombobox.getEditor().getEditorComponent().addFocusListener(new FocusListener() {
+			@Override public void focusGained(FocusEvent e) { baudRateCombobox.getEditor().selectAll(); }
+			@Override public void focusLost(FocusEvent e) { }
 		});
 		
 		// port number (only used in TCP/UDP modes)
-		JComboBox<String> portNumberCombobox = new JComboBox<String>(new String[] {":8080"});
+		JComboBox<String> portNumberCombobox = new JComboBox<String>(new String[] {"Port 8080"});
 		portNumberCombobox.setMaximumRowCount(portNumberCombobox.getItemCount());
 		portNumberCombobox.setMinimumSize(portNumberCombobox.getPreferredSize());
 		portNumberCombobox.setMaximumSize(portNumberCombobox.getPreferredSize());
 		portNumberCombobox.setEditable(true);
-		portNumberCombobox.setSelectedItem(":" + portNumber);
+		portNumberCombobox.setSelectedItem("Port " + portNumber);
 		portNumberCombobox.addActionListener(event -> {
 			try {
 				String newPortNumber = portNumberCombobox.getSelectedItem().toString().trim();
-				if(newPortNumber.startsWith(":"))
-					newPortNumber = newPortNumber.substring(1); // skip past the leading ":"
+				if(newPortNumber.startsWith("Port"))
+					newPortNumber = newPortNumber.substring(4).trim(); // skip past the leading "Port"
 				int number = Integer.parseInt(newPortNumber);
-				if(number >= 0 && number <= 65535)
+				if(number >= 0 && number <= 65535 && number != portNumber) {
 					portNumber = number;
+					portNumberCombobox.setSelectedItem("Port " + number);
+				} else if(number < 0 || number > 65535)
+					throw new Exception();
 			} catch(Exception e) {
-				portNumberCombobox.setSelectedItem(":" + portNumber);
+				portNumberCombobox.setSelectedItem("Port " + portNumber);
 			}
 			CommunicationView.instance.redraw();
+		});
+		portNumberCombobox.getEditor().getEditorComponent().addFocusListener(new FocusListener() {
+			@Override public void focusGained(FocusEvent e) { portNumberCombobox.getEditor().selectAll(); }
+			@Override public void focusLost(FocusEvent e) { }
 		});
 		
 		// connect/disconnect button
@@ -329,24 +354,21 @@ public class ConnectionTelemetry extends Connection {
 		
 		// populate the panel
 		if(mode == Mode.UART) {
-			panel.add(sampleRateLabel);
 			panel.add(sampleRateTextfield);
 			panel.add(packetTypeCombobox);
-			panel.add(connectionNamesCombobox);
 			panel.add(baudRateCombobox);
+			panel.add(connectionNamesCombobox);
 			panel.add(connectButton);
 			panel.add(removeButton);
 		} else if(mode == Mode.TCP || mode == Mode.UDP) {
-			panel.add(sampleRateLabel);
 			panel.add(sampleRateTextfield);
 			panel.add(packetTypeCombobox);
-			panel.add(connectionNamesCombobox);
 			panel.add(portNumberCombobox);
+			panel.add(connectionNamesCombobox);
 			panel.add(connectButton);
 			panel.add(removeButton);
 		} else {
 			panel.add(new JLabel(" ")); // dummy to fill row of 6 items
-			panel.add(sampleRateLabel);
 			panel.add(sampleRateTextfield);
 			panel.add(packetTypeCombobox);
 			panel.add(connectionNamesCombobox);
@@ -1237,7 +1259,8 @@ public class ConnectionTelemetry extends Connection {
 	
 	@Override public void dispose() {
 		
-		disconnect(null);
+		if(connected)
+			disconnect(null);
 		datasets.dispose();
 		
 	}

@@ -84,7 +84,7 @@ public class OpenGLChartsView extends JPanel {
 	PositionedChart removingChart;
 	long removingAnimationEndTime;
 	
-	// chart benchmarking
+	// benchmarks for the entire frame
 	long cpuStartNanoseconds;
 	long cpuStopNanoseconds;
 	double previousCpuMilliseconds;
@@ -240,6 +240,33 @@ public class OpenGLChartsView extends JPanel {
 				GL2ES3 gl = drawable.getGL().getGL2ES3();
 				OpenGL.useMatrix(gl, screenMatrix);
 				
+				// if benchmarking, calculate CPU/GPU time for the *previous frame*
+				// GPU benchmarking is not possible with OpenGL ES
+				if(SettingsController.getBenchmarking()) {
+					previousCpuMilliseconds = (cpuStopNanoseconds - cpuStartNanoseconds) / 1000000.0;
+					if(!openGLES) {
+						gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL3.GL_QUERY_RESULT, gpuTimes, 0);
+						gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL3.GL_QUERY_RESULT, gpuTimes, 1);
+					}
+					previousGpuMilliseconds = (gpuTimes[1] - gpuTimes[0]) / 1000000.0;
+					if(count < SAMPLE_COUNT) {
+						cpuMillisecondsAccumulator += previousCpuMilliseconds;
+						gpuMillisecondsAccumulator += previousGpuMilliseconds;
+						count++;
+					} else {
+						averageCpuMilliseconds = cpuMillisecondsAccumulator / 60.0;
+						averageGpuMilliseconds = gpuMillisecondsAccumulator / 60.0;
+						cpuMillisecondsAccumulator = 0;
+						gpuMillisecondsAccumulator = 0;
+						count = 0;
+					}
+					
+					// start timers for *this frame*
+					cpuStartNanoseconds = System.nanoTime();
+					if(!openGLES)
+						gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
+				}
+				
 				gl.glClearColor(Theme.neutralColor[0], Theme.neutralColor[1], Theme.neutralColor[2], Theme.neutralColor[3]);
 				gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
 				
@@ -337,253 +364,202 @@ public class OpenGLChartsView extends JPanel {
 				
 				List<PositionedChart> charts = ChartsController.getCharts();
 				
-				// if there are no connections and no charts, we're done, do not draw any tiles
-				if(charts.isEmpty() && !ConnectionsController.telemetryPossible()) {
-					setCursor(eventHandler == null ? defaultCursor : handCursor);
-					return;
-				}
+				// draw tiles and charts if appropriate
+				if(!charts.isEmpty() || ConnectionsController.telemetryPossible()) {
 				
-				// if there are no charts, switch back to live view
-				if(charts.isEmpty())
-					liveView = true;
-				
-				// if the maximized chart was removed, forget about it
-				if(maximizedChart != null && !charts.contains(maximizedChart))
-					maximizedChart = null;
-				
-				// draw empty tiles if necessary
-				if(removing || maximizing || demaximizing || maximizedChart == null) {
-					boolean[][] tileOccupied = ChartsController.getTileOccupancy();
-					for(int column = 0; column < tileColumns; column++) {
-						for(int row = 0; row < tileRows; row++) {
-							if(!tileOccupied[column][row]) {
-								int lowerLeftX = tileWidth * column;
-								int lowerLeftY = tileHeight * row + tilesYoffset;
-								drawTile(gl, lowerLeftX, lowerLeftY, tileWidth, tileHeight);
+					// if there are no charts, switch back to live view
+					if(charts.isEmpty())
+						liveView = true;
+					
+					// if the maximized chart was removed, forget about it
+					if(maximizedChart != null && !charts.contains(maximizedChart))
+						maximizedChart = null;
+					
+					// draw empty tiles if necessary
+					if(removing || maximizing || demaximizing || maximizedChart == null) {
+						boolean[][] tileOccupied = ChartsController.getTileOccupancy();
+						for(int column = 0; column < tileColumns; column++) {
+							for(int row = 0; row < tileRows; row++) {
+								if(!tileOccupied[column][row]) {
+									int lowerLeftX = tileWidth * column;
+									int lowerLeftY = tileHeight * row + tilesYoffset;
+									drawTile(gl, lowerLeftX, lowerLeftY, tileWidth, tileHeight);
+								}
 							}
 						}
 					}
-				}
-				
-				// draw a bounding box where the user is actively clicking-and-dragging to place a new chart
-				OpenGL.drawBox(gl,
-				               Theme.tileSelectedColor,
-				               startX < endX ? startX * tileWidth : endX * tileWidth,
-				               startY < endY ? (canvasHeight - notificationsHeight) - (endY + 1)*tileHeight : (canvasHeight - notificationsHeight) - (startY + 1)*tileHeight,
-				               (Math.abs(endX - startX) + 1) * tileWidth,
-				               (Math.abs(endY - startY) + 1) * tileHeight);
-				
-				// get the last sample numbers
-				long nowTimestamp = pausedTimestamp;
-				synchronized(instance) {
-					lastSampleNumbers.clear();
-					for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
-						int trueLastSampleNumber = connection.getSampleCount() - 1;
-						lastSampleNumbers.put(connection, liveView ? trueLastSampleNumber :
-						                                  connection == pausedPrimaryConnection ? pausedPrimaryConnectionSampleNumber :
-						                                  connection.datasets.getClosestSampleNumberAtOrBefore(pausedTimestamp, trueLastSampleNumber));
-					}
-					if(liveView) {
-						nowTimestamp = Long.MIN_VALUE;
+					
+					// draw a bounding box where the user is actively clicking-and-dragging to place a new chart
+					OpenGL.drawBox(gl,
+					               Theme.tileSelectedColor,
+					               startX < endX ? startX * tileWidth : endX * tileWidth,
+					               startY < endY ? (canvasHeight - notificationsHeight) - (endY + 1)*tileHeight : (canvasHeight - notificationsHeight) - (startY + 1)*tileHeight,
+					               (Math.abs(endX - startX) + 1) * tileWidth,
+					               (Math.abs(endY - startY) + 1) * tileHeight);
+					
+					// get the last sample numbers
+					long nowTimestamp = pausedTimestamp;
+					synchronized(instance) {
+						lastSampleNumbers.clear();
 						for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
-							long timestamp = connection.getTimestamp(lastSampleNumbers.get(connection));
-							if(timestamp > nowTimestamp + 10) // 10ms hysteresis to help align multiple connections
-								nowTimestamp = timestamp;
+							int trueLastSampleNumber = connection.getSampleCount() - 1;
+							lastSampleNumbers.put(connection, liveView ? trueLastSampleNumber :
+							                                  connection == pausedPrimaryConnection ? pausedPrimaryConnectionSampleNumber :
+							                                  connection.datasets.getClosestSampleNumberAtOrBefore(pausedTimestamp, trueLastSampleNumber));
 						}
-						for(ConnectionCamera connection : ConnectionsController.cameraConnections) {
-							if(connection.getSampleCount() > 0) {
-								long timestamp = connection.getTimestamp(connection.getSampleCount() - 1);
+						if(liveView) {
+							nowTimestamp = Long.MIN_VALUE;
+							for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
+								long timestamp = connection.getTimestamp(lastSampleNumbers.get(connection));
 								if(timestamp > nowTimestamp + 10) // 10ms hysteresis to help align multiple connections
 									nowTimestamp = timestamp;
 							}
-						}
-					}
-				}
-				
-				// draw the charts
-				//
-				// the modelview matrix is translated so the origin will be at the bottom-left for each chart.
-				// the scissor test is used to clip rendering to the region allocated for each chart.
-				// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
-				chartUnderMouse = null;
-				for(PositionedChart chart : charts) {
-					
-					// if there is a maximized chart, only draw that chart
-					if(maximizedChart != null && maximizedChart != removingChart && chart != maximizedChart && !maximizing && !demaximizing)
-						continue;
-					
-					// calculate CPU/GPU time for the *previous frame*
-					// GPU benchmarking is not possible with OpenGL ES
-					if(chart == SettingsController.getBenchmarkedChart()) {
-						previousCpuMilliseconds = (cpuStopNanoseconds - cpuStartNanoseconds) / 1000000.0;
-						if(!openGLES) {
-							gl.glGetQueryObjecti64v(gpuQueryHandles[0], GL3.GL_QUERY_RESULT, gpuTimes, 0);
-							gl.glGetQueryObjecti64v(gpuQueryHandles[1], GL3.GL_QUERY_RESULT, gpuTimes, 1);
-						}
-						previousGpuMilliseconds = (gpuTimes[1] - gpuTimes[0]) / 1000000.0;
-						if(count < SAMPLE_COUNT) {
-							cpuMillisecondsAccumulator += previousCpuMilliseconds;
-							gpuMillisecondsAccumulator += previousGpuMilliseconds;
-							count++;
-						} else {
-							averageCpuMilliseconds = cpuMillisecondsAccumulator / 60.0;
-							averageGpuMilliseconds = gpuMillisecondsAccumulator / 60.0;
-							cpuMillisecondsAccumulator = 0;
-							gpuMillisecondsAccumulator = 0;
-							count = 0;
-						}
-						
-						// start timers for *this frame*
-						cpuStartNanoseconds = System.nanoTime();
-						if(!openGLES)
-							gl.glQueryCounter(gpuQueryHandles[0], GL3.GL_TIMESTAMP);
-					}
-					
-					// size the chart
-					int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
-					int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
-					int xOffset = chart.topLeftX * tileWidth;
-					int yOffset = (canvasHeight - notificationsHeight) - (chart.topLeftY * tileHeight) - height;
-					
-					// size the maximized chart correctly
-					double animationPosition = 0.0;
-					if(chart == maximizedChart) {
-						
-						animationPosition = 1.0 - (double) (maximizingAnimationEndTime - System.currentTimeMillis()) / Theme.animationMilliseconds;
-						animationPosition = smoothstep(animationPosition);
-						
-						int maximizedWidth = tileWidth * tileColumns;
-						int maximizedHeight = tileHeight * tileRows;
-						int maximizedXoffset = 0;
-						int maximizedYoffset = (canvasHeight - notificationsHeight) - maximizedHeight;
-
-						if(maximizing) {
-							
-							width   = (int) Math.round(width   * (1.0 - animationPosition) + (maximizedWidth   * animationPosition));
-							height  = (int) Math.round(height  * (1.0 - animationPosition) + (maximizedHeight  * animationPosition));
-							xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
-							yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
-							
-							if(animationPosition == 1.0)
-								maximizing = false;
-							
-						} else if(demaximizing) {
-							
-							width   = (int) Math.round((width   * animationPosition) + (maximizedWidth   * (1.0 - animationPosition)));
-							height  = (int) Math.round((height  * animationPosition) + (maximizedHeight  * (1.0 - animationPosition)));
-							xOffset = (int) Math.round((xOffset * animationPosition) + (maximizedXoffset * (1.0 - animationPosition)));
-							yOffset = (int) Math.round((yOffset * animationPosition) + (maximizedYoffset * (1.0 - animationPosition)));
-
-							if(animationPosition == 1.0) {
-								demaximizing = false;
-								maximizedChart = null;
+							for(ConnectionCamera connection : ConnectionsController.cameraConnections) {
+								if(connection.getSampleCount() > 0) {
+									long timestamp = connection.getTimestamp(connection.getSampleCount() - 1);
+									if(timestamp > nowTimestamp + 10) // 10ms hysteresis to help align multiple connections
+										nowTimestamp = timestamp;
+								}
 							}
-							
-						} else {
-							
-							width = maximizedWidth;
-							height = maximizedHeight;
-							xOffset = maximizedXoffset;
-							yOffset = maximizedYoffset;
-							
 						}
 					}
 					
-					// size the closing chart correctly
-					if(chart == removingChart) {
+					// draw the charts
+					//
+					// the modelview matrix is translated so the origin will be at the bottom-left for each chart.
+					// the scissor test is used to clip rendering to the region allocated for each chart.
+					// if charts will be using off-screen framebuffers, they need to disable the scissor test when (and only when) drawing off-screen.
+					chartUnderMouse = null;
+					for(PositionedChart chart : charts) {
 						
-						animationPosition = 1.0 - (double) (removingAnimationEndTime - System.currentTimeMillis()) / Theme.animationMilliseconds;
-						animationPosition = smoothstep(animationPosition);
+						// if there is a maximized chart, only draw that chart
+						if(maximizedChart != null && maximizedChart != removingChart && chart != maximizedChart && !maximizing && !demaximizing)
+							continue;
 						
-						xOffset = (int) Math.round(xOffset + (0.5 * width  * animationPosition));
-						yOffset = (int) Math.round(yOffset + (0.5 * height * animationPosition));
-						width   = (int) Math.round(width  * (1.0 - animationPosition));
-						height  = (int) Math.round(height * (1.0 - animationPosition));
+						// size the chart
+						int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
+						int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
+						int xOffset = chart.topLeftX * tileWidth;
+						int yOffset = (canvasHeight - notificationsHeight) - (chart.topLeftY * tileHeight) - height;
 						
-					}
-					
-					drawTile(gl, xOffset, yOffset, width, height);
-					
-					// draw the chart
-					xOffset += Theme.tilePadding;
-					yOffset += Theme.tilePadding;
-					width  -= 2 * Theme.tilePadding;
-					height -= 2 * Theme.tilePadding;
-					
-					if(width < 1 || height < 1)
-						continue;
-					
-					gl.glEnable(GL3.GL_SCISSOR_TEST);
-					gl.glScissor(xOffset, yOffset, width, height);
-					
-					float[] chartMatrix = Arrays.copyOf(screenMatrix, 16);
-					OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
-					OpenGL.useMatrix(gl, chartMatrix);
-					
-					int lastSampleNumber = -1;
-					synchronized(instance) {
-						lastSampleNumber = !chart.datasets.isEmpty() ?       lastSampleNumbers.get(chart.datasets.get(0).connection) :
-						                   !chart.bitfieldEdges.isEmpty() ?  lastSampleNumbers.get(chart.bitfieldEdges.get(0).connection) :
-						                   !chart.bitfieldLevels.isEmpty() ? lastSampleNumbers.get(chart.bitfieldLevels.get(0).connection) :
-						                                                     -1;
-					}
-					
-					EventHandler handler = chart.drawChart(gl, chartMatrix, width, height, nowTimestamp, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
-					
-					// draw the CPU/GPU benchmarks for this chart if benchmarking
-					// GPU benchmarking is not possible with OpenGL ES
-					if(chart == SettingsController.getBenchmarkedChart()) {
-						// stop timers for *this frame*
-						cpuStopNanoseconds = System.nanoTime();
-						if(!openGLES)
-							gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+						// size the maximized chart correctly
+						double animationPosition = 0.0;
+						if(chart == maximizedChart) {
+							
+							animationPosition = 1.0 - (double) (maximizingAnimationEndTime - System.currentTimeMillis()) / Theme.animationMilliseconds;
+							animationPosition = smoothstep(animationPosition);
+							
+							int maximizedWidth = tileWidth * tileColumns;
+							int maximizedHeight = tileHeight * tileRows;
+							int maximizedXoffset = 0;
+							int maximizedYoffset = (canvasHeight - notificationsHeight) - maximizedHeight;
+	
+							if(maximizing) {
+								
+								width   = (int) Math.round(width   * (1.0 - animationPosition) + (maximizedWidth   * animationPosition));
+								height  = (int) Math.round(height  * (1.0 - animationPosition) + (maximizedHeight  * animationPosition));
+								xOffset = (int) Math.round(xOffset * (1.0 - animationPosition) + (maximizedXoffset * animationPosition));
+								yOffset = (int) Math.round(yOffset * (1.0 - animationPosition) + (maximizedYoffset * animationPosition));
+								
+								if(animationPosition == 1.0)
+									maximizing = false;
+								
+							} else if(demaximizing) {
+								
+								width   = (int) Math.round((width   * animationPosition) + (maximizedWidth   * (1.0 - animationPosition)));
+								height  = (int) Math.round((height  * animationPosition) + (maximizedHeight  * (1.0 - animationPosition)));
+								xOffset = (int) Math.round((xOffset * animationPosition) + (maximizedXoffset * (1.0 - animationPosition)));
+								yOffset = (int) Math.round((yOffset * animationPosition) + (maximizedYoffset * (1.0 - animationPosition)));
+	
+								if(animationPosition == 1.0) {
+									demaximizing = false;
+									maximizedChart = null;
+								}
+								
+							} else {
+								
+								width = maximizedWidth;
+								height = maximizedHeight;
+								xOffset = maximizedXoffset;
+								yOffset = maximizedYoffset;
+								
+							}
+						}
 						
-						// show times of *previous frame*
-						gl.glScissor((int) (xOffset - Theme.tilePadding), (int) (yOffset - Theme.tilePadding), (int) (width + 2 * Theme.tilePadding), (int) (height + 2 * Theme.tilePadding));
-						OpenGL.translateMatrix(chartMatrix, 0, -Theme.tilePadding, 0);
+						// size the closing chart correctly
+						if(chart == removingChart) {
+							
+							animationPosition = 1.0 - (double) (removingAnimationEndTime - System.currentTimeMillis()) / Theme.animationMilliseconds;
+							animationPosition = smoothstep(animationPosition);
+							
+							xOffset = (int) Math.round(xOffset + (0.5 * width  * animationPosition));
+							yOffset = (int) Math.round(yOffset + (0.5 * height * animationPosition));
+							width   = (int) Math.round(width  * (1.0 - animationPosition));
+							height  = (int) Math.round(height * (1.0 - animationPosition));
+							
+						}
+						
+						drawTile(gl, xOffset, yOffset, width, height);
+						
+						// draw the chart
+						xOffset += Theme.tilePadding;
+						yOffset += Theme.tilePadding;
+						width  -= 2 * Theme.tilePadding;
+						height -= 2 * Theme.tilePadding;
+						
+						if(width < 1 || height < 1)
+							continue;
+						
+						gl.glEnable(GL3.GL_SCISSOR_TEST);
+						gl.glScissor(xOffset, yOffset, width, height);
+						
+						float[] chartMatrix = Arrays.copyOf(screenMatrix, 16);
+						OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
 						OpenGL.useMatrix(gl, chartMatrix);
-						String line1 =             String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
-						String line2 = !openGLES ? String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds) :
-						                                         "GPU = unknown";
-						float textHeight = 2 * OpenGL.smallTextHeight + Theme.tickTextPadding;
-						float textWidth = Float.max(OpenGL.smallTextWidth(gl, line1), OpenGL.smallTextWidth(gl, line2));
-						OpenGL.drawBox(gl, Theme.neutralColor, 0, 0, textWidth + Theme.tickTextPadding*2, textHeight + Theme.tickTextPadding*2);
-						OpenGL.drawSmallText(gl, line1, (int) Theme.tickTextPadding, (int) (2 * Theme.tickTextPadding + OpenGL.smallTextHeight), 0);
-						OpenGL.drawSmallText(gl, line2, (int) Theme.tickTextPadding, (int) Theme.tickTextPadding, 0);
-						NotificationsController.showDebugMessage(line1 + ", " + line2);
-					}
-					
-					OpenGL.useMatrix(gl, screenMatrix);
-					gl.glDisable(GL3.GL_SCISSOR_TEST);
-
-					// check if the mouse is over this chart
-					width += (int) Theme.tileShadowOffset;
-					if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height) {
-						chartUnderMouse = chart;
-						if(handler != null)
-							eventHandler = handler;
-						drawChartCloseButton(gl, xOffset, yOffset, width, height);
-						drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
-						drawChartSettingsButton(gl, xOffset, yOffset, width, height);
-					}
-					
-					// fade away if chart is closing
-					if(chart == removingChart) {
 						
-						float[] glColor = new float[] { Theme.tileColor[0], Theme.tileColor[1], Theme.tileColor[2], 0.2f + (float) animationPosition };
-						OpenGL.drawBox(gl, glColor, xOffset, yOffset, width, height);
+						int lastSampleNumber = -1;
+						synchronized(instance) {
+							lastSampleNumber = !chart.datasets.isEmpty() ?       lastSampleNumbers.get(chart.datasets.get(0).connection) :
+							                   !chart.bitfieldEdges.isEmpty() ?  lastSampleNumbers.get(chart.bitfieldEdges.get(0).connection) :
+							                   !chart.bitfieldLevels.isEmpty() ? lastSampleNumbers.get(chart.bitfieldLevels.get(0).connection) :
+							                                                     -1;
+						}
+						
+						EventHandler handler = chart.draw(gl, chartMatrix, width, height, nowTimestamp, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
+						
+						OpenGL.useMatrix(gl, screenMatrix);
+						gl.glDisable(GL3.GL_SCISSOR_TEST);
+	
+						// check if the mouse is over this chart
+						width += (int) Theme.tileShadowOffset;
+						if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height) {
+							chartUnderMouse = chart;
+							if(handler != null)
+								eventHandler = handler;
+							drawChartCloseButton(gl, xOffset, yOffset, width, height);
+							drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
+							drawChartSettingsButton(gl, xOffset, yOffset, width, height);
+						}
+						
+						// fade away if chart is closing
+						if(chart == removingChart) {
+							
+							float[] glColor = new float[] { Theme.tileColor[0], Theme.tileColor[1], Theme.tileColor[2], 0.2f + (float) animationPosition };
+							OpenGL.drawBox(gl, glColor, xOffset, yOffset, width, height);
+							
+						}
 						
 					}
 					
-				}
-				
-				// remove a chart if necessary
-				if(removing && removingAnimationEndTime <= System.currentTimeMillis()) {
-					ChartsController.removeChart(removingChart);
-					if(maximizedChart == removingChart)
-						maximizedChart = null;
-					removingChart = null;
-					removing = false;
+					// remove a chart if necessary
+					if(removing && removingAnimationEndTime <= System.currentTimeMillis()) {
+						ChartsController.removeChart(removingChart);
+						if(maximizedChart == removingChart)
+							maximizedChart = null;
+						removingChart = null;
+						removing = false;
+					}
+					
 				}
 				
 				// show the FPS/period in the lower-left corner if enabled
@@ -599,6 +575,42 @@ public class OpenGLChartsView extends JPanel {
 				
 				// update the mouse cursor
 				setCursor(eventHandler == null ? defaultCursor : handCursor);
+				
+				// if benchmarking, draw the CPU/GPU benchmarks
+				// GPU benchmarking is not possible with OpenGL ES
+				if(SettingsController.getBenchmarking()) {
+					// stop timers for *this frame*
+					cpuStopNanoseconds = System.nanoTime();
+					if(!openGLES)
+						gl.glQueryCounter(gpuQueryHandles[1], GL3.GL_TIMESTAMP);
+					
+					// show times of *previous frame*
+					String line1 = "Entire Frame:";
+					String line2 =             String.format("CPU = %.3fms (Average = %.3fms)", previousCpuMilliseconds, averageCpuMilliseconds);
+					String line3 = !openGLES ? String.format("GPU = %.3fms (Average = %.3fms)", previousGpuMilliseconds, averageGpuMilliseconds) :
+					                                         "GPU = unknown";
+					float textHeight = 3*OpenGL.smallTextHeight + 2*Theme.tickTextPadding;
+					float textWidth = Float.max(OpenGL.smallTextWidth(gl, line1), OpenGL.smallTextWidth(gl, line2));
+					textWidth = Float.max(textWidth, OpenGL.smallTextWidth(gl, line3));
+					float boxWidth = textWidth + 2*Theme.tickTextPadding;
+					float boxHeight = textHeight + 2*Theme.tickTextPadding;
+					int xBoxLeft = (canvasWidth / 2) - (int) (textWidth / 2);
+					int yBoxBottom = top.get() - (int) boxHeight;
+					int xTextLeft = xBoxLeft + (int) Theme.tickTextPadding;
+					int lineSpacing = (int) (Theme.tickTextPadding + OpenGL.smallTextHeight);
+					int yTextBaseline = top.get() - lineSpacing;
+					OpenGL.drawBox(gl, Theme.neutralColor, xBoxLeft, yBoxBottom, boxWidth, boxHeight);
+					OpenGL.drawSmallText(gl, line1, (canvasWidth / 2) - (int) (OpenGL.smallTextWidth(gl, line1) / 2), yTextBaseline, 0);
+					OpenGL.drawSmallText(gl, line2, xTextLeft, yTextBaseline - lineSpacing, 0);
+					OpenGL.drawSmallText(gl, line3, xTextLeft, yTextBaseline - lineSpacing - lineSpacing, 0);
+					
+					String message = "Entire Frame: " + line2 + " " + line3;
+					for(int i = 0; i < charts.size(); i++) {
+						PositionedChart chart = charts.get(i);
+						message += ",     Chart " + i + ": " + chart.line1 + " " + line3;
+					}
+					NotificationsController.showDebugMessage(message);
+				}
 				
 				// move old samples and timestamps to disk
 				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
@@ -641,11 +653,6 @@ public class OpenGLChartsView extends JPanel {
 				// if there are no connections and no charts, ignore the event
 				if(ChartsController.getCharts().isEmpty() && !ConnectionsController.telemetryPossible())
 					return;
-				
-				if(SettingsController.awaitingBenchmarkedChart()) {
-					SettingsController.setBenchmarkedChart(chartUnderMouse);
-					return;
-				}
 				
 				// don't start a new chart region if there is a maximized chart
 				if(maximizedChart != null)

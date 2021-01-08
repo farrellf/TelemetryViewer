@@ -164,7 +164,7 @@ public class OpenGLCameraChart extends PositionedChart {
 	
 	@Override public void disposeGpu(GL2ES3 gl) {
 		
-		// free the texture
+		super.disposeGpu(gl);
 		if(texHandle != null)
 			gl.glDeleteTextures(1, texHandle, 0);
 		texHandle = null;
