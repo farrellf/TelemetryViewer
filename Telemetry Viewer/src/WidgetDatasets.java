@@ -149,7 +149,6 @@ public class WidgetDatasets extends Widget {
 					
 					int rowCount = 0;
 					String label = ConnectionsController.telemetryConnections.size() == 1 ? "Datasets: " : connection.name + " Datasets: ";
-					widgets.put(new JLabel(label), "");
 					
 					for(Dataset dataset : connection.datasets.getList()) {
 						
@@ -167,7 +166,9 @@ public class WidgetDatasets extends Widget {
 						});
 						datasetCheckboxes.put(dataset, checkbox);
 						
-						if(rowCount++ != 0)
+						if(rowCount++ == 0)
+							widgets.put(new JLabel(label), "");
+						else
 							widgets.put(new JLabel(""), "");
 						widgets.put(checkbox, "span 3, growx");
 						

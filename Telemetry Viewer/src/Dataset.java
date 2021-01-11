@@ -209,11 +209,6 @@ public class Dataset {
 		
 		floats.setValue(sampleNumber, value);
 		
-		if(isBitfield) {
-			for(Bitfield bitfield : bitfields)
-				bitfield.processValue((int) value, sampleNumber);
-		}
-		
 	}
 	
 	/**
@@ -293,38 +288,6 @@ public class Dataset {
 			
 		}
 		
-		int previousValue = 0;
-		int previousState = 0;
-		
-		/**
-		 * Checks a dataset value to see if this Bitfield has changed state since the previous sample number.
-		 * 
-		 * @param value           Dataset value.
-		 * @param sampleNumber    The current sample number.
-		 */
-		void processValue(int value, int sampleNumber) {
-			
-			// don't consider the first sample to be a change of state
-			if(sampleNumber == 0) {
-				previousValue = value;
-				previousState = (value >> LSBit) & bitmask;
-				return;
-			}
-			
-			// don't bother testing for a change of state if the dataset value has not changed
-			if(value == previousValue)
-				return;
-			
-			// test for a change of state
-			int state = (value >> LSBit) & bitmask;
-			if(state != previousState) {
-				states[state].transitionedSampleNumbers.add(sampleNumber);
-				previousState = state;
-			}
-			previousValue = value;
-			
-		}
-		
 		/**
 		 * @param sampleNumber    Sample number.
 		 * @return                State of this bitfield at the specified sample number.
@@ -357,7 +320,6 @@ public class Dataset {
 			String name;                             // Example: "Some Fault Occurred" (shown on markers on the charts)
 			Color color;                             // shown in the PacketBinary.BitfieldPanel
 			float[] glColor;                         // shown on markers on the charts
-			List<Integer> transitionedSampleNumbers; // transitioned to the "Some Fault" state at these sample numbers
 			ConnectionTelemetry connection;          // owner of this State
 			Dataset dataset;                         // owner of this State
 			Bitfield bitfield;                       // owner of this State
@@ -368,7 +330,6 @@ public class Dataset {
 				this.name = "";
 				this.color = Dataset.this.color;
 				this.glColor = Dataset.this.glColor;
-				transitionedSampleNumbers = new ArrayList<Integer>();
 				connection = Dataset.this.connection;
 				dataset = Dataset.this;
 				bitfield = Bitfield.this;
@@ -376,6 +337,76 @@ public class Dataset {
 			
 			@Override public String toString() {
 				return "connection " + ConnectionsController.allConnections.indexOf(dataset.connection) + " location " + Dataset.this.location + " [" + Bitfield.this.MSBit + ":" + Bitfield.this.LSBit + "] = " + value;
+			}
+			
+			/**
+			 * Gets a List of sample numbers for when this Bitfield transitioned to this State.
+			 * 
+			 * @param minimumSampleNumber    First sample number to test, inclusive.
+			 * @param maximumSampleNumber    Last sample number to test, inclusive.
+			 * @return                       List of sample numbers for when this Bitfield State occurred.
+			 */
+			public List<Integer> getEdgeEventsBetween(int minimumSampleNumber, int maximumSampleNumber) {
+				
+				List<Integer> list = new ArrayList<Integer>();
+				
+				if(minimumSampleNumber > 0)
+					minimumSampleNumber--;
+				if(maximumSampleNumber <= minimumSampleNumber)
+					return list;
+				
+				int previousValue = (int) dataset.getSample(minimumSampleNumber);
+				int previousState = (previousValue >> bitfield.LSBit) & bitfield.bitmask;
+				
+				for(int sampleNumber = minimumSampleNumber + 1; sampleNumber <= maximumSampleNumber; sampleNumber++) {
+					int currentValue = (int) dataset.getSample(sampleNumber);
+					if(currentValue != previousValue) {
+						int currentState = (currentValue >> bitfield.LSBit) & bitfield.bitmask;
+						if(currentState != previousState && currentState == value)
+							list.add(sampleNumber);
+						previousState = currentState;
+					}
+					previousValue = currentValue;
+				}
+				
+				return list;
+				
+			}
+			
+			/**
+			 * Gets a List of ranges for when this Bitfield State existed.
+			 * 
+			 * @param minimumSampleNumber    First sample number to test, inclusive.
+			 * @param maximumSampleNumber    Last sample number to test, inclusive.
+			 * @return                       List of ranges ([0] minSampleNumber, [1] maxSampleNumber) for when this Bitfield State existed.
+			 */
+			public List<int[]> getLevelsBetween(int minimumSampleNumber, int maximumSampleNumber) {
+				
+				List<int[]> list = new ArrayList<int[]>();
+				
+				if(maximumSampleNumber <= minimumSampleNumber)
+					return list;
+				
+				int[] range = null;
+				for(int sampleNumber = minimumSampleNumber; sampleNumber <= maximumSampleNumber; sampleNumber++) {
+					int currentValue = (int) dataset.getSample(sampleNumber);
+					int currentState = (currentValue >> bitfield.LSBit) & bitfield.bitmask;
+					if(currentState == value && range == null) { // level started
+						range = new int[2];
+						range[0] = sampleNumber;
+					} else if(currentState != value && range != null) { // level ended
+						range[1] = sampleNumber;
+						list.add(range);
+						range = null;
+					}
+				}
+				if(range != null) { // level extends past the end
+					range[1] = maximumSampleNumber;
+					list.add(range);
+				}
+				
+				return list;
+				
 			}
 			
 			/**

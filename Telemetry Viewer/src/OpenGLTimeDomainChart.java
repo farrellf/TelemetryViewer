@@ -309,7 +309,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		if(showYaxisTitle) {
 			xYaxisTitleTextTop = xPlotLeft;
 			xYaxisTitleTextBaseline = xYaxisTitleTextTop + OpenGL.largeTextHeight;
-			yAxisTitle = haveDatasets ? datasets.get(0).unit : "";
+			yAxisTitle = haveDatasets ? allDatasets.get(0).unit : "";
 			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (OpenGL.largeTextWidth(gl, yAxisTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;

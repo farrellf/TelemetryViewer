@@ -560,7 +560,7 @@ public class PlotMilliseconds extends Plot {
 		OpenGL.useMatrix(gl, chartMatrix);
 		
 		// draw any bitfield changes
-		if(!datasets.isEmpty() && plotSampleCount >= 2) {
+		if(plotSampleCount >= 2) {
 			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers ((connection, sampleNumber) -> (float) (connection.datasets.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
 			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers((connection, sampleNumber) -> (float) (connection.datasets.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
 			ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom, -1, -1);
@@ -677,7 +677,7 @@ public class PlotMilliseconds extends Plot {
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, plotWidth, plotHeight);
 		
 		// draw any bitfield changes
-		if(!datasets.isEmpty() && plotSampleCount >= 2) {
+		if(plotSampleCount >= 2) {
 			List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers ((connection, sampleNumber) -> (connection.datasets.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
 			List<BitfieldEvents.LevelMarker> levelMarkers = events.getLevelMarkers((connection, sampleNumber) -> (connection.datasets.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth);
 			ChartUtils.drawMarkers(gl, edgeMarkers, levelMarkers, xPlotLeft, yPlotBottom + plotHeight, xPlotLeft + plotWidth, yPlotBottom, -1, -1);

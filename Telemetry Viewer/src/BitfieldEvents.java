@@ -32,49 +32,23 @@ public class BitfieldEvents {
 			return;
 		
 		// check for edges
-		for(Dataset.Bitfield.State state : bitfieldEdgeStates)
-			for(Integer sampleNumber : state.transitionedSampleNumbers)
-				if(sampleNumber >= minSampleNumber && sampleNumber <= maxSampleNumber)
-					if(edgeMarkers.containsKey(sampleNumber)) {
-						// a marker already exists for this sample number, so append to it
-						EdgeMarker event = edgeMarkers.get(sampleNumber);
-						event.text.add(state.name);
-						event.glColors.add(state.glColor);
-					} else {
-						// a marker does not exist, so create a new one
-						edgeMarkers.put(sampleNumber, new EdgeMarker(state, sampleNumber));
-					}
+		bitfieldEdgeStates.forEach(state -> {
+			state.getEdgeEventsBetween(minSampleNumber, maxSampleNumber).forEach(eventSampleNumber -> {
+				if(edgeMarkers.containsKey(eventSampleNumber)) {
+					// a marker already exists for this sample number, so append to it
+					EdgeMarker event = edgeMarkers.get(eventSampleNumber);
+					event.text.add(state.name);
+					event.glColors.add(state.glColor);
+				} else {
+					// a marker does not exist, so create a new one
+					edgeMarkers.put(eventSampleNumber, new EdgeMarker(state, eventSampleNumber));
+				}
+			});
+		});
 		
 		// check for levels
-		for(Dataset.Bitfield.State state : bitfieldLevelStates) {
-			int sampleNumber = minSampleNumber;
-			int rangeMinSampleNumber = -1;
-			int rangeMaxSampleNumber = maxSampleNumber;
-			
-			while(sampleNumber < maxSampleNumber) {
-				
-				// check for the beginning of a range
-				if(state.bitfield.getStateAt(sampleNumber) == state.value) {
-					rangeMinSampleNumber = sampleNumber; // begins immediately
-				} else {
-					for(int number : state.transitionedSampleNumbers)
-						if(number > sampleNumber && number < maxSampleNumber) {
-							rangeMinSampleNumber = number;
-							break; // begins after sampleNumber but before maxSampleNumber
-						}
-				}
-				if(rangeMinSampleNumber == -1)
-					break; // no more ranges
-				
-				// check if the range ended somewhere on-screen
-				for(Dataset.Bitfield.State s : state.bitfield.states)
-					for(int number : s.transitionedSampleNumbers)
-						if(number > rangeMinSampleNumber && number < maxSampleNumber && number < rangeMaxSampleNumber) {
-							rangeMaxSampleNumber = number;
-							break; // ends just before this change of state
-						}
-				
-				// append this level to the Map
+		bitfieldLevelStates.forEach(state -> {
+			state.getLevelsBetween(minSampleNumber, maxSampleNumber).forEach(range -> {
 				LevelMarker marker;
 				if(levelMarkers.containsKey(state.bitfield)) {
 					marker = levelMarkers.get(state.bitfield);
@@ -82,19 +56,11 @@ public class BitfieldEvents {
 					marker = new LevelMarker(state.bitfield);
 					levelMarkers.put(state.bitfield, marker);
 				}
-				marker.ranges.add(new int[] {rangeMinSampleNumber, rangeMaxSampleNumber});
+				marker.ranges.add(new int[] {range[0], range[1]});
 				marker.labels.add(state.name);
 				marker.glColors.add(state.glColor);
-				
-				// let the loop check for another range
-				sampleNumber = rangeMaxSampleNumber + 1;
-				rangeMinSampleNumber = -1;
-				rangeMaxSampleNumber = maxSampleNumber;
-				
-			}
-			
-		}
-		
+			});
+		});
 		
 	}
 	

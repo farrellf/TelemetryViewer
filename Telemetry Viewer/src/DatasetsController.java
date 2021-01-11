@@ -565,22 +565,13 @@ public class DatasetsController {
 	}
 	
 	/**
-	 * Increments the sample count by an entire block, and processes any bitfields in that block.
+	 * Increments the sample count by an entire block.
 	 * Call this function after all datasets have received a block of values from a live connection.
 	 */
 	public void incrementSampleCountBlock() {
 		
 		long timestamp = System.currentTimeMillis();
 		timestamps.fillBlock(timestamp);
-		
-		for(Dataset d : getList()) {
-			if(d.isBitfield) {
-				int sampleNumber = sampleCount.get();
-				for(int i = 0; i < StorageFloats.BLOCK_SIZE; i++)
-					for(Dataset.Bitfield bitfield : d.bitfields)
-						bitfield.processValue((int) d.getSample(sampleNumber), sampleNumber++);
-			}
-		}
 		
 		boolean wasZero = sampleCount.get() == 0;
 		sampleCount.addAndGet(StorageFloats.BLOCK_SIZE);
