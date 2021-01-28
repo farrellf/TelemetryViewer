@@ -164,7 +164,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		                                               SampleCountDefault,
 		                                               SampleCountMinimum,
 		                                               SampleCountMaximum,
-		                                               newSampleCount -> sampleCount = newSampleCount);
+		                                               newSampleCount -> duration = newSampleCount);
 		
 		binCountWidget = new WidgetTextfieldInteger("Bin Count",
 		                                            BinCountDefault,
@@ -237,34 +237,29 @@ public class OpenGLHistogramChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
 		// get the samples
-		int endIndex = lastSampleNumber;
-		int startIndex = endIndex - (int) (sampleCount * zoomLevel) + 1;
-		int minDomain = SampleCountMinimum - 1;
-		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
-		if(startIndex < 0) startIndex = 0;
-		int sampleCount = endIndex - startIndex + 1;
+		int trueLastSampleNumber = datasets.isEmpty() ? -1 : datasets.get(0).controller.getSampleCount();
+		int lastSampleNumber = Integer.min(trueLastSampleNumber, endSampleNumber);
+		int firstSampleNumber = endSampleNumber - (int) (duration * zoomLevel) + 1;
+		if(firstSampleNumber < 0)
+			firstSampleNumber = 0;
+		if(firstSampleNumber > lastSampleNumber)
+			firstSampleNumber = lastSampleNumber + 1;
 		
-		if(sampleCount - 1 < minDomain)
-			return handler;
-		
-		boolean haveDatasets = datasets != null && !datasets.isEmpty();
-		int datasetsCount = 0;
-		
-		if(haveDatasets) {
-			datasetsCount = datasets.size();
+		int sampleCount = lastSampleNumber - firstSampleNumber + 1;
+		int datasetsCount = datasets.size();
+		if(sampleCount > 0)
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
-				datasets.get(datasetN).getSamples(startIndex, endIndex, samples[datasetN]);
-		}
+				datasets.get(datasetN).getSamples(firstSampleNumber, lastSampleNumber, samples[datasetN]);
 
 		// determine the true x-axis scale
 		float trueMinX = xAxisMinimumDefault;
 		float trueMaxX = xAxisMaximumDefault;
-		if(haveDatasets) {
+		if(sampleCount > 0) {
 			trueMinX = samples[0].min;
 			trueMaxX = samples[0].max;
 			for(int datasetN = 1; datasetN < samples.length; datasetN++) {
@@ -290,23 +285,16 @@ public class OpenGLHistogramChart extends PositionedChart {
 		}
 		float range = maxX - minX;
 		float binSize = range / (float) binCount;
-		
-//		for(int i = 0; i < binCount; i++) {
-//			int binNumber = i;
-//			float binStart = minX + (binSize * i);
-//			float binEnd = minX + (binSize * (i + 1));
-//			System.out.println(String.format("bin %02d, start = %f, end = %f", binNumber, binStart, binEnd));
-//		}
-//		System.out.println("");
 
-		// empty the bins
-		if(haveDatasets)
+		// calculate the histogram
+		int maxBinSize = 0;
+		if(sampleCount > 0) {
+			// empty the bins
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
 				for(int binN = 0; binN < binCount; binN++)
 					bins[datasetN][binN] = 0;
-		
-		// fill the bins
-		if(haveDatasets) {
+			
+			// fill the bins
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
 				for(int sampleN = 0; sampleN < sampleCount; sampleN++) {
 					float sample = samples[datasetN].buffer.get(sampleN);
@@ -317,19 +305,16 @@ public class OpenGLHistogramChart extends PositionedChart {
 					}
 				}
 			}
-		}
-
-		int maxBinSize = 0;
-		if(haveDatasets) {
-			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
+			
+			// get the max
+			for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
 				for(int binN = 0; binN < binCount; binN++)
 					if(bins[datasetN][binN] > maxBinSize)
 						maxBinSize = bins[datasetN][binN];
-			}
 		}
 		
-		float trueMaxYfreq = haveDatasets ? maxBinSize : sampleCount;
-		float trueMaxYrelFreq = trueMaxYfreq / (float) sampleCount;
+		float trueMaxYfreq    = sampleCount < 1 ? 1 : maxBinSize;
+		float trueMaxYrelFreq = sampleCount < 1 ? 1 : trueMaxYfreq / (float) sampleCount;
 		
 		// determine the y-axis min and max
 		float minYrelFreq = 0;
@@ -344,8 +329,8 @@ public class OpenGLHistogramChart extends PositionedChart {
 			minYrelFreq = yMinimumIsZero ? 0 : manualMinY;
 			yAutoscaleRelativeFrequency.update(minYrelFreq, trueMaxYrelFreq);
 			maxYrelFreq = yAutoscaleMax ? yAutoscaleRelativeFrequency.getMax() : manualMaxY;
-			minYfreq = minYrelFreq * (float) sampleCount;
-			maxYfreq = maxYrelFreq * (float) sampleCount;
+			minYfreq = sampleCount < 1 ? minYrelFreq : minYrelFreq * (float) sampleCount;
+			maxYfreq = sampleCount < 1 ? maxYrelFreq : maxYrelFreq * (float) sampleCount;
 			
 		} else {
 			
@@ -371,7 +356,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		if(showXaxisTitle) {
 			yXaxisTitleTextBasline = Theme.tilePadding;
 			yXaxisTitleTextTop = yXaxisTitleTextBasline + OpenGL.largeTextHeight;
-			xAxisTitle = haveDatasets ? datasets.get(0).unit + " (" + sampleCount + " Samples)" : "";
+			xAxisTitle = datasets.isEmpty() ? "(0 Samples)" : datasets.get(0).unit + " (" + sampleCount + " Samples)";
 			xXaxisTitleTextLeft = xPlotLeft + (plotWidth  / 2.0f) - (OpenGL.largeTextWidth(gl, xAxisTitle)  / 2.0f);
 			
 			float temp = yXaxisTitleTextTop + Theme.tickTextPadding;
@@ -381,7 +366,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 			}
 		}
 		
-		if(showLegend && haveDatasets) {
+		if(showLegend && datasetsCount > 0) {
 			xLegendBorderLeft = Theme.tilePadding;
 			yLegendBorderBottom = Theme.tilePadding;
 			yLegendTextBaseline = yLegendBorderBottom + Theme.legendTextPadding;
@@ -612,7 +597,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		}
 		
 		// draw the legend, if space is available
-		if(showLegend && haveDatasets && xLegendBorderRight < width - Theme.tilePadding) {
+		if(showLegend && datasetsCount > 0 && xLegendBorderRight < width - Theme.tilePadding) {
 			OpenGL.drawQuad2D(gl, Theme.legendBackgroundColor, xLegendBorderLeft, yLegendBorderBottom, xLegendBorderRight, yLegendBorderTop);
 			
 			for(int i = 0; i < datasetsCount; i++) {
@@ -645,7 +630,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0] + (int) xPlotLeft, originalScissorArgs[1] + (int) yPlotBottom, (int) plotWidth, (int) plotHeight);
 		
 		// draw the bins
-		if(haveDatasets) {
+		if(sampleCount > 0) {
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
 				
 				for(int binN = 0; binN < binCount; binN++) {
@@ -669,7 +654,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 		gl.glScissor(originalScissorArgs[0], originalScissorArgs[1], originalScissorArgs[2], originalScissorArgs[3]);
 		
 		// draw the tooltip if the mouse is in the plot region
-		if(haveDatasets && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		if(sampleCount > 0 && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
 			int binN = (int) Math.floor(((float) mouseX - xPlotLeft) / plotWidth * binCount);
 			if(binN > binCount - 1)
 				binN = binCount - 1;

@@ -84,16 +84,19 @@ public class WidgetFrequencyDomainType extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { sampleCountTextfield.selectAll(); }
 		});
+		sampleCountTextfield.addActionListener(event -> sanityCheck());
 		
 		totalSampleCountTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { totalSampleCountTextfield.selectAll(); }
 		});
+		totalSampleCountTextfield.addActionListener(event -> sanityCheck());
 		
 		rowCountTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { rowCountTextfield.selectAll(); }
 		});
+		rowCountTextfield.addActionListener(event -> sanityCheck());
 		
 		typeCombobox.addActionListener(event -> sanityCheck());
 		

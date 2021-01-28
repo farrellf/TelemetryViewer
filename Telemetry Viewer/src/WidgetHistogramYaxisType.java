@@ -94,11 +94,13 @@ public class WidgetHistogramYaxisType extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
+		maxTextfield.addActionListener(event -> sanityCheck());
 		
 		minTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
+		minTextfield.addActionListener(event -> sanityCheck());
 		
 		widgets.put(axisTypeLabel, "");
 		widgets.put(axisTypeCombobox, "span 3, growx");
@@ -240,7 +242,7 @@ public class WidgetHistogramYaxisType extends Widget {
 		// update the widget
 		String type = (yAxisShowsRelativeFrequency && yAxisShowsFrequency) ? "Both" : yAxisShowsRelativeFrequency ? "Relative Frequency" : "Frequency";
 		for(int i = 0; i < axisTypeCombobox.getItemCount(); i++)
-			if(axisTypeCombobox.getSelectedItem().toString().equals(type))
+			if(axisTypeCombobox.getItemAt(i).toString().equals(type))
 				axisTypeCombobox.setSelectedIndex(i);
 
 		minCheckbox.setSelected(yMinimumIsZero);

@@ -96,14 +96,38 @@ public class ConnectionCamera extends Connection {
 	
 	public ConnectionCamera() {
 		
-		this(names.get(0));
+		name = names.get(0);
+		
+		// ensure this connection doesn't already exist, but allow multiple MJPEG over HTTP connections
+		for(int i = 1; i < names.size(); i++)
+			for(Connection connection : ConnectionsController.allConnections)
+				if(name.equals(connection.name) && !name.equals("MJPEG over HTTP"))
+					name = getNames().get(i);
+		
+		isMjpeg = name.startsWith("MJPEG over HTTP");
+		if(!isMjpeg)
+			for(Webcam cam : cameras)
+				if(cam.getName().equals(name))
+					camera = cam;
+		
+		// create the cache file
+		try {
+			file = FileChannel.open(pathOnDisk, StandardOpenOption.CREATE,
+			                                    StandardOpenOption.TRUNCATE_EXISTING,
+			                                    StandardOpenOption.READ,
+			                                    StandardOpenOption.WRITE);
+			fileIsImported = false;
+		} catch(Exception e) {
+			NotificationsController.showCriticalFault("Unable the create the cache file for " + name + "\n" + e.getMessage());
+			e.printStackTrace();
+		}
 		
 	}
 	
 	public ConnectionCamera(String name) {
 		
 		this.name = name;
-		this.isMjpeg = name.startsWith("MJPEG over HTTP");
+		isMjpeg = name.startsWith("MJPEG over HTTP");
 		if(!isMjpeg)
 			for(Webcam cam : cameras)
 				if(cam.getName().equals(name))
@@ -188,8 +212,9 @@ public class ConnectionCamera extends Connection {
 			if(newConnectionName.equals(name.startsWith("MJPEG over HTTP") ? "MJPEG over HTTP" : name))
 				return;
 			
+			// ignore change if the connection already exists, but allow multiple TCP/UDP/Demo Mode/MJPEG over HTTP connections
 			for(Connection connection : ConnectionsController.allConnections)
-				if(connection.name.equals(newConnectionName)) {
+				if(connection.name.equals(newConnectionName) && !newConnectionName.equals("TCP") && !newConnectionName.equals("UDP") && !newConnectionName.equals("Demo Mode") && !newConnectionName.equals("MJPEG over HTTP")) {
 					connectionNamesCombobox.setSelectedItem(name);
 					return;
 				}

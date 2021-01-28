@@ -13,163 +13,202 @@ import com.jogamp.opengl.GL3;
  */
 public class OpenGLFrequencyDomainCache {
 
-	float[][][] dfts;               // [datasetN][dftN][binN]
-	int[][][] histogram;            // used by waveform view, [datasetN][binN][powerBinN]
-	int[][] firstSampleNumberOfDft; // [datasetN][dftN]
+	int[][][] histogram; // [datasetN][freqBinN][powerBinN]
+	
 	int previousDftWindowLength;
-	int previousTotalSampleCount;
+	int previousDftsCount;
 	List<Dataset> previousDatasets;
 	String previousChartType;
 	
-	float minHz;
-	float maxHz;
-	float minPower;
-	float maxPower;
-	
-	double binSizeHz;
-	int binCount;	
-	
-	int firstDft;
-	int lastDft;
-
-	FloatBuffer waterfallPixels;
-	FloatBuffer waveformPixels;
+	int datasetsCount;
 	
 	int[] liveViewFbHandle;
 	int[] liveViewTexHandle;
 	int[] waveformViewTexHandle;
 	int[] waterfallViewTexHandle;
 	
+	private static class DFT {
+		
+		static double binSizeHz;
+		static int binCount;
+		static float minHz;
+		static float maxHz;
+		static float minPower;
+		static float maxPower;
+		static int windowLength;
+		static int firstDft;
+		static int lastDft;
+		
+		float[][] forDataset; // [datasetN][binN]
+		int firstSampleNumber = -1;
+		boolean populated;
+		
+		public DFT(int datasetCount) { forDataset = new float[datasetCount][]; }
+		
+	}
+	private DFT[] dft; // ring buffer
+	
 	/**
-	 * Creates an off-screen framebuffer and an empty cache.
-	 * 
-	 * @param gl    The OpenGL context.
+	 * Prepares the cache.
 	 */
-	public OpenGLFrequencyDomainCache(GL2ES3 gl) {
+	public OpenGLFrequencyDomainCache() {
 		
-		dfts = new float[0][][];
-		firstSampleNumberOfDft = new int[0][];
+		dft = new DFT[0];
+		
+		DFT.binSizeHz = 0;
+		DFT.binCount = 0;
+		DFT.minHz = 0;
+		DFT.maxHz = 1;
+		DFT.minPower = 0;
+		DFT.maxPower = 1;
+		DFT.windowLength = 0;
+		DFT.firstDft = 0;
+		DFT.lastDft = 0;
+		
 		previousDftWindowLength = 0;
-		previousTotalSampleCount = 0;
+		previousDftsCount = 0;
 		previousDatasets = new ArrayList<Dataset>();
-		
-		minHz = 0;
-		maxHz = 0;
-		minPower = 0;
-		maxPower = 0;
-		
-		firstDft = 0;
-		lastDft = 0;
+		previousChartType = "";
 		
 	}
 	
 	/**
 	 * Updates the cache, calculating new DFTs as needed.
 	 * If the type is Waveform View or Waterfall View, the DFTs will be aligned to their window size (e.g. a window size of 1000 will make DFTs of samples 0-999, 1000-1999, etc.)
-	 * If the type is Live View, the DFTs will be of the most recent samples, not aligned to the window size (e.g. if the most recent sample is 1234, the DFTs would be of samples 235-1234.)
+	 * If the type is Live View, the DFT will be of the most recent samples, not aligned to the window size (e.g. if the most recent sample is 1234, the DFTs would be of samples 235-1234.)
 	 * 
-	 * @param lastSampleNumber    The last sample number.
-	 * @param dftWindowLength     How many samples make up each DFT.
-	 * @param totalSampleCount    Total number of samples. Must be >= dftWindowLength.
-	 * @param datasets            The datasets to visualize.
-	 * @param chartType           "Live View" or "Waveform View" or "Waterfall View"
+	 * @param endSampleNumber    Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
+	 * @param windowLength       How many samples make up each DFT.
+	 * @param dftsCount          Number of DFTs to use for Waveform/Waterfall View mode. Should be 1 for Live View mode.
+	 * @param datasets           The datasets to visualize.
+	 * @param chartType          "Live View" or "Waveform View" or "Waterfall View"
 	 */
-	public void calculateDfts(int lastSampleNumber, int dftWindowLength, int totalSampleCount, List<Dataset> datasets, String chartType) {
+	public void calculateDfts(int endSampleNumber, int windowLength, int dftsCount, List<Dataset> datasets, String chartType) {
 		
-		int datasetsCount = datasets.size();
-		int dftsCount = totalSampleCount / dftWindowLength;
+		datasetsCount = datasets.size();
 		
-		// flush the cache if the DFT window length has changed, or the datasets have changed, or the chart type has changed
-		if(previousDftWindowLength != dftWindowLength || !previousDatasets.equals(datasets) || previousTotalSampleCount != totalSampleCount || !previousChartType.equals(chartType)) {
+		// flush the cache if necessary
+		if(previousDftWindowLength != windowLength || !previousDatasets.equals(datasets) || previousDftsCount != dftsCount || !previousChartType.equals(chartType)) {
 			
-			dfts = new float[datasetsCount][dftsCount][];
-			firstSampleNumberOfDft = new int[datasetsCount][dftsCount];
-			for(int dataset = 0; dataset < datasetsCount; dataset++)
-				for(int dft = 0; dft < dftsCount; dft++)
-					firstSampleNumberOfDft[dataset][dft] = -1;
-			previousDftWindowLength = dftWindowLength;
-			previousTotalSampleCount = totalSampleCount;
+			dft = new DFT[dftsCount];
+			for(int dftN = 0; dftN < dftsCount; dftN++)
+				dft[dftN] = new DFT(datasetsCount);
+
+			previousDftWindowLength = windowLength;
+			previousDftsCount = dftsCount;
 			previousDatasets = datasets;
 			previousChartType = chartType;
 			
 		}
 		
-		lastDft = lastSampleNumber / dftWindowLength - 1;
-		firstDft = lastDft - dftsCount + 1;
-		
-		if(firstDft < 0)
-			firstDft = 0;
-		
-		if(lastDft < 0)
-			return;
-		
-		int sampleRate = datasets.get(0).connection.sampleRate;
-			
-		// calculate the DFTs as needed
+		// calculate the DFTs
 		if(chartType.equals("Live View")) {
 			
-			int endX = lastSampleNumber;
-			int startX = endX - dftWindowLength + 1;
+			int sampleCount = 0;
+			if(!datasets.isEmpty())
+				sampleCount = datasets.get(0).controller.getSampleCount();
+			int firstSampleNumber = endSampleNumber - windowLength + 1;
+			if(firstSampleNumber < 0)
+				firstSampleNumber = 0;
+			int lastSampleNumber = Integer.min(endSampleNumber, sampleCount - 1);
+			if(lastSampleNumber < firstSampleNumber)
+				lastSampleNumber = firstSampleNumber;
 			
-			for(int dataset = 0; dataset < datasetsCount; dataset++) {
-				float[] samples = datasets.get(dataset).getSamplesArray(startX, endX);
-				dfts[dataset][0] = calculateDFTxy(samples, sampleRate);
+			DFT theDft = dft[0];
+			
+			// stop if nothing to do
+			if(datasets.isEmpty() || lastSampleNumber - firstSampleNumber < 1) {
+				theDft.firstSampleNumber = -1;
+				theDft.populated = false;
+				DFT.binSizeHz = 0;
+				DFT.binCount = 0;
+				DFT.minHz = 0;
+				DFT.maxHz = datasets.isEmpty() ? 1 : datasets.get(0).connection.sampleRate / 2;
+				DFT.minPower = 0;
+				DFT.maxPower = 1;
+				DFT.windowLength = 0;
+				DFT.firstDft = 0;
+				DFT.lastDft = 0;
+				return;
 			}
 			
-			// calculate the DFT domain
+			// calculate the DFT for each dataset
+			int sampleRate = datasets.get(0).connection.sampleRate;
+			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
+				float[] samples = datasets.get(datasetN).getSamplesArray(firstSampleNumber, lastSampleNumber);
+				theDft.forDataset[datasetN] = calculateDFTxy(samples, sampleRate);
+			}
+			theDft.firstSampleNumber = firstSampleNumber;
+			theDft.populated = true;
+			
+			// calculate the domain and range
 			// the DFTs are currently calculated from DC to Nyquist
 			// but the user can specify an arbitrary window length, so the max frequency may actually be a little below Nyquist
-			minHz = 0;
-			maxHz = dfts[0][0][dfts[0][0].length - 2];
+			DFT.minHz    = 0;
+			DFT.maxHz    = theDft.forDataset[0][theDft.forDataset[0].length - 2];
+			DFT.minPower = theDft.forDataset[0][1];
+			DFT.maxPower = theDft.forDataset[0][1];
+			DFT.windowLength = lastSampleNumber - firstSampleNumber + 1;
 			
-			// calculate the DFT range
-			minPower = dfts[0][0][1];
-			maxPower = dfts[0][0][1];
-			for(int dataset = 0; dataset < datasetsCount; dataset++) {
-				for(int i = 1; i < dfts[dataset][0].length; i += 2) {
-					float y = dfts[dataset][0][i];
-					if(y > maxPower) maxPower = y;
-					if(y < minPower) minPower = y;
+			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
+				for(int i = 1; i < theDft.forDataset[datasetN].length; i += 2) {
+					float y = theDft.forDataset[datasetN][i];
+					if(y > DFT.maxPower) DFT.maxPower = y;
+					if(y < DFT.minPower) DFT.minPower = y;
 				}
 			}
 			
 		} else {
 			
-			for(int dataset = 0; dataset < datasetsCount; dataset++) {
-				for(int dft = firstDft; dft <= lastDft; dft++) {
-					
-					int firstSampleNumber = dft * dftWindowLength;
-					int rbIndex = dft % dftsCount;
-					
-					if(firstSampleNumberOfDft[dataset][rbIndex] != firstSampleNumber) {
-						
-						int startX = firstSampleNumber;
-						int endX = startX + dftWindowLength - 1;
-						float[] samples = datasets.get(dataset).getSamplesArray(startX, endX);
-						dfts[dataset][rbIndex] = calculateDFT(samples, sampleRate);
-						firstSampleNumberOfDft[dataset][rbIndex] = startX;
-						
+			DFT.lastDft = (endSampleNumber + 1) / windowLength - 1;
+			DFT.firstDft = DFT.lastDft - dftsCount + 1;
+			if(DFT.firstDft < 0)
+				DFT.firstDft = 0;
+			if(DFT.lastDft < 0)
+				return;
+
+			// calculate the DFTs for each dataset
+			int sampleRate = datasets.get(0).connection.sampleRate;
+			int trueLastSampleNumber = datasets.get(0).connection.getSampleCount() - 1;
+			for(int dftN = DFT.firstDft; dftN <= DFT.lastDft; dftN++) {
+				int firstSampleNumber = dftN * windowLength;
+				int lastSampleNumber = firstSampleNumber + windowLength - 1;
+				DFT theDft = dft[dftN % dftsCount];
+				if(theDft.firstSampleNumber != firstSampleNumber || !theDft.populated) {
+					theDft.firstSampleNumber = firstSampleNumber;
+					theDft.populated = false;
+					if(lastSampleNumber <= trueLastSampleNumber) {
+						for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
+							float[] samples = datasets.get(datasetN).getSamplesArray(firstSampleNumber, lastSampleNumber);
+							theDft.forDataset[datasetN] = calculateDFT(samples, sampleRate);
+						}
+						theDft.populated = true;
 					}
-					
 				}
 			}
 			
-			// calculate the DFT domain
+			// calculate the domain and range
 			// the DFTs are currently calculated from DC to Nyquist
 			// but the user can specify an arbitrary window length, so the max frequency may actually be a little below Nyquist
-			minHz = 0;
-			maxHz = (float) ((double) (dfts[0][0].length - 1) * (double) sampleRate / (double) dftWindowLength);
-			
-			// calculate the DFT range
-			minPower = dfts[0][firstDft % dftsCount][0];
-			maxPower = dfts[0][firstDft % dftsCount][0];
-			for(int dataset = 0; dataset < datasetsCount; dataset++) {
-				for(int dft = firstDft; dft <= lastDft; dft++) {
-					for(int i = 0; i < dfts[dataset][dft % dftsCount].length; i++) {
-						float y = dfts[dataset][dft % dftsCount][i];
-						if(y > maxPower) maxPower = y;
-						if(y < minPower) minPower = y;
-					}
+			DFT.minHz    = 0;
+			DFT.maxHz    = 1;
+			DFT.minPower = 0;
+			DFT.maxPower = 1;
+			DFT.windowLength = windowLength;
+			DFT theDft = dft[DFT.firstDft % dftsCount];
+			if(theDft.populated) {
+				DFT.maxHz    = (float) ((double) (theDft.forDataset[0].length - 1) * (double) sampleRate / (double) windowLength);
+				DFT.minPower = theDft.forDataset[0][0];
+				DFT.maxPower = theDft.forDataset[0][0];
+				for(int dftN = DFT.firstDft; dftN <= DFT.lastDft; dftN++) {
+					theDft = dft[dftN % dftsCount];
+					if(theDft.populated)
+						for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
+							for(int i = 0; i < theDft.forDataset[datasetN].length; i++) {
+								float y = theDft.forDataset[datasetN][i];
+								if(y > DFT.maxPower) DFT.maxPower = y;
+								if(y < DFT.minPower) DFT.minPower = y;
+							}
 				}
 			}
 			
@@ -184,7 +223,7 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public float getMinHz() {
 		
-		return minHz;
+		return DFT.minHz;
 		
 	}
 	
@@ -195,7 +234,7 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public float getMaxHz() {
 		
-		return maxHz;
+		return DFT.maxHz;
 		
 	}
 	
@@ -206,7 +245,7 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public float getMinPower() {
 		
-		return minPower;
+		return DFT.minPower;
 		
 	}
 	
@@ -217,7 +256,29 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public float getMaxPower() {
 		
-		return maxPower;
+		return DFT.maxPower;
+		
+	}
+	
+	/**
+	 * This should only be called after calculateDfts().
+	 * 
+	 * @return    Window length of the DFTs.
+	 */
+	public int getWindowLength() {
+		
+		return DFT.windowLength;
+		
+	}
+	
+	/**
+	 * This should only be called after calculateDfts().
+	 * 
+	 * @return    The number of DFTs that can be displayed. This will be less than the full amount if not enough data exists.
+	 */
+	public int getActualWindowCount() {
+		
+		return DFT.lastDft - DFT.firstDft + 1;
 		
 	}
 	
@@ -228,7 +289,7 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public double getBinSizeHz() {
 		
-		return binSizeHz;
+		return DFT.binSizeHz;
 		
 	}
 	
@@ -239,7 +300,7 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public int getBinCount() {
 		
-		return binCount;
+		return DFT.binCount;
 		
 	}
 	
@@ -247,32 +308,40 @@ public class OpenGLFrequencyDomainCache {
 	 * This should only be called after calculateDfts().
 	 * 
 	 * @param binN    The bin number.
-	 * @return        A float[] containing the bin values (one value per dataset) for that bin number.
+	 * @return        A float[] containing the bin values (one value per dataset) for that bin number, or null if a DFT does not exist.
 	 */
-	public float[] getBinValuesForLiveView(int binN) {
+	public float[] getPowerLevelsForLiveViewBin(int binN) {
 		
-		float[] binValues = new float[dfts.length];
-		for(int datasetN = 0; datasetN < binValues.length; datasetN++)
-			binValues[datasetN] = dfts[datasetN][0][(2 * binN) + 1];
+		DFT theDft = dft[0];
 		
-		return binValues;
+		if(!theDft.populated)
+			return null;
+		
+		float[] binValueForDataset = new float[datasetsCount];
+		for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
+			binValueForDataset[datasetN] = theDft.forDataset[datasetN][(2 * binN) + 1];
+		
+		return binValueForDataset;
 		
 	}
 	
 	/**
 	 * This should only be called after calculateDfts() and renderWaveformView().
 	 * 
-	 * @param binN         The frequency bin number.
+	 * @param freqBinN     The frequency bin number.
 	 * @param powerBinN    The power bin number.
-	 * @return             An int[] containing the number of DFTs that occupy that bin (one number per dataset.)
+	 * @return             An int[] containing the DFT counts (one count per dataset) for that bin, or null if no DFTs currently exist.
 	 */
-	public int[] getBinValuesForWaveformView(int binN, int powerBinN) {
+	public int[] getWaveformCountsForBin(int freqBinN, int powerBinN) {
 		
-		int[] binCounts = new int[dfts.length];
-		for(int datasetN = 0; datasetN < binCounts.length; datasetN++)
-			binCounts[datasetN] = histogram[datasetN][binN][powerBinN];
+		if(getActualWindowCount() < 1)
+			return null;
 		
-		return binCounts;
+		int[] waveformCountForDataset = new int[datasetsCount];
+		for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
+			waveformCountForDataset[datasetN] = histogram[datasetN][freqBinN][powerBinN];
+		
+		return waveformCountForDataset;
 		
 	}
 	
@@ -281,18 +350,20 @@ public class OpenGLFrequencyDomainCache {
 	 * 
 	 * @param binN    The bin number.
 	 * @param rowN    The waterfall row (DFT number) to query.
-	 * @return        A float[] containing the bin values (one value per dataset) for that bin number / row number combination.
+	 * @return        A float[] containing the bin values (one value per dataset) for that bin number / row number combination, or null if a DFT does not exist there.
 	 */
-	public float[] getBinValuesForWaterfallView(int binN, int rowN) {
+	public float[] getWaterfallPowerLevelsForBin(int binN, int rowN) {
 		
-		// map rowN to a row in the dfts[][][] array because it is a ringbuffer
-		int row = (lastDft - rowN) % dfts[0].length;
+		// map rowN to the ringbuffer
+		DFT theDft = dft[(DFT.lastDft - rowN) % dft.length];
+		if(!theDft.populated)
+			return null;
 		
-		float[] binValues = new float[dfts.length];
-		for(int datasetN = 0; datasetN < binValues.length; datasetN++)
-			binValues[datasetN] = dfts[datasetN][row][binN];
+		float[] binValuesForDataset = new float[datasetsCount];
+		for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
+			binValuesForDataset[datasetN] = theDft.forDataset[datasetN][binN];
 		
-		return binValues;
+		return binValuesForDataset;
 		
 	}
 	
@@ -312,26 +383,30 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public void renderLiveView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
 		
+		DFT theDft = dft[0];
+		if(!theDft.populated)
+			return;
+		
 		float[] offscreenMatrix = new float[16];
 		OpenGL.makeOrthoMatrix(offscreenMatrix, 0, width, 0, height, -1, 1);
 		// adjust so: x = (x - plotMinX) / domain * plotWidth;
 		// adjust so: y = (y - plotMinY) / plotRange * plotHeight;
-		OpenGL.scaleMatrix    (offscreenMatrix, width,              height,                   1);
-		OpenGL.scaleMatrix    (offscreenMatrix, 1f/(maxHz - minHz), 1f/(maxPower - minPower), 1);
-		OpenGL.translateMatrix(offscreenMatrix, -minHz,             -minPower,                0);
+		OpenGL.scaleMatrix    (offscreenMatrix, width,                      height,                   1);
+		OpenGL.scaleMatrix    (offscreenMatrix, 1f/(DFT.maxHz - DFT.minHz), 1f/(maxPower - minPower), 1);
+		OpenGL.translateMatrix(offscreenMatrix, -DFT.minHz,                 -minPower,                0);
 		
 		if(liveViewFbHandle == null || liveViewTexHandle == null) {
 			liveViewFbHandle = new int[1];
 			liveViewTexHandle = new int[1];
 			OpenGL.createOffscreenFramebuffer(gl, liveViewFbHandle, liveViewTexHandle);
 		}
-		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, liveViewFbHandle, liveViewTexHandle, width, height);
 		
 		// draw the DFT line charts onto the texture
+		OpenGL.startDrawingOffscreen(gl, offscreenMatrix, liveViewFbHandle, liveViewTexHandle, width, height);
 		for(int dataset = 0; dataset < datasets.size(); dataset++) {
 			
-			int dftBinCount = dfts[dataset][0].length / 2;
-			FloatBuffer buffer = Buffers.newDirectFloatBuffer(dfts[dataset][0]);
+			int dftBinCount = theDft.forDataset[dataset].length / 2;
+			FloatBuffer buffer = Buffers.newDirectFloatBuffer(theDft.forDataset[dataset]);
 			OpenGL.drawLinesXy(gl, GL3.GL_LINE_STRIP, datasets.get(dataset).glColor, buffer, dftBinCount);
 			
 			// also draw points if there are relatively few bins on screen
@@ -339,7 +414,6 @@ public class OpenGLFrequencyDomainCache {
 				OpenGL.drawPointsXy(gl, datasets.get(dataset).glColor, buffer, dftBinCount);
 			
 		}
-		
 		OpenGL.stopDrawingOffscreen(gl, chartMatrix);
 		
 		OpenGL.drawTexturedBox(gl, liveViewTexHandle, true, bottomLeftX, bottomLeftY, width, height, 0, false);
@@ -364,21 +438,26 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public void renderWaveformView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets, int rowCount) {
 		
+		if(!dft[0].populated)
+			return;
+		
 		// calculate a 2D histogram for each dataset
-		int datasetsCount = datasets.size();
-		int xBinCount = dfts[0][0].length;
+		int xBinCount = dft[0].forDataset[0].length;
 		histogram = new int[datasetsCount][xBinCount][rowCount];
-		for(int dataset = 0; dataset < datasetsCount; dataset++) {
-			for(int dft = firstDft; dft <= lastDft; dft++) {
-				for(int xBin = 0; xBin < xBinCount; xBin++) {
-					int yBin = (int) ((dfts[dataset][dft % dfts[0].length][xBin] - minPower) / (maxPower - minPower) * rowCount);
-					if(yBin >= 0 && yBin < rowCount)
-						histogram[dataset][xBin][yBin]++;
+		for(int dftN = DFT.firstDft; dftN <= DFT.lastDft; dftN++) {
+			DFT theDft = dft[dftN % dft.length];
+			if(theDft.populated) {
+				for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
+					for(int xBin = 0; xBin < xBinCount; xBin++) {
+						int yBin = (int) ((theDft.forDataset[datasetN][xBin] - minPower) / (maxPower - minPower) * rowCount);
+						if(yBin >= 0 && yBin < rowCount)
+							histogram[datasetN][xBin][yBin]++;
+					}
 				}
 			}
 		}
 
-		float dftCount = lastDft - firstDft + 1;
+		float dftCount = getActualWindowCount();
 		int pixelCount = xBinCount * rowCount;
 		
 		ByteBuffer bytes = Buffers.newDirectByteBuffer(pixelCount * 4 * 4); // 4 bytes per: r,g,b,a
@@ -441,8 +520,8 @@ public class OpenGLFrequencyDomainCache {
 	 */
 	public void renderWaterfallView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
 		
-		int binCount = dfts[0][0].length;
-		int dftsCount = dfts[0].length;
+		int binCount = dft[0].forDataset[0].length;
+		int dftsCount = dft.length; // but some DFTs might not be populated
 		int datasetsCount = datasets.size();
 		
 		int pixelCount = binCount * dftsCount;
@@ -457,29 +536,33 @@ public class OpenGLFrequencyDomainCache {
 			float newB = datasets.get(dataset).glColor[2];
 			
 			for(int y = 0; y < dftsCount; y++) {
-				int dft = lastDft - y;
+				
+				int dftN = DFT.lastDft - y;
+				DFT theDft = dftN >= 0 ? dft[dftN % dftsCount] : null;
+				if(theDft == null || !theDft.populated)
+					continue;
+				
 				for(int x = 0; x < binCount; x++) {
-					if(dft >= 0) {
-						int index = (x + (y * binCount)) * 4; // 4 floats per pixel
-						
-						float r = pixels.get(index + 0);
-						float g = pixels.get(index + 1);
-						float b = pixels.get(index + 2);
-						float a = pixels.get(index + 3);
-						
-						float newA = (dfts[dataset][dft % dftsCount][x] - minPower) / (maxPower - minPower);
-						
-						r = (newR * newA) + (r * (1f - newA));
-						g = (newG * newA) + (g * (1f - newA));
-						b = (newB * newA) + (b * (1f - newA));
-						a = (newA * 1f)   + (a * (1f - newA));
-						
-						pixels.put(index + 0, r);
-						pixels.put(index + 1, g);
-						pixels.put(index + 2, b);
-						pixels.put(index + 3, a);
-					}
+					int index = (x + (y * binCount)) * 4; // 4 floats per pixel
+					
+					float r = pixels.get(index + 0);
+					float g = pixels.get(index + 1);
+					float b = pixels.get(index + 2);
+					float a = pixels.get(index + 3);
+					
+					float newA = (theDft.forDataset[dataset][x] - minPower) / (maxPower - minPower);
+					
+					r = (newR * newA) + (r * (1f - newA));
+					g = (newG * newA) + (g * (1f - newA));
+					b = (newB * newA) + (b * (1f - newA));
+					a = (newA * 1f)   + (a * (1f - newA));
+					
+					pixels.put(index + 0, r);
+					pixels.put(index + 1, g);
+					pixels.put(index + 2, b);
+					pixels.put(index + 3, a);
 				}
+				
 			}
 		}
 		
@@ -532,20 +615,20 @@ public class OpenGLFrequencyDomainCache {
 		// example: 500ms window -> 1/0.5 = 2 Hz bin size
 		double samplesPerSecond = sampleRate;
 		int sampleCount = samples.length;
-		binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
+		DFT.binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
 		
 		// maximum frequency range (in Hertz) is from 0 to the sample rate (in Hertz), divided by 2
 		// example: sampling at 1kHz -> 0 Hz to 1000/2 = 500 Hz
 		double maxFrequencyHz = samplesPerSecond / 2.0;
-		binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
+		DFT.binCount = (int) (maxFrequencyHz / DFT.binSizeHz) + 1;
 		
 		// generate the sine and cosine LUTs
 		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {
-			sinLUT = new double[binCount][sampleCount];
-			cosLUT = new double[binCount][sampleCount];
+			sinLUT = new double[DFT.binCount][sampleCount];
+			cosLUT = new double[DFT.binCount][sampleCount];
 			System.gc();
-			for(int bin = 0; bin < binCount; bin++) {
-				double frequencyHz  = (double) bin * binSizeHz;
+			for(int bin = 0; bin < DFT.binCount; bin++) {
+				double frequencyHz  = (double) bin * DFT.binSizeHz;
 				for(int sample = 0; sample < sampleCount; sample++) {
 					double timeSec      = (double) sample / samplesPerSecond;
 					sinLUT[bin][sample] = Math.sin(2.0 * Math.PI * frequencyHz * timeSec);
@@ -555,9 +638,9 @@ public class OpenGLFrequencyDomainCache {
 		}
 		
 		// calc the DFT, assuming the samples are in Volts, and assuming the load is a unit load (1 ohm)
-		float[] powerLevels = new float[binCount];
+		float[] powerLevels = new float[DFT.binCount];
 		
-		for(int bin = 0; bin < binCount; bin++) {
+		for(int bin = 0; bin < DFT.binCount; bin++) {
 			double realV = 0.0;
 			double imaginaryV = 0.0;
 //			double frequencyHz = (double) bin * binSizeHz;
@@ -576,7 +659,7 @@ public class OpenGLFrequencyDomainCache {
 			
 			// ensure powerW != 0, which would cause the Math.log10() below to return -Infinity
 			if(powerW == 0)
-				powerW = Double.MIN_VALUE;
+				powerW = Math.pow(10, -36); // arbitrarily picked because it looks like a reasonable min
 			
 			powerLevels[bin] = (float) Math.log10(powerW);
 		}
@@ -599,20 +682,20 @@ public class OpenGLFrequencyDomainCache {
 		// example: 500ms window -> 1/0.5 = 2 Hz bin size
 		double samplesPerSecond = sampleRate;
 		int sampleCount = samples.length;
-		binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
+		DFT.binSizeHz = 1.0 / ((double) sampleCount / samplesPerSecond);
 		
 		// maximum frequency range (in Hertz) is from 0 to the sample rate (in Hertz), divided by 2
 		// example: sampling at 1kHz -> 0 Hz to 1000/2 = 500 Hz
 		double maxFrequencyHz = samplesPerSecond / 2.0;
-		binCount = (int) (maxFrequencyHz / binSizeHz) + 1;
+		DFT.binCount = (int) (maxFrequencyHz / DFT.binSizeHz) + 1;
 		
 		// generate the sine and cosine LUTs
 		if(sinLUT == null || cosLUT == null || sinLUT[0].length != sampleCount || cosLUT[0].length != sampleCount) {
-			sinLUT = new double[binCount][sampleCount];
-			cosLUT = new double[binCount][sampleCount];
+			sinLUT = new double[DFT.binCount][sampleCount];
+			cosLUT = new double[DFT.binCount][sampleCount];
 			System.gc();
-			for(int bin = 0; bin < binCount; bin++) {
-				double frequencyHz  = (double) bin * binSizeHz;
+			for(int bin = 0; bin < DFT.binCount; bin++) {
+				double frequencyHz  = (double) bin * DFT.binSizeHz;
 				for(int sample = 0; sample < sampleCount; sample++) {
 					double timeSec      = (double) sample / samplesPerSecond;
 					sinLUT[bin][sample] = Math.sin(2.0 * Math.PI * frequencyHz * timeSec);
@@ -622,12 +705,12 @@ public class OpenGLFrequencyDomainCache {
 		}
 		
 		// calc the DFT, assuming the samples are in Volts, and assuming the load is a unit load (1 ohm)
-		float[] powerLevels = new float[binCount*2];
+		float[] powerLevels = new float[DFT.binCount*2];
 		
-		for(int bin = 0; bin < binCount; bin++) {
+		for(int bin = 0; bin < DFT.binCount; bin++) {
 			double realV = 0.0;
 			double imaginaryV = 0.0;
-			double frequencyHz = (double) bin * binSizeHz;
+			double frequencyHz = (double) bin * DFT.binSizeHz;
 			for(int x = 0; x < sampleCount; x++) {
 				double sample = samples[x];
 //				double timeSec   = (double) x / samplesPerSecond;
@@ -643,7 +726,7 @@ public class OpenGLFrequencyDomainCache {
 			
 			// ensure powerW != 0, which would cause the Math.log10() below to return -Infinity
 			if(powerW == 0)
-				powerW = Double.MIN_VALUE;
+				powerW = Math.pow(10, -36); // arbitrarily picked because it looks like a reasonable min
 			
 			powerLevels[bin*2]     = (float) frequencyHz;
 			powerLevels[bin*2 + 1] = (float) Math.log10(powerW);

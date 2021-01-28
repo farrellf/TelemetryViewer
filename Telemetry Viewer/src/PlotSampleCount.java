@@ -71,8 +71,8 @@ public class PlotSampleCount extends Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param maxTimestamp      The moment in time associated with the right edge of the plot.
-	 * @param maxX              The x-axis value at the right edge of the plot.
+	 * @param endTimestamp      Timestamp corresponding with the right edge of a time-domain plot. NOTE: this might be in the future!
+	 * @param endSampleNumber   Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
 	 * @param zoomLevel         Current zoom level. 1.0 = no zoom.
 	 * @param datasets          Datasets to acquire from.
 	 * @param bitfieldEdges     Bitfield states to show edge events from.
@@ -81,7 +81,7 @@ public class PlotSampleCount extends Plot {
 	 * @param cachedMode        True to enable the cache.
 	 * @param showTimestamps    Ignored. This is only used by PlotMilliseconds.
 	 */
-	@Override void initialize(long maxTimestamp, int maxX, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override void initialize(long endTimestamp, int endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.bitfieldEdges = bitfieldEdges;
@@ -90,8 +90,10 @@ public class PlotSampleCount extends Plot {
 		xAxisTitle = "Sample Number";
 		
 		// calculate the domain, ensuring it's >= 1
-		plotDomain = (int) (duration * zoomLevel) + 1;
-		plotMaxX = maxX;
+		plotDomain = (int) (duration * zoomLevel);
+		if(plotDomain < 1)
+			plotDomain = 1;
+		plotMaxX = endSampleNumber;
 		plotMinX = plotMaxX - plotDomain;
 		
 		// exit if there are no samples to acquire
@@ -100,7 +102,7 @@ public class PlotSampleCount extends Plot {
 		                  !bitfieldLevels.isEmpty() ? bitfieldLevels.get(0).connection.getSampleCount() :
 		                                              0;
 		
-		if(sampleCount < 1 || maxX < 0) {
+		if(sampleCount < 1 || endSampleNumber < 0) {
 			maxSampleNumber = -1;
 			minSampleNumber = -1;
 			plotSampleCount = 0;
@@ -110,7 +112,7 @@ public class PlotSampleCount extends Plot {
 		}
 		
 		// determine which samples to acquire
-		maxSampleNumber = maxX < sampleCount ? maxX : sampleCount - 1;
+		maxSampleNumber = endSampleNumber < sampleCount ? endSampleNumber : sampleCount - 1;
 		minSampleNumber = maxSampleNumber - (int) plotDomain;
 		
 		if(minSampleNumber < plotMinX)
@@ -399,6 +401,21 @@ public class PlotSampleCount extends Plot {
 			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
 			gl.glDisable(GL3.GL_SCISSOR_TEST);
 		}
+		if(plotMaxX > maxSampleNumber) {
+			// if x>maxSampleNumber is on screen, we need to erase the x>maxSampleNumber region because it may have old data on it
+			gl.glEnable(GL3.GL_SCISSOR_TEST);
+			int[] args = calculateScissorArgs(maxSampleNumber, plotMaxX, plotWidth, plotHeight);
+			gl.glScissor(args[0], args[1], args[2], args[3]);
+			gl.glClearColor(0, 0, 0, 0);
+			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			if(plotMaxX % plotDomain < maxSampleNumber % plotDomain) {
+				args = calculateScissorArgs(plotMaxX - (plotMaxX % plotDomain), plotMaxX, plotWidth, plotHeight);
+				gl.glScissor(args[0], args[1], args[2], args[3]);
+				gl.glClearColor(0, 0, 0, 0);
+				gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			}
+			gl.glDisable(GL3.GL_SCISSOR_TEST);
+		}
 		if(draw1.enabled) {
 			gl.glEnable(GL3.GL_SCISSOR_TEST);
 			gl.glScissor(draw1.scissorArgs[0], draw1.scissorArgs[1], draw1.scissorArgs[2], draw1.scissorArgs[3]);
@@ -512,8 +529,21 @@ public class PlotSampleCount extends Plot {
 			sampleNumber = maxSampleNumber;
 		
 		String label = "Sample " + sampleNumber;
-		float pixelX = (float) (sampleNumber - plotMinX) / (float) plotDomain * plotWidth;
+		float pixelX = getPixelXforSampleNumber((int) sampleNumber, plotWidth);
 		return new TooltipInfo(true, sampleNumber, label, pixelX);
+		
+	}
+	
+	/**
+	 * Gets the horizontal location, relative to the plot, for a sample number.
+	 * 
+	 * @param sampleNumber    The sample number.
+	 * @param plotWidth       Width of the plot region, in pixels.
+	 * @return                Corresponding horizontal location on the plot, in pixels, with 0 = left edge of the plot.
+	 */
+	@Override float getPixelXforSampleNumber(int sampleNumber, float plotWidth) {
+		
+		return (float) (sampleNumber - plotMinX) / (float) plotDomain * plotWidth;
 		
 	}
 	

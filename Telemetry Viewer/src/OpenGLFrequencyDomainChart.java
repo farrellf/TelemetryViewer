@@ -159,7 +159,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		                                           WaveformRowCountLowerLimit,
 		                                           WaveformRowCountUpperLimit,
 		                                           newChartType -> chartType = newChartType,
-		                                           newSampleCount -> sampleCount = newSampleCount,
+		                                           newSampleCount -> duration = newSampleCount,
 		                                           newTotalSampleCount -> totalSampleCount = newTotalSampleCount,
 		                                           newWaveformRowCount -> waveformRowCount = newWaveformRowCount);
 		
@@ -207,30 +207,21 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
-		// scale the DFT window size by the current zoom level
-		int dftWindowLength = (int) (sampleCount * zoomLevel);
-		
-		// only draw if we can
-		if(lastSampleNumber < sampleCount)
-			return handler; // not enough samples
-		if(dftWindowLength < 5)
-			return handler; // zoomed in too much
-		
-		boolean haveDatasets = datasets != null && !datasets.isEmpty();
+		boolean haveDatasets = !datasets.isEmpty();
+		boolean haveTelemetry = haveDatasets && endSampleNumber > 5;
 		
 		// calculate the DFTs
 		if(cache == null)
-			cache = new OpenGLFrequencyDomainCache(gl);
-		if(haveDatasets)
-			cache.calculateDfts(lastSampleNumber, dftWindowLength, totalSampleCount, datasets, chartType);
+			cache = new OpenGLFrequencyDomainCache();
+		cache.calculateDfts(endSampleNumber, duration, chartType.equals("Live View") ? 1 : (totalSampleCount / duration), datasets, chartType);
 		
 		// calculate the domain
-		float plotMinX = haveDatasets ? cache.getMinHz() : 0;
-		float plotMaxX = haveDatasets ? cache.getMaxHz() : 1;
+		float plotMinX = cache.getMinHz();
+		float plotMaxX = cache.getMaxHz();
 		float domain = plotMaxX - plotMinX;
 		
 		// calculate the range and ensure it's >0
@@ -240,8 +231,8 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		float plotMinTime = 0;
 		float plotMaxTime = (float) totalSampleCount / sampleRate;
 
-		float plotMinPower = haveDatasets ? cache.getMinPower() : -12;
-		float plotMaxPower = haveDatasets ? cache.getMaxPower() : 1;
+		float plotMinPower = haveTelemetry ? cache.getMinPower() : -12;
+		float plotMaxPower = haveTelemetry ? cache.getMaxPower() : 1;
 		if(plotMinPower == plotMaxPower) {
 			float value = plotMinPower;
 			plotMinPower = value - 0.001f;
@@ -313,7 +304,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		if(showDftInfo) {
 			if(chartType.equals("Live View")) {
 				
-				dftWindowLengthText = dftWindowLength + " sample rectangular window";
+				dftWindowLengthText = cache.getWindowLength() + " sample rectangular window";
 				yDftWindowLengthTextBaseline = Theme.tilePadding;
 				xDftWindowLenghtTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowLengthText);
 				
@@ -327,13 +318,14 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				
 			} else if(chartType.equals("Waveform View")) {
 				
-				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);
-				int trueTotalSampleCount = windowCount * dftWindowLength;
+				int windowCount = cache.getActualWindowCount();
+				int windowLength = cache.getWindowLength();
+				int trueTotalSampleCount = windowCount * windowLength;
 				dftWindowCountText = windowCount + " windows (total of " + trueTotalSampleCount + " samples)";
 				yDftWindowCountTextBaseline = Theme.tilePadding;
 				xDftWindowCountTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowCountText);
 				
-				dftWindowLengthText = dftWindowLength + " sample rectangular window";
+				dftWindowLengthText = windowLength + " sample rectangular window";
 				yDftWindowLengthTextBaseline = yDftWindowCountTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
 				xDftWindowLenghtTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowLengthText);
 				
@@ -356,13 +348,14 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 				xPowerScaleLeft = xPowerScaleRight - (100 * ChartsController.getDisplayScalingFactor());
 				xMinPowerTextLeft = xPowerScaleLeft - Theme.tickTextPadding - OpenGL.smallTextWidth(gl, minPowerText);
 				
-				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);
-				int trueTotalSampleCount = windowCount * dftWindowLength;
+				int windowCount = cache.getActualWindowCount();
+				int windowLength = cache.getWindowLength();
+				int trueTotalSampleCount = windowCount * windowLength;
 				dftWindowCountText = windowCount + " windows (total of " + trueTotalSampleCount + " samples)";
 				yDftWindowCountTextBaseline = yPowerTextTop + Theme.tickTextPadding;
 				xDftWindowCountTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowCountText);
 				
-				dftWindowLengthText = dftWindowLength + " sample rectangular window";
+				dftWindowLengthText = windowLength + " sample rectangular window";
 				yDftWindowLengthTextBaseline = yDftWindowCountTextBaseline + OpenGL.smallTextHeight + Theme.tickTextPadding;
 				xDftWindowLenghtTextLeft = width - Theme.tilePadding - OpenGL.smallTextWidth(gl, dftWindowLengthText);
 				
@@ -570,7 +563,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		
 		// draw the DFTs
-		if(haveDatasets) {
+		if(haveTelemetry) {
 			if(chartType.equals("Live View"))
 				cache.renderLiveView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
 			else if(chartType.equals("Waveform View"))
@@ -596,16 +589,18 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			
 			if(chartType.equals("Live View")) {
 				// for live view, get the power levels (one per dataset) for the mouseX frequency
-				float[] binValues = cache.getBinValuesForLiveView(binN);
-				text = new String[datasets.size() + 1];
-				colors = new Color[datasets.size() + 1];
-				text[0] = (int) frequency + " Hz";
-				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-				for(int i = 0; i < datasets.size(); i++) {
-					text[i + 1] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
-					colors[i + 1] = datasets.get(i).color;
+				float[] binValues = cache.getPowerLevelsForLiveViewBin(binN);
+				if(binValues != null) {
+					text = new String[datasets.size() + 1];
+					colors = new Color[datasets.size() + 1];
+					text[0] = (int) frequency + " Hz";
+					colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+					for(int i = 0; i < datasets.size(); i++) {
+						text[i + 1] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
+						colors[i + 1] = datasets.get(i).color;
+					}
+					anchorY = (int) ((binValues[0] - plotMinY) / plotRange * plotHeight + yPlotBottom);
 				}
-				anchorY = (int) ((binValues[0] - plotMinY) / plotRange * plotHeight + yPlotBottom);
 			} else if(chartType.equals("Waveform View")) {
 				// map mouseY to a power bin
 				int powerBinN = Math.round(((float) mouseY - yPlotBottom) / plotHeight * waveformRowCount - 0.5f);
@@ -613,42 +608,47 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					powerBinN = waveformRowCount - 1;
 				float minPower = (float) powerBinN / (float) waveformRowCount * (plotMaxPower - plotMinPower) + plotMinPower;
 				float maxPower = (float) (powerBinN + 1) / (float) waveformRowCount * (plotMaxPower - plotMinPower) + plotMinPower;
-				int windowCount = lastSampleNumber >= totalSampleCount ? (totalSampleCount / dftWindowLength) : (lastSampleNumber / dftWindowLength);
 				// for waveform view, get the percentages (one per dataset) for the mouseX frequency and mouseY power range
-				int[] binCounts = cache.getBinValuesForWaveformView(binN, powerBinN);
-				text = new String[datasets.size() + 1];
-				colors = new Color[datasets.size() + 1];
-				text[0] = (int) frequency + " Hz, 1e" + ChartUtils.formattedNumber(minPower, 4) + " to 1e" + ChartUtils.formattedNumber(maxPower, 4) + " Watts";
-				colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-				for(int i = 0; i < datasets.size(); i++) {
-					text[i + 1] = binCounts[i] + " of " + windowCount + " DFTs (" + ChartUtils.formattedNumber((double) binCounts[i] / (double) windowCount * 100.0, 4) + "%)";
-					colors[i + 1] = datasets.get(i).color;
+				int[] waveformCounts = cache.getWaveformCountsForBin(binN, powerBinN);
+				if(waveformCounts != null) {
+					int windowCount = cache.getActualWindowCount();
+					text = new String[datasets.size() + 1];
+					colors = new Color[datasets.size() + 1];
+					text[0] = (int) frequency + " Hz, 1e" + ChartUtils.formattedNumber(minPower, 4) + " to 1e" + ChartUtils.formattedNumber(maxPower, 4) + " Watts";
+					colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+					for(int i = 0; i < datasets.size(); i++) {
+						text[i + 1] = waveformCounts[i] + " of " + windowCount + " DFTs (" + ChartUtils.formattedNumber((double) waveformCounts[i] / (double) windowCount * 100.0, 4) + "%)";
+						colors[i + 1] = datasets.get(i).color;
+					}
+					anchorY = (int) (((float) powerBinN + 0.5f) / (float) waveformRowCount * plotHeight + yPlotBottom);
 				}
-				anchorY = (int) (((float) powerBinN + 0.5f) / (float) waveformRowCount * plotHeight + yPlotBottom);
 			} else if(chartType.equals("Waterfall View")) {
 				// map mouseY to a time
-				int waterfallRowCount = totalSampleCount / dftWindowLength;
+				int waterfallRowCount = (totalSampleCount / duration);
 				int waterfallRowN = Math.round(((float) mouseY - yPlotBottom) / plotHeight * waterfallRowCount - 0.5f);
 				if(waterfallRowN > waterfallRowCount - 1)
 					waterfallRowN = waterfallRowCount - 1;
-				int trueLastSampleNumber = lastSampleNumber - (lastSampleNumber % dftWindowLength);
-				int rowLastSampleNumber = trueLastSampleNumber - (waterfallRowN * dftWindowLength) - 1;
-				int rowFirstSampleNumber = rowLastSampleNumber - dftWindowLength + 1;
+				int windowLength = cache.getWindowLength();
+				int trueLastSampleNumber = endSampleNumber - (endSampleNumber % windowLength);
+				int rowLastSampleNumber = trueLastSampleNumber - (waterfallRowN * windowLength) - 1;
+				int rowFirstSampleNumber = rowLastSampleNumber - windowLength + 1;
 				if(rowFirstSampleNumber >= 0) {
-					text = new String[datasets.size() + 2];
-					colors = new Color[datasets.size() + 2];
 					// for waterfall view, get the power levels (one per dataset) for the mouseX frequency and mouseY time
-					float[] binValues = cache.getBinValuesForWaterfallView(binN, waterfallRowN);
-					float secondsElapsed = ((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotMaxTime;
-					text[0] = (int) frequency + " Hz, " + ChartUtils.formattedNumber(secondsElapsed, 4) + " Seconds Ago";
-					colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-					text[1] = "(Samples " + rowFirstSampleNumber + " to " + rowLastSampleNumber + ")";
-					colors[1] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
-					for(int i = 0; i < datasets.size(); i++) {
-						text[i + 2] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
-						colors[i + 2] = datasets.get(i).color;
+					float[] binValues = cache.getWaterfallPowerLevelsForBin(binN, waterfallRowN);
+					if(binValues != null) {
+						text = new String[datasets.size() + 2];
+						colors = new Color[datasets.size() + 2];
+						float secondsElapsed = ((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotMaxTime;
+						text[0] = (int) frequency + " Hz, " + ChartUtils.formattedNumber(secondsElapsed, 4) + " Seconds Ago";
+						colors[0] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+						text[1] = "(Samples " + rowFirstSampleNumber + " to " + rowLastSampleNumber + ")";
+						colors[1] = new Color(Theme.tooltipBackgroundColor[0], Theme.tooltipBackgroundColor[1], Theme.tooltipBackgroundColor[2], Theme.tooltipBackgroundColor[3]);
+						for(int i = 0; i < datasets.size(); i++) {
+							text[i + 2] = "1e" + ChartUtils.formattedNumber(binValues[i], 4) + " Watts";
+							colors[i + 2] = datasets.get(i).color;
+						}
+						anchorY = (int) (((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotHeight + yPlotBottom);
 					}
-					anchorY = (int) (((float) waterfallRowN + 0.5f) / (float) waterfallRowCount * plotHeight + yPlotBottom);
 				}
 			}
 

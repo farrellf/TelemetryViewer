@@ -11,7 +11,7 @@ public abstract class PositionedChart {
 	int bottomRightX;
 	int bottomRightY;
 	
-	int sampleCount;
+	int duration;
 	boolean sampleCountMode;
 	List<Dataset> datasets                      = new ArrayList<Dataset>();
 	List<Dataset.Bitfield.State> bitfieldEdges  = new ArrayList<Dataset.Bitfield.State>();
@@ -128,7 +128,21 @@ public abstract class PositionedChart {
 		
 	}
 	
-	public abstract EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY);
+	/**
+	 * Draws the chart on screen.
+	 * 
+	 * @param gl                  The OpenGL context.
+	 * @param chartMatrix         The 4x4 matrix to use.
+	 * @param width               Width of the chart, in pixels.
+	 * @param height              Height of the chart, in pixels.
+	 * @param endTimestamp        Timestamp corresponding with the right edge of a time-domain plot. NOTE: this might be in the future!
+	 * @param endSampleNumber     Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
+	 * @param zoomLevel           Requested zoom level.
+	 * @param mouseX              Mouse's x position, in pixels, relative to the chart.
+	 * @param mouseY              Mouse's y position, in pixels, relative to the chart.
+	 * @return                    An EventHandler if the mouse is over something that can be clicked or dragged.
+	 */
+	public abstract EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY);
 	
 	public final void importChart(ConnectionsController.QueueOfLines lines) {
 

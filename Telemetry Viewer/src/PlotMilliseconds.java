@@ -79,8 +79,8 @@ public class PlotMilliseconds extends Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param maxTimestamp        The moment in time associated with the right edge of the plot.
-	 * @param maxX                The x-axis value at the right edge of the plot.
+	 * @param endTimestamp        Timestamp corresponding with the right edge of a time-domain plot. NOTE: this might be in the future!
+	 * @param endSampleNumber     Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
 	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
 	 * @param datasets            Datasets to acquire from.
 	 * @param bitfieldEdges       Bitfield states to show edge events from.
@@ -89,17 +89,16 @@ public class PlotMilliseconds extends Plot {
 	 * @param cachedMode          True to enable the cache.
 	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
 	 */
-	@Override public void initialize(long maxTimestamp, int lastSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override public void initialize(long endTimestamp, int endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.bitfieldEdges = bitfieldEdges;
 		this.bitfieldLevels = bitfieldLevels;
 		this.cachedMode = cachedMode;
 		
-		
 		// calculate the domain, ensuring it's >= 1ms
 		plotDomain = (long) Math.ceil(duration * zoomLevel);
-		plotMaxX = maxTimestamp;
+		plotMaxX = endTimestamp;
 		plotMinX = plotMaxX - plotDomain;
 		if(plotMinX == plotMaxX) {
 			plotMinX = plotMaxX - 1;
@@ -111,10 +110,10 @@ public class PlotMilliseconds extends Plot {
 		                     !bitfieldEdges.isEmpty()  ? bitfieldEdges.get(0).dataset.controller :
 		                     !bitfieldLevels.isEmpty() ? bitfieldLevels.get(0).dataset.controller :
 		                                                 null;
-		boolean haveTelemetry = datasetsController != null && datasetsController.getSampleCount() > 0;
-		if(haveTelemetry) {
+		int sampleCount = datasetsController == null ? 0 : datasetsController.getSampleCount();
+		if(sampleCount > 0) {
 			maxSampleNumber = datasetsController.getClosestSampleNumberAfter(plotMaxX);
-			minSampleNumber = datasetsController.getClosestSampleNumberAtOrBefore(plotMinX, lastSampleNumber - 1);
+			minSampleNumber = datasetsController.getClosestSampleNumberAtOrBefore(plotMinX, sampleCount - 1);
 	
 			if(minSampleNumber < 0)
 				minSampleNumber = 0;
@@ -344,13 +343,13 @@ public class PlotMilliseconds extends Plot {
 		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, minSampleNumber, maxSampleNumber);
 		
 		// check if the cache must be flushed
-		cacheIsValid = (datasets.equals(previousDatasets)) &&
-		               (plotMinX < previousPlotMaxX) &&
-		               (plotMaxX > previousPlotMinX) &&
+		cacheIsValid = (datasets == previousDatasets) &&
 		               (plotMinY == previousPlotMinY) &&
 		               (plotMaxY == previousPlotMaxY) &&
 		               (plotWidth == previousPlotWidth) &&
 		               (plotHeight == previousPlotHeight) &&
+		               (plotMinX < previousPlotMaxX) &&
+		               (plotMaxX > previousPlotMinX) &&
 		               (plotDomain == previousPlotDomain) &&
 		               (Theme.lineWidth == previousLineWidth) &&
 		               (fbHandle != null) &&
@@ -360,13 +359,13 @@ public class PlotMilliseconds extends Plot {
 		int firstSampleNumber = minSampleNumber;
 		int lastSampleNumber  = maxSampleNumber;
 		if(cacheIsValid) {
-			if(plotMinX == previousPlotMinX && plotMaxX == previousPlotMaxX) {
+			if(firstSampleNumber == previousMinSampleNumber && lastSampleNumber == previousMaxSampleNumber) {
 				// nothing to draw
 				firstSampleNumber = lastSampleNumber;
-			} else if(plotMinX > previousPlotMinX) {
+			} else if(firstSampleNumber > previousMinSampleNumber) {
 				// moving forward in time
 				firstSampleNumber = previousMaxSampleNumber;
-			} else if(plotMinX < previousPlotMinX) {
+			} else if(firstSampleNumber < previousMinSampleNumber) {
 				// moving backwards in time
 				lastSampleNumber = previousMinSampleNumber + calculateSamplesNeededAfter(previousMinSampleNumber, plotWidth);
 			} else {
@@ -598,6 +597,23 @@ public class PlotMilliseconds extends Plot {
 			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
 			gl.glDisable(GL3.GL_SCISSOR_TEST);
 		}
+		if(plotMaxX > datasetsController.getTimestamp(maxSampleNumber)) {
+			// if x>maxTimestamp is on screen, we need to erase the x>maxTimestamp region because it may have old data on it
+			long maxTimestamp = datasetsController.getTimestamp(maxSampleNumber);
+			long firstTimestamp = datasetsController.getFirstTimestamp();
+			gl.glEnable(GL3.GL_SCISSOR_TEST);
+			int[] args = calculateScissorArgs(maxTimestamp, plotMaxX, plotWidth, plotHeight);
+			gl.glScissor(args[0], args[1], args[2], args[3]);
+			gl.glClearColor(0, 0, 0, 0);
+			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			if((plotMaxX - firstTimestamp) % plotDomain < (maxTimestamp - firstTimestamp) % plotDomain) {
+				args = calculateScissorArgs(plotMaxX - ((plotMaxX - firstTimestamp) % plotDomain), plotMaxX, plotWidth, plotHeight);
+				gl.glScissor(args[0], args[1], args[2], args[3]);
+				gl.glClearColor(0, 0, 0, 0);
+				gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
+			}
+			gl.glDisable(GL3.GL_SCISSOR_TEST);
+		}
 		if(draw1.enabled) {
 			gl.glEnable(GL3.GL_SCISSOR_TEST);
 			gl.glScissor(draw1.scissorArgs[0], draw1.scissorArgs[1], draw1.scissorArgs[2], draw1.scissorArgs[3]);
@@ -740,11 +756,24 @@ public class PlotMilliseconds extends Plot {
 				label = "Sample " + closestSampleNumber + "\nt = " + time;
 			}
 			
-			float pixelX = (float) (datasetsController.getTimestamp(closestSampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
+			float pixelX = getPixelXforSampleNumber(closestSampleNumber, plotWidth);
 			
 			return new TooltipInfo(true, closestSampleNumber, label, pixelX);
 			
 		}
+		
+	}
+	
+	/**
+	 * Gets the horizontal location, relative to the plot, for a sample number.
+	 * 
+	 * @param sampleNumber    The sample number.
+	 * @param plotWidth       Width of the plot region, in pixels.
+	 * @return                Corresponding horizontal location on the plot, in pixels, with 0 = left edge of the plot.
+	 */
+	@Override float getPixelXforSampleNumber(int sampleNumber, float plotWidth) {
+		
+		return (float) (datasetsController.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
 		
 	}
 	

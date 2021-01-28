@@ -101,6 +101,7 @@ public class NotificationsController {
 				item.expirationTimestamp = System.currentTimeMillis() + 2000; // fade away 2 seconds after done
 				item.lines[0] += " Done";
 				item.isProgressBar = false;
+				NotificationsController.showDebugMessage(item.lines[0]);
 			}
 		});
 		if(notifications.size() > 5) {

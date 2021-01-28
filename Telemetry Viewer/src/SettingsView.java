@@ -1,4 +1,5 @@
 import java.awt.Dimension;
+import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.Hashtable;
@@ -54,33 +55,31 @@ public class SettingsView extends JPanel {
 		
 		// tile columns and rows
 		tileColumnsTextfield = new JTextField(Integer.toString(SettingsController.getTileColumns()));
+		ActionListener updateTileColumns = event -> {
+			try {
+				SettingsController.setTileColumns(Integer.parseInt(tileColumnsTextfield.getText().trim()));
+			} catch(Exception e) {
+				tileColumnsTextfield.setText(Integer.toString(SettingsController.getTileColumns()));
+			}
+		};
+		tileColumnsTextfield.addActionListener(updateTileColumns);
 		tileColumnsTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				try {
-					SettingsController.setTileColumns(Integer.parseInt(tileColumnsTextfield.getText().trim()));
-				} catch(Exception e) {
-					tileColumnsTextfield.setText(Integer.toString(SettingsController.getTileColumns()));
-				}
-			}
-			
-			@Override public void focusGained(FocusEvent fe) {
-				tileColumnsTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { updateTileColumns.actionPerformed(null); }
+			@Override public void focusGained(FocusEvent fe) { tileColumnsTextfield.selectAll();}
 		});
 		
 		tileRowsTextfield = new JTextField(Integer.toString(SettingsController.getTileRows()));
+		ActionListener updateTileRows = event -> {
+			try {
+				SettingsController.setTileRows(Integer.parseInt(tileRowsTextfield.getText().trim()));
+			} catch(Exception e) {
+				tileRowsTextfield.setText(Integer.toString(SettingsController.getTileRows()));
+			}
+		};
+		tileRowsTextfield.addActionListener(updateTileRows);
 		tileRowsTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe) {
-				try {
-					SettingsController.setTileRows(Integer.parseInt(tileRowsTextfield.getText().trim()));
-				} catch(Exception e) {
-					tileRowsTextfield.setText(Integer.toString(SettingsController.getTileRows()));
-				}
-			}
-			
-			@Override public void focusGained(FocusEvent fe) {
-				tileRowsTextfield.selectAll();
-			}
+			@Override public void focusLost(FocusEvent fe)   { updateTileRows.actionPerformed(null); }
+			@Override public void focusGained(FocusEvent fe) { tileRowsTextfield.selectAll(); }
 		});
 		
 		add(new JLabel("Tile Columns: "));

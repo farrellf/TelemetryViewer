@@ -545,18 +545,14 @@ public class ChartUtils {
 			
 			// ending with %d, so an integer should be at the end of the text
 			try {
-				String[] tokens = text.split(" ");
-				int number = Integer.parseInt(tokens[tokens.length - 1]);
 				String expectedText = formatString.substring(0, formatString.length() - 2);
-				String remainingText = "";
-				for(int i = 0; i < tokens.length - 1; i++)
-					remainingText += tokens[i] + " ";
-				if(remainingText.equals(expectedText))
-					return number;
-				else {
+				if(!text.startsWith(expectedText)) {
 					String message = "Text does not match the expected value.\nExpected: " + formatString + "\nFound: " + text;
 					throw new AssertionError(message);
 				}
+				String[] tokens = text.split(" ");
+				int number = Integer.parseInt(tokens[tokens.length - 1]);
+				return number;
 			} catch(Exception e) {
 				String message = "Text does not end with an integer.\nExpected: " + formatString + "\nFound: " + text;
 				throw new AssertionError(message);

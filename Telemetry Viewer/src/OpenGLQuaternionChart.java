@@ -46,7 +46,7 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		sampleCount = 1;
+		duration = 1;
 		
 		shape = ChartUtils.getShapeFromAsciiStl(getClass().getResourceAsStream("monkey.stl"));
 		
@@ -65,17 +65,18 @@ public class OpenGLQuaternionChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
-		// don't draw if there are no samples
-		if(lastSampleNumber < 1)
-			return null;
+		// determine which sample to use
+		int lastSampleNumber = datasets.get(0).controller.getSampleCount() - 1;
+		if(endSampleNumber < lastSampleNumber)
+			lastSampleNumber = endSampleNumber;
 
 		// get the quaternion values
-		float q0 = datasets.get(0).getSample(lastSampleNumber);
-		float q1 = datasets.get(1).getSample(lastSampleNumber);
-		float q2 = datasets.get(2).getSample(lastSampleNumber);
-		float q3 = datasets.get(3).getSample(lastSampleNumber);
+		float q0 = lastSampleNumber < 0 ? 0 : datasets.get(0).getSample(lastSampleNumber);
+		float q1 = lastSampleNumber < 0 ? 0 : datasets.get(1).getSample(lastSampleNumber);
+		float q2 = lastSampleNumber < 0 ? 0 : datasets.get(2).getSample(lastSampleNumber);
+		float q3 = lastSampleNumber < 0 ? 0 : datasets.get(3).getSample(lastSampleNumber);
 		
 		// calculate x and y positions of everything
 		xPlotLeft = Theme.tilePadding;

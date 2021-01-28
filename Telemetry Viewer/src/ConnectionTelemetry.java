@@ -91,7 +91,36 @@ public class ConnectionTelemetry extends Connection {
 	 */
 	public ConnectionTelemetry() {
 		
-		this(getNames().get(0));
+		name = names.get(0);
+		
+		// ensure this connection doesn't already exist, but allow multiple TCP/UDP/Demo Mode connections
+		for(int i = 1; i < names.size(); i++)
+			for(Connection connection : ConnectionsController.allConnections)
+				if(name.equals(connection.name) && !name.equals("TCP") && !name.equals("UDP") && !name.equals("Demo Mode"))
+					name = getNames().get(i);
+		
+		if(name.startsWith("UART"))
+			mode = Mode.UART;
+		else if(name.equals("TCP"))
+			mode = Mode.TCP;
+		else if(name.equals("UDP"))
+			mode = Mode.UDP;
+		else if(name.equals("Demo Mode"))
+			mode = Mode.DEMO;
+		else
+			mode = Mode.STRESS_TEST;
+		
+		// determine the sample rate and CSV/binary mode
+		if(mode == Mode.UART || mode == Mode.TCP || mode == Mode.UDP) {
+			sampleRate = 1000;
+			csvMode = true;
+		} else if(mode == Mode.DEMO) {
+			sampleRate = 10000;
+			csvMode = true;
+		} else {
+			sampleRate = Integer.MAX_VALUE;
+			csvMode = false;
+		}
 		
 	}
 	
@@ -205,8 +234,9 @@ public class ConnectionTelemetry extends Connection {
 			if(newConnectionName.equals(name))
 				return;
 			
-			for(Connection conneection : ConnectionsController.allConnections)
-				if(conneection.name.equals(newConnectionName)) {
+			// ignore change if the connection already exists, but allow multiple TCP/UDP/Demo Mode/MJPEG over HTTP connections
+			for(Connection connection : ConnectionsController.allConnections)
+				if(connection.name.equals(newConnectionName) && !newConnectionName.equals("TCP") && !newConnectionName.equals("UDP") && !newConnectionName.equals("Demo Mode") && !newConnectionName.equals("MJPEG over HTTP")) {
 					connectionNamesCombobox.setSelectedItem(name);
 					return;
 				}
@@ -674,16 +704,16 @@ public class ConnectionTelemetry extends Connection {
 		
 		// define the data structure if it is not already defined
 		if(datasets.getCount() != 4 ||
-		   !datasets.getByIndex(0).name.equals("Waveform A") ||
-		   !datasets.getByIndex(1).name.equals("Waveform B") ||
-		   !datasets.getByIndex(2).name.equals("Waveform C") ||
-		   !datasets.getByIndex(3).name.equals("Sine Wave 1kHz")) {
+		   !datasets.getByIndex(0).name.equals("Low Quality Noise") ||
+		   !datasets.getByIndex(1).name.equals("Noisey Sine Wave 100-500Hz") ||
+		   !datasets.getByIndex(2).name.equals("Intermittent Sawtooth Wave 100Hz") ||
+		   !datasets.getByIndex(3).name.equals("Clean Sine Wave 1kHz")) {
 			
 			datasets.removeAll();
-			datasets.insert(0, null, "Waveform A",     Color.RED,   "Volts", 1, 1);
-			datasets.insert(1, null, "Waveform B",     Color.GREEN, "Volts", 1, 1);
-			datasets.insert(2, null, "Waveform C",     Color.BLUE,  "Volts", 1, 1);
-			datasets.insert(3, null, "Sine Wave 1kHz", Color.CYAN,  "Volts", 1, 1);
+			datasets.insert(0, null, "Low Quality Noise",                Color.RED,   "Volts", 1, 1);
+			datasets.insert(1, null, "Noisey Sine Wave 100-500Hz",       Color.GREEN, "Volts", 1, 1);
+			datasets.insert(2, null, "Intermittent Sawtooth Wave 100Hz", Color.BLUE,  "Volts", 1, 1);
+			datasets.insert(3, null, "Clean Sine Wave 1kHz",             Color.CYAN,  "Volts", 1, 1);
 		}
 		
 		connected = true;
@@ -692,33 +722,48 @@ public class ConnectionTelemetry extends Connection {
 		if(showGui)
 			Main.showConfigurationGui(csvMode ? new DataStructureCsvView(this) : new DataStructureBinaryView(this));
 
-		// simulate the transmission of 4 numbers every 100us.
-		// the first three numbers are pseudo random, and scaled to form a sort of sawtooth waveform.
-		// the fourth number is a 1kHz sine wave.
+		// simulate the transmission of a telemetry packet every 100us.
 		receiverThread = new Thread(() -> {
 			
-			double counter = 0;
-			int sampleNumber = getSampleCount();
+			long startTime = System.currentTimeMillis();
+			int startSampleNumber = getSampleCount();
+			int sampleNumber = startSampleNumber;
+			
+			double oscillatingFrequency = 100; // Hz
+			boolean oscillatingHigher = true;
+			int samplesForCurrentFrequency = (int) Math.round(1.0 / oscillatingFrequency * 10000.0);
+			int currentFrequencySampleCount = 0;
 			
 			while(true) {
 				float scalar = ((System.currentTimeMillis() % 30000) - 15000) / 100.0f;
-				float[] newSamples = new float[] {
-					(System.nanoTime() / 100 % 100) * scalar * 1.0f / 14000f,
-					(System.nanoTime() / 100 % 100) * scalar * 0.8f / 14000f,
-					(System.nanoTime() / 100 % 100) * scalar * 0.6f / 14000f
-				};
+				float lowQualityNoise = (System.nanoTime() / 100 % 100) * scalar * 1.0f / 14000f;
 				for(int i = 0; i < 10; i++) {
-					datasets.getByIndex(0).setSample(sampleNumber, newSamples[0]);
-					datasets.getByIndex(1).setSample(sampleNumber, newSamples[1]);
-					datasets.getByIndex(2).setSample(sampleNumber, newSamples[2]);
-					datasets.getByIndex(3).setSample(sampleNumber, (float) Math.sin(2 * Math.PI * 1000 * counter));
-					counter += 0.0001;
+					datasets.getByIndex(0).setSample(sampleNumber, lowQualityNoise);
+					datasets.getByIndex(1).setSample(sampleNumber, (float) (Math.sin(2 * Math.PI * oscillatingFrequency * currentFrequencySampleCount / 10000.0) + 0.07*(Math.random()-0.5)));
+					datasets.getByIndex(2).setSample(sampleNumber, (sampleNumber % 10000 < 1000) ? (sampleNumber % 100) / 100f : 0);
+					datasets.getByIndex(3).setSample(sampleNumber, (float) Math.sin(2 * Math.PI * 1000 * sampleNumber / 10000.0));
+					
 					sampleNumber++;
 					datasets.incrementSampleCount();
+
+					currentFrequencySampleCount++;
+					if(currentFrequencySampleCount == samplesForCurrentFrequency) {
+						if(oscillatingFrequency >= 500)
+							oscillatingHigher = false;
+						else if(oscillatingFrequency <= 100)
+							oscillatingHigher = true;
+						oscillatingFrequency *= oscillatingHigher ? 1.005 : 0.995;
+						samplesForCurrentFrequency = (int) Math.round(1.0 / oscillatingFrequency * 10000.0);
+						currentFrequencySampleCount = 0;
+					}
 				}
 				
 				try {
-					Thread.sleep(1);
+					long actualMilliseconds = System.currentTimeMillis() - startTime;
+					long expectedMilliseconds = Math.round((sampleNumber - startSampleNumber) / 10.0);
+					long sleepMilliseconds = expectedMilliseconds - actualMilliseconds;
+					if(sleepMilliseconds >= 1)
+						Thread.sleep(sleepMilliseconds);
 				} catch(InterruptedException e) {
 					return;
 				}
@@ -794,9 +839,14 @@ public class ConnectionTelemetry extends Connection {
 		chartSettings.add("show y-axis scale = true");
 		chartSettings.add("show legend = true");
 		chartSettings.add("cached mode = true");
+		chartSettings.add("trigger mode = Disabled");
+		chartSettings.add("trigger affects = This Chart");
+		chartSettings.add("trigger type = Rising Edge");
+		chartSettings.add("trigger channel = connection 0 location 1");
+		chartSettings.add("trigger level = 0");
+		chartSettings.add("trigger hysteresis = 0");
+		chartSettings.add("trigger pre/post ratio = 20");
 		chart.importChart(new ConnectionsController.QueueOfLines(chartSettings));
-		
-//		SettingsController.setBenchmarkedChart(chart);
 		
 		Main.window.setExtendedState(JFrame.NORMAL);
 		

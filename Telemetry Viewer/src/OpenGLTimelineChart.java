@@ -27,6 +27,9 @@ public class OpenGLTimelineChart extends PositionedChart {
 	float yTimelineTop;
 	float timelineHeight;
 	
+	long minTimestamp;
+	long maxTimestamp;
+	
 	// time marker
 	float markerWidth;
 	
@@ -92,8 +95,8 @@ public class OpenGLTimelineChart extends PositionedChart {
 		boolean haveTelemetry = ConnectionsController.telemetryExists();
 		if(!haveTelemetry)
 			nowTimestamp = 0;
-		long minTimestamp = haveTelemetry ? ConnectionsController.getFirstTimestamp() : 0;
-		long maxTimestamp = haveTelemetry ? ConnectionsController.getLastTimestamp()  : 0;
+		minTimestamp = haveTelemetry ? ConnectionsController.getFirstTimestamp() : 0;
+		maxTimestamp = haveTelemetry ? ConnectionsController.getLastTimestamp()  : 0;
 		if(OpenGLChartsView.instance.isLiveView())
 			maxTimestamp = nowTimestamp;
 		
@@ -231,7 +234,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 				
 				if(!ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.cameraConnections.isEmpty()) {
 					
-					// only telemetry connections exist, so focus on sample numbers
+					// only telemetry connections exist, so find the closest sample number
 					long[] connectionErrors       = new long[ConnectionsController.telemetryConnections.size()];
 					int[] connectionSampleNumbers = new  int[ConnectionsController.telemetryConnections.size()];
 					for(int i = 0; i < ConnectionsController.telemetryConnections.size(); i++) {
@@ -257,9 +260,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 							n = i;
 					ConnectionTelemetry connection = ConnectionsController.telemetryConnections.get(n);
 					int sampleNumber = connectionSampleNumbers[n];
-					
-					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setPausedView(connection.datasets.getTimestamp(sampleNumber), connection, sampleNumber));
-					
+
 					mouseTimestamp = connection.datasets.getTimestamp(sampleNumber);
 					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
 					String[] text = new String[twoLineTimestamps ? 3 : 2];
@@ -275,10 +276,7 @@ public class OpenGLTimelineChart extends PositionedChart {
 					
 				} else {
 					
-					// cameras exist, so focus on timestamps
-					long timestamp = mouseTimestamp;
-					handler = EventHandler.onPressOrDrag(event -> OpenGLChartsView.instance.setPausedView(timestamp, null, 0));
-					
+					// cameras exist, so find the closest timestamp
 					float tooltipX = (float) (mouseTimestamp - minTimestamp) / (float) (maxTimestamp - minTimestamp) * timelineWidth + xTimelineLeft;
 					String[] text = new String[twoLineTimestamps ? 2 : 1];
 					if(twoLineTimestamps) {
@@ -291,6 +289,8 @@ public class OpenGLTimelineChart extends PositionedChart {
 					ChartUtils.drawTooltip(gl, text, null, tooltipX, (yTimelineTop + yTimelineBottom)/2, 0, height, width, 0);
 					
 				}
+				
+				handler = EventHandler.onPressOrDrag(null, newMouseLocation -> pauseAtMouseX(newMouseLocation.x), null, this, Theme.clickableCursor);
 
 			}
 			
@@ -307,6 +307,61 @@ public class OpenGLTimelineChart extends PositionedChart {
 		}
 		
 		return handler;
+		
+	}
+	
+	/**
+	 * Pauses the view because the user has clicked at some location along the timeline.
+	 * 
+	 * @param mouseX    Location of the mouse, in pixels, relative to this chart.
+	 */
+	private void pauseAtMouseX(int mouseX) {
+		
+		if(mouseX < xTimelineLeft)
+			mouseX = (int) xTimelineLeft;
+		if(mouseX > xTimelineRight)
+			mouseX = (int) xTimelineRight;
+			
+		double mousePercentage = (mouseX - xTimelineLeft) / timelineWidth;
+		long mouseTimestamp = minTimestamp + (long) (mousePercentage * (double) (maxTimestamp - minTimestamp));
+		
+		if(!ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.cameraConnections.isEmpty()) {
+			
+			// only telemetry connections exist, so find the closest sample number
+			long[] connectionErrors       = new long[ConnectionsController.telemetryConnections.size()];
+			int[] connectionSampleNumbers = new  int[ConnectionsController.telemetryConnections.size()];
+			for(int i = 0; i < ConnectionsController.telemetryConnections.size(); i++) {
+				ConnectionTelemetry connection = ConnectionsController.telemetryConnections.get(i);
+				int trueLastSampleNumber = connection.getSampleCount() - 1;
+				int closestSampleNumberBefore = connection.datasets.getClosestSampleNumberAtOrBefore(mouseTimestamp, trueLastSampleNumber);
+				int closestSampleNumberAfter = closestSampleNumberBefore + 1;
+				if(closestSampleNumberAfter > trueLastSampleNumber)
+					closestSampleNumberAfter = trueLastSampleNumber;
+				
+				long beforeError = mouseTimestamp - connection.datasets.getTimestamp(closestSampleNumberBefore);
+				long afterError  = connection.datasets.getTimestamp(closestSampleNumberAfter) - mouseTimestamp;
+				beforeError = Math.abs(beforeError);
+				afterError = Math.abs(afterError);
+				
+				connectionErrors[i] = Long.min(beforeError, afterError);
+				connectionSampleNumbers[i] = beforeError < afterError ? closestSampleNumberBefore : closestSampleNumberAfter;
+			}
+			
+			int n = 0;
+			for(int i = 1; i < connectionErrors.length; i++)
+				if(connectionErrors[i] < connectionErrors[n])
+					n = i;
+			ConnectionTelemetry connection = ConnectionsController.telemetryConnections.get(n);
+			int sampleNumber = connectionSampleNumbers[n];
+
+			OpenGLChartsView.instance.setPausedView(connection.datasets.getTimestamp(sampleNumber), connection, sampleNumber);
+			
+		} else {
+			
+			// cameras exist, so use the timestamp
+			OpenGLChartsView.instance.setPausedView(mouseTimestamp, null, 0);
+			
+		}
 		
 	}
 

@@ -118,7 +118,7 @@ public class OpenGLDialChart extends PositionedChart {
 		                                               SampleCountDefault,
 		                                               SampleCountLowerLimit,
 		                                               SampleCountUpperLimit,
-		                                               newSampleCount -> sampleCount = newSampleCount);
+		                                               newSampleCount -> duration = newSampleCount);
 		
 		showReadingLabelWidget = new WidgetCheckbox("Show Reading Label",
 		                                            true,
@@ -150,27 +150,30 @@ public class OpenGLDialChart extends PositionedChart {
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
 		
 		// get the samples
-		int endIndex = lastSampleNumber;
-		int startIndex = endIndex - (int) (sampleCount * zoomLevel) + 1;
-		int minDomain = SampleCountLowerLimit - 1;
-		if(endIndex - startIndex < minDomain) startIndex = endIndex - minDomain;
-		if(startIndex < 0) startIndex = 0;
+		int sampleCount = datasets.get(0).connection.getSampleCount();
+		if(endSampleNumber < 0)
+			sampleCount = 0;
+		int endIndex = endSampleNumber;
+		int startIndex = endIndex - (int) (duration * zoomLevel) + 1;
+		if(endIndex > sampleCount - 1)
+			endIndex = sampleCount - 1;
+		if(endIndex - startIndex < 0) startIndex = endIndex;
+		if(startIndex < 0)
+			startIndex = 0;
 		
-		if(endIndex - startIndex < minDomain)
-			return handler;
-		
-		datasets.get(0).getSamples(startIndex, endIndex, samples);
-		float lastSample = samples.buffer.get(samples.buffer.capacity() - 1);
+		if(sampleCount > 0)
+			datasets.get(0).getSamples(startIndex, endIndex, samples);
+		float lastSample = sampleCount > 0 ? samples.buffer.get(samples.buffer.capacity() - 1) : 0;
 
 		// calculate range
-		float dialMin = autoscaleMin ? samples.min : manualMin;
-		float dialMax = autoscaleMax ? samples.max : manualMax;
-		float range = dialMax - dialMin;
+		float dialMin = sampleCount < 1 ? 0 : autoscaleMin ? samples.min : manualMin;
+		float dialMax = sampleCount < 1 ? 0 : autoscaleMax ? samples.max : manualMax;
+		float range   = sampleCount < 1 ? 1 : dialMax - dialMin;
 		
 		// calculate x and y positions of everything
 		xPlotLeft = Theme.tilePadding;
@@ -180,7 +183,7 @@ public class OpenGLDialChart extends PositionedChart {
 		yPlotBottom = Theme.tilePadding;
 		plotHeight = yPlotTop - yPlotBottom;
 
-		if(showStatistics) {
+		if(showStatistics && sampleCount > 0) {
 			double[] doubles = new double[samples.buffer.capacity()];
 			for(int i = 0; i < samples.buffer.capacity(); i++)
 				doubles[i] = (double) samples.buffer.get(i);
@@ -224,7 +227,7 @@ public class OpenGLDialChart extends PositionedChart {
 		if(circleOuterRadius < 0)
 			return handler;
 		
-		if(showReadingLabel) {
+		if(showReadingLabel && sampleCount > 0) {
 			readingLabel = ChartUtils.formattedNumber(lastSample, 6) + " " + datasets.get(0).unit;
 			readingLabelWidth = OpenGL.largeTextWidth(gl, readingLabel);
 			xReadingLabelLeft = xCircleCenter - (readingLabelWidth / 2);
@@ -236,7 +239,7 @@ public class OpenGLDialChart extends PositionedChart {
 				OpenGL.drawLargeText(gl, readingLabel, (int) xReadingLabelLeft, (int) yReadingLabelBaseline, 0);
 		}
 		
-		if(showMinMaxLabels) {
+		if(showMinMaxLabels && sampleCount > 0) {
 			xMinLabelLeft = xCircleCenter - circleOuterRadius;
 			xMaxLabelLeft = xCircleCenter + circleOuterRadius - maxLabelWidth;
 			
@@ -246,7 +249,7 @@ public class OpenGLDialChart extends PositionedChart {
 			}
 		}
 		
-		if(showDatasetLabel) {
+		if(showDatasetLabel && sampleCount > 0) {
 			datasetLabel = datasets.get(0).name;
 			datasetLabelWidth = OpenGL.largeTextWidth(gl, datasetLabel);
 			yDatasetLabelBaseline = showReadingLabel ? yReadingLabelTop + Theme.tickTextPadding + Theme.legendTextPadding : yPlotBottom;
@@ -282,7 +285,7 @@ public class OpenGLDialChart extends PositionedChart {
 			float x3 = -1f * circleOuterRadius * (1 - dialThickness) * (float) Math.cos(angle + Math.PI / dialResolution) + xCircleCenter; // bottom-right
 			float y3 =       circleOuterRadius * (1 - dialThickness) * (float) Math.sin(angle + Math.PI / dialResolution) + yCircleCenter;
 			
-			float[] color = angle > Math.PI * dialPercentage ? Theme.plotBackgroundColor : datasets.get(0).glColor;
+			float[] color = angle >= Math.PI * dialPercentage ? Theme.plotBackgroundColor : datasets.get(0).glColor;
 			OpenGL.buffer.put(x1); OpenGL.buffer.put(y1); OpenGL.buffer.put(color);
 			OpenGL.buffer.put(x2); OpenGL.buffer.put(y2); OpenGL.buffer.put(color);
 			OpenGL.buffer.put(x4); OpenGL.buffer.put(y4); OpenGL.buffer.put(color);

@@ -52,6 +52,7 @@ public class WidgetTextfieldsOptionalMinMax extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
+		maxTextfield.addActionListener(event -> sanityCheck());
 		
 		maxCheckbox = new JCheckBox("Automatic");
 		maxCheckbox.setSelected(true);
@@ -63,6 +64,7 @@ public class WidgetTextfieldsOptionalMinMax extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
+		minTextfield.addActionListener(event -> sanityCheck());
 		
 		minCheckbox = new JCheckBox("Automatic");
 		minCheckbox.setSelected(true);

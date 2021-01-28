@@ -1,4 +1,5 @@
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Font;
 import javax.swing.JPanel;
 
@@ -13,9 +14,13 @@ import com.jogamp.opengl.GL2ES3;
 public class Theme {
 
 	// general swing
-	public static Color jpanelColor         = new JPanel().getBackground();
-	public static int   padding             = Integer.parseInt(System.getProperty("java.version").split("\\.")[0]) >= 9 ? 5 : (int) (5 * ChartsController.getDisplayScalingFactor());
-	public static Color defaultDatasetColor = Color.RED;
+	public static Color  jpanelColor         = new JPanel().getBackground();
+	public static int    padding             = Integer.parseInt(System.getProperty("java.version").split("\\.")[0]) >= 9 ? 5 : (int) (5 * ChartsController.getDisplayScalingFactor());
+	public static Color  defaultDatasetColor = Color.RED;
+	public static Cursor defaultCursor       = new Cursor(Cursor.DEFAULT_CURSOR);
+	public static Cursor clickableCursor     = new Cursor(Cursor.HAND_CURSOR);
+	public static Cursor upDownCursor        = new Cursor(Cursor.N_RESIZE_CURSOR);
+	public static Cursor leftRigthCursor     = new Cursor(Cursor.E_RESIZE_CURSOR);
 	
 	// general openGL
 	public static float  lineWidth = 1.0f;

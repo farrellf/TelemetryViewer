@@ -1,7 +1,7 @@
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.Cursor;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JFrame;
@@ -61,19 +62,19 @@ public class OpenGLChartsView extends JPanel {
 	
 	// time and zoom settings
 	double zoomLevel;
-	boolean liveView;
+	private boolean liveView;
+	private boolean pausedView;
+	private boolean triggeredView;
 	long pausedTimestamp;
 	ConnectionTelemetry pausedPrimaryConnection; // if the mouse was over a chart while timeshifting, or if there was only one connection, we also track the corresponding connection and its sample number, to allow sub-millisecond time shifting.
 	int pausedPrimaryConnectionSampleNumber;
-	Map<ConnectionTelemetry, Integer> lastSampleNumbers = new HashMap<ConnectionTelemetry, Integer>();
+	Map<ConnectionTelemetry, Integer> endSampleNumbers = new HashMap<ConnectionTelemetry, Integer>();
 	
 	// mouse pointer's current location (pixels, origin at bottom-left)
 	int mouseX;
 	int mouseY;
 	EventHandler eventHandler;
 	PositionedChart chartUnderMouse;
-	Cursor defaultCursor = new Cursor(Cursor.DEFAULT_CURSOR);
-	Cursor handCursor = new Cursor(Cursor.HAND_CURSOR);
 	
 	boolean maximizing;
 	boolean demaximizing;
@@ -116,6 +117,8 @@ public class OpenGLChartsView extends JPanel {
 		endY    = -1;
 		
 		liveView = true;
+		pausedView = false;
+		triggeredView = false;
 		zoomLevel = 1;
 		
 		mouseX = -1;
@@ -234,7 +237,8 @@ public class OpenGLChartsView extends JPanel {
 
 			@Override public void display(GLAutoDrawable drawable) {
 				
-				eventHandler = null;
+				if(eventHandler != null && !eventHandler.dragInProgress)
+					eventHandler = null;
 				
 				// prepare OpenGL
 				GL2ES3 gl = drawable.getGL().getGL2ES3();
@@ -350,8 +354,9 @@ public class OpenGLChartsView extends JPanel {
 					
 					// register an event handler if appropriate
 					if(mouseX >= xBackgroundLeft && mouseX <= xBackgroundLeft + notificationWidth && mouseY >= yBackgroundBottom && mouseY <= yBackgroundBottom + backgroundHeight && animationPosition == 0.0) {
-						eventHandler = EventHandler.onPress(event -> {notification.expiresAtTimestamp = true;
-						                                              notification.expirationTimestamp = System.currentTimeMillis(); });
+						if(eventHandler == null)
+							eventHandler = EventHandler.onPress(event -> {notification.expiresAtTimestamp = true;
+							                                              notification.expirationTimestamp = System.currentTimeMillis(); });
 					}
 					
 					top.addAndGet(-1 * (backgroundHeight + (int) Theme.tilePadding));
@@ -368,8 +373,11 @@ public class OpenGLChartsView extends JPanel {
 				if(!charts.isEmpty() || ConnectionsController.telemetryPossible()) {
 				
 					// if there are no charts, switch back to live view
-					if(charts.isEmpty())
+					if(charts.isEmpty()) {
 						liveView = true;
+						pausedView = false;
+						triggeredView = false;
+					}
 					
 					// if the maximized chart was removed, forget about it
 					if(maximizedChart != null && !charts.contains(maximizedChart))
@@ -397,31 +405,58 @@ public class OpenGLChartsView extends JPanel {
 					               (Math.abs(endX - startX) + 1) * tileWidth,
 					               (Math.abs(endY - startY) + 1) * tileHeight);
 					
-					// get the last sample numbers
-					long nowTimestamp = pausedTimestamp;
+					// get the timestamp and sample numbers corresponding with the right-edge of a time domain plot
+					long endTimestamp = 0;
 					synchronized(instance) {
-						lastSampleNumbers.clear();
-						for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
-							int trueLastSampleNumber = connection.getSampleCount() - 1;
-							lastSampleNumbers.put(connection, liveView ? trueLastSampleNumber :
-							                                  connection == pausedPrimaryConnection ? pausedPrimaryConnectionSampleNumber :
-							                                  connection.datasets.getClosestSampleNumberAtOrBefore(pausedTimestamp, trueLastSampleNumber));
-						}
 						if(liveView) {
-							nowTimestamp = Long.MIN_VALUE;
+							// get the most recent sample numbers and corresponding timestamp
+							endTimestamp = Long.MIN_VALUE;
+							endSampleNumbers.clear();
 							for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
-								long timestamp = connection.getTimestamp(lastSampleNumbers.get(connection));
-								if(timestamp > nowTimestamp + 10) // 10ms hysteresis to help align multiple connections
-									nowTimestamp = timestamp;
+								int sampleCount = connection.getSampleCount();
+								endSampleNumbers.put(connection, sampleCount - 1);
+								if(sampleCount > 0) {
+									long lastTimestamp = connection.getTimestamp(sampleCount - 1);
+									if(endTimestamp < lastTimestamp)
+										endTimestamp = lastTimestamp;
+								}
 							}
 							for(ConnectionCamera connection : ConnectionsController.cameraConnections) {
-								if(connection.getSampleCount() > 0) {
-									long timestamp = connection.getTimestamp(connection.getSampleCount() - 1);
-									if(timestamp > nowTimestamp + 10) // 10ms hysteresis to help align multiple connections
-										nowTimestamp = timestamp;
+								int sampleCount = connection.getSampleCount();
+								if(sampleCount > 0) {
+									long lastTimestamp = connection.getTimestamp(sampleCount - 1);
+									if(endTimestamp < lastTimestamp)
+										endTimestamp = lastTimestamp;
+								}
+							}
+						} else {
+							// get the sample numbers corresponding with the paused timestamp
+							endTimestamp = pausedTimestamp;
+							endSampleNumbers.clear();
+							for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections) {
+								if(connection == pausedPrimaryConnection) {
+									endSampleNumbers.put(connection, pausedPrimaryConnectionSampleNumber);
+								} else {
+									int lastSampleNumber = connection.getSampleCount() - 1;
+									endSampleNumbers.put(connection, connection.datasets.getClosestSampleNumberAtOrBefore(pausedTimestamp, lastSampleNumber));
 								}
 							}
 						}
+						// if the sample numbers don't correspond within 10ms of the timestamp, fake them forward or backward
+						// this helps charts to line up if multiple connections exist, but one connection has samples before or after another connection
+						if(endTimestamp != Long.MIN_VALUE)
+							for(Entry<ConnectionTelemetry, Integer> entry : endSampleNumbers.entrySet()) {
+								ConnectionTelemetry connection = entry.getKey();
+								if(triggeredView && connection == pausedPrimaryConnection)
+									continue;
+								int endSampleNumber = entry.getValue();
+								long connectionEndTimestamp = connection.getTimestamp(endSampleNumber);
+								long errorMilliseconds = endTimestamp - connectionEndTimestamp;
+								if(errorMilliseconds > 10 || errorMilliseconds < -10) {
+									int errorSampleCount = (int) Math.round((double) errorMilliseconds * (double) connection.sampleRate / 1000.0);
+									endSampleNumbers.put(connection, endSampleNumber + errorSampleCount);
+								}
+							}
 					}
 					
 					// draw the charts
@@ -432,9 +467,28 @@ public class OpenGLChartsView extends JPanel {
 					chartUnderMouse = null;
 					for(PositionedChart chart : charts) {
 						
+						int lastSampleNumber = -1;
+						synchronized(instance) {
+							lastSampleNumber = !chart.datasets.isEmpty() ?       endSampleNumbers.get(chart.datasets.get(0).connection) :
+							                   !chart.bitfieldEdges.isEmpty() ?  endSampleNumbers.get(chart.bitfieldEdges.get(0).connection) :
+							                   !chart.bitfieldLevels.isEmpty() ? endSampleNumbers.get(chart.bitfieldLevels.get(0).connection) :
+							                                                     -1;
+						}
+						
 						// if there is a maximized chart, only draw that chart
-						if(maximizedChart != null && maximizedChart != removingChart && chart != maximizedChart && !maximizing && !demaximizing)
+						if(maximizedChart != null && maximizedChart != removingChart && chart != maximizedChart && !maximizing && !demaximizing) {
+							// no need to draw this chart, but process its trigger
+							for(Widget widget : chart.widgets)
+								if(widget instanceof WidgetTrigger) {
+									WidgetTrigger trigger = (WidgetTrigger) widget;
+									if(chart.sampleCountMode)
+										trigger.checkForTriggerSampleCountMode(lastSampleNumber, zoomLevel);
+									else
+										trigger.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel);
+									
+								}
 							continue;
+						}
 						
 						// size the chart
 						int width = tileWidth * (chart.bottomRightX - chart.topLeftX + 1);
@@ -517,15 +571,7 @@ public class OpenGLChartsView extends JPanel {
 						OpenGL.translateMatrix(chartMatrix, xOffset, yOffset, 0);
 						OpenGL.useMatrix(gl, chartMatrix);
 						
-						int lastSampleNumber = -1;
-						synchronized(instance) {
-							lastSampleNumber = !chart.datasets.isEmpty() ?       lastSampleNumbers.get(chart.datasets.get(0).connection) :
-							                   !chart.bitfieldEdges.isEmpty() ?  lastSampleNumbers.get(chart.bitfieldEdges.get(0).connection) :
-							                   !chart.bitfieldLevels.isEmpty() ? lastSampleNumbers.get(chart.bitfieldLevels.get(0).connection) :
-							                                                     -1;
-						}
-						
-						EventHandler handler = chart.draw(gl, chartMatrix, width, height, nowTimestamp, lastSampleNumber, zoomLevel, mouseX - xOffset, mouseY - yOffset);
+						EventHandler chartEventHandler = chart.draw(gl, chartMatrix, width, height, endTimestamp, lastSampleNumber, zoomLevel, (eventHandler != null) ? -1 : mouseX - xOffset, (eventHandler != null) ? -1 :mouseY - yOffset);
 						
 						OpenGL.useMatrix(gl, screenMatrix);
 						gl.glDisable(GL3.GL_SCISSOR_TEST);
@@ -534,11 +580,13 @@ public class OpenGLChartsView extends JPanel {
 						width += (int) Theme.tileShadowOffset;
 						if(mouseX >= xOffset && mouseX <= xOffset + width && mouseY >= yOffset && mouseY <= yOffset + height) {
 							chartUnderMouse = chart;
-							if(handler != null)
-								eventHandler = handler;
-							drawChartCloseButton(gl, xOffset, yOffset, width, height);
-							drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
-							drawChartSettingsButton(gl, xOffset, yOffset, width, height);
+							if(eventHandler == null && chartEventHandler != null)
+								eventHandler = chartEventHandler;
+							if(eventHandler == null || !eventHandler.dragInProgress) {
+								drawChartCloseButton(gl, xOffset, yOffset, width, height);
+								drawChartMaximizeButton(gl, xOffset, yOffset, width, height);
+								drawChartSettingsButton(gl, xOffset, yOffset, width, height);
+							}
 						}
 						
 						// fade away if chart is closing
@@ -574,7 +622,7 @@ public class OpenGLChartsView extends JPanel {
 				}
 				
 				// update the mouse cursor
-				setCursor(eventHandler == null ? defaultCursor : handCursor);
+				setCursor(eventHandler == null ? Theme.defaultCursor : eventHandler.cursor);
 				
 				// if benchmarking, draw the CPU/GPU benchmarks
 				// GPU benchmarking is not possible with OpenGL ES
@@ -644,9 +692,9 @@ public class OpenGLChartsView extends JPanel {
 			// the mouse was pressed, attempting to start a new chart region, or to interact with an existing chart
 			@Override public void mousePressed(MouseEvent me) {
 				
-				
 				if(eventHandler != null && eventHandler.forPressEvent) {
-					eventHandler.handle(me);
+					eventHandler.handleDragStarted();
+					eventHandler.handleMouseLocation(mouseXYtoChartXY(eventHandler.chart, me.getX(), me.getY()));
 					return;
 				}
 				
@@ -675,6 +723,9 @@ public class OpenGLChartsView extends JPanel {
 			
 			// the mouse was released, attempting to create a new chart
 			@Override public void mouseReleased(MouseEvent me) {
+				
+				if(eventHandler != null)
+					eventHandler.handleDragEnded();
 				
 				// if there are no connections and no charts, ignore the event
 				if(ChartsController.getCharts().isEmpty() && !ConnectionsController.telemetryPossible())
@@ -735,7 +786,7 @@ public class OpenGLChartsView extends JPanel {
 				mouseY = (int) ((glCanvas.getHeight() - me.getY()) * displayScalingFactorJava9);
 				
 				if(eventHandler != null && eventHandler.forDragEvent) {
-					eventHandler.handle(me);
+					eventHandler.handleMouseLocation(mouseXYtoChartXY(eventHandler.chart, me.getX(), me.getY()));
 					return;
 				}
 				
@@ -771,6 +822,10 @@ public class OpenGLChartsView extends JPanel {
 			
 			// the mouse wheel was scrolled
 			@Override public void mouseWheelMoved(MouseWheelEvent mwe) {
+				
+				// ignore scroll events while dragging
+				if(eventHandler != null && eventHandler.dragInProgress)
+					return;
 
 				double scrollAmount = mwe.getPreciseWheelRotation();
 				double zoomPerScroll = 0.1;
@@ -800,12 +855,12 @@ public class OpenGLChartsView extends JPanel {
 					
 					// should we scroll by sample count?
 					PositionedChart chart = null;
-					if(chartUnderMouse != null && chartUnderMouse.sampleCount > 1 && (!chartUnderMouse.datasets.isEmpty() || !chartUnderMouse.bitfieldEdges.isEmpty() || !chartUnderMouse.bitfieldLevels.isEmpty())) {
+					if(chartUnderMouse != null && chartUnderMouse.duration > 1 && (!chartUnderMouse.datasets.isEmpty() || !chartUnderMouse.bitfieldEdges.isEmpty() || !chartUnderMouse.bitfieldLevels.isEmpty())) {
 						chart = chartUnderMouse;
 					} else if(activeConnections == 1) {
 						for(PositionedChart c : ChartsController.getCharts())
-							if(c.sampleCount > 1 && (!c.datasets.isEmpty() || !c.bitfieldEdges.isEmpty() || !c.bitfieldLevels.isEmpty()))
-								if(chart == null || chart.sampleCount < c.sampleCount)
+							if(c.duration > 1 && (!c.datasets.isEmpty() || !c.bitfieldEdges.isEmpty() || !c.bitfieldLevels.isEmpty()))
+								if(chart == null || chart.duration < c.duration)
 									chart = c;
 					}
 					if(chart != null) {
@@ -824,7 +879,7 @@ public class OpenGLChartsView extends JPanel {
 						                                 !chart.bitfieldEdges.isEmpty() ? chart.bitfieldEdges.get(0).dataset.connection :
 						                                                                  chart.bitfieldLevels.get(0).dataset.connection;
 						
-						double samplesPerScroll = chart.sampleCount * 0.10;
+						double samplesPerScroll = chart.duration * 0.10;
 						double delta = scrollAmount * samplesPerScroll * zoomLevel;
 						if(delta < -0.5 || delta > 0.5)
 							delta = Math.round(delta);
@@ -861,7 +916,7 @@ public class OpenGLChartsView extends JPanel {
 					} else if(chart != null && !chart.sampleCountMode) {
 						
 						// logic for rewinding and fast-forwarding based on a chart's time: 10% of the domain per scroll wheel notch
-						double delta = (chart.sampleCount * 0.10 * scrollAmount * zoomLevel);
+						double delta = (chart.duration * 0.10 * scrollAmount * zoomLevel);
 						if(delta < -0.5 || delta > 0.5)
 							delta = Math.round(delta);
 						else if(delta < 0)
@@ -927,11 +982,55 @@ public class OpenGLChartsView extends JPanel {
 	}
 	
 	/**
+	 * Converts mouse coordinates from a Swing MouseEvent to relative coordinates for a chart.
+	 * 
+	 * @param chart     Reference chart.
+	 * @param mouseX    Mouse X location from the Swing MouseEvent object.
+	 * @param mouseY    Mouse Y location from the Swing MouseEvent object.
+	 * @return          A Point containing the mouse location relative to the chart.
+	 */
+	private Point mouseXYtoChartXY(PositionedChart chart, int mouseX, int mouseY) {
+		
+		if(chart == null)
+			return new Point(-1, -1);
+		
+		// convert from MouseEvent coordinates to glCanvas coordinates, and invert the y-axis so (0,0) is now the lower-left corner
+		mouseX = (int) (mouseX * displayScalingFactorJava9);
+		mouseY = (int) ((glCanvas.getHeight() - mouseY) * displayScalingFactorJava9);
+		
+		// determine the chart's coordinates relative to the glCanvas
+		int tileWidth  = canvasWidth  / tileColumns;
+		int tileHeight = (canvasHeight - notificationsHeight) / tileRows;
+		int height = tileHeight * (chart.bottomRightY - chart.topLeftY + 1);
+		int xOffset = chart.topLeftX * tileWidth;
+		int yOffset = (canvasHeight - notificationsHeight) - (chart.topLeftY * tileHeight) - height;
+		if(chart == maximizedChart) {
+			height = tileHeight * tileRows;
+			xOffset = 0;
+			yOffset = (canvasHeight - notificationsHeight) - (tileHeight * tileRows);
+		}
+		
+		// the chart is actually inset a little into its tile
+		xOffset += Theme.tilePadding;
+		yOffset += Theme.tilePadding;
+		height -= 2 * Theme.tilePadding;
+		
+		// return the relative mouse location
+		mouseX -= xOffset;
+		mouseY -= yOffset;
+		
+		return new Point(mouseX, mouseY);
+		
+	}
+	
+	/**
 	 * Called by DatasetsController when all data is removed.
 	 */
 	public void switchToLiveView() {
 		
 		liveView = true;
+		pausedView = false;
+		triggeredView = false;
 		
 	}
 	
@@ -950,6 +1049,8 @@ public class OpenGLChartsView extends JPanel {
 		
 		// save state
 		boolean liveView = instance.liveView;
+		boolean pausedView = instance.pausedView;
+		boolean triggeredView = instance.triggeredView;
 		double zoomLevel = instance.zoomLevel;
 		PositionedChart maximizedChart = instance.maximizedChart;
 
@@ -959,6 +1060,8 @@ public class OpenGLChartsView extends JPanel {
 		
 		// restore state
 		instance.liveView = liveView;
+		instance.pausedView = pausedView;
+		instance.triggeredView = triggeredView;
 		instance.zoomLevel = zoomLevel;
 		instance.maximizedChart = maximizedChart;
 		
@@ -970,18 +1073,52 @@ public class OpenGLChartsView extends JPanel {
 		
 	}
 	
-	public boolean isLiveView() { return liveView; }
-	public void setLiveView()   { liveView = true; }
+	public boolean isLiveView()      { return liveView; }
+	public boolean isPausedView()    { return pausedView; }
+	public boolean isTriggeredView() { return triggeredView; }
+	
+	public void setLiveView()   {
+		
+		liveView = true;
+		pausedView = false;
+		triggeredView = false;
+		pausedTimestamp = Long.MIN_VALUE;
+		
+		// clear any triggers
+		for(PositionedChart chart : ChartsController.getCharts())
+			for(Widget widget : chart.widgets)
+				if(widget instanceof WidgetTrigger) {
+					WidgetTrigger trigger = (WidgetTrigger) widget;
+					trigger.resetTrigger(false);
+				}
+		
+	}
+	
 	public void setPausedView(long timestamp, ConnectionTelemetry connection, int sampleNumber) {
 		
 		liveView = false;
+		pausedView = true;
+		triggeredView = false;
+		
 		pausedTimestamp = timestamp;
 		pausedPrimaryConnection = connection;
 		pausedPrimaryConnectionSampleNumber = (connection == null) ? 0 : sampleNumber;
 		
 		long endOfTime = ConnectionsController.getLastTimestamp();
-		if(timestamp >= endOfTime && endOfTime != Long.MIN_VALUE)
-			liveView = true;
+		if(timestamp > endOfTime && endOfTime != Long.MIN_VALUE)
+			setLiveView();
+		
+	}
+	
+	public void setTriggeredView(long timestamp, ConnectionTelemetry connection, int sampleNumber) {
+		
+		liveView = false;
+		pausedView = false;
+		triggeredView = true;
+		
+		pausedTimestamp = timestamp;
+		pausedPrimaryConnection = connection;
+		pausedPrimaryConnectionSampleNumber = sampleNumber;
 		
 	}
 	
@@ -989,7 +1126,7 @@ public class OpenGLChartsView extends JPanel {
 		
 		synchronized(instance) {
 			
-			return lastSampleNumbers.get(connection);
+			return endSampleNumbers.get(connection);
 			
 		}
 		
@@ -1122,6 +1259,8 @@ public class OpenGLChartsView extends JPanel {
 		// event handler
 		if(mouseOverButton)
 			eventHandler = EventHandler.onPress(event -> {
+				if(maximizing || demaximizing)
+					return;
 				if(maximizedChart == null) {
 					maximizing = true;
 					maximizedChart = chartUnderMouse;

@@ -38,6 +38,7 @@ public class WidgetTextfieldInteger extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { textfield.selectAll(); }
 		});
+		textfield.addActionListener(event -> sanityCheck());
 		
 		widgets.put(new JLabel(label + ": "), "");
 		widgets.put(textfield, "span 3, growx");

@@ -85,16 +85,19 @@ public class WidgetHistogramXaxisType extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { maxTextfield.selectAll(); }
 		});
+		maxTextfield.addActionListener(event -> sanityCheck());
 		
 		minTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { minTextfield.selectAll(); }
 		});
+		minTextfield.addActionListener(event -> sanityCheck());
 		
 		centerTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { centerTextfield.selectAll(); }
 		});
+		centerTextfield.addActionListener(event -> sanityCheck());
 		
 		axisTypeCombobox.addActionListener(event -> sanityCheck());
 		

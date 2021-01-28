@@ -88,10 +88,10 @@ public class OpenGLCameraChart extends PositionedChart {
 		ConnectionCamera.GLframe f = null;
 		if(camera == null)
 			f = new ConnectionCamera.GLframe(null, true, 1, 1, "[select a camera]", 0);
-		else if(OpenGLChartsView.instance.liveView && !ConnectionsController.importing)
+		else if(OpenGLChartsView.instance.isLiveView() && !ConnectionsController.importing)
 			f = camera.getLiveImage();
 		else {
-			long lastTimestamp = OpenGLChartsView.instance.liveView ? ConnectionsController.getLastTimestamp() : OpenGLChartsView.instance.pausedTimestamp;
+			long lastTimestamp = OpenGLChartsView.instance.isLiveView() ? ConnectionsController.getLastTimestamp() : OpenGLChartsView.instance.pausedTimestamp;
 			f = camera.getImageBeforeTimestamp(lastTimestamp);
 		}
 		

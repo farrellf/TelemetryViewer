@@ -23,17 +23,17 @@ public abstract class Plot {
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param maxTimestamp      The moment in time associated with the right edge of the plot.
-	 * @param maxX              The x-axis value at the right edge of the plot.
-	 * @param zoomLevel         Current zoom level. 1.0 = no zoom.
-	 * @param datasets          Normal datasets to acquire from.
-	 * @param bitfieldEdges     Bitfield states to show edge events from.
-	 * @param bitfieldLevels    Bitfield states to show levels from.
-	 * @param duration          The sample count, before applying the zoom factor.
-	 * @param cachedMode        True to enable the cache.
-	 * @param showTimestamps    True if the x-axis shows timestamps, false if the x-axis shows sample count or elapsed time.
+	 * @param endTimestamp       Timestamp corresponding with the right edge of a time-domain plot. NOTE: this might be in the future!
+	 * @param endSampleNumber    Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
+	 * @param zoomLevel          Current zoom level. 1.0 = no zoom.
+	 * @param datasets           Normal datasets to acquire from.
+	 * @param bitfieldEdges      Bitfield states to show edge events from.
+	 * @param bitfieldLevels     Bitfield states to show levels from.
+	 * @param duration           The sample count, before applying the zoom factor.
+	 * @param cachedMode         True to enable the cache.
+	 * @param showTimestamps     True if the x-axis shows timestamps, false if the x-axis shows sample count or elapsed time.
 	 */
-	abstract void initialize(long maxTimestamp, int maxX, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps);
+	abstract void initialize(long endTimestamp, int endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps);
 	
 	/**
 	 * Step 2: Get the required range, assuming you want to see all samples on screen.
@@ -116,6 +116,18 @@ public abstract class Plot {
 	 */
 	abstract TooltipInfo getTooltip(int mouseX, float plotWidth);
 	
+	/**
+	 * Gets the horizontal location, relative to the plot, for a sample number.
+	 * 
+	 * @param sampleNumber    The sample number.
+	 * @param plotWidth       Width of the plot region, in pixels.
+	 * @return                Corresponding horizontal location on the plot, in pixels, with 0 = left edge of the plot.
+	 */
+	abstract float getPixelXforSampleNumber(int sampleNumber, float plotWidth);
+	
+	/**
+	 * @return    Domain (interval of x-axis values) of the plot.
+	 */
 	final long getPlotDomain() { return plotDomain; }
 	
 	static class TooltipInfo {

@@ -49,6 +49,7 @@ public class WidgetDuration extends Widget {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { textfield.selectAll(); }
 		});
+		textfield.addActionListener(event -> sanityCheck());
 		
 		durationTypeCombobox = new JComboBox<String>(new String[] {"Samples", "Seconds", "Minutes", "Hours", "Days"});
 		durationTypeCombobox.addActionListener(event -> sanityCheck());

@@ -28,6 +28,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float yPlotTop;
 	float yPlotBottom;
 	float plotHeight;
+	float plotMaxY;
+	float plotMinY;
+	float plotRange;
 	
 	// x-axis title
 	boolean showXaxisTitle;
@@ -89,6 +92,14 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	static final float yAxisLowerLimit     = -Float.MAX_VALUE;
 	static final float yAxisUpperLimit     =  Float.MAX_VALUE;
 	
+	// trigger
+	boolean triggerEnabled = false;
+	boolean triggeringPaused = false;
+	int earlierEndSampleNumber = -1;
+	long earlierEndTimestamp = -1;
+	float earlierPlotMaxY = 1;
+	float earlierPlotMinY = -1;
+	
 	// control widgets
 	WidgetDatasets datasetsWidget;
 	WidgetDuration durationWidget;
@@ -99,6 +110,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	WidgetCheckbox showYaxisScaleWidget;
 	WidgetCheckbox showLegendWidget;
 	WidgetCheckbox cachedWidget;
+	WidgetTrigger triggerWidget;
 	
 	@Override public String toString() {
 		
@@ -144,6 +156,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		                                    	sampleCountMode  = xAxisType.equals("Sample Count");
 		                                    	isTimestampsMode = xAxisType.equals("Timestamps");
 		                                    	plot = sampleCountMode ? new PlotSampleCount() : new PlotMilliseconds();
+		                                    	if(triggerWidget != null)
+		                                    		triggerWidget.resetTrigger(true);
 		                                    });
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
@@ -181,8 +195,11 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		                                      autoscale = cachedMode ? new AutoScale(AutoScale.MODE_STICKY,       1, 0.10f) :
 		                                                               new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.10f);
 		                                  });
+		
+		triggerWidget = new WidgetTrigger(this,
+		                                  isEnabled -> triggerEnabled = isEnabled);
 
-		widgets = new Widget[15];
+		widgets = new Widget[17];
 		
 		widgets[0]  = datasetsWidget;
 		widgets[1]  = null;
@@ -199,38 +216,56 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		widgets[12] = showLegendWidget;
 		widgets[13] = null;
 		widgets[14] = cachedWidget;
+		widgets[15] = null;
+		widgets[16] = triggerWidget;
 		
 	}
 	
-	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long nowTimestamp, int lastSampleNumber, double zoomLevel, int mouseX, int mouseY) {
+	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
+		
+		// trigger logic
+		if(triggerEnabled) {
+			if(sampleCountMode && triggeringPaused) {
+				triggerWidget.clearTrigger();
+				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(earlierEndSampleNumber, zoomLevel);
+			} else if(sampleCountMode && !triggeringPaused) {
+				if(!OpenGLChartsView.instance.isPausedView())
+					endSampleNumber = datasets.get(0).connection.getSampleCount() - 1;
+				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(endSampleNumber, zoomLevel);
+				earlierEndSampleNumber = endSampleNumber;
+			} else if(!sampleCountMode && triggeringPaused) {
+				triggerWidget.clearTrigger();
+				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(earlierEndTimestamp, zoomLevel);
+			} else {
+				if(!OpenGLChartsView.instance.isPausedView())
+					endTimestamp = datasets.get(0).connection.getTimestamp(datasets.get(0).connection.getSampleCount() - 1);
+				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel);
+				earlierEndTimestamp = endTimestamp;
+			}
+		}
 		
 		boolean haveDatasets = allDatasets != null && !allDatasets.isEmpty();
 		int datasetsCount = haveDatasets ? allDatasets.size() : 0;
 		
-		// attempt to shift the x-axis as needed in case this connection does not have samples for this moment in time
-		int maxX = Integer.max(lastSampleNumber, 0);
-		if(haveDatasets && sampleCountMode) {
-			ConnectionTelemetry connection = allDatasets.get(0).connection;
-			if(connection.getSampleCount() > 0) {
-				long lastSampleTimestamp = connection.datasets.getTimestamp(lastSampleNumber);
-				long millisecondsError = nowTimestamp - lastSampleTimestamp;
-				if(millisecondsError < -10 || millisecondsError > 10) {
-					int fakeSampleCount = (int) Math.round((double) connection.sampleRate * (double) millisecondsError / 1000.0);
-					maxX += fakeSampleCount;
-				}
-			}
-		}
-		
-		plot.initialize(nowTimestamp, sampleCountMode ? maxX : lastSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
+		plot.initialize(endTimestamp, endSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
 		StorageFloats.MinMax requiredRange = plot.getRange();
 		autoscale.update(requiredRange.min, requiredRange.max);
-		float plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
-		float plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
-		float plotRange = plotMaxY - plotMinY;
+		plotMaxY = autoscaleYmax ? autoscale.getMax() : manualYmax;
+		plotMinY = autoscaleYmin ? autoscale.getMin() : manualYmin;
+		if(triggerEnabled) {
+			if(triggeringPaused) {
+				plotMaxY = earlierPlotMaxY;
+				plotMinY = earlierPlotMinY;
+			} else {
+				earlierPlotMaxY = plotMaxY;
+				earlierPlotMinY = plotMinY;
+			}
+		}
+		plotRange = plotMaxY - plotMinY;
 		
 		// calculate x and y positions of everything
 		xPlotLeft = Theme.tilePadding;
@@ -432,13 +467,74 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// acquire the samples
 		plot.acquireSamples(plotMinY, plotMaxY, (int) plotWidth, (int) plotHeight);
-		sampleCount = sampleCountMode ? durationWidget.getSampleCount() : (int) plot.getPlotDomain();
+		duration = sampleCountMode ? durationWidget.getSampleCount() : (int) plot.getPlotDomain();
 		
 		// draw the plot
 		plot.draw(gl, chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinY, plotMaxY);
 		
-		// draw the tooltip if the mouse is in the plot region
-		if(!allDatasets.isEmpty() && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop) {
+		// draw the trigger level and trigger point markers
+		if(triggerEnabled) {
+			float scalar = ChartsController.getDisplayScalingFactor();
+			float markerThickness = 3*scalar;
+			float markerLength = 5*scalar;
+			float triggerLevel = triggerWidget.getTriggerLevel();
+			float y = (triggerLevel - plotMinY) / plotRange * plotHeight + yPlotBottom;
+			if(y >= yPlotBottom && y <= yPlotTop) {
+				if(mouseX >= xPlotLeft && mouseX <= xPlotLeft + markerLength*1.5 && mouseY >= y - markerThickness*1.5 && mouseY <= y + markerThickness*1.5) {
+					handler = EventHandler.onPressOrDrag(dragStarted -> triggeringPaused = true,
+					                                     newLocation -> {
+					                                         float newTriggerLevel = (newLocation.y - yPlotBottom) / plotHeight * plotRange + plotMinY;
+					                                         if(newTriggerLevel < plotMinY)
+					                                         	 newTriggerLevel = plotMinY;
+					                                         if(newTriggerLevel > plotMaxY)
+					                                        	 newTriggerLevel = plotMaxY;
+					                                         triggerWidget.setTriggerLevel(newTriggerLevel);
+					                                     },
+					                                     dragEnded -> triggeringPaused = false,
+					                                     this,
+					                                     Theme.upDownCursor);
+					OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xPlotLeft, y + markerThickness*1.5f,
+					                                                  xPlotLeft + markerLength*1.5f, y,
+					                                                  xPlotLeft, y - markerThickness*1.5f);
+				} else {
+					OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xPlotLeft, y + markerThickness,
+					                                                  xPlotLeft + markerLength, y,
+					                                                  xPlotLeft, y - markerThickness);
+				}
+			}
+			
+			int triggeredSampleNumber = triggerWidget.getTriggeredSampleNumber();
+			if(triggeredSampleNumber >= 0) {
+				float triggerPoint = plot.getPixelXforSampleNumber(triggeredSampleNumber, plotWidth);
+				float x = xPlotLeft + triggerPoint;
+				if(x >= xPlotLeft && x <= xPlotRight) {
+					if(mouseX >= x - 1.5*markerThickness && mouseX <= x + 1.5*markerThickness && mouseY >= yPlotTop - 1.5*markerLength && mouseY <= yPlotTop) {
+						handler = EventHandler.onPressOrDrag(dragStarted -> triggeringPaused = true,
+						                                     newLocation -> {
+						                                         float newPrePostRatio = (newLocation.x - xPlotLeft) / plotWidth;
+						                                         if(newPrePostRatio < 0)
+						                                        	 newPrePostRatio = 0;
+						                                         if(newPrePostRatio > 1)
+						                                        	 newPrePostRatio = 1;
+						                                         triggerWidget.setPrePostRatio(Math.round(newPrePostRatio * 100));
+						                                     },
+						                                     dragEnded -> triggeringPaused = false,
+						                                     this,
+						                                     Theme.leftRigthCursor);
+						OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, x - markerThickness*1.5f, yPlotTop,
+						                                                  x + markerThickness*1.5f, yPlotTop,
+						                                                  x, yPlotTop - markerLength*1.5f);
+					} else {
+						OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, x - markerThickness, yPlotTop,
+						                                                  x + markerThickness, yPlotTop,
+						                                                  x, yPlotTop - markerLength);
+					}
+				}
+			}
+		}
+		
+		// draw the tooltip if the mouse is in the plot region and not over something clickable
+		if(!allDatasets.isEmpty() && SettingsController.getTooltipVisibility() && mouseX >= xPlotLeft && mouseX <= xPlotRight && mouseY >= yPlotBottom && mouseY <= yPlotTop && handler == null) {
 			Plot.TooltipInfo tooltip = plot.getTooltip(mouseX - (int) xPlotLeft, plotWidth);
 			if(tooltip.draw) {
 				String[] tooltipLines = tooltip.label.split("\n");
