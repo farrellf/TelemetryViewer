@@ -121,6 +121,21 @@ public class WidgetDatasets extends Widget {
 	
 	}
 	
+	/**
+	 * Changes the dataset labels (and possibly the number of datasets) for combobox mode.
+	 * 
+	 * @param newLabels    The names to show next to each combobox.
+	 */
+	public void setDatasetLabels(String[] newLabels) {
+		
+		comboboxLabels = newLabels;
+		update();
+		
+	}
+	
+	/**
+	 * Ensures this widget is in sync with its state.
+	 */
 	@SuppressWarnings("serial")
 	@Override public void update() {
 		
@@ -370,7 +385,8 @@ public class WidgetDatasets extends Widget {
 				});
 				datasetComboboxes.add(combobox);
 				
-				widgets.put(new JLabel(comboboxLabels[i] + ": "), "");
+				String label = comboboxLabels[i].equals("") ? "" : comboboxLabels[i] + ": ";
+				widgets.put(new JLabel(label), "");
 				widgets.put(datasetComboboxes.get(i), "span 3, growx");
 			}
 			

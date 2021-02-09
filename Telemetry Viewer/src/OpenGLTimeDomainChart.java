@@ -161,6 +161,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		                                    });
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
+		                                                  true,
 		                                                  yAxisMinimumDefault,
 		                                                  yAxisMaximumDefault,
 		                                                  yAxisLowerLimit,

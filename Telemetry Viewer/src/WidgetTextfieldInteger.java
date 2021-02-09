@@ -4,6 +4,7 @@ import java.util.function.Consumer;
 
 import javax.swing.JLabel;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 
 public class WidgetTextfieldInteger extends Widget {
 	
@@ -43,7 +44,7 @@ public class WidgetTextfieldInteger extends Widget {
 		widgets.put(new JLabel(label + ": "), "");
 		widgets.put(textfield, "span 3, growx");
 
-		sanityCheck();
+		SwingUtilities.invokeLater(() -> sanityCheck()); // invokeLater to ensure the chart has finish constructing before notifying it
 		
 	}
 	

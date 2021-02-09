@@ -144,6 +144,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		datasetsWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Power",
+		                                                  true,
 		                                                  PowerMinimumDefault,
 		                                                  PowerMaximumDefault,
 		                                                  PowerLowerLimit,

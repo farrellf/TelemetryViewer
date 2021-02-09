@@ -755,7 +755,8 @@ public class OpenGLChartsView extends JPanel {
 				startX = startY = -1;
 				endX   = endY   = -1;
 				
-				ConfigureView.instance.forNewChart(x1, y1, x2, y2);
+				PositionedChart chart = ChartsController.createAndAddChart(ChartsController.getChartTypes()[0], x1, y1, x2, y2);
+				ConfigureView.instance.forNewChart(chart);
 				
 			}
 

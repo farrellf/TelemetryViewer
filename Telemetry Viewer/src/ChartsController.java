@@ -75,6 +75,7 @@ public class ChartsController {
 			"Time Domain",
 			"Frequency Domain",
 			"Histogram",
+			"Statistics",
 			"Dial",
 			"Quaternion",
 			"Camera",
@@ -100,6 +101,7 @@ public class ChartsController {
 		     if(chartType.equals("Time Domain"))      chart = new OpenGLTimeDomainChart(x1, y1, x2, y2);
 		else if(chartType.equals("Frequency Domain")) chart = new OpenGLFrequencyDomainChart(x1, y1, x2, y2);
 		else if(chartType.equals("Histogram"))        chart = new OpenGLHistogramChart(x1, y1, x2, y2);
+		else if(chartType.equals("Statistics"))       chart = new OpenGLStatisticsChart(x1, y1, x2, y2);
 		else if(chartType.equals("Dial"))             chart = new OpenGLDialChart(x1, y1, x2, y2);
 		else if(chartType.equals("Quaternion"))       chart = new OpenGLQuaternionChart(x1, y1, x2, y2);
 		else if(chartType.equals("Camera"))           chart = new OpenGLCameraChart(x1, y1, x2, y2);

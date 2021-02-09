@@ -63,7 +63,7 @@ public class WidgetDuration extends Widget {
 		
 		widgets.put(new JLabel("Duration: "), "");
 		widgets.put(panel, "span 3, growx");
-		widgets.put(new JLabel("X-Axis: "), "");
+		widgets.put(new JLabel("Show as: "), "");
 		widgets.put(xAxisCombobox, "span 3, growx");
 		
 		previousType = "Samples";
@@ -202,7 +202,7 @@ public class WidgetDuration extends Widget {
 	}
 	
 	/**
-	 * @return    The duration, as a float (seconds, minutes, hours or days.)
+	 * @return    The duration, as a number of milliseconds.
 	 */
 	public long getMilliseconds() {
 		
