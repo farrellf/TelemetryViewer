@@ -324,6 +324,9 @@ public class Dataset {
 			Dataset dataset;                         // owner of this State
 			Bitfield bitfield;                       // owner of this State
 			
+			List<Integer> edgesCache = new ArrayList<Integer>(); // cache of the sample numbers for each transition to this state
+			int lastSampleNumberInCache = -1;
+			
 			public State(int value, String label) {
 				this.label = label;
 				this.value = value;
@@ -340,6 +343,38 @@ public class Dataset {
 			}
 			
 			/**
+			 * Updates the cache if necessary.
+			 * 
+			 * @param maxSampleNumber    Ensure the cache has all edge events that occurred until at least this sample number.
+			 */
+			private void updateCache(int maxSampleNumber) {
+				
+				if(maxSampleNumber <= lastSampleNumberInCache || maxSampleNumber == 0)
+					return;
+				
+				int minSampleNumber = lastSampleNumberInCache;
+				if(minSampleNumber < 0)
+					minSampleNumber = 0;
+				
+				int previousValue = (int) dataset.getSample(minSampleNumber);
+				int previousState = (previousValue >> bitfield.LSBit) & bitfield.bitmask;
+				
+				for(int sampleNumber = minSampleNumber + 1; sampleNumber <= maxSampleNumber; sampleNumber++) {
+					int currentValue = (int) dataset.getSample(sampleNumber);
+					if(currentValue != previousValue) {
+						int currentState = (currentValue >> bitfield.LSBit) & bitfield.bitmask;
+						if(currentState != previousState && currentState == value)
+							edgesCache.add(sampleNumber);
+						previousState = currentState;
+					}
+					previousValue = currentValue;
+				}
+				
+				lastSampleNumberInCache = maxSampleNumber;
+				
+			}
+			
+			/**
 			 * Gets a List of sample numbers for when this Bitfield transitioned to this State.
 			 * 
 			 * @param minimumSampleNumber    First sample number to test, inclusive.
@@ -348,28 +383,17 @@ public class Dataset {
 			 */
 			public List<Integer> getEdgeEventsBetween(int minimumSampleNumber, int maximumSampleNumber) {
 				
-				List<Integer> list = new ArrayList<Integer>();
+				updateCache(maximumSampleNumber);
 				
-				if(minimumSampleNumber > 0)
-					minimumSampleNumber--;
-				if(maximumSampleNumber <= minimumSampleNumber)
-					return list;
-				
-				int previousValue = (int) dataset.getSample(minimumSampleNumber);
-				int previousState = (previousValue >> bitfield.LSBit) & bitfield.bitmask;
-				
-				for(int sampleNumber = minimumSampleNumber + 1; sampleNumber <= maximumSampleNumber; sampleNumber++) {
-					int currentValue = (int) dataset.getSample(sampleNumber);
-					if(currentValue != previousValue) {
-						int currentState = (currentValue >> bitfield.LSBit) & bitfield.bitmask;
-						if(currentState != previousState && currentState == value)
-							list.add(sampleNumber);
-						previousState = currentState;
-					}
-					previousValue = currentValue;
+				List<Integer> edges = new ArrayList<Integer>();
+				for(int sampleNumber : edgesCache) {
+					if(sampleNumber >= minimumSampleNumber && sampleNumber <= maximumSampleNumber)
+						edges.add(sampleNumber);
+					else if(sampleNumber > maximumSampleNumber)
+						break;
 				}
 				
-				return list;
+				return edges;
 				
 			}
 			
@@ -382,30 +406,34 @@ public class Dataset {
 			 */
 			public List<int[]> getLevelsBetween(int minimumSampleNumber, int maximumSampleNumber) {
 				
-				List<int[]> list = new ArrayList<int[]>();
+				updateCache(maximumSampleNumber);
 				
-				if(maximumSampleNumber <= minimumSampleNumber)
-					return list;
+				List<int[]> levels = new ArrayList<int[]>();
+				List<Integer> edges = getEdgeEventsBetween(minimumSampleNumber, maximumSampleNumber - 1);
 				
-				int[] range = null;
-				for(int sampleNumber = minimumSampleNumber; sampleNumber <= maximumSampleNumber; sampleNumber++) {
-					int currentValue = (int) dataset.getSample(sampleNumber);
-					int currentState = (currentValue >> bitfield.LSBit) & bitfield.bitmask;
-					if(currentState == value && range == null) { // level started
-						range = new int[2];
-						range[0] = sampleNumber;
-					} else if(currentState != value && range != null) { // level ended
-						range[1] = sampleNumber;
-						list.add(range);
-						range = null;
-					}
-				}
-				if(range != null) { // level extends past the end
-					range[1] = maximumSampleNumber;
-					list.add(range);
+				if(edges.isEmpty() || edges.get(0) != minimumSampleNumber) {
+					int firstValue = (int) dataset.getSample(minimumSampleNumber);
+					int firstState = (firstValue >> bitfield.LSBit) & bitfield.bitmask;
+					if(firstState == value)
+						edges.add(0, minimumSampleNumber);
 				}
 				
-				return list;
+				for(int i = 0; i < edges.size(); i++) {
+					int levelBegin = edges.get(i);
+					int levelEnd = i+1 < edges.size() ? edges.get(i+1) : maximumSampleNumber; // "worse case scenario"
+					// check if level ended earlier
+					if(levelEnd - levelBegin > 1)
+						for(State s : bitfield.states) {
+							if(s == this)
+								continue;
+							List<Integer> edgesOfOtherState = s.getEdgeEventsBetween(levelBegin + 1, levelEnd - 1);
+							if(!edgesOfOtherState.isEmpty())
+								levelEnd = edgesOfOtherState.get(0);
+						}
+					levels.add(new int[] {levelBegin, levelEnd});
+				}
+				
+				return levels;
 				
 			}
 			

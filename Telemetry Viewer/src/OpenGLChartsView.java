@@ -904,7 +904,7 @@ public class OpenGLChartsView extends JPanel {
 						boolean beforeStartOfData = !liveView && pausedTimestamp < connection.datasets.getTimestamp(0);
 						boolean afterEndOfData    = !liveView && pausedTimestamp > connection.datasets.getTimestamp(connection.getSampleCount() - 1);
 						boolean reachedStartOrEnd = oldSampleNumber + (int) delta < 0 || oldSampleNumber + (int) delta >= trueLastSampleNumber;
-						if(beforeStartOfData || afterEndOfData || reachedStartOrEnd) {
+						if(beforeStartOfData || afterEndOfData || (reachedStartOrEnd && activeConnections > 1)) {
 							newTimestamp = pausedTimestamp + (long) (delta / connection.sampleRate * 1000.0);
 							long firstTimestamp = ConnectionsController.getFirstTimestamp();
 							if(newTimestamp < firstTimestamp)

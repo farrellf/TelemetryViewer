@@ -14,6 +14,8 @@ import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -859,7 +861,9 @@ public class ConnectionTelemetry extends Connection {
 
 			long bytesSent = 0;
 			final int repeat = 300;
-			byte[] buff = new byte[11*repeat]; // sync + 4 int16s + checksum
+			byte[] buffer = new byte[11*repeat]; // sync + 4 int16s + checksum
+			ByteBuffer bb = ByteBuffer.wrap(buffer);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
 			short a = 0;
 			short b = 1;
 			short c = 2;
@@ -872,37 +876,23 @@ public class ConnectionTelemetry extends Connection {
 					
 					if(Thread.interrupted() || !connected)
 						throw new InterruptedException();
-
-					int i = 0;
-					short checksum = 0;
 					
+					bb.rewind();
 					for(int n = 0; n < repeat; n++) {
-						buff[i++] = (byte) 0xAA;
-						buff[i++] = (byte) (a >> 0);
-						buff[i++] = (byte) (a >> 8);
-						buff[i++] = (byte) (b >> 0);
-						buff[i++] = (byte) (b >> 8);
-						buff[i++] = (byte) (c >> 0);
-						buff[i++] = (byte) (c >> 8);
-						buff[i++] = (byte) (d >> 0);
-						buff[i++] = (byte) (d >> 8);
-						
-						checksum = 0; // note: the checksum is a uint16, but java does not support unsigned math, so "& 0xFF" is used below to work around that
-						checksum += (buff[i-7] << 8) | (buff[i-8] & 0xFF);
-						checksum += (buff[i-5] << 8) | (buff[i-6] & 0xFF);
-						checksum += (buff[i-3] << 8) | (buff[i-4] & 0xFF);
-						checksum += (buff[i-1] << 8) | (buff[i-2] & 0xFF);
-						buff[i++] = (byte) ((checksum >> 0) & 0xFF);
-						buff[i++] = (byte) ((checksum >> 8) & 0xFF);
-					
+						bb.put((byte) 0xAA);
+						bb.putShort(a);
+						bb.putShort(b);
+						bb.putShort(c);
+						bb.putShort(d);
+						bb.putShort((short) (a+b+c+d));
 						a++;
 						b++;
 						c++;
 						d++;
 					}
 					
-					stream.write(buff, buff.length);
-					bytesSent += buff.length;
+					stream.write(buffer, buffer.length);
+					bytesSent += buffer.length;
 					long end = System.currentTimeMillis();
 					if(end - start > 3000) {
 						String text = String.format("%1.1f Mbps (%1.1f Mpackets/sec)", (bytesSent / (double)(end-start) * 1000.0 * 8.0 / 1000000), (bytesSent / 11 / (double)(end-start) * 1000.0) / 1000000.0);
@@ -1525,8 +1515,9 @@ public class ConnectionTelemetry extends Connection {
 		 */
 		public Parser(List<Dataset> datasets, int packetByteCount, int maxBlockCount, CyclicBarrier allThreadsDone) {
 			
-			minimumValue = new float[maxBlockCount][datasets.size()];
-			maximumValue = new float[maxBlockCount][datasets.size()];
+			int datasetsCount = datasets.size();
+			minimumValue = new float[maxBlockCount][datasetsCount];
+			maximumValue = new float[maxBlockCount][datasetsCount];
 			
 			newData = new CyclicBarrier(2);
 			thread = new Thread(() -> {
@@ -1538,12 +1529,12 @@ public class ConnectionTelemetry extends Connection {
 						// wait for data to parse
 						newData.await();
 						
-						float[][] slots = new float[datasets.size()][];
+						float[][] slots = new float[datasetsCount][];
 							
 						// parse each packet of each block
 						for(int blockN = 0; blockN < blockCount; blockN++) {
 							
-							for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+							for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
 								slots[datasetN] = datasets.get(datasetN).getSlot(firstSampleNumber + (blockN * StorageFloats.BLOCK_SIZE));
 							
 							int slotOffset = (firstSampleNumber + (blockN * StorageFloats.BLOCK_SIZE)) % StorageFloats.SLOT_SIZE;
@@ -1551,7 +1542,7 @@ public class ConnectionTelemetry extends Connection {
 							float[] maxVal = maximumValue[blockN];
 							for(int packetN = 0; packetN < StorageFloats.BLOCK_SIZE; packetN++) {
 								
-								for(int datasetN = 0; datasetN < datasets.size(); datasetN++) {
+								for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
 									Dataset d = datasets.get(datasetN);
 									float f = d.processor.extractValue(buffer, offset + d.location) * d.conversionFactor;
 									slots[datasetN][slotOffset] = f;
@@ -1568,7 +1559,7 @@ public class ConnectionTelemetry extends Connection {
 						}
 						
 						// update datasets
-						for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+						for(int datasetN = 0; datasetN < datasetsCount; datasetN++)
 							for(int blockN = 0; blockN < blockCount; blockN++)
 								datasets.get(datasetN).setRangeOfBlock(firstSampleNumber + (blockN * StorageFloats.BLOCK_SIZE), minimumValue[blockN][datasetN], maximumValue[blockN][datasetN]);
 						

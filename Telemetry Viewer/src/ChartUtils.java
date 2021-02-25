@@ -917,6 +917,11 @@ public class ChartUtils {
 			float yTop          = yBottom + OpenGL.smallTextHeight + padding;
 			float yTextBaseline = yBottom + padding/2f;
 			
+			if(regionAvailable(occupiedRegions, topLeftX, bottomRightX, yBottom, yTop))
+				occupiedRegions.add(new float[] {topLeftX, bottomRightX, yBottom, yTop});
+			else
+				insufficientSpace = true;
+			
 			// if the mouse is over a level marker, we have to draw its outline after drawing other level markers, to ensure other markers don't overlap the outline
 			boolean drawMouseOverOutline = false;
 			float xOutlineLeft = 0;
@@ -928,9 +933,8 @@ public class ChartUtils {
 				float[] xRange = marker.pixelXranges.get(rangeN);
 				float xLeft  = (xRange[0] < 0) ? topLeftX : xRange[0] + topLeftX;
 				float xRight = xRange[1] + topLeftX;
-				if(regionAvailable(occupiedRegions, xLeft, xRight, yBottom, yTop) && yTop <= topLeftY) {
+				if(yTop <= topLeftY) {
 					
-					occupiedRegions.add(new float[] {xLeft, xRight, yBottom, yTop});
 					boolean mouseOverMarker = mouseX >= xLeft && mouseX <= xRight && mouseY >= yBottom && mouseY <= yTop;
 					OpenGL.drawQuad2D(gl, marker.glColors.get(rangeN), xLeft, yBottom, xRight, yTop);
 					if(mouseOverMarker) {
