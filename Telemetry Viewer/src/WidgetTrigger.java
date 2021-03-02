@@ -206,6 +206,10 @@ public class WidgetTrigger extends Widget {
 	@Override public void update() {
 		
 		Dataset selectedDataset = (Dataset) channelCombobox.getSelectedItem();
+		if(selectedDataset == null) {
+			eventHandler.accept(false);
+			return;
+		}
 		
 		List<Dataset> oldDatasetsList = new ArrayList<Dataset>();
 		for(int i = 0; i < channelCombobox.getItemCount(); i++)

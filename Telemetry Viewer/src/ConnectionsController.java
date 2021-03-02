@@ -247,6 +247,36 @@ public class ConnectionsController {
 			}
 		}
 		
+		// allow importing an MKV file by itself
+		boolean moviePlayerMode = false;
+		if(settingsFileCount == 0 && csvFileCount == 0 && mkvFileCount == 1 && imports.isEmpty()) {
+			String cameraName = Paths.get(filepaths[0]).getFileName().toString(); // remove directories
+			cameraName = cameraName.substring(0, cameraName.lastIndexOf(".")); // remove file extension
+			int index = cameraName.lastIndexOf("- ");
+			if(index != -1)
+				cameraName = cameraName.substring(index + 2); // remove the leading "user provided text here - connection n - "
+			
+			removeAllConnections();
+			ChartsController.removeAllCharts();
+			
+			SettingsController.setTileColumns(6);
+			SettingsController.setTileRows(6);
+			if(SettingsController.getTimeFormat().equals("Only Time"))
+				SettingsController.setTimeFormat("Time and YYYY-MM-DD");
+			SettingsController.setAntialiasingLevel(16);
+			
+			ConnectionCamera connection = new ConnectionCamera(cameraName);
+			ConnectionsController.addConnection(connection);
+			imports.put(connection, filepaths[0]);
+			
+			OpenGLCameraChart cameraChart = new OpenGLCameraChart(0, 0, 5, 4);
+			cameraChart.camera = connection;
+			ChartsController.addChart(cameraChart);
+			ChartsController.createAndAddChart("Timeline", 0, 5, 5, 5);
+			
+			moviePlayerMode = true;
+		}
+		
 		if(csvFileCount + mkvFileCount != imports.size()) {
 			NotificationsController.showFailureForMilliseconds("Data file does not correspond with an existing connection.", 5000, true);
 			return;
@@ -276,6 +306,15 @@ public class ConnectionsController {
 			if(firstTimestamp != Long.MAX_VALUE)
 				for(Entry<Connection, String> entry : imports.entrySet())
 					entry.getKey().importDataFile(entry.getValue(), firstTimestamp, completedByteCount);
+			
+			// when importing an MKV file by itself, "finish" importing it, then rewind, then play (so the timeline shows the entire amount of time)
+			if(moviePlayerMode) {
+				ConnectionsController.cameraConnections.get(0).finishImportingFile();
+				OpenGLChartsView.instance.setPausedView(firstTimestamp, null, 0, false);
+				OpenGLTimelineChart timeline = (OpenGLTimelineChart) ChartsController.getCharts().get(1);
+				timeline.playing = true;
+				timeline.previousFrameTimestamp = System.currentTimeMillis();
+			}
 
 			// have another thread clean up when importing finishes
 			long byteCount = totalByteCount;

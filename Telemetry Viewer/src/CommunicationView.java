@@ -81,7 +81,7 @@ public class CommunicationView extends JPanel {
 					csvFileCheckboxes.add(new AbstractMap.SimpleEntry<JCheckBox, ConnectionTelemetry>(new JCheckBox("CSV file for \"" + connection.name + "\" (the acquired samples and corresponding timestamps)", true), connection));
 			for(ConnectionCamera camera : ConnectionsController.cameraConnections)
 				if(camera.getSampleCount() > 0)
-					cameraFileCheckboxes.add(new AbstractMap.SimpleEntry<JCheckBox, ConnectionCamera>(new JCheckBox("Camera files for \"" + camera.name + "\"", true), camera));
+					cameraFileCheckboxes.add(new AbstractMap.SimpleEntry<JCheckBox, ConnectionCamera>(new JCheckBox("MKV file for \"" + camera.name + "\" (the acquired images and corresponding timestamps)", true), camera));
 			
 			JButton cancelButton = new JButton("Cancel");
 			cancelButton.addActionListener(event2 -> exportWindow.dispose());

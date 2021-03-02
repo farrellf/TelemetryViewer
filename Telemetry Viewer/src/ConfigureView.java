@@ -70,6 +70,17 @@ public class ConfigureView extends JPanel {
 			size.width += scrollableRegion.getVerticalScrollBar().getPreferredSize().width;
 		scrollableRegion.setPreferredSize(size);
 		
+		buttonsPanel.setPreferredSize(null);
+		size = buttonsPanel.getPreferredSize();
+		int maxButtonWidth = 0;
+		for(Component c : buttonsPanel.getComponents()) {
+			int w = c.getPreferredSize().width;
+			if(w > maxButtonWidth)
+				maxButtonWidth = w;
+		}
+		size.width = 3*maxButtonWidth;
+		buttonsPanel.setPreferredSize(size);
+		
 		// due to the event queue, the scroll bar may be about to appear or disappear, but the above if() can't see the future
 		// work around this by triggering another getPreferredSize() at the end of the event queue.
 		if(testSizeAgain)

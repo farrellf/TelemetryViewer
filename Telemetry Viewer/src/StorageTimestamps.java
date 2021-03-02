@@ -271,7 +271,12 @@ public class StorageTimestamps {
 	 */
 	private void updateCacheIfAppropriate(int firstSampleNumber, int lastSampleNumber) {
 		
-		int lastVisibleSampleNumber = OpenGLChartsView.instance.getLastSampleNumber(connection);
+		int lastVisibleSampleNumber = sampleCount;
+		try {
+			lastVisibleSampleNumber = OpenGLChartsView.instance.getLastSampleNumber(connection);
+		} catch(Exception e) {
+			// ignore. this will happen when OpenGLChartsView is paused and the pausedConnection is null.
+		}
 		
 		// don't bother caching if the range is larger than one slot
 		if(lastSampleNumber - firstSampleNumber + 1 > SLOT_SIZE)

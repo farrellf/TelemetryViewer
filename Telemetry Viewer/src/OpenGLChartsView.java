@@ -909,9 +909,9 @@ public class OpenGLChartsView extends JPanel {
 							long firstTimestamp = ConnectionsController.getFirstTimestamp();
 							if(newTimestamp < firstTimestamp)
 								newTimestamp = firstTimestamp;
-							setPausedView(newTimestamp, null, 0);
+							setPausedView(newTimestamp, null, 0, true);
 						} else {
-							setPausedView(newTimestamp, connection, newSampleNumber);
+							setPausedView(newTimestamp, connection, newSampleNumber, true);
 						}
 						
 					} else if(chart != null && !chart.sampleCountMode) {
@@ -933,7 +933,7 @@ public class OpenGLChartsView extends JPanel {
 						if(newTimestamp < firstTimestamp)
 							newTimestamp = firstTimestamp;
 						
-						setPausedView(newTimestamp, null, 0);
+						setPausedView(newTimestamp, null, 0, true);
 						
 					} else {
 					
@@ -950,11 +950,17 @@ public class OpenGLChartsView extends JPanel {
 						long newTimestamp = liveView ? ConnectionsController.getLastTimestamp() + deltaMilliseconds :
 						                               pausedTimestamp + deltaMilliseconds;
 						
+						// if the only connection is to a camera, snap to the closest camera frame
+						if(ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.cameraConnections.size() == 1 && newTimestamp < ConnectionsController.getLastTimestamp()) {
+							ConnectionCamera camera = ConnectionsController.cameraConnections.get(0);
+							newTimestamp = camera.getImageAtOrBeforeTimestamp(newTimestamp).timestamp;
+						}
+						
 						long firstTimestamp = ConnectionsController.getFirstTimestamp();
 						if(newTimestamp < firstTimestamp)
 							newTimestamp = firstTimestamp;
 						
-						setPausedView(newTimestamp, null, 0);
+						setPausedView(newTimestamp, null, 0, true);
 						
 					}
 				
@@ -1095,7 +1101,7 @@ public class OpenGLChartsView extends JPanel {
 		
 	}
 	
-	public void setPausedView(long timestamp, ConnectionTelemetry connection, int sampleNumber) {
+	public void setPausedView(long timestamp, ConnectionTelemetry connection, int sampleNumber, boolean notifyTimeline) {
 		
 		liveView = false;
 		pausedView = true;
@@ -1108,6 +1114,13 @@ public class OpenGLChartsView extends JPanel {
 		long endOfTime = ConnectionsController.getLastTimestamp();
 		if(timestamp > endOfTime && endOfTime != Long.MIN_VALUE)
 			setLiveView();
+		
+		if(notifyTimeline)
+			for(PositionedChart chart : ChartsController.getCharts())
+				if(chart instanceof OpenGLTimelineChart) {
+					OpenGLTimelineChart c = (OpenGLTimelineChart) chart;
+					c.userIsTimeshifting();
+				}
 		
 	}
 	

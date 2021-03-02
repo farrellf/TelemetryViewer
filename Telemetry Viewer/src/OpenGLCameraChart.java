@@ -92,7 +92,7 @@ public class OpenGLCameraChart extends PositionedChart {
 			f = camera.getLiveImage();
 		else {
 			long lastTimestamp = OpenGLChartsView.instance.isLiveView() ? ConnectionsController.getLastTimestamp() : OpenGLChartsView.instance.pausedTimestamp;
-			f = camera.getImageBeforeTimestamp(lastTimestamp);
+			f = camera.getImageAtOrBeforeTimestamp(lastTimestamp);
 		}
 		
 		// calculate x and y positions of everything

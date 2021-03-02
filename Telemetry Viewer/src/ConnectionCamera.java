@@ -564,12 +564,12 @@ public class ConnectionCamera extends Connection {
 	private static final SimpleDateFormat timestampFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 	
 	/**
-	 * Gets the closest image from just before a certain moment in time.
+	 * Gets the closest image at or just before a certain moment in time.
 	 * 
 	 * @param timestamp    The moment in time (milliseconds since 1970-01-01.)
 	 * @return             The image and related information, as a GLframe object.
 	 */
-	public GLframe getImageBeforeTimestamp(long timestamp) {
+	public GLframe getImageAtOrBeforeTimestamp(long timestamp) {
 		
 		// give up if there's no images
 		if(framesIndex.isEmpty())
