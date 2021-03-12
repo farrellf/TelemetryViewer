@@ -1397,4 +1397,144 @@ public class ChartUtils {
 		
 	}
 	
+	/**
+	 * Converts a String of text to a byte[], optionally appending a CR and/or LF.
+	 * 
+	 * @param textString    Input string.
+	 * @param lf            True to append a \n.
+	 * @param cr            True to append a \r.
+	 * @return              Resulting byte[].
+	 */
+	public static byte[] convertTextStringToBytes(String textString, boolean lf, boolean cr) {
+		
+		if(!cr && !lf) {
+			return textString.getBytes();
+		} else if(cr && lf) {
+			byte[] temp = textString.getBytes();
+			byte[] bytes = new byte[temp.length + 2];
+			System.arraycopy(temp, 0, bytes, 0, temp.length);
+			bytes[bytes.length - 2] = (byte) '\r';
+			bytes[bytes.length - 1] = (byte) '\n';
+			return bytes;
+		} else {
+			byte[] temp = textString.getBytes();
+			byte[] bytes = new byte[temp.length + 1];
+			System.arraycopy(temp, 0, bytes, 0, temp.length);
+			bytes[bytes.length - 1] = (byte) (cr ? '\r' : '\n');
+			return bytes;
+		}
+		
+	}
+	
+	/**
+	 * Converts a String of hex bytes (example: "12 34 AB CD") to a byte[].
+	 * 
+	 * @param hexString    Hex text with spaces between each byte. The spaces are required!
+	 * @return             Corresponding byte[].
+	 */
+	public static byte[] convertHexStringToBytes(String hexString) {
+		
+		if(hexString.length() == 0)
+			return new byte[0];
+		
+		String[] hexBytes = hexString.trim().split(" ");
+		byte[] bytes = new byte[hexBytes.length];
+		for(int i = 0; i < hexBytes.length; i++)
+			bytes[i] = (byte) Integer.parseInt(hexBytes[i], 16);
+		return bytes;
+		
+	}
+	
+	/**
+	 * Converts a String of binary bytes (Example: "00000001 10101010") to a byte[].
+	 * 
+	 * @param binString    Binary text with spaces between each byte. The spaces are required!
+	 * @return             Corresponding byte[].
+	 */
+	public static byte[] convertBinStringToBytes(String binString) {
+		
+		if(binString.length() == 0)
+			return new byte[0];
+		
+		String[] binaryBytes = binString.trim().split(" ");
+		byte[] bytes = new byte[binaryBytes.length];
+		for(int i = 0; i < binaryBytes.length; i++)
+			bytes[i] = (byte) Integer.parseInt(binaryBytes[i], 2);
+		return bytes;
+		
+	}
+	
+	/**
+	 * Converts a byte[] back to a String of text.
+	 * 
+	 * @param bytes         Input byte[].
+	 * @param escapeCRLF    If true, the returned String will contain \r instead of an actual CR, and \n instead of an actual LF.
+	 * @return              Corresponding String.
+	 */
+	public static String convertBytesToTextString(byte[] bytes, boolean escapeCRLF) {
+		
+		if(escapeCRLF)
+			return new String(bytes).replace("\r", "\\r").replace("\n", "\\n");
+		
+		String string = new String(bytes);
+		if(string.endsWith("\n"))
+			string = string.substring(0, string.length() - 1);
+		if(string.endsWith("\r"))
+			string = string.substring(0, string.length() - 1);
+		return string;
+		
+	}
+	
+	/**
+	 * Converts a byte[] back to a String of hex bytes.
+	 * 
+	 * @param bytes    Input byte[].
+	 * @return         Corresponding hex String with spaces between bytes. (Example: "12 34 AB CD")
+	 */
+	public static String convertBytesToHexString(byte[] bytes) {
+		
+		String string = "";
+		for(byte b : bytes)
+			string += String.format("%02X ", b);
+		return string.trim();
+		
+		
+	}
+	
+	/**
+	 * Converts a byte[] back to a String of binary bytes.
+	 * 
+	 * @param bytes    Input byte[].
+	 * @return         Corresponding binary String with spaced between bytes. (Example: "00000001 10101010")
+	 */
+	public static String convertBytesToBinString(byte[] bytes) {
+		
+		String string = "";
+		for(byte b : bytes)
+			string += String.format("%8s", Integer.toBinaryString(Byte.toUnsignedInt(b))).replace(' ', '0') + " ";
+		return string.trim();
+		
+	}
+	
+	/**
+	 * Inserts a space every n characters, to format hex or binary text in a more user-friendly way.
+	 * 
+	 * @param text      Input String with no spaces.
+	 * @param stride    How many characters before each space.
+	 * @return          The padded String. (Example: "0123ABCD" with a stride of 2 becomes "01 23 AB CD")
+	 */
+	public static String padStringWithSpaces(String text, int stride) {
+		
+		String string = "";
+		int count = 0;
+		for(int i = 0; i < text.length(); i++) {
+			string += text.charAt(i);
+			count++;
+			if(count % stride == 0)
+				string += " ";
+		}
+		return string;
+		
+	}
+	
 }

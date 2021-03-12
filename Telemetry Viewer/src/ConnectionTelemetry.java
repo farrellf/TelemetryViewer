@@ -6,6 +6,7 @@ import java.awt.event.FocusListener;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -20,8 +21,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Queue;
 import java.util.Scanner;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.JButton;
@@ -58,7 +61,6 @@ public class ConnectionTelemetry extends Connection {
 	
 	public enum Mode {UART, TCP, UDP, DEMO, STRESS_TEST};
 	public volatile Mode mode = Mode.UART;
-	
 	public volatile int sampleRate = 1000;
 	public volatile boolean csvMode = true;
 	public volatile int baudRate = 9600; // for UART mode
@@ -87,6 +89,11 @@ public class ConnectionTelemetry extends Connection {
 				localIp = ips.substring(0, ips.length() - 4);
 		} catch(Exception e) {}
 	}
+	
+	// transmit settings
+	private TransmitController transmit;
+	private Queue<byte[]> transmitQueue;
+	private long previousRepititionTimestamp;
 	
 	/**
 	 * Prepares, but does not connect to, a connection that can receive "normal telemetry" (a stream of numbers to visualize.)
@@ -124,10 +131,19 @@ public class ConnectionTelemetry extends Connection {
 			csvMode = false;
 		}
 		
+		// give UARTs a transmit GUI
+		if(mode == Mode.UART) {
+			transmit = new TransmitController(this);
+			transmitQueue = new ConcurrentLinkedQueue<byte[]>();
+			previousRepititionTimestamp = 0;
+		}
+		
 	}
 	
 	/**
 	 * Prepares, but does not connect to, a connection that can receive "normal telemetry" (a stream of numbers to visualize.)
+	 * 
+	 * @param name    Connection name.
 	 */
 	public ConnectionTelemetry(String name) {
 		
@@ -154,6 +170,13 @@ public class ConnectionTelemetry extends Connection {
 		} else {
 			sampleRate = Integer.MAX_VALUE;
 			csvMode = false;
+		}
+
+		// give UARTs a transmit GUI
+		if(mode == Mode.UART) {
+			transmit = new TransmitController(this);
+			transmitQueue = new ConcurrentLinkedQueue<byte[]>();
+			previousRepititionTimestamp = 0;
 		}
 		
 	}
@@ -255,31 +278,37 @@ public class ConnectionTelemetry extends Connection {
 				datasets.removeAll();
 			
 			// change to the new connection
+			// only UARTs should have a transmit GUI
 			name = newConnectionName;
 			if(name.startsWith("UART")) {
 				mode = Mode.UART;
+				transmit = new TransmitController(this);
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
 					csvMode = true;
 				}
 			} else if(name.equals("TCP")) {
 				mode = Mode.TCP;
+				transmit = null;
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
 					csvMode = true;
 				}
 			} else if(name.equals("UDP")) {
 				mode = Mode.UDP;
+				transmit = null;
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
 					csvMode = true;
 				}
 			} else if(name.equals("Demo Mode")) {
 				mode = Mode.DEMO;
+				transmit = null;
 				sampleRate = 10000;
 				csvMode = true;
 			} else {
 				mode = Mode.STRESS_TEST;
+				transmit = null;
 				sampleRate = Integer.MAX_VALUE;
 				csvMode = false;
 			}
@@ -504,7 +533,7 @@ public class ConnectionTelemetry extends Connection {
 					// problem while reading from the UART
 					stopProcessingTelemetry();
 					uartPort.closePort();
-					SwingUtilities.invokeLater(() -> disconnect("Error while reading from the UART."));
+					SwingUtilities.invokeLater(() -> disconnect("Error while reading from " + name));
 					return;
 					
 				}  catch(InterruptedException ie) {
@@ -522,6 +551,64 @@ public class ConnectionTelemetry extends Connection {
 		receiverThread.setPriority(Thread.MAX_PRIORITY);
 		receiverThread.setName("UART Receiver Thread");
 		receiverThread.start();
+		
+		transmitterThread = new Thread(() -> {
+			
+			OutputStream uart = uartPort.getOutputStream();
+			
+			while(true) {
+				
+				try {
+					
+					if(Thread.interrupted() || !connected)
+						throw new InterruptedException();
+					
+					while(!transmitQueue.isEmpty()) {
+						byte[] data = transmitQueue.remove();
+						uart.write(data);
+						
+//						String message = "Transmitted: ";
+//						for(byte b : data)
+//							message += String.format("%02X ", b);
+//						NotificationsController.showDebugMessage(message);
+					}
+					
+					if(transmit.getRepeats() && previousRepititionTimestamp + transmit.getRepititionInterval() <= System.currentTimeMillis()) {
+						previousRepititionTimestamp = System.currentTimeMillis();
+						byte[] data = transmit.getTransmitBytes();
+						uart.write(data);
+						
+//						String message = "Transmitted: ";
+//						for(byte b : data)
+//							message += String.format("%02X ", b);
+//						NotificationsController.showDebugMessage(message);
+					}
+					
+					Thread.sleep(1);
+					
+				} catch(IOException e) {
+					
+					// an IOException can occur if an InterruptedException occurs while transmitting data
+					// let this be detected by the connection test in the loop
+					if(!connected)
+						continue;
+					
+					// problem while writing to the UART
+					NotificationsController.showFailureForMilliseconds("Error while writing to " + name, 5000, false);
+					
+				} catch(InterruptedException ie) {
+					
+					return;
+					
+				}
+				
+			}
+			
+		});
+		
+		transmitterThread.setPriority(Thread.MAX_PRIORITY);
+		transmitterThread.setName("UART Transmitter Thread");
+		transmitterThread.start();
 		
 	}
 	
@@ -930,7 +1017,7 @@ public class ConnectionTelemetry extends Connection {
 		
 		if(type.equals("UART")) {
 			
-			String portName = ChartUtils.parseString (lines.remove(), "port = %s");
+			String portName = ChartUtils.parseString(lines.remove(), "port = %s");
 			if(portName.length() < 1)
 				throw new AssertionError("Invalid port.");
 			
@@ -938,13 +1025,68 @@ public class ConnectionTelemetry extends Connection {
 			if(baud < 1)
 				throw new AssertionError("Invalid baud rate.");
 			
-			String packetType = ChartUtils.parseString (lines.remove(), "packet type = %s");
+			String packetType = ChartUtils.parseString(lines.remove(), "packet type = %s");
 			if(!packetType.equals("CSV") && !packetType.equals("Binary"))
 				throw new AssertionError("Invalid packet type.");
 			
 			int hz = ChartUtils.parseInteger(lines.remove(), "sample rate hz = %d");
 			if(hz < 1)
 				throw new AssertionError("Invalid sample rate.");
+			
+			String transmitType = ChartUtils.parseString(lines.remove(), "transmit type = %s");
+			if(!transmitType.equals("Text") && !transmitType.equals("Hex") && !transmitType.equals("Bin"))
+				throw new AssertionError("Invalid transmit type.");
+			
+			String transmitData = ChartUtils.parseString(lines.remove(), "transmit data = %s");
+			boolean appendsCR = ChartUtils.parseBoolean(lines.remove(), "transmit appends cr = %b");
+			boolean appendsLF = ChartUtils.parseBoolean(lines.remove(), "transmit appends lf = %b");
+			boolean repeats = ChartUtils.parseBoolean(lines.remove(), "transmit repeats = %b");
+			int repititionInterval = ChartUtils.parseInteger(lines.remove(), "transmit repitition interval milliseconds = %d");
+			if(repititionInterval < 1)
+				throw new AssertionError("Invalid transmit repitition interval.");
+			int saveCount = ChartUtils.parseInteger(lines.remove(), "transmit saved count = %d");
+			if(saveCount < 0)
+				throw new AssertionError("Invalid save count.");
+			
+			transmit.setTransmitText(transmitData, null);
+			transmit.setAppendCR(appendsCR);
+			transmit.setAppendLF(appendsLF);
+			transmit.setRepeats(repeats);
+			transmit.setRepititionInterval(repititionInterval);
+			
+			while(saveCount-- > 0) {
+				String save = lines.remove();
+				if(!save.startsWith("Text: ") && !save.startsWith("Hex: ") && !save.startsWith("Bin: "))
+					throw new AssertionError("Invalid save.");
+				String escapedText = save;
+				byte[] bytes;
+				if(save.startsWith("Text: ")) {
+					String temp = save.substring(6);
+					if(temp.length() == 0)
+						throw new AssertionError("Invalid save.");
+					if(temp.endsWith("\\r\\n"))
+						temp = temp.substring(0, temp.length() - 4) + "\r\n";
+					else if(temp.endsWith("\\r"))
+						temp = temp.substring(0, temp.length() - 2) + "\r";
+					else if(temp.endsWith("\\n"))
+						temp = temp.substring(0, temp.length() - 2) + "\n";
+					bytes = temp.getBytes();
+				} else if(save.startsWith("Hex: ")) {
+					String temp = save.substring(5).trim();
+					if(temp.length() == 0)
+						throw new AssertionError("Invalid save.");
+					bytes = ChartUtils.convertHexStringToBytes(temp);
+				} else {
+					String temp = save.substring(5).trim();
+					if(temp.length() == 0)
+						throw new AssertionError("Invalid save.");
+					bytes = ChartUtils.convertBinStringToBytes(temp);
+				}
+				TransmitController.SavedPacket data = new TransmitController.SavedPacket();
+				data.escapedText = escapedText;
+				data.bytes = bytes;
+				transmit.savePacket(data);
+			}
 			
 			mode = Mode.UART;
 			name = "UART: " + portName;
@@ -1078,6 +1220,15 @@ public class ConnectionTelemetry extends Connection {
 			file.println("\tbaud rate = "      + baudRate);
 			file.println("\tpacket type = "    + (csvMode ? "CSV" : "Binary"));
 			file.println("\tsample rate hz = " + sampleRate);
+			
+			file.println("\ttransmit type = "                             + transmit.getTransmitType());
+			file.println("\ttransmit data = "                             + transmit.getTransmitText());
+			file.println("\ttransmit appends cr = "                       + transmit.getAppendCR());
+			file.println("\ttransmit appends lf = "                       + transmit.getAppendLF());
+			file.println("\ttransmit repeats = "                          + transmit.getRepeats());
+			file.println("\ttransmit repitition interval milliseconds = " + transmit.getRepititionInterval());
+			file.println("\ttransmit saved count = "                      + transmit.getSavedPackets().size());
+			transmit.getSavedPackets().forEach(save -> file.print("\t\t" + save.escapedText));
 			
 		} else if(mode == Mode.TCP || mode == Mode.UDP) {
 			
@@ -1625,6 +1776,29 @@ public class ConnectionTelemetry extends Connection {
 			processorThread.interrupt();
 			while(processorThread.isAlive()); // wait
 		}
+		
+	}
+	
+	/**
+	 * Appends a packet to the transmit queue. This will be transmitted as soon as possible.
+	 * 
+	 * @param bytes    Packet to transmit.
+	 */
+	public void transmit(byte[] bytes) {
+		
+		transmitQueue.add(bytes);
+		
+	}
+	
+	/**
+	 * @return    The transmit GUI, or null if no GUI should be displayed.
+	 */
+	public JPanel getTransmitPanel() {
+		
+		if(transmit == null)
+			return null;
+		else
+			return transmit.getGui();
 		
 	}
 

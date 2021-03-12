@@ -1112,7 +1112,7 @@ public class OpenGLChartsView extends JPanel {
 		pausedPrimaryConnectionSampleNumber = (connection == null) ? 0 : sampleNumber;
 		
 		long endOfTime = ConnectionsController.getLastTimestamp();
-		if(timestamp > endOfTime && endOfTime != Long.MIN_VALUE)
+		if(timestamp >= endOfTime && endOfTime != Long.MIN_VALUE)
 			setLiveView();
 		
 		if(notifyTimeline)

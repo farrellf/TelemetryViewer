@@ -240,6 +240,9 @@ public class CommunicationView extends JPanel {
 			
 			revalidate();
 			repaint();
+		
+			// also redraw the SettingsView because it contains the transmit GUIs
+			SettingsView.instance.setVisible(SettingsView.instance.isVisible());
 			
 		});
 		

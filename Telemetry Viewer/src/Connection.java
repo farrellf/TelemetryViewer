@@ -14,8 +14,9 @@ import javax.swing.SwingUtilities;
  */
 public abstract class Connection {
 	
-	Thread receiverThread;  // listens for the stream of data
-	Thread processorThread; // processes the received data
+	Thread receiverThread;    // listens for incoming data
+	Thread processorThread;   // processes the received data
+	Thread transmitterThread; // sends data
 	volatile boolean connected = false;
 	volatile String name = "";
 	
@@ -122,13 +123,17 @@ public abstract class Connection {
 			// tell the receiver thread to terminate by setting the boolean AND interrupting the thread because
 			// interrupting the thread might generate an IOException, but we don't want to report that as an error
 			connected = false;
+			if(transmitterThread != null && transmitterThread.isAlive()) {
+				transmitterThread.interrupt();
+				while(transmitterThread.isAlive()); // wait
+			}
 			if(receiverThread.isAlive()) {
 				receiverThread.interrupt();
 				while(receiverThread.isAlive()); // wait
 			}
 
 			SwingUtilities.invokeLater(() -> { // invokeLater so this if() fails when importing a layout that has charts
-				if(ChartsController.getCharts().isEmpty() && !connected)
+				if(ChartsController.getCharts().isEmpty() && !ConnectionsController.telemetryPossible())
 					NotificationsController.showHintUntil("Start by connecting to a device or opening a file by using the buttons below.", () -> !ChartsController.getCharts().isEmpty(), true);
 			});
 			
