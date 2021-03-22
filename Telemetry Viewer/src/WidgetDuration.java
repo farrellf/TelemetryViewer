@@ -15,7 +15,6 @@ public class WidgetDuration extends Widget {
 	JComboBox<String> durationTypeCombobox;
 	JComboBox<String> xAxisCombobox;
 	Consumer<String> handler;
-	int defaultSampleCount;
 	int lowerLimit;
 	int upperLimit;
 	String previousType;
@@ -25,31 +24,36 @@ public class WidgetDuration extends Widget {
 	
 	PositionedChart chart;
 	
+	ConnectionTelemetry connection;
+	boolean userSpecifiedTheDuration = false;
+	
 	/**
 	 * A widget that lets the user specify a duration and pick the duration type (sample count, seconds, etc.) from a drop-down list.
 	 * 
-	 * @param defaultSampleCount    Default sample count.
-	 * @param lowerLimit            Minimum allowed sample count.
-	 * @param upperLimit            Maximum allowed sample count.
-	 * @param chart                 Chart using this widget.
-	 * @param eventHandler          Will be notified when the duration or x-axis mode changes. The String will be "Sample Count" or "Timestamps" or "Time Elapsed".
+	 * @param lowerLimit      Minimum allowed sample count.
+	 * @param upperLimit      Maximum allowed sample count.
+	 * @param chart           Chart using this widget.
+	 * @param eventHandler    Will be notified when the duration or x-axis mode changes. The String will be "Sample Count" or "Timestamps" or "Time Elapsed".
 	 */
-	public WidgetDuration(int defaultSampleCount, int lowerLimit, int upperLimit, PositionedChart chart, Consumer<String> eventHandler) {
+	public WidgetDuration(int lowerLimit, int upperLimit, PositionedChart chart, Consumer<String> eventHandler) {
 		
 		super();
 		
 		handler = eventHandler;
-		this.defaultSampleCount = defaultSampleCount;
 		this.lowerLimit = lowerLimit;
 		this.upperLimit = upperLimit;
 		this.chart = chart;
 		
-		textfield = new JTextField(Integer.toString((int) defaultSampleCount));
+		int defaultSampleCount = 10_000;
+		if(!ConnectionsController.telemetryConnections.isEmpty())
+			defaultSampleCount = (int) ((double) ConnectionsController.telemetryConnections.get(0).sampleRate * (double) Theme.defaultChartDurationMilliseconds / 1000.0);
+			
+		textfield = new JTextField(Integer.toString(defaultSampleCount));
 		textfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
+			@Override public void focusLost(FocusEvent fe)   { userSpecifiedTheDuration = true; sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { textfield.selectAll(); }
 		});
-		textfield.addActionListener(event -> sanityCheck());
+		textfield.addActionListener(event -> { userSpecifiedTheDuration = true; sanityCheck(); });
 		
 		durationTypeCombobox = new JComboBox<String>(new String[] {"Samples", "Seconds", "Minutes", "Hours", "Days"});
 		durationTypeCombobox.addActionListener(event -> sanityCheck());
@@ -68,6 +72,22 @@ public class WidgetDuration extends Widget {
 		
 		previousType = "Samples";
 		sanityCheck();
+		
+	}
+	
+	/**
+	 * Sets the connection associated with the chart, so the default duration can be properly calculated.
+	 * 
+	 * @param connection    Connection associated with the chart.
+	 */
+	public void setConnection(ConnectionTelemetry connection) {
+		
+		this.connection = connection;
+		if(!userSpecifiedTheDuration && durationTypeCombobox.getSelectedItem().toString().equals("Samples")) {
+			int defaultSampleCount = (int) ((double) connection.sampleRate * (double) Theme.defaultChartDurationMilliseconds / 1000.0);
+			textfield.setText(Integer.toString(defaultSampleCount));
+			intDuration = defaultSampleCount;
+		}
 		
 	}
 	
@@ -175,6 +195,8 @@ public class WidgetDuration extends Widget {
 			
 		} catch(Exception e) {
 			
+			int defaultSampleCount = connection == null ? 10_000 : (int) ((double) connection.sampleRate * (double) Theme.defaultChartDurationMilliseconds / 1000.0);
+				
 			durationTypeCombobox.setSelectedItem("Samples");
 			xAxisCombobox.setSelectedItem("Sample Count");
 			xAxisCombobox.setEnabled(false);

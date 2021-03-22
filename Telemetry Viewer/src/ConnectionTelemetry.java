@@ -18,6 +18,7 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
@@ -27,6 +28,13 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
@@ -61,8 +69,9 @@ public class ConnectionTelemetry extends Connection {
 	
 	public enum Mode {UART, TCP, UDP, DEMO, STRESS_TEST};
 	public volatile Mode mode = Mode.UART;
+	public enum PacketType {CSV, BINARY, TC66};
+	public volatile PacketType packetType = PacketType.CSV;
 	public volatile int sampleRate = 1000;
-	public volatile boolean csvMode = true;
 	public volatile int baudRate = 9600; // for UART mode
 	public volatile int portNumber = 8080; // for TCP/UDP modes
 	
@@ -122,13 +131,13 @@ public class ConnectionTelemetry extends Connection {
 		// determine the sample rate and CSV/binary mode
 		if(mode == Mode.UART || mode == Mode.TCP || mode == Mode.UDP) {
 			sampleRate = 1000;
-			csvMode = true;
+			packetType = PacketType.CSV;
 		} else if(mode == Mode.DEMO) {
 			sampleRate = 10000;
-			csvMode = true;
+			packetType = PacketType.CSV;
 		} else {
 			sampleRate = Integer.MAX_VALUE;
-			csvMode = false;
+			packetType = PacketType.BINARY;
 		}
 		
 		// give UARTs a transmit GUI
@@ -163,13 +172,13 @@ public class ConnectionTelemetry extends Connection {
 		// determine the sample rate and CSV/binary mode
 		if(mode == Mode.UART || mode == Mode.TCP || mode == Mode.UDP) {
 			sampleRate = 1000;
-			csvMode = true;
+			packetType = PacketType.CSV;
 		} else if(mode == Mode.DEMO) {
 			sampleRate = 10000;
-			csvMode = true;
+			packetType = PacketType.CSV;
 		} else {
 			sampleRate = Integer.MAX_VALUE;
-			csvMode = false;
+			packetType = PacketType.BINARY;
 		}
 
 		// give UARTs a transmit GUI
@@ -187,6 +196,15 @@ public class ConnectionTelemetry extends Connection {
 	public static List<String> getNames() {
 
 		return names;
+		
+	}
+	
+	/**
+	 * @return    True if using the CSV packet type.
+	 */
+	public boolean isCsvMode() {
+		
+		return packetType == PacketType.CSV;
 		
 	}
 
@@ -224,16 +242,36 @@ public class ConnectionTelemetry extends Connection {
 			}
 		});
 		
-		// CSV or binary mode
-		JComboBox<String> packetTypeCombobox = new JComboBox<String>(new String[] {"CSV Mode", "Binary Mode"});
+		// packet type
+		JComboBox<String> packetTypeCombobox = new JComboBox<String>(new String[] {"CSV Mode", "Binary Mode", "TC66 Mode"});
+		if(mode != Mode.UART) {
+			packetTypeCombobox.removeItem("TC66 Mode");
+			if(packetType == PacketType.TC66)
+				packetType = PacketType.CSV;
+		}
 		packetTypeCombobox.setMinimumSize(packetTypeCombobox.getPreferredSize());
-		if(!csvMode)
-			packetTypeCombobox.setSelectedIndex(1);
+		packetTypeCombobox.setSelectedIndex(packetType == PacketType.CSV    ? 0 :
+		                                    packetType == PacketType.BINARY ? 1 :
+		                                                                      2);
 		packetTypeCombobox.addActionListener(event -> {
-			boolean changing = (csvMode && packetTypeCombobox.getSelectedIndex() == 1) || (!csvMode && packetTypeCombobox.getSelectedIndex() == 0);
-			if(changing)
+			int index = packetTypeCombobox.getSelectedIndex();
+			boolean changing = (packetType == PacketType.CSV    && index != 0) ||
+			                   (packetType == PacketType.BINARY && index != 1) ||
+			                   (packetType == PacketType.TC66   && index != 2);
+			packetType = index == 0 ? PacketType.CSV :
+			             index == 1 ? PacketType.BINARY :
+			                          PacketType.TC66;
+			if(changing) {
 				datasets.removeAll();
-			csvMode = (packetTypeCombobox.getSelectedIndex() == 0);
+				if(transmit != null)
+					transmit.reset();
+			}
+			if(packetType == PacketType.TC66) {
+				transmit.reset();
+				transmit.savePacket(new TransmitController.SavedPacket("rotat".getBytes(), "Rotate Display"));
+				transmit.savePacket(new TransmitController.SavedPacket("lastp".getBytes(), "Previous Screen"));
+				transmit.savePacket(new TransmitController.SavedPacket("nextp".getBytes(), "Next Screen"));
+			}
 			CommunicationView.instance.redraw();
 		});
 		
@@ -285,32 +323,32 @@ public class ConnectionTelemetry extends Connection {
 				transmit = new TransmitController(this);
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
-					csvMode = true;
+					packetType = PacketType.CSV;
 				}
 			} else if(name.equals("TCP")) {
 				mode = Mode.TCP;
 				transmit = null;
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
-					csvMode = true;
+					packetType = PacketType.CSV;
 				}
 			} else if(name.equals("UDP")) {
 				mode = Mode.UDP;
 				transmit = null;
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
-					csvMode = true;
+					packetType = PacketType.CSV;
 				}
 			} else if(name.equals("Demo Mode")) {
 				mode = Mode.DEMO;
 				transmit = null;
 				sampleRate = 10000;
-				csvMode = true;
+				packetType = PacketType.CSV;
 			} else {
 				mode = Mode.STRESS_TEST;
 				transmit = null;
 				sampleRate = Integer.MAX_VALUE;
-				csvMode = false;
+				packetType = PacketType.BINARY;
 			}
 
 			CommunicationView.instance.redraw();
@@ -403,7 +441,7 @@ public class ConnectionTelemetry extends Connection {
 		Insets insets = temp.getBorder().getBorderInsets(temp);
 		Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
 		
-		JButton removeButton = new JButton("\uD83D\uDDD9");
+		JButton removeButton = new JButton(Theme.removeSymbol);
 		removeButton.setBorder(narrowBorder);
 		removeButton.addActionListener(event -> {
 			ConnectionsController.removeConnection(ConnectionTelemetry.this);
@@ -494,8 +532,9 @@ public class ConnectionTelemetry extends Connection {
 		connected = true;
 		CommunicationView.instance.redraw();
 		
-		if(showGui)
-			Main.showConfigurationGui(csvMode ? new DataStructureCsvView(this) : new DataStructureBinaryView(this));
+		if(showGui && packetType != PacketType.TC66)
+			Main.showConfigurationGui(packetType == PacketType.CSV ? new DataStructureCsvView(this) :
+			                                                         new DataStructureBinaryView(this));
 		
 		receiverThread = new Thread(() -> {
 			
@@ -610,6 +649,54 @@ public class ConnectionTelemetry extends Connection {
 		transmitterThread.setName("UART Transmitter Thread");
 		transmitterThread.start();
 		
+		// for the TC66/TC66C: populate the datasets and configure the transmit GUI to poll the device periodically
+		if(packetType == PacketType.TC66) {
+			
+			sampleRate = 2;
+			boolean datasetsAlreadyExist = datasets.getCount() == 11 &&
+			                               datasets.getByIndex(0) .name.equals("Voltage") &&
+			                               datasets.getByIndex(1) .name.equals("Current") &&
+			                               datasets.getByIndex(2) .name.equals("Power") &&
+			                               datasets.getByIndex(3) .name.equals("Resistance") &&
+			                               datasets.getByIndex(4) .name.equals("Group 0 Capacity") &&
+			                               datasets.getByIndex(5) .name.equals("Group 0 Energy") &&
+			                               datasets.getByIndex(6) .name.equals("Group 1 Capacity") &&
+			                               datasets.getByIndex(7) .name.equals("Group 1 Energy") &&
+			                               datasets.getByIndex(8) .name.equals("PCB Temperature") &&
+			                               datasets.getByIndex(9) .name.equals("D+ Voltage") &&
+			                               datasets.getByIndex(10).name.equals("D- Voltage");
+			
+			if(!datasetsAlreadyExist) {
+				datasets.removeAll();
+				datasets.removeSyncWord();
+				DatasetsController.BinaryFieldProcessor fake = DatasetsController.binaryFieldProcessors[0];
+				datasets.insert(0,  fake, "Voltage",          new Color(0x00FF00), "V",       1, 1);
+				datasets.insert(1,  fake, "Current",          new Color(0x00FFFF), "A",       1, 1);
+				datasets.insert(2,  fake, "Power",            new Color(0xFF00FF), "W",       1, 1);
+				datasets.insert(3,  fake, "Resistance",       new Color(0x00FFFF), "\u2126",  1, 1);
+				datasets.insert(4,  fake, "Group 0 Capacity", new Color(0xFF0000), "mAh",     1, 1);
+				datasets.insert(5,  fake, "Group 0 Energy",   new Color(0xFFFF00), "mWh",     1, 1);
+				datasets.insert(6,  fake, "Group 1 Capacity", new Color(0xFF0000), "mAh",     1, 1);
+				datasets.insert(7,  fake, "Group 1 Energy",   new Color(0xFFFF00), "mWh",     1, 1);
+				datasets.insert(8,  fake, "PCB Temperature",  new Color(0xFFFF00), "Degrees", 1, 1);
+				datasets.insert(9,  fake, "D+ Voltage",       new Color(0x8000FF), "V",       1, 1);
+				datasets.insert(10, fake, "D- Voltage",       new Color(0x0000FF), "V",       1, 1);
+			}
+			
+			transmit.setTransmitType("Text");
+			transmit.setTransmitText("getva", null);
+			transmit.setAppendCR(false);
+			transmit.setAppendLF(false);
+			transmit.setRepeats(true);
+			transmit.setRepititionInterval(200);
+			transmit.savePacket(new TransmitController.SavedPacket("rotat".getBytes(), "Rotate Display"));
+			transmit.savePacket(new TransmitController.SavedPacket("lastp".getBytes(), "Previous Screen"));
+			transmit.savePacket(new TransmitController.SavedPacket("nextp".getBytes(), "Next Screen"));
+			
+			dataStructureDefined = true;
+			
+		}
+		
 	}
 	
 	private void connectTcp(boolean showGui) {
@@ -634,7 +721,8 @@ public class ConnectionTelemetry extends Connection {
 			CommunicationView.instance.redraw();
 			
 			if(showGui)
-				Main.showConfigurationGui(csvMode ? new DataStructureCsvView(this) : new DataStructureBinaryView(this));
+				Main.showConfigurationGui(packetType == PacketType.CSV ? new DataStructureCsvView(this) :
+				                                                         new DataStructureBinaryView(this));
 			
 			startProcessingTelemetry(stream);
 			
@@ -736,7 +824,8 @@ public class ConnectionTelemetry extends Connection {
 			CommunicationView.instance.redraw();
 			
 			if(showGui)
-				Main.showConfigurationGui(csvMode ? new DataStructureCsvView(this) : new DataStructureBinaryView(this));
+				Main.showConfigurationGui(packetType == PacketType.CSV ? new DataStructureCsvView(this) :
+				                                                         new DataStructureBinaryView(this));
 			
 			startProcessingTelemetry(stream);
 			
@@ -809,10 +898,11 @@ public class ConnectionTelemetry extends Connection {
 		CommunicationView.instance.redraw();
 		
 		if(showGui)
-			Main.showConfigurationGui(csvMode ? new DataStructureCsvView(this) : new DataStructureBinaryView(this));
+			Main.showConfigurationGui(packetType == PacketType.CSV ? new DataStructureCsvView(this) :
+			                                                         new DataStructureBinaryView(this));
 
 		// simulate the transmission of a telemetry packet every 100us.
-		receiverThread = new Thread(() -> {
+		transmitterThread = new Thread(() -> {
 			
 			long startTime = System.currentTimeMillis();
 			int startSampleNumber = getSampleCount();
@@ -860,9 +950,9 @@ public class ConnectionTelemetry extends Connection {
 			
 		});
 		
-		receiverThread.setPriority(Thread.MAX_PRIORITY);
-		receiverThread.setName("Demo Waveform Simulator Thread");
-		receiverThread.start();
+		transmitterThread.setPriority(Thread.MAX_PRIORITY);
+		transmitterThread.setName("Demo Waveform Simulator Thread");
+		transmitterThread.start();
 		
 	}
 	
@@ -887,7 +977,7 @@ public class ConnectionTelemetry extends Connection {
 		SettingsController.setFpsVisibility(false);
 		SettingsController.setAntialiasingLevel(1);
 		
-		csvMode = false;
+		packetType = PacketType.BINARY;
 		sampleRate = Integer.MAX_VALUE;
 		
 		DatasetsController.BinaryFieldProcessor processor = null;
@@ -939,7 +1029,7 @@ public class ConnectionTelemetry extends Connection {
 		
 		Main.window.setExtendedState(JFrame.NORMAL);
 		
-		receiverThread = new Thread(() -> {
+		transmitterThread = new Thread(() -> {
 
 			SharedByteStream stream = new SharedByteStream(ConnectionTelemetry.this);
 			connected = true;
@@ -999,9 +1089,9 @@ public class ConnectionTelemetry extends Connection {
 			
 		});
 		
-		receiverThread.setPriority(Thread.MAX_PRIORITY);
-		receiverThread.setName("Stress Test Simulator Thread");
-		receiverThread.start();
+		transmitterThread.setPriority(Thread.MAX_PRIORITY);
+		transmitterThread.setName("Stress Test Simulator Thread");
+		transmitterThread.start();
 		
 	}
 
@@ -1025,8 +1115,8 @@ public class ConnectionTelemetry extends Connection {
 			if(baud < 1)
 				throw new AssertionError("Invalid baud rate.");
 			
-			String packetType = ChartUtils.parseString(lines.remove(), "packet type = %s");
-			if(!packetType.equals("CSV") && !packetType.equals("Binary"))
+			String packetTypeString = ChartUtils.parseString(lines.remove(), "packet type = %s");
+			if(!packetTypeString.equals("CSV") && !packetTypeString.equals("Binary") && !packetTypeString.equals("TC66"))
 				throw new AssertionError("Invalid packet type.");
 			
 			int hz = ChartUtils.parseInteger(lines.remove(), "sample rate hz = %d");
@@ -1055,43 +1145,24 @@ public class ConnectionTelemetry extends Connection {
 			transmit.setRepititionInterval(repititionInterval);
 			
 			while(saveCount-- > 0) {
-				String save = lines.remove();
-				if(!save.startsWith("Text: ") && !save.startsWith("Hex: ") && !save.startsWith("Bin: "))
+				try {
+					String label = lines.remove();
+					String hexText = lines.remove();
+					byte[] bytes = ChartUtils.convertHexStringToBytes(hexText);
+					if(label.equals("") || bytes.length == 0)
+						throw new Exception();
+					transmit.savePacket(new TransmitController.SavedPacket(bytes, label));
+				} catch(Exception e) {
 					throw new AssertionError("Invalid save.");
-				String escapedText = save;
-				byte[] bytes;
-				if(save.startsWith("Text: ")) {
-					String temp = save.substring(6);
-					if(temp.length() == 0)
-						throw new AssertionError("Invalid save.");
-					if(temp.endsWith("\\r\\n"))
-						temp = temp.substring(0, temp.length() - 4) + "\r\n";
-					else if(temp.endsWith("\\r"))
-						temp = temp.substring(0, temp.length() - 2) + "\r";
-					else if(temp.endsWith("\\n"))
-						temp = temp.substring(0, temp.length() - 2) + "\n";
-					bytes = temp.getBytes();
-				} else if(save.startsWith("Hex: ")) {
-					String temp = save.substring(5).trim();
-					if(temp.length() == 0)
-						throw new AssertionError("Invalid save.");
-					bytes = ChartUtils.convertHexStringToBytes(temp);
-				} else {
-					String temp = save.substring(5).trim();
-					if(temp.length() == 0)
-						throw new AssertionError("Invalid save.");
-					bytes = ChartUtils.convertBinStringToBytes(temp);
 				}
-				TransmitController.SavedPacket data = new TransmitController.SavedPacket();
-				data.escapedText = escapedText;
-				data.bytes = bytes;
-				transmit.savePacket(data);
 			}
 			
 			mode = Mode.UART;
 			name = "UART: " + portName;
 			baudRate = baud;
-			csvMode = packetType.equals("CSV");
+			packetType = packetTypeString.equals("CSV")    ? PacketType.CSV :
+			             packetTypeString.equals("Binary") ? PacketType.BINARY :
+			                                                 PacketType.TC66;
 			sampleRate = hz;
 			
 		} else if(type.equals("TCP") || type.equals("UDP")) {
@@ -1100,8 +1171,8 @@ public class ConnectionTelemetry extends Connection {
 			if(port < 0 || port > 65535)
 				throw new AssertionError("Invalid port number.");
 			
-			String packetType = ChartUtils.parseString (lines.remove(), "packet type = %s");
-			if(!packetType.equals("CSV") && !packetType.equals("Binary"))
+			String packetTypeString = ChartUtils.parseString(lines.remove(), "packet type = %s");
+			if(!packetTypeString.equals("CSV") && !packetTypeString.equals("Binary"))
 				throw new AssertionError("Invalid packet type.");
 			
 			int hz = ChartUtils.parseInteger(lines.remove(), "sample rate hz = %d");
@@ -1111,21 +1182,22 @@ public class ConnectionTelemetry extends Connection {
 			mode = type.equals("TCP") ? Mode.TCP : Mode.UDP;
 			name = type.equals("TCP") ? "TCP" : "UDP";
 			portNumber = port;
-			csvMode = packetType.equals("CSV");
+			packetType = packetTypeString.equals("CSV") ? PacketType.CSV :
+			                                              PacketType.BINARY;
 			sampleRate = hz;
 			
 		} else if(type.equals("Demo Mode")) {
 			
 			mode = Mode.DEMO;
 			name = "Demo Mode";
-			csvMode = true;
+			packetType = PacketType.CSV;
 			sampleRate = 10000;
 			
 		} else {
 			
 			mode = Mode.STRESS_TEST;
 			name = "Stress Test Mode";
-			csvMode = false;
+			packetType = PacketType.BINARY;
 			sampleRate = Integer.MAX_VALUE;
 			
 		}
@@ -1218,7 +1290,9 @@ public class ConnectionTelemetry extends Connection {
 			file.println("\tconnection type = UART");
 			file.println("\tport = "           + name.substring(6)); // skip past "UART: "
 			file.println("\tbaud rate = "      + baudRate);
-			file.println("\tpacket type = "    + (csvMode ? "CSV" : "Binary"));
+			file.println("\tpacket type = "    + (packetType == PacketType.CSV    ? "CSV" :
+			                                      packetType == PacketType.BINARY ? "Binary" :
+			                                                                        "TC66"));
 			file.println("\tsample rate hz = " + sampleRate);
 			
 			file.println("\ttransmit type = "                             + transmit.getTransmitType());
@@ -1228,14 +1302,17 @@ public class ConnectionTelemetry extends Connection {
 			file.println("\ttransmit repeats = "                          + transmit.getRepeats());
 			file.println("\ttransmit repitition interval milliseconds = " + transmit.getRepititionInterval());
 			file.println("\ttransmit saved count = "                      + transmit.getSavedPackets().size());
-			transmit.getSavedPackets().forEach(save -> file.print("\t\t" + save.escapedText));
+			transmit.getSavedPackets().forEach(save -> {
+				file.println("\t\t" + save.label);
+				file.println("\t\t" + ChartUtils.convertBytesToHexString(save.bytes));
+			});
 			
 		} else if(mode == Mode.TCP || mode == Mode.UDP) {
 			
 			file.println("\tconnection type = " + ((mode == Mode.TCP) ? "TCP" : "UDP"));
-			file.println("\tserver port = "    + portNumber);
-			file.println("\tpacket type = "    + (csvMode ? "CSV" : "Binary"));
-			file.println("\tsample rate hz = " + sampleRate);
+			file.println("\tserver port = "     + portNumber);
+			file.println("\tpacket type = "     + (packetType == PacketType.CSV ? "CSV" : "Binary"));
+			file.println("\tsample rate hz = "  + sampleRate);
 			
 		} else if(mode == Mode.DEMO) {
 			
@@ -1515,7 +1592,7 @@ public class ConnectionTelemetry extends Connection {
 			t.setRepeats(false);
 			t.start();
 			
-			if(csvMode) {
+			if(packetType == PacketType.CSV) {
 				
 				// prepare for CSV mode
 				stream.setPacketSize(0);
@@ -1555,7 +1632,7 @@ public class ConnectionTelemetry extends Connection {
 					
 				}
 				
-			} else {
+			} else if(packetType == PacketType.BINARY) {
 				
 				// prepare for binary mode 
 				int packetLength = 0; // INCLUDING the sync word and optional checksum
@@ -1633,6 +1710,114 @@ public class ConnectionTelemetry extends Connection {
 					
 				}
 				
+			} else if(packetType == PacketType.TC66) {
+				
+				int packetLength = 192;
+				stream.setPacketSize(packetLength);
+				
+				// for some reason the TC66/TC66C uses AES encryption when sending measurements to the PC
+				// this key is NOT a secret and IS intentionally in this publicly accessible source code
+				byte[] tc66key = new byte[] {
+					(byte) 0x58, (byte) 0x21, (byte) 0xfa, (byte) 0x56, (byte) 0x01, (byte) 0xb2, (byte) 0xf0, (byte) 0x26, (byte) 0x87, (byte) 0xff, (byte) 0x12, (byte) 0x04, (byte) 0x62, (byte) 0x2a, (byte) 0x4f, (byte) 0xb0,
+					(byte) 0x86, (byte) 0xf4, (byte) 0x02, (byte) 0x60, (byte) 0x81, (byte) 0x6f, (byte) 0x9a, (byte) 0x0b, (byte) 0xa7, (byte) 0xf1, (byte) 0x06, (byte) 0x61, (byte) 0x9a, (byte) 0xb8, (byte) 0x72, (byte) 0x88
+				};
+				SecretKey key = new SecretKeySpec(tc66key, "AES");
+				Cipher aes = null;
+				try {
+					aes = Cipher.getInstance("AES/ECB/NoPadding");
+					aes.init(Cipher.DECRYPT_MODE, key);
+				} catch(Exception e) {
+					SwingUtilities.invokeLater(() -> disconnect("Unable to prepare TC66 decryption logic.")); // invokeLater to prevent a deadlock
+					e.printStackTrace();
+					return;
+				}
+				
+				BiFunction<byte[], Integer, Long> getUint32 = (array, offset) -> { return ((long) (array[offset+0] & 0xFF) << 0)  |
+					                                                                      ((long) (array[offset+1] & 0xFF) << 8)  |
+					                                                                      ((long) (array[offset+2] & 0xFF) << 16) |
+					                                                                      ((long) (array[offset+3] & 0xFF) << 24); };
+				
+				boolean firstPacket = true;
+				byte[] previousPacket = null;
+					                                                                      
+				while(true) {
+					
+					try {
+						
+						if(Thread.interrupted())
+							throw new InterruptedException();
+						
+						// get all received telemetry packets
+						SharedByteStream.PacketsBuffer packets = stream.readPackets((byte) 0, 0);
+						
+						// process the received telemetry packets
+						while(packets.count > 0) {
+							
+							// decrypt the packet and ignore it if it contains the same data as the previous packet
+							byte[] packet = aes.doFinal(packets.buffer, packets.offset, packetLength);
+							if(Arrays.equals(packet, previousPacket)) {
+								packets.count--;
+								packets.offset += packetLength;
+								continue;
+							}
+							previousPacket = packet;
+							
+							// log some info to the terminal
+							if(firstPacket) {
+								firstPacket = false;
+								String device          = new String(new char[] {(char) packet[4], (char) packet[5], (char) packet[6],  (char) packet[7]});
+								String firmwareVersion = new String(new char[] {(char) packet[8], (char) packet[9], (char) packet[10], (char) packet[11]});
+								long serialNumber      = getUint32.apply(packet, 12);
+								long powerOnCount      = getUint32.apply(packet, 44);
+								NotificationsController.showVerboseForMilliseconds(String.format("Device: %s, Firmware Version: %s, Serial Number: %d, Power On Count: %d", device, firmwareVersion, serialNumber, powerOnCount), 5000, true);
+							}
+							
+							// extract data
+							float voltage          = getUint32.apply(packet, 48) / 10000f;  // converting to volts
+							float current          = getUint32.apply(packet, 52) / 100000f; // converting to amps
+							float power            = getUint32.apply(packet, 56) / 10000f;  // converting to watts
+							float resistance       = getUint32.apply(packet, 68) / 10f;     // converting to ohms
+							long group0mah         = getUint32.apply(packet, 72);
+							long group0mwh         = getUint32.apply(packet, 76);
+							long group1mah         = getUint32.apply(packet, 80);
+							long group1mwh         = getUint32.apply(packet, 84);
+							boolean temperatureNeg = getUint32.apply(packet, 88) == 1;
+							long temperature       = getUint32.apply(packet, 92) * (temperatureNeg ? -1 : 1); // degrees, C or F (set by user)
+							float dPlusVoltage    = getUint32.apply(packet, 96)  / 100f; // converting to volts
+							float dMinusVoltage   = getUint32.apply(packet, 100) / 100f; // converting to volts
+							
+							// populate the datasets
+							int sampleNumber = getSampleCount();
+							list.get(0).setConvertedSample (sampleNumber, voltage);
+							list.get(1).setConvertedSample (sampleNumber, current);
+							list.get(2).setConvertedSample (sampleNumber, power);
+							list.get(3).setConvertedSample (sampleNumber, resistance);
+							list.get(4).setConvertedSample (sampleNumber, (float) group0mah);
+							list.get(5).setConvertedSample (sampleNumber, (float) group0mwh);
+							list.get(6).setConvertedSample (sampleNumber, (float) group1mah);
+							list.get(7).setConvertedSample (sampleNumber, (float) group1mwh);
+							list.get(8).setConvertedSample (sampleNumber, (float) temperature);
+							list.get(9).setConvertedSample (sampleNumber, dPlusVoltage);
+							list.get(10).setConvertedSample(sampleNumber, dMinusVoltage);
+							datasets.incrementSampleCount();
+							
+							packets.count--;
+							packets.offset += packetLength;
+							
+						}
+						
+					} catch (BadPaddingException | IllegalBlockSizeException e) {
+					
+						NotificationsController.showFailureForMilliseconds("Error while decrypting a packet from the TC66.", 5000, true);
+						e.printStackTrace();
+						continue;
+						
+					} catch(InterruptedException e) {
+						
+						return;
+						
+					}
+				}
 			}
 			
 		});

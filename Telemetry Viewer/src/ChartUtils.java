@@ -452,6 +452,8 @@ public class ChartUtils {
 		String text = String.format("%.9f", number);
 		int pointLocation = text.indexOf('.');
 		int stringLength = text.charAt(0) == '-' ? digitCount + 2 : digitCount + 1;
+		if(text.charAt(stringLength - 1) == '.')
+			stringLength--;
 		return text.substring(0, pointLocation < stringLength ? stringLength : pointLocation);
 		
 	}

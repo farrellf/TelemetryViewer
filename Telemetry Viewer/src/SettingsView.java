@@ -213,7 +213,7 @@ public class SettingsView extends JPanel {
 			ConnectionsController.telemetryConnections.forEach(connection -> {
 				JPanel txGui = connection.getTransmitPanel();
 				if(txGui != null) {
-					panel.add(txGui, "span 2, gapbottom " + 4*Theme.padding);
+					panel.add(txGui, "growx, span 2, gapbottom " + 4*Theme.padding);
 					txGuis.add(txGui);
 				}
 			});

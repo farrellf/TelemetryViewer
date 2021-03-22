@@ -81,11 +81,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	Plot plot;
 	boolean cachedMode;
 	List<Dataset> allDatasets; // normal and bitfields
-	
-	// constraints
-	static final int SampleCountDefault = 1000;
-	static final int SampleCountMinimum = 5;
-	static final int SampleCountMaximum = Integer.MAX_VALUE;
 
 	static final float yAxisMinimumDefault = -1.0f;
 	static final float yAxisMaximumDefault =  1.0f;
@@ -135,6 +130,9 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				if(!allDatasets.contains(state.dataset))
 					allDatasets.add(state.dataset);
 		
+		if(durationWidget != null && !allDatasets.isEmpty())
+			durationWidget.setConnection(allDatasets.get(0).connection);
+		
 	}
 	
 	public OpenGLTimeDomainChart(int x1, int y1, int x2, int y2) {
@@ -148,9 +146,8 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		                                    newBitfieldEdges  -> { bitfieldEdges  = newBitfieldEdges;  updateAllDatasetsList(); },
 		                                    newBitfieldLevels -> { bitfieldLevels = newBitfieldLevels; updateAllDatasetsList(); });
 		
-		durationWidget = new WidgetDuration(SampleCountDefault,
-		                                    SampleCountMinimum,
-		                                    SampleCountMaximum,
+		durationWidget = new WidgetDuration(5,
+		                                    Integer.MAX_VALUE,
 		                                    this,
 		                                    (xAxisType) -> {
 		                                    	sampleCountMode  = xAxisType.equals("Sample Count");
@@ -227,7 +224,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		EventHandler handler = null;
 		
 		// trigger logic
-		if(triggerEnabled) {
+		if(triggerEnabled && !datasets.isEmpty()) {
 			if(sampleCountMode && triggeringPaused) {
 				triggerWidget.clearTrigger();
 				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(earlierEndSampleNumber, zoomLevel);

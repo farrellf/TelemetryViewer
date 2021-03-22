@@ -127,7 +127,7 @@ public abstract class Connection {
 				transmitterThread.interrupt();
 				while(transmitterThread.isAlive()); // wait
 			}
-			if(receiverThread.isAlive()) {
+			if(receiverThread != null && receiverThread.isAlive()) {
 				receiverThread.interrupt();
 				while(receiverThread.isAlive()); // wait
 			}

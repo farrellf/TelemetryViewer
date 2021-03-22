@@ -42,26 +42,14 @@ public class TransmitController {
 	 */
 	public void refreshGui() {
 		
-		if(!connection.connected) {
-			
-			gui.typeCombobox.setEnabled(false);
-			gui.dataTextfield.setEnabled(false);
-			gui.appendCRcheckbox.setEnabled(false);
-			gui.appendLFcheckbox.setEnabled(false);
-			gui.repeatCheckbox.setEnabled(false);
-			gui.repeatMillisecondsTextfield.setEnabled(false);
-			gui.saveButton.setEnabled(false);
-			gui.transmitButton.setEnabled(false);
-			
-			for(JButton button : gui.savedPacketButtons)
-				button.setEnabled(false);
-
-			gui.setBorder(BorderFactory.createTitledBorder(connection.name + " (disconnected)"));
-			
-		} else {
+		boolean isConnected = connection.connected;
+		boolean isTc66 = connection.packetType == ConnectionTelemetry.PacketType.TC66;
+		
+		gui.redrawSavedPackets(savedPackets);
+		
+		if(isConnected) {
 			
 			boolean haveData = dataText.length() > 0;
-			
 			gui.typeCombobox.setEnabled(true);
 			gui.dataTextfield.setEnabled(true);
 			gui.appendCRcheckbox.setEnabled(textMode);
@@ -74,9 +62,48 @@ public class TransmitController {
 			for(JButton button : gui.savedPacketButtons)
 				button.setEnabled(true);
 			
-			gui.setBorder(BorderFactory.createTitledBorder(connection.name));
+		} else {
+			
+			gui.typeCombobox.setEnabled(false);
+			gui.dataTextfield.setEnabled(false);
+			gui.appendCRcheckbox.setEnabled(false);
+			gui.appendLFcheckbox.setEnabled(false);
+			gui.repeatCheckbox.setEnabled(false);
+			gui.repeatMillisecondsTextfield.setEnabled(false);
+			gui.saveButton.setEnabled(false);
+			gui.transmitButton.setEnabled(false);
+			
+			for(JButton button : gui.savedPacketButtons)
+				button.setEnabled(false);
 			
 		}
+		
+		String label = connection.name + (isTc66 ? " TC66" : "") + (isConnected ? "" : " (disconnected)");
+		gui.setBorder(BorderFactory.createTitledBorder(label));
+		
+		gui.typeCombobox.setVisible(!isTc66);
+		gui.dataTextfield.setVisible(!isTc66);
+		gui.appendCRcheckbox.setVisible(!isTc66);
+		gui.appendLFcheckbox.setVisible(!isTc66);
+		gui.repeatCheckbox.setVisible(!isTc66);
+		gui.repeatMillisecondsTextfield.setVisible(!isTc66);
+		gui.saveButton.setVisible(!isTc66);
+		gui.transmitButton.setVisible(!isTc66);
+		
+	}
+	
+	/**
+	 * Removed all saved packets and resets all widgets.
+	 */
+	public void reset() {
+		
+		savedPackets.clear();
+		setTransmitType("Text");
+		setTransmitText("", null);
+		setAppendCR(true);
+		setAppendLF(true);
+		setRepeats(false);
+		setRepititionInterval(1000);
 		
 	}
 	
@@ -369,7 +396,7 @@ public class TransmitController {
 		boolean hasData = packet.bytes.length > 0;
 		boolean notAlreadySaved = true;
 		for(SavedPacket existingData : savedPackets)
-			if(Arrays.equals(existingData.bytes, packet.bytes) && existingData.escapedText.equals(packet.escapedText))
+			if(Arrays.equals(existingData.bytes, packet.bytes) && existingData.label.equals(packet.label))
 				notAlreadySaved = false;
 		
 		if(hasData && notAlreadySaved) {
@@ -400,7 +427,10 @@ public class TransmitController {
 	 */
 	public static class SavedPacket {
 		byte[] bytes;
-		String escapedText;
+		String label;
+		public SavedPacket() {}
+		public SavedPacket(byte[] bytes, String label) { this.bytes = bytes; this.label = label; }
+
 	}
 	
 }

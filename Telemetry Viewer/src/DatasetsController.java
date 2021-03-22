@@ -203,7 +203,7 @@ public class DatasetsController {
 	 */
 	public String insert(int location, BinaryFieldProcessor processor, String name, Color color, String unit, float conversionFactorA, float conversionFactorB) {
 		
-		if(connection.csvMode) {
+		if(connection.isCsvMode()) {
 			
 			// can't overlap existing fields
 			for(Dataset dataset : getList())
@@ -350,7 +350,7 @@ public class DatasetsController {
 	 */
 	public String insertChecksum(int location, BinaryChecksumProcessor processor) {
 		
-		if(connection.csvMode)
+		if(connection.isCsvMode())
 			return "Error: CSV mode does not support checksums.";
 
 		if(checksumProcessor != null)
@@ -382,7 +382,7 @@ public class DatasetsController {
 	 */
 	public String removeChecksum() {
 		
-		if(connection.csvMode)
+		if(connection.isCsvMode())
 			return "Error: CSV mode does not support checksums.";
 		
 		if(checksumProcessor == null)
@@ -403,7 +403,7 @@ public class DatasetsController {
 	 */
 	public String insertSyncWord(byte word) {
 		
-		if(connection.csvMode)
+		if(connection.isCsvMode())
 			return "Error: CSV mode does not support sync words.";
 
 		if(syncWordByteCount > 0)
@@ -429,7 +429,7 @@ public class DatasetsController {
 	 */
 	public String removeSyncWord() {
 		
-		if(connection.csvMode)
+		if(connection.isCsvMode())
 			return "Error: CSV mode does not support sync words.";
 		
 		if(syncWordByteCount < 1)
@@ -489,7 +489,7 @@ public class DatasetsController {
 	 */
 	public int getFirstAvailableLocation() {
 		
-		if(connection.csvMode) {
+		if(connection.isCsvMode()) {
 			
 			// the packet is empty
 			if(getList().isEmpty())

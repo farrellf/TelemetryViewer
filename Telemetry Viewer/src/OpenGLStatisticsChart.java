@@ -1,6 +1,7 @@
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
 import com.jogamp.opengl.GL2ES3;
 
 /**
@@ -21,7 +22,6 @@ import com.jogamp.opengl.GL2ES3;
 public class OpenGLStatisticsChart extends PositionedChart {
 	
 	// data
-	int datasetsCount;
 	Samples[] samplesFromDataset;
 	int durationSampleCount;
 	long durationMilliseconds;
@@ -39,7 +39,7 @@ public class OpenGLStatisticsChart extends PositionedChart {
 	
 	// control widgets
 	WidgetTextfieldInteger datasetsCountWidget;
-	WidgetDatasets datasetWidget;
+	WidgetDatasets datasetsWidget;
 	WidgetDuration durationWidget;
 	WidgetCheckbox currentValuesWidget;
 	WidgetCheckbox minimumWidget;
@@ -60,28 +60,18 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		samplesFromDataset = new Samples[1];
-		samplesFromDataset[0] = new Samples();
+		samplesFromDataset = new Samples[0];
 		
-		datasetsCountWidget = new WidgetTextfieldInteger("Number of Datasets", 1, 1, 12, newNumber -> {
-		                                                                                 	samplesFromDataset = new Samples[newNumber];
-		                                                                                 	for(int i = 0; i < newNumber; i++)
-		                                                                                 		samplesFromDataset[i] = new Samples();
-		                                                                                 	String[] labels = new String[newNumber];
-		                                                                                 	for(int i = 0; i < newNumber; i++)
-		                                                                                 		labels[i] = "";
-		                                                                                 	datasetWidget.setDatasetLabels(labels);
-		                                                                                 	if(datasetsCount != newNumber)
-		                                                                                 		ConfigureView.instance.redrawIfUsedFor(this);
-		                                                                                 	datasetsCount = newNumber;
-		                                                                                 });
+		datasetsWidget = new WidgetDatasets(newDatasets -> {
+		                                        datasets = newDatasets;
+		                                        samplesFromDataset = new Samples[datasets.size()];
+		                                        for(int i = 0; i < datasets.size(); i++)
+		                                        	samplesFromDataset[i] = new Samples();
+		                                        if(durationWidget != null && !datasets.isEmpty())
+		                                        	durationWidget.setConnection(datasets.get(0).connection);
+		                                    });
 		
-		datasetWidget = new WidgetDatasets(1,
-		                                   new String[] {""},
-		                                   newDatasets -> datasets = newDatasets);
-		
-		durationWidget = new WidgetDuration(1000,
-		                                    1,
+		durationWidget = new WidgetDuration(1,
 		                                    Integer.MAX_VALUE,
 		                                    this,
 		                                    newType -> {
@@ -105,26 +95,36 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		percentileWidget        = new WidgetCheckbox("Show 90th Percentile",    true, isSelected -> showPercentile = isSelected);
 		showDurationWidget      = new WidgetCheckbox("Show Duration Label",     true, isSelected -> showDuration = isSelected);
 
-		widgets = new Widget[14];
-		widgets[0]  = datasetsCountWidget;
-		widgets[1]  = datasetWidget;
-		widgets[2]  = null;
-		widgets[3]  = durationWidget;
-		widgets[4]  = null;
-		widgets[5]  = currentValuesWidget;
-		widgets[6]  = minimumWidget;
-		widgets[7]  = maximumWidget;
-		widgets[8]  = meanWidget;
-		widgets[9]  = medianWidget;
-		widgets[10] = standardDeviationWidget;
-		widgets[11] = percentileWidget;
-		widgets[12] = null;
-		widgets[13] = showDurationWidget;		
+		widgets = new Widget[13];
+		widgets[0]  = datasetsWidget;
+		widgets[1]  = null;
+		widgets[2]  = durationWidget;
+		widgets[3]  = null;
+		widgets[4]  = currentValuesWidget;
+		widgets[5]  = minimumWidget;
+		widgets[6]  = maximumWidget;
+		widgets[7]  = meanWidget;
+		widgets[8]  = medianWidget;
+		widgets[9]  = standardDeviationWidget;
+		widgets[10] = percentileWidget;
+		widgets[11] = null;
+		widgets[12] = showDurationWidget;		
 	}
 	
 	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {
 		
 		EventHandler handler = null;
+		
+		int datasetsCount = datasets.size();
+		
+		// done if no datasets are selected
+		if(datasetsCount < 1) {
+			String text = "[no datasets selected]";
+			int x = (width / 2) - (int) (OpenGL.largeTextWidth(gl, text) / 2);
+			int y = (height / 2) - (int) (OpenGL.largeTextHeight / 2);
+			OpenGL.drawLargeText(gl, text, x, y, 0);
+			return handler;
+		}
 		
 		// get the samples
 		int trueLastSampleNumber = datasets.get(0).connection.getSampleCount() - 1;
@@ -136,6 +136,15 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		} else {
 			lastSampleNumber = datasets.get(0).controller.getClosestSampleNumberAtOrBefore(endTimestamp, trueLastSampleNumber);
 			firstSampleNumber = datasets.get(0).controller.getClosestSampleNumberAfter(endTimestamp - Math.round(durationMilliseconds * zoomLevel));
+		}
+		
+		// done if no telemetry
+		if(lastSampleNumber < 0) {
+			String text = "[waiting for telemetry]";
+			int x = (width / 2) - (int) (OpenGL.largeTextWidth(gl, text) / 2);
+			int y = (height / 2) - (int) (OpenGL.largeTextHeight / 2);
+			OpenGL.drawLargeText(gl, text, x, y, 0);
+			return handler;
 		}
 
 		int sampleCount = 0;
@@ -250,7 +259,7 @@ public class OpenGLStatisticsChart extends PositionedChart {
 				textWidth[column][0] = OpenGL.smallTextWidth(gl, text[column][0]);
 				columnWidth[column] = textWidth[column][0];
 				if(showCurrentValues) {
-					textWidth[column][1] = OpenGL.mediumTextWidth(gl, text[column][1]);
+					textWidth[column][1] = OpenGL.largeTextWidth(gl, text[column][1]);
 					if(columnWidth[column] < textWidth[column][1])
 						columnWidth[column] = textWidth[column][1];
 				}
@@ -265,7 +274,7 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		boolean showingLabels = columnWidth[0] > 0;
 		int occupiedHeight = 0;
 		                           occupiedHeight += Theme.tilePadding + OpenGL.smallTextHeight; // dataset name
-		if(showCurrentValues)      occupiedHeight += Theme.tilePadding + OpenGL.mediumTextHeight;
+		if(showCurrentValues)      occupiedHeight += Theme.tilePadding + OpenGL.largeTextHeight;
 		if(showMinimums)           occupiedHeight += Theme.tilePadding + OpenGL.smallTextHeight;
 		if(showMaximums)           occupiedHeight += Theme.tilePadding + OpenGL.smallTextHeight;
 		if(showMeans)              occupiedHeight += Theme.tilePadding + OpenGL.smallTextHeight;
@@ -294,7 +303,7 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		y -= (int) Theme.tilePadding + OpenGL.smallTextHeight; // no label for dataset name
 		line = 1;
 		if(showCurrentValues) {
-			y -= (int) (Theme.tilePadding + OpenGL.mediumTextHeight); // no label for current value
+			y -= (int) (Theme.tilePadding + OpenGL.largeTextHeight); // no label for current value
 			line++;
 		}
 		if(showMinimums) {
@@ -321,9 +330,9 @@ public class OpenGLStatisticsChart extends PositionedChart {
 			y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
 			OpenGL.drawSmallText(gl, text[0][line++], x, y, 0);
 		}
-		x += columnWidth[0];
 		
 		// draw the dataset names and numbers
+		x = (int) (Theme.tilePadding + xOffset + columnWidth[0]);
 		if(sampleCount > 0)
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
 				
@@ -337,48 +346,57 @@ public class OpenGLStatisticsChart extends PositionedChart {
 				line = 0;
 				
 				y -= (int) Theme.tilePadding + OpenGL.smallTextHeight;
-				OpenGL.drawSmallText(gl, text[column][line++], (int) x, y, 0);
+				int xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+				int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+				OpenGL.drawSmallText(gl, text[column][line++], (int) xCentered, y, 0);
 				
 				if(showCurrentValues) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
-					y -= (int) (Theme.tilePadding + OpenGL.mediumTextHeight);
-					OpenGL.drawMediumText(gl, text[column][line++], xRightJustified, y, 0);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					y -= (int) (Theme.tilePadding + OpenGL.largeTextHeight);
+					OpenGL.drawLargeText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				if(showMinimums) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
 					y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
-					OpenGL.drawSmallText(gl, text[column][line++], xRightJustified, y, 0);
+					OpenGL.drawSmallText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				if(showMaximums) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
 					y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
-					OpenGL.drawSmallText(gl, text[column][line++], xRightJustified, y, 0);
+					OpenGL.drawSmallText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				if(showMeans) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
 					y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
-					OpenGL.drawSmallText(gl, text[column][line++], xRightJustified, y, 0);
+					OpenGL.drawSmallText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				if(showMedians) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
 					y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
-					OpenGL.drawSmallText(gl, text[column][line++], xRightJustified, y, 0);
+					OpenGL.drawSmallText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				if(showStandardDeviations) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
 					y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
-					OpenGL.drawSmallText(gl, text[column][line++], xRightJustified, y, 0);
+					OpenGL.drawSmallText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				if(showPercentile) {
-					int xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
+					xCentered = (int) (x + (columnWidth[column] - textWidth[column][line]) / 2);
+					xRightJustified = (int) (x + columnWidth[column] - textWidth[column][line]);
 					y -= (int) (Theme.tilePadding + OpenGL.smallTextHeight);
-					OpenGL.drawSmallText(gl, text[column][line++], xRightJustified, y, 0);
+					OpenGL.drawSmallText(gl, text[column][line++], lineCount == 2 ? xCentered : xRightJustified, y, 0);
 				}
 				
 				x += columnWidth[column];

@@ -43,7 +43,7 @@ public class TransmitView extends JPanel {
 		
 		this.controller = controller;
 		
-		setLayout(new MigLayout("wrap 2, insets " + Theme.padding + ", gap " + Theme.padding));
+		setLayout(new MigLayout("hidemode 3, fillx, wrap 2, insets " + Theme.padding + ", gap " + Theme.padding));
 		
 		// which data format the user will provide
 		typeCombobox = new JComboBox<String>(new String[] {"Text", "Hex", "Bin"});
@@ -101,9 +101,9 @@ public class TransmitView extends JPanel {
 			data.bytes = textMode ? ChartUtils.convertTextStringToBytes(controller.getTransmitText(), controller.getAppendLF(), controller.getAppendCR()) :
 			             hexMode  ? ChartUtils.convertHexStringToBytes(controller.getTransmitText())  :
 			                        ChartUtils.convertBinStringToBytes(controller.getTransmitText());
-			data.escapedText = textMode ? "Text: " + ChartUtils.convertBytesToTextString(data.bytes, true) :
-			                   hexMode  ? "Hex: "  + ChartUtils.convertBytesToHexString(data.bytes) :
-			                              "Bin: "  + ChartUtils.convertBytesToBinString(data.bytes);
+			data.label = textMode ? "Text: " + ChartUtils.convertBytesToTextString(data.bytes, true) :
+			             hexMode  ? "Hex: "  + ChartUtils.convertBytesToHexString(data.bytes) :
+			                        "Bin: "  + ChartUtils.convertBytesToBinString(data.bytes);
 			controller.savePacket(data);
 			controller.setTransmitText("", null);
 		});
@@ -148,16 +148,20 @@ public class TransmitView extends JPanel {
 		
 		for(TransmitController.SavedPacket packet : savedPackets) {
 			JButton sendButton = new JButton();
-			sendButton.setText(packet.escapedText);
+			sendButton.setText(packet.label);
 			sendButton.setHorizontalAlignment(SwingConstants.LEFT);
 			sendButton.addActionListener(clicked -> controller.connection.transmit(packet.bytes));
-			JButton removeButton = new JButton("\uD83D\uDDD9");
+			JButton removeButton = new JButton(Theme.removeSymbol);
 			removeButton.setBorder(narrowBorder);
 			removeButton.addActionListener(click -> controller.removePacket(packet));
 			savedPacketButtons.add(sendButton);
 			savedPacketButtons.add(removeButton);
-			add(sendButton, "span 2, split 2, grow x, width 1:1:"); // setting min/pref width to 1px to ensure this button doesn't widen the panel
-			add(removeButton);
+			if(controller.connection.packetType == ConnectionTelemetry.PacketType.TC66) {
+				add(sendButton, "span 2, grow x");
+			} else {
+				add(sendButton, "span 2, split 2, grow x, width 1:1:"); // setting min/pref width to 1px to ensure this button doesn't widen the panel
+				add(removeButton);
+			}
 		}
 		
 		revalidate();

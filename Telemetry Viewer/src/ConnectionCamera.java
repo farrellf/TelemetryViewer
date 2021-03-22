@@ -255,7 +255,7 @@ public class ConnectionCamera extends Connection {
 		Insets insets = temp.getBorder().getBorderInsets(temp);
 		Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
 		
-		JButton removeButton = new JButton("\uD83D\uDDD9");
+		JButton removeButton = new JButton(Theme.removeSymbol);
 		removeButton.setBorder(narrowBorder);
 		removeButton.addActionListener(event -> ConnectionsController.removeConnection(ConnectionCamera.this));
 		if(ConnectionsController.allConnections.size() < 2 || ConnectionsController.importing)
