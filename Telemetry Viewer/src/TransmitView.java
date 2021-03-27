@@ -1,4 +1,3 @@
-import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -12,11 +11,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
-import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
-
 import net.miginfocom.swing.MigLayout;
 
 @SuppressWarnings("serial")
@@ -142,17 +137,13 @@ public class TransmitView extends JPanel {
 			remove(button);
 		savedPacketButtons.clear();
 		
-		JToggleButton temp = new JToggleButton("_");
-		Insets insets = temp.getBorder().getBorderInsets(temp);
-		Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
-		
 		for(TransmitController.SavedPacket packet : savedPackets) {
 			JButton sendButton = new JButton();
 			sendButton.setText(packet.label);
 			sendButton.setHorizontalAlignment(SwingConstants.LEFT);
 			sendButton.addActionListener(clicked -> controller.connection.transmit(packet.bytes));
 			JButton removeButton = new JButton(Theme.removeSymbol);
-			removeButton.setBorder(narrowBorder);
+			removeButton.setBorder(Theme.narrowButtonBorder);
 			removeButton.addActionListener(click -> controller.removePacket(packet));
 			savedPacketButtons.add(sendButton);
 			savedPacketButtons.add(removeButton);

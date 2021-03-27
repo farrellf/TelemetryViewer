@@ -1,4 +1,3 @@
-import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -7,17 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import javax.swing.ButtonGroup;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
-import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
-
-import net.miginfocom.swing.MigLayout;
 
 public class WidgetTrigger extends Widget {
 	
@@ -50,66 +45,41 @@ public class WidgetTrigger extends Widget {
 		this.chart = chart;
 		this.eventHandler = eventHandler;
 		
-		// using a narrow border for mutually-exclusive buttons
-		JToggleButton temp = new JToggleButton("_");
-		Insets insets = temp.getBorder().getBorderInsets(temp);
-		Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
-
-		modeDisabledButton = new JToggleButton("Disabled");
-		modeDisabledButton.setSelected(true);
-		modeDisabledButton.setBorder(narrowBorder);
-		modeAutoButton = new JToggleButton("Auto");
-		modeAutoButton.setSelected(false);
-		modeAutoButton.setBorder(narrowBorder);
-		modeNormalButton = new JToggleButton("Normal");
-		modeNormalButton.setSelected(false);
-		modeNormalButton.setBorder(narrowBorder);
-		modeSingleButton = new JToggleButton("Single");
-		modeSingleButton.setSelected(false);
-		modeSingleButton.setBorder(narrowBorder);
-		ActionListener modeListener = event -> {
-			JToggleButton button = (JToggleButton) event.getSource();
-			modeDisabledButton.setSelected(button == modeDisabledButton);
-			modeAutoButton.setSelected(button == modeAutoButton);
-			modeNormalButton.setSelected(button == modeNormalButton);
-			modeSingleButton.setSelected(button == modeSingleButton);
+		ActionListener resetOnChange = event -> {
 			update();
 			resetTrigger(true);
 		};
-		modeDisabledButton.addActionListener(modeListener);
-		modeAutoButton.addActionListener(modeListener);
-		modeNormalButton.addActionListener(modeListener);
-		modeSingleButton.addActionListener(modeListener);
-		JPanel modeButtons = new JPanel(new MigLayout("fillx, insets 0, gap " + Theme.padding));
-		modeButtons.add(modeDisabledButton, "growx");
-		modeButtons.add(modeAutoButton, "growx");
-		modeButtons.add(modeNormalButton, "growx");
-		modeButtons.add(modeSingleButton, "growx");
 		
-		affectsThisChartButton = new JToggleButton("This Chart");
-		affectsThisChartButton.setSelected(false);
-		affectsThisChartButton.setBorder(narrowBorder);
-		affectsEveryChartButton = new JToggleButton("Every Chart");
-		affectsEveryChartButton.setSelected(true);
-		affectsEveryChartButton.setBorder(narrowBorder);
-		ActionListener affectsListener = event -> {
-			JToggleButton button = (JToggleButton) event.getSource();
-			affectsThisChartButton.setSelected(button == affectsThisChartButton);
-			affectsEveryChartButton.setSelected(button == affectsEveryChartButton);
-			update();
-			resetTrigger(true);
-		};
-		affectsThisChartButton.addActionListener(affectsListener);
-		affectsEveryChartButton.addActionListener(affectsListener);
-		JPanel affectsButtons = new JPanel(new MigLayout("fillx, insets 0, gap " + Theme.padding));
-		affectsButtons.add(affectsThisChartButton, "growx");
-		affectsButtons.add(affectsEveryChartButton, "growx");
+		modeDisabledButton = new JToggleButton("Disabled", true);
+		modeDisabledButton.setBorder(Theme.narrowButtonBorder);
+		modeDisabledButton.addActionListener(resetOnChange);
+		modeAutoButton = new JToggleButton("Auto", false);
+		modeAutoButton.setBorder(Theme.narrowButtonBorder);
+		modeAutoButton.addActionListener(resetOnChange);
+		modeNormalButton = new JToggleButton("Normal", false);
+		modeNormalButton.setBorder(Theme.narrowButtonBorder);
+		modeNormalButton.addActionListener(resetOnChange);
+		modeSingleButton = new JToggleButton("Single", false);
+		modeSingleButton.setBorder(Theme.narrowButtonBorder);
+		modeSingleButton.addActionListener(resetOnChange);
+		ButtonGroup group1 = new ButtonGroup();
+		group1.add(modeDisabledButton);
+		group1.add(modeAutoButton);
+		group1.add(modeNormalButton);
+		group1.add(modeSingleButton);
+		
+		affectsThisChartButton = new JToggleButton("This Chart", false);
+		affectsThisChartButton.setBorder(Theme.narrowButtonBorder);
+		affectsThisChartButton.addActionListener(resetOnChange);
+		affectsEveryChartButton = new JToggleButton("Every Chart", true);
+		affectsEveryChartButton.setBorder(Theme.narrowButtonBorder);
+		affectsEveryChartButton.addActionListener(resetOnChange);
+		ButtonGroup group2 = new ButtonGroup();
+		group2.add(affectsThisChartButton);
+		group2.add(affectsEveryChartButton);
 		
 		typeCombobox = new JComboBox<String>(new String[] {"Rising Edge", "Falling Edge", "Rising and Falling Edges"});
-		typeCombobox.addActionListener(event -> {
-			update();
-			resetTrigger(true);
-		});
+		typeCombobox.addActionListener(resetOnChange);
 		
 		channelCombobox = new JComboBox<Dataset>();
 		ConnectionsController.telemetryConnections.forEach(connection -> {
@@ -118,10 +88,7 @@ public class WidgetTrigger extends Widget {
 					channelCombobox.addItem(dataset);
 			});
 		});
-		channelCombobox.addActionListener(event -> {
-			update();
-			resetTrigger(true);
-		});
+		channelCombobox.addActionListener(resetOnChange);
 		String defaultUnit = channelCombobox.getItemCount() == 0 ? "" : ((Dataset) channelCombobox.getSelectedItem()).unit;
 		
 		levelTextfield = new JTextField("0 " + defaultUnit);
@@ -174,9 +141,13 @@ public class WidgetTrigger extends Widget {
 		prePostRatioSlider.setValue(20);
 
 		widgets.put(new JLabel("Trigger Mode: "), "");
-		widgets.put(modeButtons, "span 3, growx");
+		widgets.put(modeDisabledButton, "span 3, split 4, growx");
+		widgets.put(modeAutoButton, "growx");
+		widgets.put(modeNormalButton, "growx");
+		widgets.put(modeSingleButton, "growx");
 		widgets.put(new JLabel("Trigger Affects: "), "");
-		widgets.put(affectsButtons, "span 3, growx");
+		widgets.put(affectsThisChartButton, "span 3, split 2, growx");
+		widgets.put(affectsEveryChartButton, "growx");
 		widgets.put(new JLabel("Trigger Type: "), "");
 		widgets.put(typeCombobox, "span 3, growx");
 		widgets.put(new JLabel("Trigger Channel: "), "");
@@ -514,40 +485,24 @@ public class WidgetTrigger extends Widget {
 	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		String mode = ChartUtils.parseString(lines.remove(), "trigger mode = %s");
-		if(mode.equals(modeDisabledButton.getText())) {
+		if(mode.equals(modeDisabledButton.getText()))
 			modeDisabledButton.setSelected(true);
-			modeAutoButton.setSelected(false);
-			modeNormalButton.setSelected(false);
-			modeSingleButton.setSelected(false);
-		} else if(mode.equals(modeAutoButton.getText())) {
-			modeDisabledButton.setSelected(false);
+		else if(mode.equals(modeAutoButton.getText()))
 			modeAutoButton.setSelected(true);
-			modeNormalButton.setSelected(false);
-			modeSingleButton.setSelected(false);
-		} else if(mode.equals(modeNormalButton.getText())) {
-			modeDisabledButton.setSelected(false);
-			modeAutoButton.setSelected(false);
+		else if(mode.equals(modeNormalButton.getText()))
 			modeNormalButton.setSelected(true);
-			modeSingleButton.setSelected(false);
-		} else if(mode.equals(modeSingleButton.getText())) {
-			modeDisabledButton.setSelected(false);
-			modeAutoButton.setSelected(false);
-			modeNormalButton.setSelected(false);
+		else if(mode.equals(modeSingleButton.getText()))
 			modeSingleButton.setSelected(true);
-		} else {
+		else
 			throw new AssertionError("Invalid trigger mode.");
-		}
 		
 		String affects = ChartUtils.parseString(lines.remove(), "trigger affects = %s");
-		if(affects.equals(affectsThisChartButton.getText())) {
+		if(affects.equals(affectsThisChartButton.getText()))
 			affectsThisChartButton.setSelected(true);
-			affectsEveryChartButton.setSelected(false);
-		} else if(affects.equals(affectsEveryChartButton.getText())) {
-			affectsThisChartButton.setSelected(false);
+		else if(affects.equals(affectsEveryChartButton.getText()))
 			affectsEveryChartButton.setSelected(true);
-		} else {
+		else
 			throw new AssertionError("Invalid trigger affect.");
-		}
 		
 		String type = ChartUtils.parseString(lines.remove(), "trigger type = %s");
 		boolean found = false;

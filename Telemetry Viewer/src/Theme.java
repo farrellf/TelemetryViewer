@@ -1,7 +1,12 @@
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Font;
+import java.awt.Insets;
+
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
+import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
 
 import com.jogamp.opengl.GL2ES3;
 
@@ -23,6 +28,12 @@ public class Theme {
 	public static Cursor clickableCursor                  = new Cursor(Cursor.HAND_CURSOR);
 	public static Cursor upDownCursor                     = new Cursor(Cursor.N_RESIZE_CURSOR);
 	public static Cursor leftRigthCursor                  = new Cursor(Cursor.E_RESIZE_CURSOR);
+	public static Border narrowButtonBorder;
+	static {
+		JToggleButton temp = new JToggleButton("_");
+		Insets insets = temp.getBorder().getBorderInsets(temp);
+		narrowButtonBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
+	}
 	
 	// general openGL
 	public static float  lineWidth = 1.0f;

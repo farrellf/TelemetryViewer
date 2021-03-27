@@ -85,8 +85,12 @@ public class OpenGLTimelineChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		datasetsWidget = new WidgetDatasets(newBitfieldEdges  -> bitfieldEdges = newBitfieldEdges,
-		                                    newBitfieldLevels -> bitfieldLevels = newBitfieldLevels);
+		datasetsWidget = new WidgetDatasets(null,
+		                                    newBitfieldEdges  -> bitfieldEdges = newBitfieldEdges,
+		                                    newBitfieldLevels -> bitfieldLevels = newBitfieldLevels,
+		                                    null,
+		                                    false,
+		                                    null);
 		
 		showControlsWidget = new WidgetCheckbox("Show Controls", true, isSelected -> {
 		                                                                                 showControls = isSelected;

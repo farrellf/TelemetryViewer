@@ -18,7 +18,7 @@ public class OpenGLFrequencyDomainCache {
 	int previousDftWindowLength;
 	int previousDftsCount;
 	List<Dataset> previousDatasets;
-	String previousChartType;
+	String previousChartMode;
 	
 	int datasetsCount;
 	
@@ -68,27 +68,27 @@ public class OpenGLFrequencyDomainCache {
 		previousDftWindowLength = 0;
 		previousDftsCount = 0;
 		previousDatasets = new ArrayList<Dataset>();
-		previousChartType = "";
+		previousChartMode = "";
 		
 	}
 	
 	/**
 	 * Updates the cache, calculating new DFTs as needed.
-	 * If the type is Waveform View or Waterfall View, the DFTs will be aligned to their window size (e.g. a window size of 1000 will make DFTs of samples 0-999, 1000-1999, etc.)
-	 * If the type is Live View, the DFT will be of the most recent samples, not aligned to the window size (e.g. if the most recent sample is 1234, the DFTs would be of samples 235-1234.)
+	 * If the mode is Multiple or Waterfall, the DFTs will be aligned to their window size (e.g. a window size of 1000 will make DFTs of samples 0-999, 1000-1999, etc.)
+	 * If the mode is Single, the DFT will be of the most recent samples, not aligned to the window size (e.g. if the most recent sample is 1234, the DFT would be of samples 235-1234.)
 	 * 
 	 * @param endSampleNumber    Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
 	 * @param windowLength       How many samples make up each DFT.
-	 * @param dftsCount          Number of DFTs to use for Waveform/Waterfall View mode. Should be 1 for Live View mode.
+	 * @param dftsCount          Number of DFTs to use for Multiple/Waterfall modes. Should be 1 for Single mode.
 	 * @param datasets           The datasets to visualize.
-	 * @param chartType          "Live View" or "Waveform View" or "Waterfall View"
+	 * @param chartMode          "Single" or "Multiple" or "Waterfall"
 	 */
-	public void calculateDfts(int endSampleNumber, int windowLength, int dftsCount, List<Dataset> datasets, String chartType) {
+	public void calculateDfts(int endSampleNumber, int windowLength, int dftsCount, List<Dataset> datasets, String chartMode) {
 		
 		datasetsCount = datasets.size();
 		
 		// flush the cache if necessary
-		if(previousDftWindowLength != windowLength || !previousDatasets.equals(datasets) || previousDftsCount != dftsCount || !previousChartType.equals(chartType)) {
+		if(previousDftWindowLength != windowLength || !previousDatasets.equals(datasets) || previousDftsCount != dftsCount || !previousChartMode.equals(chartMode)) {
 			
 			dft = new DFT[dftsCount];
 			for(int dftN = 0; dftN < dftsCount; dftN++)
@@ -97,12 +97,12 @@ public class OpenGLFrequencyDomainCache {
 			previousDftWindowLength = windowLength;
 			previousDftsCount = dftsCount;
 			previousDatasets = datasets;
-			previousChartType = chartType;
+			previousChartMode = chartMode;
 			
 		}
 		
 		// calculate the DFTs
-		if(chartType.equals("Live View")) {
+		if(chartMode.equals("Single")) {
 			
 			int sampleCount = 0;
 			if(!datasets.isEmpty())
@@ -368,7 +368,7 @@ public class OpenGLFrequencyDomainCache {
 	}
 	
 	/**
-	 * Draws a Live View on screen. "Live View" is a line chart of a single DFT.
+	 * Draws a single DFT on screen.
 	 * The x-axis is frequency, the y-axis is power.
 	 * 
 	 * @param chartMatrix    The current 4x4 matrix.
@@ -381,7 +381,7 @@ public class OpenGLFrequencyDomainCache {
 	 * @param gl             The OpenGL context.
 	 * @param datasets       The datasets to visualize.
 	 */
-	public void renderLiveView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
+	public void renderSingle(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
 		
 		DFT theDft = dft[0];
 		if(!theDft.populated)
@@ -421,7 +421,7 @@ public class OpenGLFrequencyDomainCache {
 	}
 	
 	/**
-	 * Draws a waveform view on screen. "Waveform View" is a 2D histogram and looks like a long-exposure photo of "Live View."
+	 * Draws multiple overlaid DFTs on screen. This is a 2D histogram and looks like a long-exposure photo of renderSingle().
 	 * Multiple DFTs are stacked on top of each other to get a feel for what regions of the spectrum have been occupied.
 	 * The x-axis is frequency, the y-axis is power.
 	 * 
@@ -436,7 +436,7 @@ public class OpenGLFrequencyDomainCache {
 	 * @param datasets       The datasets to visualize.
 	 * @param rowCount       How many vertical bins to divide the plot into. (The number of horizontal bins is the DFT bin count.)
 	 */
-	public void renderWaveformView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets, int rowCount) {
+	public void renderMultiple(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets, int rowCount) {
 		
 		if(!dft[0].populated)
 			return;
@@ -503,7 +503,7 @@ public class OpenGLFrequencyDomainCache {
 	}
 	
 	/**
-	 * Draws a waterfall view on screen. Like the "Waveform View", a waterfall view shows the history of what regions of the spectrum have been occupied.
+	 * Draws a DFT waterfall on screen. Like the multiple DFT mode, the waterfall mode shows the history of what regions of the spectrum have been occupied.
 	 * But instead of just overlapping the DFTs, they are drawn as a stack of lines, where each line represents one DFT.
 	 * This allows you to see what regions of the spectrum have been occupied *and* when they were occupied.
 	 * The x-axis is frequency, the y-axis is time.
@@ -518,7 +518,7 @@ public class OpenGLFrequencyDomainCache {
 	 * @param gl             The OpenGL context.
 	 * @param datasets       The datasets to visualize.
 	 */
-	public void renderWaterfallView(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
+	public void renderWaterfall(float[] chartMatrix, int bottomLeftX, int bottomLeftY, int width, int height, float minPower, float maxPower, GL2ES3 gl, List<Dataset> datasets) {
 		
 		int binCount = dft[0].forDataset[0].length;
 		int dftsCount = dft.length; // but some DFTs might not be populated

@@ -2,227 +2,137 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.util.function.Consumer;
 
-import javax.swing.JComboBox;
+import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 
 public class WidgetFrequencyDomainType extends Widget {
 	
-	JComboBox<String> typeCombobox;
-	JLabel sampleCountLabel;
-	JLabel totalSampleCountLabel;
+	final int waveformRowCountUpperLimit = 1000;
+	final int waveformRowCountLowerLimit = 2;
+	final int waveformRowCountDefault    = 60;
+	final int dftCountUpperLimit = 100;
+	final int dftCountLowerLimit = 2;
+	final int dftCountDefault    = 20;
+	
+	JToggleButton singleMode;
+	JToggleButton multipleMode;
+	JToggleButton waterfallMode;
+	
+	JLabel dftCountLabel;
+	JTextField dftCountTextfield;
 	JLabel rowCountLabel;
-	JTextField sampleCountTextfield;
-	JTextField totalSampleCountTextfield;
 	JTextField rowCountTextfield;
-	int sampleCountUpperLimit;
-	int sampleCountLowerLimit;
-	int defaultSampleCount;
-	int defaultTotalSampleCount;
-	int waveformRowCountUpperLimit;
-	int waveformRowCountLowerLimit;
-	int defaultWaveformRowCount;
-	Consumer<String> typeHandler;
-	Consumer<Integer> sampleCountHandler;
-	Consumer<Integer> totalSampleCountHandler;
+	
+	Consumer<String> modeHandler;
+	Consumer<Integer> dftCountHandler;
 	Consumer<Integer> rowCountHandler;
 	
 	/**
-	 * A widget that lets the user specify the type for a frequency domain chart.
+	 * A widget that lets the user specify the mode for a frequency domain chart.
 	 * 
-	 * The type can be "Live View" or "Waveform View" or "Waterfall View".
-	 * For all types, the user specifies the sample count (DFT window length).
-	 * For the waveform and waterfall types, the user also specifies the total sample count.
-	 * The total sample count must be greater than the sample count, and it must be a multiple of the sample count.
+	 * The mode can be "Single" or "Multiple" or "Waterfall".
+	 * For the waterfall type, the user specifies a DFT count.
+	 * For the multiple type, the user specifies a DFT count and row count.
 	 * 
-	 * @param defaultSampleCount              Default sample count.
-	 * @param defaultTotalSampleCount         Default total sample count.
-	 * @param sampleCountLowerLimit           Minimum allowed sample count or total sample count.
-	 * @param sampleCountUpperLimit           Maximum allowed sample count or total sample count.
-	 * @param defaultWaveformRowCount         Default y-axis bin count for Waveform View.
-	 * @param waveformRowCountLowerLimit      Minimum allowed y-axis bin count for Waveform View.
-	 * @param waveformRowCountUpperLimit      Maximum allowed y-axis bin count for Waveform View.
-	 * @param typeEventHandler                Will be notified when the value changes.
-	 * @param sampleCountEventHandler         Will be notified when the value changes.
-	 * @param totalSampleCountEventHandler    Will be notified when the value changes.
-	 * @param rowCountEventHandler            Will be notified when the value changes.
+	 * @param modeEventHandler        Will be notified when the value changes.
+	 * @param dftCountEventHandler    Will be notified when the value changes.
+	 * @param rowCountEventHandler    Will be notified when the value changes.
 	 */
-	public WidgetFrequencyDomainType(int defaultSampleCount, int defaultTotalSampleCount, int sampleCountLowerLimit, int sampleCountUpperLimit, int defaultWaveformRowCount, int waveformRowCountLowerLimit, int waveformRowCountUpperLimit, Consumer<String> typeEventHandler, Consumer<Integer> sampleCountEventHandler, Consumer<Integer> totalSampleCountEventHandler, Consumer<Integer> rowCountEventHandler) {
+	public WidgetFrequencyDomainType(Consumer<String> modeEventHandler, Consumer<Integer> dftCountEventHandler, Consumer<Integer> rowCountEventHandler) {
 		
 		super();
 		
-		typeCombobox = new JComboBox<String>(new String[] {"Live View", "Waveform View", "Waterfall View"});
-		sampleCountLabel = new JLabel("Sample Count: ");
-		totalSampleCountLabel = new JLabel("Total Sample Count: ");
-		sampleCountTextfield = new JTextField(Integer.toString(defaultSampleCount));
-		totalSampleCountTextfield = new JTextField(Integer.toString(defaultTotalSampleCount));
+		singleMode = new JToggleButton("Single", true);
+		singleMode.setBorder(Theme.narrowButtonBorder);
+		singleMode.addActionListener(event -> sanityCheck());
+		multipleMode = new JToggleButton("Multiple", false);
+		multipleMode.setBorder(Theme.narrowButtonBorder);
+		multipleMode.addActionListener(event -> sanityCheck());
+		waterfallMode = new JToggleButton("Waterfall", false);
+		waterfallMode.setBorder(Theme.narrowButtonBorder);
+		waterfallMode.addActionListener(event -> sanityCheck());
+		ButtonGroup group = new ButtonGroup();
+		group.add(singleMode);
+		group.add(multipleMode);
+		group.add(waterfallMode);
+		
+		dftCountLabel = new JLabel("DFT Count: ");
+		dftCountTextfield = new JTextField(Integer.toString(dftCountDefault));
+		dftCountTextfield.addFocusListener(new FocusListener() {
+			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
+			@Override public void focusGained(FocusEvent fe) { dftCountTextfield.selectAll(); }
+		});
+		dftCountTextfield.addActionListener(event -> sanityCheck());
+		
 		rowCountLabel = new JLabel("Row Count: ");
-		rowCountTextfield = new JTextField(Integer.toString(defaultWaveformRowCount));
-
-		this.sampleCountUpperLimit = sampleCountUpperLimit;
-		this.sampleCountLowerLimit = sampleCountLowerLimit;
-		this.defaultSampleCount = defaultSampleCount;
-		this.defaultTotalSampleCount = defaultTotalSampleCount;
-		this.waveformRowCountLowerLimit = waveformRowCountLowerLimit;
-		this.waveformRowCountUpperLimit = waveformRowCountUpperLimit;
-		this.defaultWaveformRowCount = defaultWaveformRowCount;
-		this.typeHandler = typeEventHandler;
-		this.sampleCountHandler = sampleCountEventHandler;
-		this.totalSampleCountHandler = totalSampleCountEventHandler;
-		this.rowCountHandler = rowCountEventHandler;
-		
-		widgets.put(new JLabel("Type: "), "");
-		widgets.put(typeCombobox, "span 3, growx");
-		widgets.put(sampleCountLabel, "");
-		widgets.put(sampleCountTextfield, "span 3, growx");
-		widgets.put(totalSampleCountLabel, "");
-		widgets.put(totalSampleCountTextfield, "span 3, growx");
-		widgets.put(rowCountLabel, "");
-		widgets.put(rowCountTextfield, "span 3, growx");
-		
-		sampleCountTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
-			@Override public void focusGained(FocusEvent fe) { sampleCountTextfield.selectAll(); }
-		});
-		sampleCountTextfield.addActionListener(event -> sanityCheck());
-		
-		totalSampleCountTextfield.addFocusListener(new FocusListener() {
-			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
-			@Override public void focusGained(FocusEvent fe) { totalSampleCountTextfield.selectAll(); }
-		});
-		totalSampleCountTextfield.addActionListener(event -> sanityCheck());
-		
+		rowCountTextfield = new JTextField(Integer.toString(waveformRowCountDefault));
 		rowCountTextfield.addFocusListener(new FocusListener() {
 			@Override public void focusLost(FocusEvent fe)   { sanityCheck(); }
 			@Override public void focusGained(FocusEvent fe) { rowCountTextfield.selectAll(); }
 		});
 		rowCountTextfield.addActionListener(event -> sanityCheck());
+
+		modeHandler = modeEventHandler;
+		dftCountHandler = dftCountEventHandler;
+		rowCountHandler = rowCountEventHandler;
 		
-		typeCombobox.addActionListener(event -> sanityCheck());
+		widgets.put(new JLabel("Mode: "), "");
+		widgets.put(singleMode, "span 3, split 3, growx");
+		widgets.put(multipleMode, "growx");
+		widgets.put(waterfallMode, "growx");
+		widgets.put(dftCountLabel, "");
+		widgets.put(dftCountTextfield, "span 3, growx");
+		widgets.put(rowCountLabel, "");
+		widgets.put(rowCountTextfield, "span 3, growx");
 		
 		sanityCheck();
 		
 	}
 	
 	/**
-	 * Ensures the sample count and total sample count values are reasonable:
-	 *     1. Both are within the allowed range.
-	 *     2. sample count < total sample count
-	 *     3. total sample count is a multiple of sample count.
-	 * 
-	 * Ensures the waveform row count is within the allowed range.
-	 * 
-	 * Shows/hides/renames widgets based on the selected chart type ("Live View" or "Waveform View" or "Waterfall View".)
-	 * 
+	 * Ensures the DFT count and waveform row count are within the allowed ranges.
+	 * Shows or hides widgets based on the selected chart mode.
 	 * Notifies all handlers.
 	 */
 	public void sanityCheck() {
 		
-		// sanity check the sample count and total sample count
+		// DFT count
 		try {
-			
-			// clip to limits
-			int sampleCount = Integer.parseInt(sampleCountTextfield.getText().trim());
-			int totalSampleCount = Integer.parseInt(totalSampleCountTextfield.getText().trim());
-			
-			if(sampleCount > sampleCountUpperLimit) sampleCount = sampleCountUpperLimit;
-			if(sampleCount < sampleCountLowerLimit) sampleCount = sampleCountLowerLimit;
-			if(totalSampleCount > sampleCountUpperLimit) totalSampleCount = sampleCountUpperLimit;
-			if(totalSampleCount < sampleCountLowerLimit) totalSampleCount = sampleCountLowerLimit;
-			
-			// ensure sample count < total sample count
-			if(sampleCount == totalSampleCount) {
-				if(sampleCount * 2 < sampleCountUpperLimit)
-					totalSampleCount = sampleCount * 2;
-				else
-					sampleCount = totalSampleCount / 2;
-			} else if(sampleCount > totalSampleCount) {
-				int temp = totalSampleCount;
-				totalSampleCount = sampleCount;
-				sampleCount = temp;
-			}
-			
-			// ensure total sample count is a multiple of sample count
-			if(totalSampleCount % sampleCount != 0) {
-				
-				totalSampleCount -= totalSampleCount % sampleCount;
-				
-				// ensure sample count < total sample count
-				if(sampleCount == totalSampleCount) {
-					if(sampleCount * 2 < sampleCountUpperLimit)
-						totalSampleCount = sampleCount * 2;
-					else
-						sampleCount = totalSampleCount / 2;
-				} else if(sampleCount > totalSampleCount) {
-					int temp = totalSampleCount;
-					totalSampleCount = sampleCount;
-					sampleCount = temp;
-				}
-				
-			}
-			
-			// update textfields
-			sampleCountTextfield.setText(Integer.toString(sampleCount));
-			totalSampleCountTextfield.setText(Integer.toString(totalSampleCount));
-			sampleCountHandler.accept(sampleCount);
-			totalSampleCountHandler.accept(totalSampleCount);
-			
+			int dftCount = Integer.parseInt(dftCountTextfield.getText().trim());
+			if(dftCount > dftCountUpperLimit) dftCount = dftCountUpperLimit;
+			if(dftCount < dftCountLowerLimit) dftCount = dftCountLowerLimit;
+			dftCountTextfield.setText(Integer.toString(dftCount));
+			dftCountHandler.accept(dftCount);
 		} catch(Exception e) {
-			
-			// one of the textfields doesn't contain a valid integer, so reset both to defaults
-			sampleCountTextfield.setText(Integer.toString(defaultSampleCount));
-			totalSampleCountTextfield.setText(Integer.toString(defaultTotalSampleCount));
-			sampleCountHandler.accept(defaultSampleCount);
-			totalSampleCountHandler.accept(defaultTotalSampleCount);
-			
+			dftCountTextfield.setText(Integer.toString(dftCountDefault));
+			dftCountHandler.accept(dftCountDefault);
 		}
 		
-		// sanity check the waveform row count
+		// waveform row count
 		try {
-			
-			// clip to limits
 			int count = Integer.parseInt(rowCountTextfield.getText().trim());
 			if(count > waveformRowCountUpperLimit) count = waveformRowCountUpperLimit;
 			if(count < waveformRowCountLowerLimit) count = waveformRowCountLowerLimit;
 			rowCountTextfield.setText(Integer.toString(count));
 			rowCountHandler.accept(count);
-			
 		} catch(Exception e) {
-			
-			// doesn't contain a valid integer, so reset to default
-			rowCountTextfield.setText(Integer.toString(defaultWaveformRowCount));
-			rowCountHandler.accept(defaultWaveformRowCount);
-			
+			rowCountTextfield.setText(Integer.toString(waveformRowCountDefault));
+			rowCountHandler.accept(waveformRowCountDefault);
 		}
 		
-		// show/hide/rename widgets based on the selected chart type
-		if(typeCombobox.getSelectedItem().toString().equals("Live View")) {
-			
-			sampleCountLabel.setText("Sample Count: ");
-			totalSampleCountLabel.setVisible(false);
-			totalSampleCountTextfield.setVisible(false);
-			rowCountLabel.setVisible(false);
-			rowCountTextfield.setVisible(false);
-			
-		} else if(typeCombobox.getSelectedItem().toString().equals("Waveform View")) {
-			
-			sampleCountLabel.setText("Sample Count per DFT: ");
-			totalSampleCountLabel.setVisible(true);
-			totalSampleCountTextfield.setVisible(true);
-			rowCountLabel.setVisible(true);
-			rowCountTextfield.setVisible(true);
-			
-		} else if(typeCombobox.getSelectedItem().toString().equals("Waterfall View")) {
-			
-			sampleCountLabel.setText("Sample Count per DFT: ");
-			totalSampleCountLabel.setVisible(true);
-			totalSampleCountTextfield.setVisible(true);
-			rowCountLabel.setVisible(false);
-			rowCountTextfield.setVisible(false);
-			
-		}
+		// show/hide widgets as needed
+		boolean multipleViewMode  = multipleMode.isSelected();
+		boolean waterfallViewMode = waterfallMode.isSelected();
+		dftCountLabel.setVisible(multipleViewMode || waterfallViewMode);
+		dftCountTextfield.setVisible(multipleViewMode || waterfallViewMode);
+		rowCountLabel.setVisible(multipleViewMode);
+		rowCountTextfield.setVisible(multipleViewMode);
 		
-		typeHandler.accept(typeCombobox.getSelectedItem().toString());
+		modeHandler.accept(singleMode.isSelected()   ? "Single" :
+		                   multipleMode.isSelected() ? "Multiple" :
+		                	                           "Waterfall");
 		
 	}
 	
@@ -234,23 +144,21 @@ public class WidgetFrequencyDomainType extends Widget {
 	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		// parse the text
-		int sampleCount      = ChartUtils.parseInteger(lines.remove(), "sample count = %d");
-		int totalSampleCount = ChartUtils.parseInteger(lines.remove(), "total sample count = %d");
-		String chartType     = ChartUtils.parseString (lines.remove(), "type = %s");
+		String mode          = ChartUtils.parseString (lines.remove(), "mode = %s");
+		int dftCount         = ChartUtils.parseInteger(lines.remove(), "dft count = %d");
 		int waveformRowCount = ChartUtils.parseInteger(lines.remove(), "waveform view row count = %d");
 		
-		if(!chartType.equals("Live View") && !chartType.equals("Waveform View") && !chartType.equals("Waterfall View"))
-			throw new AssertionError("Invalid Frequency Domain Chart type.");
+		if(!mode.equals("Single") && !mode.equals("Multiple") && !mode.equals("Waterfall"))
+			throw new AssertionError("Invalid Frequency Domain Chart mode.");
 		
-		// update the widget
-		sampleCountTextfield.setText(Integer.toString(sampleCount));
-		
-		totalSampleCountTextfield.setText(Integer.toString(totalSampleCount));
-		
-		for(int i = 0; i < typeCombobox.getItemCount(); i++)
-			if(typeCombobox.getItemAt(i).equals(chartType))
-				typeCombobox.setSelectedIndex(i);
-		
+		// update the widgets
+		if(mode.equals("Single"))
+			singleMode.setSelected(true);
+		else if(mode.equals("Multiple"))
+			multipleMode.setSelected(true);
+		else if(mode.equals("Waterfall"))
+			waterfallMode.setSelected(true);
+		dftCountTextfield.setText(Integer.toString(dftCount));
 		rowCountTextfield.setText(Integer.toString(waveformRowCount));
 		
 		// update the chart
@@ -265,10 +173,13 @@ public class WidgetFrequencyDomainType extends Widget {
 	 */
 	@Override public String[] exportState() {
 		
+		String mode = singleMode.isSelected()   ? "Single"   :
+		              multipleMode.isSelected() ? "Multiple" :
+		                                          "Waterfall";
+		
 		return new String[] {
-			"sample count = " + sampleCountTextfield.getText(),
-			"total sample count = " + totalSampleCountTextfield.getText(),
-			"type = " + typeCombobox.getSelectedItem().toString(),
+			"mode = "                    + mode,
+			"dft count = "               + dftCountTextfield.getText(),
 			"waveform view row count = " + rowCountTextfield.getText()
 		};
 		

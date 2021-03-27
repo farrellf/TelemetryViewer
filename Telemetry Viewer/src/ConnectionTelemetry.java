@@ -1,6 +1,5 @@
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Insets;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.io.FileInputStream;
@@ -41,12 +40,8 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
-import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
-
 import com.fazecast.jSerialComm.SerialPort;
 import net.miginfocom.swing.MigLayout;
 
@@ -437,12 +432,8 @@ public class ConnectionTelemetry extends Connection {
 			connectButton.setVisible(false);
 		
 		// remove connection button
-		JToggleButton temp = new JToggleButton("_");
-		Insets insets = temp.getBorder().getBorderInsets(temp);
-		Border narrowBorder = new EmptyBorder(insets.top, Integer.max(insets.top, insets.bottom), insets.bottom, Integer.max(insets.top, insets.bottom));
-		
 		JButton removeButton = new JButton(Theme.removeSymbol);
-		removeButton.setBorder(narrowBorder);
+		removeButton.setBorder(Theme.narrowButtonBorder);
 		removeButton.addActionListener(event -> {
 			ConnectionsController.removeConnection(ConnectionTelemetry.this);
 			CommunicationView.instance.redraw();

@@ -128,8 +128,7 @@ public class OpenGLHistogramChart extends PositionedChart {
 	static final int yAxisFrequencyUpperLimit     = Integer.MAX_VALUE;
 	
 	// control widgets
-	WidgetDatasets datasetsWidget;
-	WidgetTextfieldInteger sampleCountWidget;
+	WidgetDatasets datasetsAndDurationWidget;
 	WidgetTextfieldInteger binCountWidget;
 	WidgetHistogramXaxisType xAxisTypeWidget;
 	WidgetHistogramYaxisType yAxisTypeWidget;
@@ -153,18 +152,20 @@ public class OpenGLHistogramChart extends PositionedChart {
 		yAutoscaleFrequency = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.20f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(newDatasets -> {datasets = newDatasets;
-		                                                    bins = new int[datasets.size()][binCount];
-		                                                    samples = new Samples[datasets.size()];
-		                                                    for(int i = 0; i < samples.length; i++)
-		                                                    	samples[i] = new Samples();
-		                                                    });
-		
-		sampleCountWidget = new WidgetTextfieldInteger("Sample Count",
-		                                               SampleCountDefault,
-		                                               SampleCountMinimum,
-		                                               SampleCountMaximum,
-		                                               newSampleCount -> duration = newSampleCount);
+		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> {datasets = newDatasets;
+		                                                               bins = new int[datasets.size()][binCount];
+		                                                               samples = new Samples[datasets.size()];
+		                                                               for(int i = 0; i < samples.length; i++)
+		                                                                   samples[i] = new Samples();
+		                                                               },
+		                                                               null,
+		                                                               null,
+		                                                               (newAxisType, newSampleCount) -> {
+		                                                            	   duration = (int) (long) newSampleCount;
+		                                                            	   return (long) duration;
+		                                                               },
+		                                                               false,
+		                                                               null);
 		
 		binCountWidget = new WidgetTextfieldInteger("Bin Count",
 		                                            BinCountDefault,
@@ -216,24 +217,23 @@ public class OpenGLHistogramChart extends PositionedChart {
 		                                      true,
 		                                      newShowLegend -> showLegend = newShowLegend);
 
-		widgets = new Widget[16];
+		widgets = new Widget[15];
 		
-		widgets[0]  = datasetsWidget;
+		widgets[0]  = datasetsAndDurationWidget;
 		widgets[1]  = null;
-		widgets[2]  = sampleCountWidget;
-		widgets[3]  = binCountWidget;
-		widgets[4]  = null;
-		widgets[5]  = xAxisTypeWidget;
-		widgets[6]  = null;
-		widgets[7]  = yAxisTypeWidget;
-		widgets[8]  = null;
-		widgets[9]  = showXaxisTitleWidget;
-		widgets[10] = showXaxisScaleWidget;
-		widgets[11] = null;
-		widgets[12] = showYaxisTitleWidget;
-		widgets[13] = showYaxisScaleWidget;
-		widgets[14] = null;
-		widgets[15] = showLegendWidget;
+		widgets[2]  = binCountWidget;
+		widgets[3]  = null;
+		widgets[4]  = xAxisTypeWidget;
+		widgets[5]  = null;
+		widgets[6]  = yAxisTypeWidget;
+		widgets[7]  = null;
+		widgets[8]  = showXaxisTitleWidget;
+		widgets[9]  = showXaxisScaleWidget;
+		widgets[10] = null;
+		widgets[11] = showYaxisTitleWidget;
+		widgets[12] = showYaxisScaleWidget;
+		widgets[13] = null;
+		widgets[14] = showLegendWidget;
 		
 	}
 	

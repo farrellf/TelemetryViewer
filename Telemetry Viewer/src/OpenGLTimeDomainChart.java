@@ -96,8 +96,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	float earlierPlotMinY = -1;
 	
 	// control widgets
-	WidgetDatasets datasetsWidget;
-	WidgetDuration durationWidget;
+	WidgetDatasets datasetsAndDurationWidget;
 	WidgetTextfieldsOptionalMinMax minMaxWidget;
 	WidgetCheckbox showXaxisTitleWidget;
 	WidgetCheckbox showXaxisScaleWidget;
@@ -130,9 +129,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				if(!allDatasets.contains(state.dataset))
 					allDatasets.add(state.dataset);
 		
-		if(durationWidget != null && !allDatasets.isEmpty())
-			durationWidget.setConnection(allDatasets.get(0).connection);
-		
 	}
 	
 	public OpenGLTimeDomainChart(int x1, int y1, int x2, int y2) {
@@ -142,20 +138,29 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		autoscale = new AutoScale(AutoScale.MODE_EXPONENTIAL, 30, 0.10f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(newDatasets       -> { datasets       = newDatasets;       updateAllDatasetsList(); },
-		                                    newBitfieldEdges  -> { bitfieldEdges  = newBitfieldEdges;  updateAllDatasetsList(); },
-		                                    newBitfieldLevels -> { bitfieldLevels = newBitfieldLevels; updateAllDatasetsList(); });
-		
-		durationWidget = new WidgetDuration(5,
-		                                    Integer.MAX_VALUE,
-		                                    this,
-		                                    (xAxisType) -> {
-		                                    	sampleCountMode  = xAxisType.equals("Sample Count");
-		                                    	isTimestampsMode = xAxisType.equals("Timestamps");
-		                                    	plot = sampleCountMode ? new PlotSampleCount() : new PlotMilliseconds();
-		                                    	if(triggerWidget != null)
-		                                    		triggerWidget.resetTrigger(true);
-		                                    });
+		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> {
+		                                                   datasets = newDatasets;
+		                                                   updateAllDatasetsList();
+		                                               },
+		                                               newBitfieldEdges -> {
+		                                                   bitfieldEdges = newBitfieldEdges;
+		                                                   updateAllDatasetsList();
+		                                               },
+		                                               newBitfieldLevels -> {
+		                                                   bitfieldLevels = newBitfieldLevels;
+		                                                   updateAllDatasetsList();
+		                                               },
+		                                               (newDurationType, newDuration) -> {
+		                                                   sampleCountMode  = newDurationType == WidgetDatasets.AxisType.SAMPLE_COUNT;
+		                                                   isTimestampsMode = newDurationType == WidgetDatasets.AxisType.TIMESTAMPS;
+		                                                   duration = (int) (long) newDuration;
+		                                                   plot = sampleCountMode ? new PlotSampleCount() : new PlotMilliseconds();
+		                                                   if(triggerWidget != null)
+		                                                       triggerWidget.resetTrigger(true);
+		                                                   return newDuration;
+		                                               },
+		                                               true,
+		                                               null);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Y-Axis",
 		                                                  true,
@@ -197,25 +202,23 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		triggerWidget = new WidgetTrigger(this,
 		                                  isEnabled -> triggerEnabled = isEnabled);
 
-		widgets = new Widget[17];
+		widgets = new Widget[15];
 		
-		widgets[0]  = datasetsWidget;
+		widgets[0]  = datasetsAndDurationWidget;
 		widgets[1]  = null;
-		widgets[2]  = durationWidget;
+		widgets[2]  = minMaxWidget;
 		widgets[3]  = null;
-		widgets[4]  = minMaxWidget;
-		widgets[5]  = null;
-		widgets[6]  = showXaxisTitleWidget;
-		widgets[7]  = showXaxisScaleWidget;
-		widgets[8]  = null;
-		widgets[9]  = showYaxisTitleWidget;
-		widgets[10] = showYaxisScaleWidget;
+		widgets[4]  = showXaxisTitleWidget;
+		widgets[5]  = showXaxisScaleWidget;
+		widgets[6]  = null;
+		widgets[7]  = showYaxisTitleWidget;
+		widgets[8]  = showYaxisScaleWidget;
+		widgets[9]  = null;
+		widgets[10] = showLegendWidget;
 		widgets[11] = null;
-		widgets[12] = showLegendWidget;
+		widgets[12] = cachedWidget;
 		widgets[13] = null;
-		widgets[14] = cachedWidget;
-		widgets[15] = null;
-		widgets[16] = triggerWidget;
+		widgets[14] = triggerWidget;
 		
 	}
 	
@@ -247,7 +250,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		boolean haveDatasets = allDatasets != null && !allDatasets.isEmpty();
 		int datasetsCount = haveDatasets ? allDatasets.size() : 0;
 		
-		plot.initialize(endTimestamp, endSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, sampleCountMode ? durationWidget.getSampleCount() : durationWidget.getMilliseconds(), cachedMode, isTimestampsMode);
+		plot.initialize(endTimestamp, endSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, duration, cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
 		StorageFloats.MinMax requiredRange = plot.getRange();
@@ -465,7 +468,6 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// acquire the samples
 		plot.acquireSamples(plotMinY, plotMaxY, (int) plotWidth, (int) plotHeight);
-		duration = sampleCountMode ? durationWidget.getSampleCount() : (int) plot.getPlotDomain();
 		
 		// draw the plot
 		plot.draw(gl, chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinY, plotMaxY);

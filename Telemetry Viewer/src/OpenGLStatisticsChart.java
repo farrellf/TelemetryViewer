@@ -38,9 +38,7 @@ public class OpenGLStatisticsChart extends PositionedChart {
 	String showAs;
 	
 	// control widgets
-	WidgetTextfieldInteger datasetsCountWidget;
-	WidgetDatasets datasetsWidget;
-	WidgetDuration durationWidget;
+	WidgetDatasets datasetsAndDurationWidget;
 	WidgetCheckbox currentValuesWidget;
 	WidgetCheckbox minimumWidget;
 	WidgetCheckbox maximumWidget;
@@ -62,29 +60,25 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		
 		samplesFromDataset = new Samples[0];
 		
-		datasetsWidget = new WidgetDatasets(newDatasets -> {
-		                                        datasets = newDatasets;
-		                                        samplesFromDataset = new Samples[datasets.size()];
-		                                        for(int i = 0; i < datasets.size(); i++)
-		                                        	samplesFromDataset[i] = new Samples();
-		                                        if(durationWidget != null && !datasets.isEmpty())
-		                                        	durationWidget.setConnection(datasets.get(0).connection);
-		                                    });
-		
-		durationWidget = new WidgetDuration(1,
-		                                    Integer.MAX_VALUE,
-		                                    this,
-		                                    newType -> {
-		                                    	showAs = newType;
-		                                    	SwingUtilities.invokeLater(() -> {
-	                                    			sampleCountMode = newType.equals("Sample Count");
-			                                    	if(sampleCountMode)
-			                                    		durationSampleCount = durationWidget.getSampleCount();
-			                                    	else
-			                                    		durationMilliseconds = durationWidget.getMilliseconds();
-		                                    	});
-
-		                                    });
+		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> { datasets = newDatasets;
+		                                                                samplesFromDataset = new Samples[datasets.size()];
+		                                                                for(int i = 0; i < datasets.size(); i++)
+		                                                                    samplesFromDataset[i] = new Samples();
+		                                                              },
+		                                               null,
+		                                               null,
+		                                               (newType, newDuration) -> { showAs = newType.toString();
+		                                                                           SwingUtilities.invokeLater(() -> {
+		                                                                               sampleCountMode = newType.toString().equals("Sample Count");
+		                                                   	                           if(sampleCountMode)
+		                                               		                               durationSampleCount = (int) (long) newDuration;
+		                                               	                               else
+		                                               		                               durationMilliseconds = newDuration;
+		                                               	                           });
+		                                                                           return newDuration;
+		                                                                         },
+		                                               false,
+		                                               null);
 		
 		currentValuesWidget     = new WidgetCheckbox("Show Current Value",      true, isSelected -> showCurrentValues = isSelected);
 		minimumWidget           = new WidgetCheckbox("Show Minimum",            true, isSelected -> showMinimums = isSelected);
@@ -95,20 +89,18 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		percentileWidget        = new WidgetCheckbox("Show 90th Percentile",    true, isSelected -> showPercentile = isSelected);
 		showDurationWidget      = new WidgetCheckbox("Show Duration Label",     true, isSelected -> showDuration = isSelected);
 
-		widgets = new Widget[13];
-		widgets[0]  = datasetsWidget;
+		widgets = new Widget[11];
+		widgets[0]  = datasetsAndDurationWidget;
 		widgets[1]  = null;
-		widgets[2]  = durationWidget;
-		widgets[3]  = null;
-		widgets[4]  = currentValuesWidget;
-		widgets[5]  = minimumWidget;
-		widgets[6]  = maximumWidget;
-		widgets[7]  = meanWidget;
-		widgets[8]  = medianWidget;
-		widgets[9]  = standardDeviationWidget;
-		widgets[10] = percentileWidget;
-		widgets[11] = null;
-		widgets[12] = showDurationWidget;		
+		widgets[2]  = currentValuesWidget;
+		widgets[3]  = minimumWidget;
+		widgets[4]  = maximumWidget;
+		widgets[5]  = meanWidget;
+		widgets[6]  = medianWidget;
+		widgets[7]  = standardDeviationWidget;
+		widgets[8]  = percentileWidget;
+		widgets[9]  = null;
+		widgets[10] = showDurationWidget;		
 	}
 	
 	@Override public EventHandler drawChart(GL2ES3 gl, float[] chartMatrix, int width, int height, long endTimestamp, int endSampleNumber, double zoomLevel, int mouseX, int mouseY) {

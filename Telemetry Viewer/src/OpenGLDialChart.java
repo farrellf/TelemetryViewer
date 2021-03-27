@@ -85,9 +85,12 @@ public class OpenGLDialChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		datasetWidget = new WidgetDatasets(1,
-		                                   new String[] {"Dataset"},
-		                                   newDataset -> datasets = newDataset);
+		datasetWidget = new WidgetDatasets(newDataset -> datasets = newDataset,
+		                                   null,
+		                                   null,
+		                                   null,
+		                                   false,
+		                                   new String[] {"Dataset"});
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Dial",
 		                                                  false,

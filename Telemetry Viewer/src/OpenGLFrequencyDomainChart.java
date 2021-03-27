@@ -1,5 +1,6 @@
 import java.awt.Color;
 import java.util.Map;
+
 import com.jogamp.opengl.GL2ES3;
 import com.jogamp.opengl.GL3;
 
@@ -8,14 +9,15 @@ import com.jogamp.opengl.GL3;
  * 
  * User settings:
  *     Datasets to visualize.
+ *     Sample count per DFT.
  *     Power minimum value can be fixed or autoscaled.
  *     Power maximum value can be fixed or autoscaled.
- *     Chart type:
- *         Live View renders a single DFT of the most recent samples. This is a line chart.
- *         Waveform View renders a sequence of DFTs as a 2D histogram. This is basically a "long exposure photo" of Live View.
- *         Waterfall View renders a sequence of DFTs as a sequence of rows. Each row is one DFT, allowing you to see how the DFTs have changed over time.
- *     Sample count, and total sample count for Waveform and Waterfall views.
- *     Vertical resolution for Waveform View.
+ *     Chart mode:
+ *         "Single" renders a single DFT of the most recent samples. This is a line chart.
+ *         "Multiple" renders a sequence of DFTs as a 2D histogram. This is basically a "long exposure photo" of Single.
+ *         "Waterfall" renders a sequence of DFTs as a sequence of rows. Each row is one DFT, allowing you to see how the DFTs have changed over time.
+ *     DFT count for the Multiple and Waterfall modes.
+ *     Vertical resolution for Multiple mode.
  *     X-axis title can be displayed.
  *     X-axis scale can be displayed.
  *     Y-axis title can be displayed.
@@ -25,8 +27,11 @@ import com.jogamp.opengl.GL3;
  */
 public class OpenGLFrequencyDomainChart extends PositionedChart {
 	
-	String chartType; // "Live View" or "Waveform View" or "Waterfall View"
-	int totalSampleCount;
+	String chartMode; // "Single" or "Multiple" or "Waterfall"
+	boolean singleMode;
+	boolean multipleMode;
+	boolean waterfallMode;
+	int dftCount;
 	int waveformRowCount;
 	OpenGLFrequencyDomainCache cache;
 	
@@ -108,17 +113,8 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 	static final float PowerLowerLimit     = Float.MIN_VALUE;
 	static final float PowerUpperLimit     = Float.MAX_VALUE;
 	
-	static final int SampleCountDefault      = 1000;
-	static final int TotalSampleCountDefault = 100000;
-	static final int SampleCountLowerLimit   = 5;
-	static final int SampleCountUpperLimit   = 5000000;
-	
-	static final int WaveformRowCountDefault    = 60;
-	static final int WaveformRowCountLowerLimit = 2;
-	static final int WaveformRowCountUpperLimit = 1000;
-	
 	// control widgets
-	WidgetDatasets datasetsWidget;
+	WidgetDatasets datasetsAndDurationWidget;
 	WidgetTextfieldsOptionalMinMax minMaxWidget;
 	WidgetFrequencyDomainType typeWidget;
 	WidgetCheckbox showXaxisTitleWidget;
@@ -141,7 +137,19 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		autoscalePower = new AutoScale(AutoScale.MODE_EXPONENTIAL, 90, 0.20f);
 		
 		// create the control widgets and event handlers
-		datasetsWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets);
+		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> datasets = newDatasets,
+		                                               null,
+		                                               null,
+		                                               (newDurationType, newDuration) -> {
+		                                                   duration = (int) (long) newDuration;
+		                                                   if(duration > 5_000)
+		                                                	   duration = 5_000;
+		                                                   if(duration < 10)
+		                                                	   duration = 10;
+		                                                   return (long) duration;
+		                                               },
+		                                               false,
+		                                               null);
 		
 		minMaxWidget = new WidgetTextfieldsOptionalMinMax("Power",
 		                                                  true,
@@ -152,16 +160,13 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		                                                  (newAutoscaleMinPower, newManualMinPower) -> { autoscaleMinPower = newAutoscaleMinPower; manualMinPower = newManualMinPower; },
 		                                                  (newAutoscaleMaxPower, newManualMaxPower) -> { autoscaleMaxPower = newAutoscaleMaxPower; manualMaxPower = newManualMaxPower; });
 		
-		typeWidget = new WidgetFrequencyDomainType(SampleCountDefault,
-		                                           TotalSampleCountDefault,
-		                                           SampleCountLowerLimit,
-		                                           SampleCountUpperLimit,
-		                                           WaveformRowCountDefault,
-		                                           WaveformRowCountLowerLimit,
-		                                           WaveformRowCountUpperLimit,
-		                                           newChartType -> chartType = newChartType,
-		                                           newSampleCount -> duration = newSampleCount,
-		                                           newTotalSampleCount -> totalSampleCount = newTotalSampleCount,
+		typeWidget = new WidgetFrequencyDomainType(newChartMode -> {
+		                                               chartMode = newChartMode;
+		                                               singleMode    = chartMode.equals("Single");
+		                                               multipleMode  = chartMode.equals("Multiple");
+		                                               waterfallMode = chartMode.equals("Waterfall");
+		                                           },
+		                                           newDftCount -> dftCount = newDftCount,
 		                                           newWaveformRowCount -> waveformRowCount = newWaveformRowCount);
 		
 		showXaxisTitleWidget = new WidgetCheckbox("Show X-Axis Title",
@@ -190,7 +195,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 
 		widgets = new Widget[15];
 		
-		widgets[0]  = datasetsWidget;
+		widgets[0]  = datasetsAndDurationWidget;
 		widgets[1]  = null;
 		widgets[2]  = minMaxWidget;
 		widgets[3]  = null;
@@ -218,7 +223,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// calculate the DFTs
 		if(cache == null)
 			cache = new OpenGLFrequencyDomainCache();
-		cache.calculateDfts(endSampleNumber, duration, chartType.equals("Live View") ? 1 : (totalSampleCount / duration), datasets, chartType);
+		cache.calculateDfts(endSampleNumber, duration, dftCount, datasets, chartMode);
 		
 		// calculate the domain
 		float plotMinX = cache.getMinHz();
@@ -230,7 +235,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// for "Live View" and "Waveform View" the y-axis is power
 		float sampleRate = haveDatasets ? datasets.get(0).connection.sampleRate : 1;
 		float plotMinTime = 0;
-		float plotMaxTime = (float) totalSampleCount / sampleRate;
+		float plotMaxTime = (float) (duration * dftCount) / sampleRate;
 
 		float plotMinPower = haveTelemetry ? cache.getMinPower() : -12;
 		float plotMaxPower = haveTelemetry ? cache.getMaxPower() : 1;
@@ -243,16 +248,16 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		if(!autoscaleMinPower)
 			plotMinPower = (float) Math.log10(manualMinPower);
-		else if(autoscaleMinPower && !chartType.equals("Waterfall View"))
+		else if(autoscaleMinPower && !waterfallMode)
 			plotMinPower = autoscalePower.getMin();
 		
 		if(!autoscaleMaxPower)
 			plotMaxPower = (float) Math.log10(manualMaxPower);
-		else if(autoscaleMaxPower && !chartType.equals("Waterfall View"))
+		else if(autoscaleMaxPower && !waterfallMode)
 			plotMaxPower = autoscalePower.getMax();
 
-		float plotMinY = chartType.equals("Waterfall View") ? plotMinTime : plotMinPower;
-		float plotMaxY = chartType.equals("Waterfall View") ? plotMaxTime : plotMaxPower;
+		float plotMinY = waterfallMode ? plotMinTime : plotMinPower;
+		float plotMaxY = waterfallMode ? plotMaxTime : plotMaxPower;
 		float plotRange = plotMaxY - plotMinY;
 		
 		// calculate x and y positions of everything
@@ -303,7 +308,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 		
 		if(showDftInfo) {
-			if(chartType.equals("Live View")) {
+			if(singleMode) {
 				
 				dftWindowLengthText = cache.getWindowLength() + " sample rectangular window";
 				yDftWindowLengthTextBaseline = Theme.tilePadding;
@@ -317,7 +322,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					plotHeight = yPlotTop - yPlotBottom;
 				}
 				
-			} else if(chartType.equals("Waveform View")) {
+			} else if(multipleMode) {
 				
 				int windowCount = cache.getActualWindowCount();
 				int windowLength = cache.getWindowLength();
@@ -338,7 +343,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					plotHeight = yPlotTop - yPlotBottom;
 				}
 				
-			} else if(chartType.equals("Waterfall View")) {
+			} else if(waterfallMode) {
 				
 				minPowerText = "Power Range: 1e" + Math.round(plotMinPower);
 				maxPowerText = "1e" + Math.round(plotMaxPower);
@@ -375,7 +380,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		if(showYaxisTitle) {
 			xYaxisTitleTextTop = xPlotLeft;
 			xYaxisTitleTextBaseline = xYaxisTitleTextTop + OpenGL.largeTextHeight;
-			yAxisTitle = chartType.equals("Waterfall View") ? "Time (Seconds)" : "Power (Watts)";
+			yAxisTitle = waterfallMode ? "Time (Seconds)" : "Power (Watts)";
 			yYaxisTitleTextLeft = yPlotBottom + (plotHeight / 2.0f) - (OpenGL.largeTextWidth(gl, yAxisTitle) / 2.0f);
 			
 			xPlotLeft = xYaxisTitleTextBaseline + Theme.tickTextPadding;
@@ -418,7 +423,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		}
 		
 		if(showYaxisScale) {
-			yDivisions = chartType.equals("Waterfall View") ? ChartUtils.getYdivisions125(plotHeight, plotMinY, plotMaxY) : ChartUtils.getLogYdivisions(plotHeight, plotMinY, plotMaxY);
+			yDivisions = waterfallMode ? ChartUtils.getYdivisions125(plotHeight, plotMinY, plotMaxY) : ChartUtils.getLogYdivisions(plotHeight, plotMinY, plotMaxY);
 			float maxTextWidth = 0;
 			for(String text : yDivisions.values()) {
 				float textWidth = OpenGL.smallTextWidth(gl, text);
@@ -515,16 +520,16 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		// draw the DFT info text if space is available
 		boolean spaceForDftInfoText = showLegend ? xDftInfoTextLeft > xLegendBorderRight + Theme.legendTextPadding : xDftInfoTextLeft > 0;
 		if(showDftInfo && spaceForDftInfoText && haveDatasets) {
-			if(chartType.equals("Live View")) {
+			if(singleMode) {
 				
 				OpenGL.drawSmallText(gl, dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline, 0);
 				
-			} else if(chartType.equals("Waveform View")) {
+			} else if(multipleMode) {
 				
 				OpenGL.drawSmallText(gl, dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline, 0);
 				OpenGL.drawSmallText(gl, dftWindowCountText, (int) xDftWindowCountTextLeft, (int) yDftWindowCountTextBaseline, 0);
 				
-			} else if(chartType.equals("Waterfall View")) {
+			} else if(waterfallMode) {
 				
 				OpenGL.drawSmallText(gl, dftWindowLengthText, (int) xDftWindowLenghtTextLeft, (int) yDftWindowLengthTextBaseline, 0);
 				OpenGL.drawSmallText(gl, dftWindowCountText, (int) xDftWindowCountTextLeft, (int) yDftWindowCountTextBaseline, 0);
@@ -565,12 +570,12 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 		
 		// draw the DFTs
 		if(haveTelemetry) {
-			if(chartType.equals("Live View"))
-				cache.renderLiveView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
-			else if(chartType.equals("Waveform View"))
-				cache.renderWaveformView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets, waveformRowCount);
-			else if(chartType.equals("Waterfall View"))
-				cache.renderWaterfallView(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
+			if(singleMode)
+				cache.renderSingle(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
+			else if(multipleMode)
+				cache.renderMultiple(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets, waveformRowCount);
+			else if(waterfallMode)
+				cache.renderWaterfall(chartMatrix, (int) xPlotLeft, (int) yPlotBottom, (int) plotWidth, (int) plotHeight, plotMinPower, plotMaxPower, gl, datasets);
 		}
 		
 		// draw the tooltip if the mouse is in the plot region
@@ -588,7 +593,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			Color[] colors = null;
 			int anchorY = 0;
 			
-			if(chartType.equals("Live View")) {
+			if(singleMode) {
 				// for live view, get the power levels (one per dataset) for the mouseX frequency
 				float[] binValues = cache.getPowerLevelsForLiveViewBin(binN);
 				if(binValues != null) {
@@ -602,7 +607,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					}
 					anchorY = (int) ((binValues[0] - plotMinY) / plotRange * plotHeight + yPlotBottom);
 				}
-			} else if(chartType.equals("Waveform View")) {
+			} else if(multipleMode) {
 				// map mouseY to a power bin
 				int powerBinN = Math.round(((float) mouseY - yPlotBottom) / plotHeight * waveformRowCount - 0.5f);
 				if(powerBinN > waveformRowCount - 1)
@@ -623,9 +628,9 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 					}
 					anchorY = (int) (((float) powerBinN + 0.5f) / (float) waveformRowCount * plotHeight + yPlotBottom);
 				}
-			} else if(chartType.equals("Waterfall View")) {
+			} else if(waterfallMode) {
 				// map mouseY to a time
-				int waterfallRowCount = (totalSampleCount / duration);
+				int waterfallRowCount = dftCount;
 				int waterfallRowN = Math.round(((float) mouseY - yPlotBottom) / plotHeight * waterfallRowCount - 0.5f);
 				if(waterfallRowN > waterfallRowCount - 1)
 					waterfallRowN = waterfallRowCount - 1;
@@ -654,7 +659,7 @@ public class OpenGLFrequencyDomainChart extends PositionedChart {
 			}
 
 			if(text != null && colors != null) {
-				if(datasets.size() > 1 && chartType.equals("Live View")) {
+				if(datasets.size() > 1 && singleMode) {
 					OpenGL.buffer.rewind();
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotTop);
 					OpenGL.buffer.put(anchorX); OpenGL.buffer.put(yPlotBottom);
