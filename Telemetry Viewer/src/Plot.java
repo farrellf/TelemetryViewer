@@ -8,9 +8,9 @@ public abstract class Plot {
 	List<Dataset> datasets;
 	List<Dataset.Bitfield.State> bitfieldEdges;
 	List<Dataset.Bitfield.State> bitfieldLevels;
-	int maxSampleNumber;
-	int minSampleNumber;
-	int plotSampleCount;
+	long maxSampleNumber;
+	long minSampleNumber;
+	long plotSampleCount;
 	long plotMaxX;     // sample number or unix timestamp
 	long plotMinX;     // sample number or unix timestamp
 	long plotDomain;   // sample count  or milliseconds
@@ -33,7 +33,7 @@ public abstract class Plot {
 	 * @param cachedMode         True to enable the cache.
 	 * @param showTimestamps     True if the x-axis shows timestamps, false if the x-axis shows sample count or elapsed time.
 	 */
-	abstract void initialize(long endTimestamp, int endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps);
+	abstract void initialize(long endTimestamp, long endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps);
 	
 	/**
 	 * Step 2: Get the required range, assuming you want to see all samples on screen.
@@ -123,7 +123,7 @@ public abstract class Plot {
 	 * @param plotWidth       Width of the plot region, in pixels.
 	 * @return                Corresponding horizontal location on the plot, in pixels, with 0 = left edge of the plot.
 	 */
-	abstract float getPixelXforSampleNumber(int sampleNumber, float plotWidth);
+	abstract float getPixelXforSampleNumber(long sampleNumber, float plotWidth);
 	
 	/**
 	 * @return    Domain (interval of x-axis values) of the plot.

@@ -115,6 +115,9 @@ public class OpenGLTimelineChart extends PositionedChart {
 		widgets[2] = showTimelineWidget;
 		widgets[3] = datasetsWidget;
 		
+		if(OpenGLChartsView.instance.isPausedView())
+			userIsTimeshifting();
+		
 	}
 	
 	public void userIsTimeshifting() {

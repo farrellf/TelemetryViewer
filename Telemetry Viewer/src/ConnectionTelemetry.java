@@ -996,9 +996,9 @@ public class ConnectionTelemetry extends Connection {
 		chartSettings.add("datasets = connection 0 location 1");
 		chartSettings.add("bitfield edge states = ");
 		chartSettings.add("bitfield level states = ");
-		chartSettings.add("duration type = Samples");
 		chartSettings.add("duration = 10000000");
-		chartSettings.add("x-axis = Sample Count");
+		chartSettings.add("duration unit = Samples");
+		chartSettings.add("time axis shows = Sample Count");
 		chartSettings.add("autoscale y-axis minimum = true");
 		chartSettings.add("manual y-axis minimum = -1.0");
 		chartSettings.add("autoscale y-axis maximum = true");
@@ -1606,7 +1606,13 @@ public class ConnectionTelemetry extends Connection {
 						String[] tokens = line.split(",");
 						for(int i = 0; i < numberForLocation.length; i++)
 							numberForLocation[i] = Float.parseFloat(tokens[i]);
+						
 						int sampleNumber = getSampleCount();
+						if(sampleNumber + 1 < 0) { // <0 because of overflow
+							SwingUtilities.invokeLater(() -> disconnect("Reached maximum sample count. Disconnected.")); // invokeLater to prevent deadlock
+							throw new InterruptedException();
+						}
+						
 						for(Dataset d : list)
 							d.setSample(sampleNumber, numberForLocation[d.location]);
 						datasets.incrementSampleCount();
@@ -1657,6 +1663,11 @@ public class ConnectionTelemetry extends Connection {
 						while(packets.count > 0) {
 							
 							int sampleNumber = getSampleCount();
+							if(sampleNumber + packets.count < 0) { // <0 because of overflow
+								SwingUtilities.invokeLater(() -> disconnect("Reached maximum sample count. Disconnected.")); // invokeLater to prevent deadlock
+								throw new InterruptedException();
+							}
+							
 							boolean blockAligned = sampleNumber % StorageFloats.BLOCK_SIZE == 0;
 							int blocksRemaining = packets.count / StorageFloats.BLOCK_SIZE;
 							
@@ -1779,6 +1790,11 @@ public class ConnectionTelemetry extends Connection {
 							
 							// populate the datasets
 							int sampleNumber = getSampleCount();
+							if(sampleNumber + packets.count < 0) { // <0 because of overflow
+								SwingUtilities.invokeLater(() -> disconnect("Reached maximum sample count. Disconnected.")); // invokeLater to prevent deadlock
+								throw new InterruptedException();
+							}
+							
 							list.get(0).setConvertedSample (sampleNumber, voltage);
 							list.get(1).setConvertedSample (sampleNumber, current);
 							list.get(2).setConvertedSample (sampleNumber, power);
@@ -1873,6 +1889,10 @@ public class ConnectionTelemetry extends Connection {
 									Dataset d = datasets.get(datasetN);
 									float f = d.processor.extractValue(buffer, offset + d.location) * d.conversionFactor;
 									slots[datasetN][slotOffset] = f;
+									if(packetN == 0) {
+										minVal[datasetN] = f;
+										maxVal[datasetN] = f;
+									}
 									if(f < minVal[datasetN])
 										minVal[datasetN] = f;
 									if (f > maxVal[datasetN])

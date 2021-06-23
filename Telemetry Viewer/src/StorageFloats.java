@@ -30,8 +30,7 @@ public class StorageFloats {
 	private ByteBuffer cacheBytes = Buffers.newDirectByteBuffer(CACHE_SIZE * BYTES_PER_VALUE);
 	private FloatBuffer cacheFloats = cacheBytes.asFloatBuffer();
 	private int startOfCache = 0;
-	private int firstCachedSampleNumber = startOfCache - 1;
-	private int lastCachedSampleNumber  = startOfCache - 1;
+	private int cachedCount = 0;
 	
 	private ConnectionTelemetry connection;
 
@@ -140,7 +139,7 @@ public class StorageFloats {
 		
 		// read from cache if possible
 		updateCacheIfAppropriate(sampleNumber, sampleNumber);
-		if(sampleNumber >= firstCachedSampleNumber && sampleNumber <= lastCachedSampleNumber) {
+		if(sampleNumber >= startOfCache && sampleNumber <= startOfCache + cachedCount - 1) {
 			return cacheFloats.get(sampleNumber - startOfCache);
 		}
 		
@@ -171,7 +170,7 @@ public class StorageFloats {
 		updateCacheIfAppropriate(firstSampleNumber, lastSampleNumber);
 		
 		// if the entire range is cached, provide it from the cache
-		if(firstSampleNumber >= firstCachedSampleNumber && lastSampleNumber <= lastCachedSampleNumber) {
+		if(firstSampleNumber >= startOfCache && lastSampleNumber <= startOfCache + cachedCount - 1) {
 			cacheFloats.position(firstSampleNumber - startOfCache);
 			if(calculateMinMix) {
 				MinMax mm = getRange(firstSampleNumber, lastSampleNumber);
@@ -241,14 +240,13 @@ public class StorageFloats {
 			startOfCache = (firstSampleNumber / SLOT_SIZE) * SLOT_SIZE - SLOT_SIZE; // at least one full slot "before" the requested range
 			if(startOfCache < 0)
 				startOfCache = 0;
-			firstCachedSampleNumber = startOfCache - 1;
-			lastCachedSampleNumber  = startOfCache - 1;
+			cachedCount = 0;
 		}
 		
 		// new range starts before cached range
-		if(firstSampleNumber < firstCachedSampleNumber) {
+		if(firstSampleNumber < startOfCache) {
 			int start = firstSampleNumber;
-			int end   = firstCachedSampleNumber - 1;
+			int end   = startOfCache - 1;
 			
 			int firstSlot = start / SLOT_SIZE;
 			int lastSlot  = end   / SLOT_SIZE;
@@ -278,12 +276,13 @@ public class StorageFloats {
 				}
 			}
 			
-			firstCachedSampleNumber = firstSampleNumber;
+			startOfCache = firstSampleNumber;
+			cachedCount += end - firstSampleNumber + 1;
 		}
 		
 		// new range ends after cached range
-		if(lastSampleNumber > lastCachedSampleNumber) {
-			int start = lastCachedSampleNumber + 1;
+		if(lastSampleNumber > startOfCache + cachedCount - 1) {
+			int start = startOfCache + cachedCount;
 			int end   = lastSampleNumber;
 			
 			int slotStart = start / SLOT_SIZE;
@@ -315,9 +314,7 @@ public class StorageFloats {
 				}
 			}
 			
-			lastCachedSampleNumber = lastSampleNumber;
-			if(firstCachedSampleNumber == -1)
-				firstCachedSampleNumber = 0;
+			cachedCount += lastSampleNumber - (startOfCache + cachedCount) + 1;
 		}
 		
 	}
@@ -445,8 +442,7 @@ public class StorageFloats {
 		
 		// flush the cache
 		startOfCache = 0;
-		firstCachedSampleNumber = -1;
-		lastCachedSampleNumber = -1;
+		cachedCount = 0;
 		
 	}
 	

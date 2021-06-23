@@ -139,8 +139,11 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// create the control widgets and event handlers
 		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> {
+		                                                   boolean previouslyNoDatasets = datasets.isEmpty();
 		                                                   datasets = newDatasets;
 		                                                   updateAllDatasetsList();
+		                                                   if(previouslyNoDatasets && triggerWidget != null)
+		                                                	   triggerWidget.setDefaultChannel(datasets.get(0));
 		                                               },
 		                                               newBitfieldEdges -> {
 		                                                   bitfieldEdges = newBitfieldEdges;
@@ -229,20 +232,18 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		// trigger logic
 		if(triggerEnabled && !datasets.isEmpty()) {
 			if(sampleCountMode && triggeringPaused) {
-				triggerWidget.clearTrigger();
-				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(earlierEndSampleNumber, zoomLevel);
+				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(earlierEndSampleNumber, zoomLevel, true);
 			} else if(sampleCountMode && !triggeringPaused) {
 				if(!OpenGLChartsView.instance.isPausedView())
 					endSampleNumber = datasets.get(0).connection.getSampleCount() - 1;
-				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(endSampleNumber, zoomLevel);
+				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(endSampleNumber, zoomLevel, false);
 				earlierEndSampleNumber = endSampleNumber;
 			} else if(!sampleCountMode && triggeringPaused) {
-				triggerWidget.clearTrigger();
-				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(earlierEndTimestamp, zoomLevel);
+				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(earlierEndTimestamp, zoomLevel, true);
 			} else {
 				if(!OpenGLChartsView.instance.isPausedView())
 					endTimestamp = datasets.get(0).connection.getTimestamp(datasets.get(0).connection.getSampleCount() - 1);
-				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel);
+				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel, false);
 				earlierEndTimestamp = endTimestamp;
 			}
 		}
@@ -474,13 +475,23 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// draw the trigger level and trigger point markers
 		if(triggerEnabled) {
+			
 			float scalar = ChartsController.getDisplayScalingFactor();
 			float markerThickness = 3*scalar;
 			float markerLength = 5*scalar;
 			float triggerLevel = triggerWidget.getTriggerLevel();
-			float y = (triggerLevel - plotMinY) / plotRange * plotHeight + yPlotBottom;
-			if(y >= yPlotBottom && y <= yPlotTop) {
-				if(mouseX >= xPlotLeft && mouseX <= xPlotLeft + markerLength*1.5 && mouseY >= y - markerThickness*1.5 && mouseY <= y + markerThickness*1.5) {
+			float yTriggerLevel = (triggerLevel - plotMinY) / plotRange * plotHeight + yPlotBottom;
+			
+			int triggeredSampleNumber = triggerWidget.getTriggeredSampleNumber();
+			float triggerPoint = triggeredSampleNumber >= 0 ? plot.getPixelXforSampleNumber(triggeredSampleNumber, plotWidth) : 0;
+			float xTriggerPoint = xPlotLeft + triggerPoint;
+			
+			boolean mouseOver = false;
+			
+			// trigger level marker
+			if(yTriggerLevel >= yPlotBottom && yTriggerLevel <= yPlotTop) {
+				if(mouseX >= xPlotLeft && mouseX <= xPlotLeft + markerLength*1.5 && mouseY >= yTriggerLevel - markerThickness*1.5 && mouseY <= yTriggerLevel + markerThickness*1.5) {
+					mouseOver = true;
 					handler = EventHandler.onPressOrDrag(dragStarted -> triggeringPaused = true,
 					                                     newLocation -> {
 					                                         float newTriggerLevel = (newLocation.y - yPlotBottom) / plotHeight * plotRange + plotMinY;
@@ -488,27 +499,26 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 					                                         	 newTriggerLevel = plotMinY;
 					                                         if(newTriggerLevel > plotMaxY)
 					                                        	 newTriggerLevel = plotMaxY;
-					                                         triggerWidget.setTriggerLevel(newTriggerLevel);
+					                                         triggerWidget.setLevel(newTriggerLevel, false);
 					                                     },
 					                                     dragEnded -> triggeringPaused = false,
 					                                     this,
 					                                     Theme.upDownCursor);
-					OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xPlotLeft, y + markerThickness*1.5f,
-					                                                  xPlotLeft + markerLength*1.5f, y,
-					                                                  xPlotLeft, y - markerThickness*1.5f);
+					OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xPlotLeft, yTriggerLevel + markerThickness*1.5f,
+					                                                  xPlotLeft + markerLength*1.5f, yTriggerLevel,
+					                                                  xPlotLeft, yTriggerLevel - markerThickness*1.5f);
 				} else {
-					OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xPlotLeft, y + markerThickness,
-					                                                  xPlotLeft + markerLength, y,
-					                                                  xPlotLeft, y - markerThickness);
+					OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xPlotLeft, yTriggerLevel + markerThickness,
+					                                                  xPlotLeft + markerLength, yTriggerLevel,
+					                                                  xPlotLeft, yTriggerLevel - markerThickness);
 				}
 			}
 			
-			int triggeredSampleNumber = triggerWidget.getTriggeredSampleNumber();
+			// trigger point marker
 			if(triggeredSampleNumber >= 0) {
-				float triggerPoint = plot.getPixelXforSampleNumber(triggeredSampleNumber, plotWidth);
-				float x = xPlotLeft + triggerPoint;
-				if(x >= xPlotLeft && x <= xPlotRight) {
-					if(mouseX >= x - 1.5*markerThickness && mouseX <= x + 1.5*markerThickness && mouseY >= yPlotTop - 1.5*markerLength && mouseY <= yPlotTop) {
+				if(xTriggerPoint >= xPlotLeft && xTriggerPoint <= xPlotRight) {
+					if(mouseX >= xTriggerPoint - 1.5*markerThickness && mouseX <= xTriggerPoint + 1.5*markerThickness && mouseY >= yPlotTop - 1.5*markerLength && mouseY <= yPlotTop) {
+						mouseOver = true;
 						handler = EventHandler.onPressOrDrag(dragStarted -> triggeringPaused = true,
 						                                     newLocation -> {
 						                                         float newPrePostRatio = (newLocation.x - xPlotLeft) / plotWidth;
@@ -516,21 +526,36 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 						                                        	 newPrePostRatio = 0;
 						                                         if(newPrePostRatio > 1)
 						                                        	 newPrePostRatio = 1;
-						                                         triggerWidget.setPrePostRatio(Math.round(newPrePostRatio * 100));
+						                                         triggerWidget.setPrePostRatio(Math.round(newPrePostRatio * 100), false);
 						                                     },
 						                                     dragEnded -> triggeringPaused = false,
 						                                     this,
 						                                     Theme.leftRigthCursor);
-						OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, x - markerThickness*1.5f, yPlotTop,
-						                                                  x + markerThickness*1.5f, yPlotTop,
-						                                                  x, yPlotTop - markerLength*1.5f);
+						OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xTriggerPoint - markerThickness*1.5f, yPlotTop,
+						                                                  xTriggerPoint + markerThickness*1.5f, yPlotTop,
+						                                                  xTriggerPoint, yPlotTop - markerLength*1.5f);
 					} else {
-						OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, x - markerThickness, yPlotTop,
-						                                                  x + markerThickness, yPlotTop,
-						                                                  x, yPlotTop - markerLength);
+						OpenGL.drawTriangle2D(gl, Theme.plotOutlineColor, xTriggerPoint - markerThickness, yPlotTop,
+						                                                  xTriggerPoint + markerThickness, yPlotTop,
+						                                                  xTriggerPoint, yPlotTop - markerLength);
 					}
 				}
 			}
+			
+			// draw lines to the trigger level and trigger point when the user is interacting with the markers
+			if(mouseOver || triggeringPaused) {
+				float xLeft = xPlotLeft;
+				float xRight = xTriggerPoint > xPlotLeft ? xTriggerPoint : xPlotRight;
+				float yTop = yPlotTop;
+				float yBottom = yTriggerLevel;
+				OpenGL.buffer.rewind();
+				OpenGL.buffer.put(xLeft);   OpenGL.buffer.put(yBottom);  OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(xRight);  OpenGL.buffer.put(yBottom);  OpenGL.buffer.put(Theme.tickLinesColor, 0, 3);  OpenGL.buffer.put(0.2f);
+				OpenGL.buffer.put(xRight);  OpenGL.buffer.put(yTop);     OpenGL.buffer.put(Theme.tickLinesColor);
+				OpenGL.buffer.put(xRight);  OpenGL.buffer.put(yBottom);  OpenGL.buffer.put(Theme.tickLinesColor, 0, 3);  OpenGL.buffer.put(0.2f);
+				OpenGL.drawLinesXyrgba(gl, GL3.GL_LINES, OpenGL.buffer, 4);
+			}
+			
 		}
 		
 		// draw the tooltip if the mouse is in the plot region and not over something clickable

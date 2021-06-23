@@ -16,22 +16,161 @@ import javax.swing.SwingUtilities;
 
 public class WidgetTrigger extends Widget {
 	
-	JToggleButton modeDisabledButton;
-	JToggleButton modeAutoButton;
-	JToggleButton modeNormalButton;
-	JToggleButton modeSingleButton;
+	enum Mode {
+		DISABLED { @Override public String toString() { return "Disabled"; } },
+		AUTO     { @Override public String toString() { return "Auto";     } },
+		NORMAL   { @Override public String toString() { return "Normal";   } },
+		SINGLE   { @Override public String toString() { return "Single";   } }
+	};
 	
-	JToggleButton affectsThisChartButton;
-	JToggleButton affectsEveryChartButton;
+	enum Type {
+		RISING_EDGE          { @Override public String toString() { return "Rising Edge";              } },
+		FALLING_EDGE         { @Override public String toString() { return "Falling Edge";             } },
+		RISING_FALLING_EDGES { @Override public String toString() { return "Rising and Falling Edges"; } }
+	};
 	
-	JComboBox<String> typeCombobox;
-	JComboBox<Dataset> channelCombobox;
-	JTextField levelTextfield;
-	JTextField hysteresisTextfield;
-	JSlider prePostRatioSlider;
+	// "model"
+	private Mode    triggerMode = Mode.DISABLED;
+	private boolean triggerAffectsEveryChart = false;
+	private Type    triggerType = Type.RISING_EDGE;
+	private Dataset triggerChannel = null;
+	private float   triggerLevel = 0;
+	private float   triggerHysteresis = 0;
+	private int     triggerPrePostRatio = 20;
+	private boolean userSpecifiedTheChannel = false;
 	
-	PositionedChart chart;
-	Consumer<Boolean> eventHandler;
+	// "view"
+	private JToggleButton modeDisabledButton;
+	private JToggleButton modeAutoButton;
+	private JToggleButton modeNormalButton;
+	private JToggleButton modeSingleButton;
+	
+	private JToggleButton affectsThisChartButton;
+	private JToggleButton affectsEveryChartButton;
+	
+	private JComboBox<Type> typeCombobox;
+	private JComboBox<Dataset> channelCombobox;
+	private JTextField levelTextfield;
+	private JTextField hysteresisTextfield;
+	private JSlider prePostRatioSlider;
+	
+	// "controller"
+	private PositionedChart chart;
+	private Consumer<Boolean> eventHandler;
+	
+	private void setMode(Mode newMode) {
+		
+		// never ignore, even if unchanged, so clicking "single" can re-arm the trigger
+		
+		// update the model
+		triggerMode = newMode;
+		resetTrigger(true);
+		
+		// update the view
+		update();
+		
+	}
+	
+	private void setAffectsEveryChart(boolean newAffect) {
+		
+		// ignore if unchanged
+		if(newAffect == triggerAffectsEveryChart)
+			return;
+		
+		// update the model
+		triggerAffectsEveryChart = newAffect;
+		resetTrigger(true);
+		
+		// update the view
+		update();
+		
+	}
+	
+	private void setType(Type newType) {
+		
+		// ignore if unchanged
+		if(newType == triggerType)
+			return;
+		
+		// update the model
+		triggerType = newType;
+		resetTrigger(true);
+
+		// update the view
+		update();
+		
+	}
+	
+	private void setChannel(Dataset newChannel, boolean userSpecified) {
+		
+		// ignore if unchanged
+		if(newChannel == triggerChannel)
+			return;
+		
+		// update the model
+		triggerChannel = newChannel;
+		resetTrigger(true);
+		if(userSpecified)
+			userSpecifiedTheChannel = true;
+
+		// update the view
+		update();
+		
+	}
+	
+	public void setLevel(float newLevel, boolean resetTrigger) {
+		
+		// ignore if unchanged
+		if(newLevel == triggerLevel)
+			return;
+		
+		// update the model
+		triggerLevel = newLevel;
+		if(resetTrigger)
+			resetTrigger(true);
+
+		// update the view
+		update();
+		
+	}
+	
+	private void setHysteresis(float newHysteresis) {
+		
+		// ignore if unchanged
+		if(newHysteresis == triggerHysteresis)
+			return;
+		
+		// update the model
+		triggerHysteresis = newHysteresis;
+		resetTrigger(true);
+
+		// update the view
+		update();
+		
+	}
+	
+	public void setPrePostRatio(int newRatio, boolean resetTrigger) {
+		
+		// ignore if unchanged
+		if(newRatio == triggerPrePostRatio)
+			return;
+		
+		// update the model but don't reset the trigger
+		triggerPrePostRatio = newRatio;
+		if(resetTrigger)
+			resetTrigger(true);
+		
+		// update the view
+		update();
+		
+	}
+	
+	public void setDefaultChannel(Dataset dataset) {
+		
+		if(!userSpecifiedTheChannel)
+			setChannel(dataset, false);
+		
+	}
 	
 	/**
 	 * A widget that lets the user configure a trigger and all of its settings.
@@ -45,42 +184,42 @@ public class WidgetTrigger extends Widget {
 		this.chart = chart;
 		this.eventHandler = eventHandler;
 		
-		ActionListener resetOnChange = event -> {
-			update();
-			resetTrigger(true);
-		};
-		
-		modeDisabledButton = new JToggleButton("Disabled", true);
+		// trigger mode
+		modeDisabledButton = new JToggleButton(Mode.DISABLED.toString(), triggerMode == Mode.DISABLED);
+		modeAutoButton     = new JToggleButton(Mode.AUTO.toString(),     triggerMode == Mode.AUTO);
+		modeNormalButton   = new JToggleButton(Mode.NORMAL.toString(),   triggerMode == Mode.NORMAL);
+		modeSingleButton   = new JToggleButton(Mode.SINGLE.toString(),   triggerMode == Mode.SINGLE);
 		modeDisabledButton.setBorder(Theme.narrowButtonBorder);
-		modeDisabledButton.addActionListener(resetOnChange);
-		modeAutoButton = new JToggleButton("Auto", false);
 		modeAutoButton.setBorder(Theme.narrowButtonBorder);
-		modeAutoButton.addActionListener(resetOnChange);
-		modeNormalButton = new JToggleButton("Normal", false);
 		modeNormalButton.setBorder(Theme.narrowButtonBorder);
-		modeNormalButton.addActionListener(resetOnChange);
-		modeSingleButton = new JToggleButton("Single", false);
 		modeSingleButton.setBorder(Theme.narrowButtonBorder);
-		modeSingleButton.addActionListener(resetOnChange);
+		modeDisabledButton.addActionListener(event -> setMode(Mode.DISABLED));
+		modeAutoButton.addActionListener(event -> setMode(Mode.AUTO));
+		modeNormalButton.addActionListener(event -> setMode(Mode.NORMAL));
+		modeSingleButton.addActionListener(event -> setMode(Mode.SINGLE));
 		ButtonGroup group1 = new ButtonGroup();
 		group1.add(modeDisabledButton);
 		group1.add(modeAutoButton);
 		group1.add(modeNormalButton);
 		group1.add(modeSingleButton);
 		
-		affectsThisChartButton = new JToggleButton("This Chart", false);
+		// trigger affects this chart or all charts
+		affectsThisChartButton = new JToggleButton("This Chart", !triggerAffectsEveryChart);
+		affectsEveryChartButton = new JToggleButton("Every Chart", triggerAffectsEveryChart);
 		affectsThisChartButton.setBorder(Theme.narrowButtonBorder);
-		affectsThisChartButton.addActionListener(resetOnChange);
-		affectsEveryChartButton = new JToggleButton("Every Chart", true);
 		affectsEveryChartButton.setBorder(Theme.narrowButtonBorder);
-		affectsEveryChartButton.addActionListener(resetOnChange);
+		affectsThisChartButton.addActionListener(event -> setAffectsEveryChart(!affectsThisChartButton.isSelected()));
+		affectsEveryChartButton.addActionListener(event -> setAffectsEveryChart(!affectsThisChartButton.isSelected()));
 		ButtonGroup group2 = new ButtonGroup();
 		group2.add(affectsThisChartButton);
 		group2.add(affectsEveryChartButton);
 		
-		typeCombobox = new JComboBox<String>(new String[] {"Rising Edge", "Falling Edge", "Rising and Falling Edges"});
-		typeCombobox.addActionListener(resetOnChange);
+		// trigger type
+		typeCombobox = new JComboBox<Type>(Type.values());
+		typeCombobox.setSelectedItem(triggerType);
+		typeCombobox.addActionListener(event -> setType((Type) typeCombobox.getSelectedItem()));
 		
+		// trigger channel
 		channelCombobox = new JComboBox<Dataset>();
 		ConnectionsController.telemetryConnections.forEach(connection -> {
 			connection.datasets.getList().forEach(dataset -> {
@@ -88,25 +227,24 @@ public class WidgetTrigger extends Widget {
 					channelCombobox.addItem(dataset);
 			});
 		});
-		channelCombobox.addActionListener(resetOnChange);
-		String defaultUnit = channelCombobox.getItemCount() == 0 ? "" : ((Dataset) channelCombobox.getSelectedItem()).unit;
+		if(channelCombobox.getItemCount() > 0)
+			triggerChannel = (Dataset) channelCombobox.getSelectedItem();
+		channelCombobox.addActionListener(event -> setChannel((Dataset) channelCombobox.getSelectedItem(), true));
 		
-		levelTextfield = new JTextField("0 " + defaultUnit);
+		String defaultUnit = channelCombobox.getItemCount() == 0 ? "" : " " + ((Dataset) channelCombobox.getSelectedItem()).unit;
+		
+		// trigger level
+		levelTextfield = new JTextField(Float.toString(triggerLevel) + defaultUnit);
 		ActionListener levelTextfieldHandler = event -> {
-			String unit = "";
-			if(channelCombobox.getSelectedItem() != null)
-				unit = ((Dataset) channelCombobox.getSelectedItem()).unit;
-			String text = levelTextfield.getText().trim();
-			if(text.endsWith(unit))
-				text = text.substring(0, text.length() - unit.length()).trim();
+			String unit = channelCombobox.getSelectedItem() == null ? "" : ((Dataset) channelCombobox.getSelectedItem()).unit;
 			try {
-				Float.parseFloat(text);
-				levelTextfield.setText(text + " " + unit);
+				String text = levelTextfield.getText().trim();
+				if(text.endsWith(unit))
+					text = text.substring(0, text.length() - unit.length()).trim();
+				setLevel(Float.parseFloat(text), true);
 			} catch(Exception e2) {
-				levelTextfield.setText("0 " + unit);
+				levelTextfield.setText(Float.toString(triggerLevel) + " " + unit);
 			}
-			update();
-			resetTrigger(true);
 		};
 		levelTextfield.addActionListener(levelTextfieldHandler);
 		levelTextfield.addFocusListener(new FocusListener() {
@@ -114,22 +252,18 @@ public class WidgetTrigger extends Widget {
 			@Override public void focusLost(FocusEvent e) { levelTextfieldHandler.actionPerformed(null); }
 		});
 		
-		hysteresisTextfield = new JTextField("0 " + defaultUnit);
+		// trigger hysteresis
+		hysteresisTextfield = new JTextField(Float.toString(triggerHysteresis) + defaultUnit);
 		ActionListener hysteresisTextfieldHandler = event -> {
-			String unit = "";
-			if(channelCombobox.getSelectedItem() != null)
-				unit = ((Dataset) channelCombobox.getSelectedItem()).unit;
-			String text = hysteresisTextfield.getText().trim();
-			if(text.endsWith(unit))
-				text = text.substring(0, text.length() - unit.length()).trim();
+			String unit = channelCombobox.getSelectedItem() == null ? "" : ((Dataset) channelCombobox.getSelectedItem()).unit;
 			try {
-				Float.parseFloat(text);
-				hysteresisTextfield.setText(text + " " + unit);
+				String text = hysteresisTextfield.getText().trim();
+				if(text.endsWith(unit))
+					text = text.substring(0, text.length() - unit.length()).trim();
+				setHysteresis(Float.parseFloat(text));
 			} catch(Exception e2) {
-				hysteresisTextfield.setText("0 " + unit);
+				hysteresisTextfield.setText(Float.toString(triggerHysteresis) + " " + unit);
 			}
-			update();
-			resetTrigger(true);
 		};
 		hysteresisTextfield.addActionListener(hysteresisTextfieldHandler);
 		hysteresisTextfield.addFocusListener(new FocusListener() {
@@ -138,7 +272,8 @@ public class WidgetTrigger extends Widget {
 		});
 		
 		prePostRatioSlider = new JSlider();
-		prePostRatioSlider.setValue(20);
+		prePostRatioSlider.setValue(triggerPrePostRatio);
+		prePostRatioSlider.addChangeListener(event -> setPrePostRatio(prePostRatioSlider.getValue(), true));
 
 		widgets.put(new JLabel("Trigger Mode: "), "");
 		widgets.put(modeDisabledButton, "span 3, split 4, growx");
@@ -163,21 +298,23 @@ public class WidgetTrigger extends Widget {
 		
 	}
 	
-	private boolean triggerModeAuto = false;
-	private boolean triggerModeSingle = false;
-	private boolean triggerOnRisingEdge = false;
-	private boolean triggerOnFallingEdge = false;
-	private Dataset triggerChannel = null;
-	private float triggerLevel = 0;
-	private float triggerHysteresis = 0;
-	
 	/**
 	 * Ensures the GUI is in sync with the variables, then notifies the event handler.
 	 */
 	@Override public void update() {
 		
-		Dataset selectedDataset = (Dataset) channelCombobox.getSelectedItem();
-		if(selectedDataset == null) {
+		modeDisabledButton.setSelected(triggerMode == Mode.DISABLED);
+		modeAutoButton.setSelected(triggerMode == Mode.AUTO);
+		modeNormalButton.setSelected(triggerMode == Mode.NORMAL);
+		modeSingleButton.setSelected(triggerMode == Mode.SINGLE);
+		
+		affectsThisChartButton.setSelected(!triggerAffectsEveryChart);
+		affectsEveryChartButton.setSelected(triggerAffectsEveryChart);
+		
+		typeCombobox.setSelectedItem(triggerType);
+		
+		channelCombobox.setSelectedItem(triggerChannel);
+		if(triggerChannel == null) {
 			eventHandler.accept(false);
 			return;
 		}
@@ -198,21 +335,17 @@ public class WidgetTrigger extends Widget {
 		if(datasetsChanged) {
 			channelCombobox.removeAllItems();
 			currentDatasetsList.forEach(dataset -> channelCombobox.addItem(dataset));
-			if(currentDatasetsList.contains(selectedDataset))
-				channelCombobox.setSelectedItem(selectedDataset);
-			else
-				selectedDataset = (Dataset) channelCombobox.getSelectedItem();
+			if(currentDatasetsList.contains(triggerChannel))
+				channelCombobox.setSelectedItem(triggerChannel);
+			else {
+				setChannel((Dataset) channelCombobox.getSelectedItem(), false);
+				return;
+			}
 		}
 		
-		if(!levelTextfield.getText().endsWith(selectedDataset.unit)) {
-			String level = levelTextfield.getText().split(" ")[0];
-			levelTextfield.setText(level + " " + selectedDataset.unit);
-		}
-		
-		if(!hysteresisTextfield.getText().endsWith(selectedDataset.unit)) {
-			String hyst = hysteresisTextfield.getText().split(" ")[0];
-			hysteresisTextfield.setText(hyst + " " + selectedDataset.unit);
-		}
+		levelTextfield.setText(Float.toString(triggerLevel) + " " + triggerChannel.unit);
+		hysteresisTextfield.setText(Float.toString(triggerHysteresis) + " " + triggerChannel.unit);
+		prePostRatioSlider.setValue(triggerPrePostRatio);
 		
 		if(modeDisabledButton.isSelected() || channelCombobox.getItemCount() == 0) {
 			channelCombobox.setEnabled(false);
@@ -224,17 +357,7 @@ public class WidgetTrigger extends Widget {
 			hysteresisTextfield.setEnabled(true);
 		}
 		
-		triggerModeAuto   = modeAutoButton.isSelected();
-		triggerModeSingle = modeSingleButton.isSelected();
-		triggerOnRisingEdge  = typeCombobox.getSelectedItem().toString().contains("Rising");
-		triggerOnFallingEdge = typeCombobox.getSelectedItem().toString().contains("Falling");
-		triggerChannel = (Dataset) channelCombobox.getSelectedItem();
-		triggerLevel = 0;
-		try { triggerLevel = Float.parseFloat(levelTextfield.getText().split(" ")[0]); } catch(Exception e) { }
-		triggerHysteresis = 0;
-		try { triggerHysteresis = Float.parseFloat(hysteresisTextfield.getText().split(" ")[0]); } catch(Exception e) { }
-		
-		boolean triggerEnabled = !modeDisabledButton.isSelected() && triggerChannel != null;
+		boolean triggerEnabled = triggerMode != Mode.DISABLED && triggerChannel != null;
 		eventHandler.accept(triggerEnabled);
 		
 	}
@@ -260,6 +383,7 @@ public class WidgetTrigger extends Widget {
 		triggeredTimestamp = -1;
 		triggeredEndTimestamp = -1;
 		previousMaxSampleNumber = -1;
+		triggeredMinSampleNumber = -1;
 		if(resetNextTriggerPoint) {
 			nextTriggerableSampleNumber = -1;
 			nextTriggerableTimestamp = -1;
@@ -308,55 +432,38 @@ public class WidgetTrigger extends Widget {
 	}
 	
 	/**
-	 * Called by the chart when the user is dragging the trigger level widget.
-	 * 
-	 * @param newTriggerLevel    The new y-axis value that would cause a trigger.
-	 */
-	public void setTriggerLevel(float newTriggerLevel) {
-		
-		levelTextfield.setText(newTriggerLevel + "");
-		update();
-		
-	}
-	
-	/**
-	 * Called by the chart when the user is dragging the trigger pre/post ratio widget.
-	 * 
-	 * @param newPrePostRatio    The new ratio of x-axis space before and after the trigger point.
-	 */
-	public void setPrePostRatio(int newPrePostRatio) {
-		
-		prePostRatioSlider.setValue(newPrePostRatio);
-		update();
-		
-	}
-	
-	/**
 	 * Checks for a new trigger event if the chart is showing time as the x-axis.
 	 * 
-	 * @param endTimestamp    Timestamp that should be at the right edge of the plot if not triggered.
-	 * @param zoomLevel       Current zoom level.
-	 * @return                Timestamp that should be at the right edge of the plot.
+	 * @param endTimestamp     Timestamp that should be at the right edge of the plot if not triggered.
+	 * @param zoomLevel        Current zoom level.
+	 * @param recalcTrigger    If true, force recalculation of the trigger.
+	 * @return                 Timestamp that should be at the right edge of the plot.
 	 */
-	public long checkForTriggerMillisecondsMode(long endTimestamp, double zoomLevel) {
+	public long checkForTriggerMillisecondsMode(long endTimestamp, double zoomLevel, boolean recalcTrigger) {
+		
+		// recalculate the trigger if the user is dragging the trigger level or pre/post markers
+		if(recalcTrigger)
+			clearTrigger();
 		
 		// don't trigger if the user is time-shifting
 		if(OpenGLChartsView.instance.isPausedView())
 			return endTimestamp;
 		
 		// don't trigger if already triggered in single-trigger mode
-		if(triggered && triggerModeSingle)
+		if(triggered && triggerMode == Mode.SINGLE)
 			return triggeredEndTimestamp;
 		
 		// determine which samples to test
 		long chartDomain = (long) Math.ceil(chart.duration * zoomLevel);
-		double preTriggerPercent = prePostRatioSlider.getValue() / 100.0;
+		double preTriggerPercent = triggerPrePostRatio / 100.0;
 		double postTriggerPercent = 1.0 - preTriggerPercent;
 		int maxSampleNumber = triggerChannel.controller.getClosestSampleNumberAtOrBefore(endTimestamp, triggerChannel.connection.getSampleCount() - 1);
 		long startTimestamp = triggerChannel.connection.getTimestamp(maxSampleNumber) - chartDomain;
 		int minSampleNumber = triggerChannel.controller.getClosestSampleNumberAtOrBefore(startTimestamp, maxSampleNumber);
 		if(minSampleNumber > previousMaxSampleNumber && previousMaxSampleNumber != -1)
 			minSampleNumber = previousMaxSampleNumber;
+		if(recalcTrigger && triggeredMinSampleNumber != -1)
+			minSampleNumber = triggeredMinSampleNumber;
 		if(minSampleNumber < 0)
 			minSampleNumber = 0;
 		previousMaxSampleNumber = maxSampleNumber;
@@ -366,14 +473,16 @@ public class WidgetTrigger extends Widget {
 			return triggeredEndTimestamp;
 		
 		// not triggered, so reset if auto-trigger mode
-		if(triggerModeAuto) {
+		if(triggerMode == Mode.AUTO) {
 			resetTrigger(false);
-			if(affectsEveryChartButton.isSelected() && OpenGLChartsView.instance.isTriggeredView())
+			if(triggerAffectsEveryChart && OpenGLChartsView.instance.isTriggeredView())
 				OpenGLChartsView.instance.setLiveView();
 		}
 		
 		// check for a new trigger
 		minSampleNumber = Integer.max(minSampleNumber, triggerChannel.controller.getClosestSampleNumberAfter(nextTriggerableTimestamp));
+		boolean triggerOnRisingEdge  = (triggerType == Type.RISING_EDGE)  || (triggerType == Type.RISING_FALLING_EDGES);
+		boolean triggerOnFallingEdge = (triggerType == Type.FALLING_EDGE) || (triggerType == Type.RISING_FALLING_EDGES);
 		boolean risingEdgeArmed = false;
 		boolean fallingEdgeArmed = false;
 		FloatBuffer buffer = triggerChannel.getBuffer(minSampleNumber, maxSampleNumber);
@@ -389,8 +498,9 @@ public class WidgetTrigger extends Widget {
 				triggered = true;
 				nextTriggerableTimestamp = triggeredTimestamp + (long) Math.round(chartDomain * postTriggerPercent);
 				long millisecondsAfterTrigger = (long) Math.round(chartDomain * postTriggerPercent);
+				triggeredMinSampleNumber = minSampleNumber;
 				triggeredEndTimestamp = triggeredTimestamp + millisecondsAfterTrigger;
-				if(affectsEveryChartButton.isSelected())
+				if(triggerAffectsEveryChart)
 					OpenGLChartsView.instance.setTriggeredView(triggeredEndTimestamp, triggerChannel.connection, triggeredEndSampleNumber);
 				return triggeredEndTimestamp;
 			}
@@ -398,38 +508,47 @@ public class WidgetTrigger extends Widget {
 		
 		// done
 		return triggered ? triggeredEndTimestamp :
-		       triggerModeAuto ? endTimestamp :
+		       triggerMode == Mode.AUTO ? endTimestamp :
 		       triggerChannel.controller.getFirstTimestamp() - 1;
 		
 	}
+	
+	int triggeredMinSampleNumber;
 	
 	/**
 	 * Checks for a new trigger event if the chart is showing sample numbers as the x-axis.
 	 * 
 	 * @param endSampleNumber    Sample number that should be at the right edge of the plot if not triggered.
 	 * @param zoomLevel          Current zoom level.
+	 * @param recalcTrigger      If true, force recalculation of the trigger.
 	 * @return                   Sample number that should be at the right edge of the plot.
 	 */
-	public int checkForTriggerSampleCountMode(int endSampleNumber, double zoomLevel) {
+	public int checkForTriggerSampleCountMode(int endSampleNumber, double zoomLevel, boolean recalcTrigger) {
+		
+		// recalculate the trigger if the user is dragging the trigger level or pre/post markers
+		if(recalcTrigger)
+			clearTrigger();
 		
 		// don't trigger if the user is time-shifting
 		if(OpenGLChartsView.instance.isPausedView())
 			return endSampleNumber;
 		
 		// don't trigger if already triggered in single-trigger mode
-		if(triggered && triggerModeSingle)
+		if(triggered && triggerMode == Mode.SINGLE)
 			return triggeredEndSampleNumber;
 		
 		// determine which samples to test
-		int chartDomain = (int) (chart.duration * zoomLevel);
+		int chartDomain = (int) ((chart.duration - 1) * zoomLevel);
 		if(chartDomain < 1)
 			chartDomain = 1;
-		double preTriggerPercent = prePostRatioSlider.getValue() / 100.0;
+		double preTriggerPercent = triggerPrePostRatio / 100.0;
 		double postTriggerPercent = 1.0 - preTriggerPercent;
 		int maxSampleNumber = Integer.min(endSampleNumber, triggerChannel.connection.getSampleCount() - 1);
 		int minSampleNumber = maxSampleNumber - chartDomain;
 		if(minSampleNumber > previousMaxSampleNumber && previousMaxSampleNumber != -1)
 			minSampleNumber = previousMaxSampleNumber;
+		if(recalcTrigger && triggeredMinSampleNumber != -1)
+			minSampleNumber = triggeredMinSampleNumber;
 		if(minSampleNumber < 0)
 			minSampleNumber = 0;
 		previousMaxSampleNumber = maxSampleNumber;
@@ -439,14 +558,16 @@ public class WidgetTrigger extends Widget {
 			return triggeredEndSampleNumber;
 		
 		// not triggered, so reset if auto-trigger mode
-		if(triggerModeAuto) {
+		if(triggerMode == Mode.AUTO) {
 			resetTrigger(false);
-			if(affectsEveryChartButton.isSelected() && OpenGLChartsView.instance.isTriggeredView())
+			if(triggerAffectsEveryChart && OpenGLChartsView.instance.isTriggeredView())
 				OpenGLChartsView.instance.setLiveView();
 		}
 		
 		// check for a new trigger
 		minSampleNumber = Integer.max(minSampleNumber, nextTriggerableSampleNumber);
+		boolean triggerOnRisingEdge  = (triggerType == Type.RISING_EDGE)  || (triggerType == Type.RISING_FALLING_EDGES);
+		boolean triggerOnFallingEdge = (triggerType == Type.FALLING_EDGE) || (triggerType == Type.RISING_FALLING_EDGES);
 		boolean risingEdgeArmed = false;
 		boolean fallingEdgeArmed = false;
 		FloatBuffer buffer = triggerChannel.getBuffer(minSampleNumber, maxSampleNumber);
@@ -463,8 +584,9 @@ public class WidgetTrigger extends Widget {
 				long triggeredTimestamp = triggerChannel.connection.getTimestamp(triggeredSampleNumber);
 				long millisecondsAfterTrigger = (long) ((chartDomain / triggerChannel.connection.sampleRate * 1000) * postTriggerPercent);
 				long triggeredEndTimestamp = triggeredTimestamp + millisecondsAfterTrigger;
+				triggeredMinSampleNumber = minSampleNumber;
 				triggeredEndSampleNumber = triggeredSampleNumber + (int) Math.round(chartDomain * postTriggerPercent);
-				if(affectsEveryChartButton.isSelected())
+				if(triggerAffectsEveryChart)
 					OpenGLChartsView.instance.setTriggeredView(triggeredEndTimestamp, triggerChannel.connection, triggeredEndSampleNumber);
 				return triggeredEndSampleNumber;
 			}
@@ -472,7 +594,7 @@ public class WidgetTrigger extends Widget {
 		
 		// done
 		return triggered ? triggeredEndSampleNumber :
-		       triggerModeAuto ? endSampleNumber :
+		       triggerMode == Mode.AUTO ? endSampleNumber :
 		       -1;
 		
 	}
@@ -485,46 +607,39 @@ public class WidgetTrigger extends Widget {
 	@Override public void importState(ConnectionsController.QueueOfLines lines) {
 
 		String mode = ChartUtils.parseString(lines.remove(), "trigger mode = %s");
-		if(mode.equals(modeDisabledButton.getText()))
-			modeDisabledButton.setSelected(true);
-		else if(mode.equals(modeAutoButton.getText()))
-			modeAutoButton.setSelected(true);
-		else if(mode.equals(modeNormalButton.getText()))
-			modeNormalButton.setSelected(true);
-		else if(mode.equals(modeSingleButton.getText()))
-			modeSingleButton.setSelected(true);
-		else
+		Mode newMode = null;
+		for(Mode option : Mode.values())
+			if(option.toString().equals(mode))
+				newMode = option;
+		if(newMode == null)
 			throw new AssertionError("Invalid trigger mode.");
+		setMode(newMode);
 		
 		String affects = ChartUtils.parseString(lines.remove(), "trigger affects = %s");
-		if(affects.equals(affectsThisChartButton.getText()))
-			affectsThisChartButton.setSelected(true);
-		else if(affects.equals(affectsEveryChartButton.getText()))
-			affectsEveryChartButton.setSelected(true);
+		if(affects.equals("Every Chart"))
+			setAffectsEveryChart(true);
+		else if(affects.equals("This Chart"))
+			setAffectsEveryChart(false);
 		else
 			throw new AssertionError("Invalid trigger affect.");
 		
 		String type = ChartUtils.parseString(lines.remove(), "trigger type = %s");
-		boolean found = false;
-		for(int i = 0; i < typeCombobox.getItemCount(); i++) {
-			if(typeCombobox.getItemAt(i).equals(type)) {
-				typeCombobox.setSelectedIndex(i);
-				found = true;
-				break;
-			}
-		}
-		if(!found)
+		Type newType = null;
+		for(Type option : Type.values())
+			if(option.toString().equals(type))
+				newType = option;
+		if(newType == null)
 			throw new AssertionError("Invalid trigger type.");
+		setType(newType);
 		
 		String channel = ChartUtils.parseString(lines.remove(), "trigger channel = %s");
-		Dataset dataset = null;
 		if(channelCombobox.getItemCount() != 0 || !channel.equals("")) {
 			try {
 				int connectionN = Integer.parseInt(channel.split(" ")[1]);
 				int datasetLocationN = Integer.parseInt(channel.split(" ")[3]);
 				ConnectionTelemetry connection = (ConnectionTelemetry) ConnectionsController.allConnections.get(connectionN);
-				dataset = connection.datasets.getByLocation(datasetLocationN);
-				channelCombobox.setSelectedItem(dataset);
+				Dataset dataset = connection.datasets.getByLocation(datasetLocationN);
+				setChannel(dataset, false);
 			} catch(Exception e) {
 				throw new AssertionError("Invalid trigger channel.");
 			}
@@ -532,16 +647,14 @@ public class WidgetTrigger extends Widget {
 		
 		String level = ChartUtils.parseString(lines.remove(), "trigger level = %s");
 		try {
-			Float.parseFloat(level);
-			levelTextfield.setText(level + " " + dataset.unit);
+			setLevel(Float.parseFloat(level), true);
 		} catch(Exception e) {
 			throw new AssertionError("Invalid trigger level.");
 		}
 		
 		String hysteresis = ChartUtils.parseString(lines.remove(), "trigger hysteresis = %s");
 		try {
-			Float.parseFloat(hysteresis);
-			hysteresisTextfield.setText(hysteresis + " " + dataset.unit);
+			setHysteresis(Float.parseFloat(hysteresis));
 		} catch(Exception e) {
 			throw new AssertionError("Invalid trigger hysteresis.");
 		}
@@ -550,11 +663,7 @@ public class WidgetTrigger extends Widget {
 		if(ratio < 0 || ratio > 100)
 			throw new AssertionError("Invalid trigger pre/post ratio.");
 		else
-			prePostRatioSlider.setValue(ratio);
-		
-		// update the chart and reset the trigger
-		update();
-		resetTrigger(true);
+			setPrePostRatio(ratio, true);
 		
 	}
 	
@@ -568,20 +677,14 @@ public class WidgetTrigger extends Widget {
 		Dataset dataset = (Dataset) channelCombobox.getSelectedItem();
 		String channelString = dataset == null ? "" : "connection " + ConnectionsController.allConnections.indexOf(dataset.connection) + " location " + dataset.location;
 		
-		String mode = modeDisabledButton.isSelected() ? modeDisabledButton.getText() :
-		                  modeAutoButton.isSelected() ? modeAutoButton.getText() :
-		                modeNormalButton.isSelected() ? modeNormalButton.getText() :
-		                                                modeSingleButton.getText();
-		String affects = affectsThisChartButton.isSelected() ? affectsThisChartButton.getText() : affectsEveryChartButton.getText();
-		
 		return new String[] {
-			"trigger mode = " + mode,
-			"trigger affects = " + affects,
-			"trigger type = " + typeCombobox.getSelectedItem().toString(),
+			"trigger mode = " + triggerMode.toString(),
+			"trigger affects = " + (triggerAffectsEveryChart ? "Every Chart" : "This Chart"),
+			"trigger type = " + triggerType.toString(),
 			"trigger channel = " + channelString,
-			"trigger level = " + levelTextfield.getText().split(" ")[0],
-			"trigger hysteresis = " + hysteresisTextfield.getText().split(" ")[0],
-			"trigger pre/post ratio = " + prePostRatioSlider.getValue()
+			"trigger level = " + triggerLevel,
+			"trigger hysteresis = " + triggerHysteresis,
+			"trigger pre/post ratio = " + triggerPrePostRatio
 		};
 		
 	}

@@ -482,9 +482,9 @@ public class OpenGLChartsView extends JPanel {
 								if(widget instanceof WidgetTrigger) {
 									WidgetTrigger trigger = (WidgetTrigger) widget;
 									if(chart.sampleCountMode)
-										trigger.checkForTriggerSampleCountMode(lastSampleNumber, zoomLevel);
+										trigger.checkForTriggerSampleCountMode(lastSampleNumber, zoomLevel, false);
 									else
-										trigger.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel);
+										trigger.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel, false);
 									
 								}
 							continue;
@@ -913,6 +913,8 @@ public class OpenGLChartsView extends JPanel {
 						} else {
 							setPausedView(newTimestamp, connection, newSampleNumber, true);
 						}
+						if(newTimestamp == ConnectionsController.getLastTimestamp() && scrollAmount > 0)
+							setLiveView();
 						
 					} else if(chart != null && !chart.sampleCountMode) {
 						
@@ -934,6 +936,8 @@ public class OpenGLChartsView extends JPanel {
 							newTimestamp = firstTimestamp;
 						
 						setPausedView(newTimestamp, null, 0, true);
+						if(newTimestamp == ConnectionsController.getLastTimestamp() && scrollAmount > 0)
+							setLiveView();
 						
 					} else {
 					
@@ -961,6 +965,8 @@ public class OpenGLChartsView extends JPanel {
 							newTimestamp = firstTimestamp;
 						
 						setPausedView(newTimestamp, null, 0, true);
+						if(newTimestamp == ConnectionsController.getLastTimestamp() && scrollAmount > 0)
+							setLiveView();
 						
 					}
 				
@@ -1055,10 +1061,14 @@ public class OpenGLChartsView extends JPanel {
 			Main.window.remove(instance);
 		
 		// save state
+		double zoomLevel = instance.zoomLevel;
 		boolean liveView = instance.liveView;
 		boolean pausedView = instance.pausedView;
 		boolean triggeredView = instance.triggeredView;
-		double zoomLevel = instance.zoomLevel;
+		long pausedTimestamp = instance.pausedTimestamp;
+		ConnectionTelemetry pausedPrimaryConnection = instance.pausedPrimaryConnection;
+		int pausedPrimaryConnectionSampleNumber = instance.pausedPrimaryConnectionSampleNumber;
+		
 		PositionedChart maximizedChart = instance.maximizedChart;
 
 		// regenerate
@@ -1066,10 +1076,13 @@ public class OpenGLChartsView extends JPanel {
 		instance = new OpenGLChartsView();
 		
 		// restore state
+		instance.zoomLevel = zoomLevel;
 		instance.liveView = liveView;
 		instance.pausedView = pausedView;
 		instance.triggeredView = triggeredView;
-		instance.zoomLevel = zoomLevel;
+		instance.pausedTimestamp = pausedTimestamp;
+		instance.pausedPrimaryConnection = pausedPrimaryConnection;
+		instance.pausedPrimaryConnectionSampleNumber = pausedPrimaryConnectionSampleNumber;
 		instance.maximizedChart = maximizedChart;
 		
 		if(updateWindow) {
@@ -1096,7 +1109,7 @@ public class OpenGLChartsView extends JPanel {
 			for(Widget widget : chart.widgets)
 				if(widget instanceof WidgetTrigger) {
 					WidgetTrigger trigger = (WidgetTrigger) widget;
-					trigger.resetTrigger(false);
+					trigger.resetTrigger(true);
 				}
 		
 	}
@@ -1112,7 +1125,7 @@ public class OpenGLChartsView extends JPanel {
 		pausedPrimaryConnectionSampleNumber = (connection == null) ? 0 : sampleNumber;
 		
 		long endOfTime = ConnectionsController.getLastTimestamp();
-		if(timestamp >= endOfTime && endOfTime != Long.MIN_VALUE)
+		if(timestamp > endOfTime && endOfTime != Long.MIN_VALUE)
 			setLiveView();
 		
 		if(notifyTimeline)

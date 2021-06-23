@@ -19,8 +19,8 @@ public class PlotMilliseconds extends Plot {
 	FloatBuffer[] buffersY;
 	
 	// for cached mode
-	CachedModeDraw draw1 = new CachedModeDraw();
-	CachedModeDraw draw2 = new CachedModeDraw();
+	DrawCallData draw1 = new DrawCallData();
+	DrawCallData draw2 = new DrawCallData();
 	int[]     fbHandle;
 	int[]     texHandle;
 	boolean   cacheIsValid;
@@ -33,48 +33,8 @@ public class PlotMilliseconds extends Plot {
 	int           previousPlotHeight;
 	long          previousPlotDomain;
 	float         previousLineWidth;
-	int           previousMinSampleNumber;
-	int           previousMaxSampleNumber;
-	
-	private class CachedModeDraw {
-		
-		boolean enabled;
-		int[] scissorArgs;
-		int sampleCount;
-		FloatBuffer   bufferX;
-		FloatBuffer[] buffersY;
-		
-		void enableAndAcquire(List<Dataset> datasets, int firstSampleNumber, int lastSampleNumber, long leftTimestamp, long rightTimestamp, int plotWidth, int plotHeight) {
-			enabled = true;
-			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
-			scissorArgs = calculateScissorArgs(leftTimestamp, rightTimestamp, plotWidth, plotHeight);
-			
-			long xOffset = datasetsController.getFirstTimestamp();
-			xOffset += ((leftTimestamp - datasetsController.getFirstTimestamp()) / plotDomain) * plotDomain;
-			
-			// acquire extra samples before and after, to prevent aliasing
-			firstSampleNumber -= calculateSamplesNeededBefore(firstSampleNumber, plotWidth);
-			lastSampleNumber += calculateSamplesNeededAfter(lastSampleNumber, plotWidth);
-			if(firstSampleNumber < 0)
-				firstSampleNumber = 0;
-			if(lastSampleNumber > maxSampleNumber)
-				lastSampleNumber = maxSampleNumber;
-			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
-			
-			// acquire the samples
-			bufferX = datasetsController.getTimestampsBuffer(firstSampleNumber, lastSampleNumber, xOffset);
-
-			buffersY = new FloatBuffer[datasets.size()];
-			for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
-				if(!datasets.get(datasetN).isBitfield)
-					buffersY[datasetN] = datasets.get(datasetN).getBuffer(firstSampleNumber, lastSampleNumber);
-		}
-		
-		void disable() {
-			enabled = false;
-		}
-		
-	}
+	long          previousMinSampleNumber;
+	long          previousMaxSampleNumber;
 	
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
@@ -89,12 +49,14 @@ public class PlotMilliseconds extends Plot {
 	 * @param cachedMode          True to enable the cache.
 	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
 	 */
-	@Override public void initialize(long endTimestamp, int endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override public void initialize(long endTimestamp, long endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
 		this.bitfieldEdges = bitfieldEdges;
 		this.bitfieldLevels = bitfieldLevels;
 		this.cachedMode = cachedMode;
+		xAxisMode = showTimestamps ? Mode.SHOWS_TIMESTAMPS : Mode.SHOWS_SECONDS;
+		xAxisTitle = showTimestamps ? "Time" : "Time Elapsed (Seconds)";
 		
 		// calculate the domain, ensuring it's >= 1ms
 		plotDomain = (long) Math.ceil(duration * zoomLevel);
@@ -126,8 +88,6 @@ public class PlotMilliseconds extends Plot {
 			plotSampleCount = 0;
 			samplesMinY = -1;
 			samplesMaxY =  1;
-			xAxisMode = showTimestamps ? Mode.SHOWS_TIMESTAMPS : Mode.SHOWS_SECONDS;
-			xAxisTitle = showTimestamps ? "Time" : "Time Elapsed";
 			return;
 		}
 		
@@ -137,7 +97,7 @@ public class PlotMilliseconds extends Plot {
 
 		for(Dataset dataset : datasets) {
 			if(!dataset.isBitfield) {
-				StorageFloats.MinMax range = dataset.getRange(minSampleNumber, maxSampleNumber);
+				StorageFloats.MinMax range = dataset.getRange((int) minSampleNumber, (int) maxSampleNumber);
 				if(range.min < samplesMinY)
 					samplesMinY = range.min;
 				if(range.max > samplesMaxY)
@@ -154,11 +114,8 @@ public class PlotMilliseconds extends Plot {
 			samplesMaxY = value + 0.001f;
 		}
 		
-		// determine the x-axis title
-		if(showTimestamps) {
-			xAxisMode = Mode.SHOWS_TIMESTAMPS;
-			xAxisTitle = "Time";
-		} else {
+		// determine the x-axis title if showing time elapsed
+		if(!showTimestamps) {
 			long leftMillisecondsElapsed = plotMinX - datasetsController.getFirstTimestamp();
 			long hours = leftMillisecondsElapsed / 3600000; leftMillisecondsElapsed %= 3600000;
 			long minutes = leftMillisecondsElapsed / 60000; leftMillisecondsElapsed %= 60000;
@@ -180,6 +137,8 @@ public class PlotMilliseconds extends Plot {
 		}
 		
 	}
+	
+	// steps 2 and 3 are handled by the Plot class
 	
 	/**
 	 * Step 4: Get the x-axis divisions.
@@ -318,29 +277,36 @@ public class PlotMilliseconds extends Plot {
 	
 	/**
 	 * Step 5: Acquire the samples.
-	 * If you will call draw(), you must call this before it.
 	 * 
-	 * @param plotMinY
-	 * @param plotMaxY
-	 * @param plotWidth
-	 * @param plotHeight
+	 * @param plotMinY      Y-axis value at the bottom of the plot.
+	 * @param plotMaxY      Y-axis value at the top of the plot.
+	 * @param plotWidth     Width of the plot region, in pixels.
+	 * @param plotHeight    Height of the plot region, in pixels.
 	 */
 	@Override public void acquireSamplesNonCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, minSampleNumber, maxSampleNumber);
+		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, (int) minSampleNumber, (int) maxSampleNumber);
 			
-		bufferX = datasetsController.getTimestampsBuffer(minSampleNumber, maxSampleNumber, plotMinX);
+		bufferX = datasetsController.getTimestampsBuffer((int) minSampleNumber, (int) maxSampleNumber, plotMinX);
 		
 		buffersY = new FloatBuffer[datasets.size()];
 		for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
 			if(!datasets.get(datasetN).isBitfield)
-				buffersY[datasetN] = datasets.get(datasetN).getBuffer(minSampleNumber, maxSampleNumber);
+				buffersY[datasetN] = datasets.get(datasetN).getBuffer((int) minSampleNumber, (int) maxSampleNumber);
 		
 	}
 	
+	/**
+	 * Step 5: Acquire the samples.
+	 * 
+	 * @param plotMinY      Y-axis value at the bottom of the plot.
+	 * @param plotMaxY      Y-axis value at the top of the plot.
+	 * @param plotWidth     Width of the plot region, in pixels.
+	 * @param plotHeight    Height of the plot region, in pixels.
+	 */
 	@Override void acquireSamplesCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, minSampleNumber, maxSampleNumber);
+		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, (int) minSampleNumber, (int) maxSampleNumber);
 		
 		// check if the cache must be flushed
 		cacheIsValid = (datasets == previousDatasets) &&
@@ -356,8 +322,8 @@ public class PlotMilliseconds extends Plot {
 		               (texHandle != null);
 		
 		// of the samples to display, some might already be in the framebuffer, so determine what subset actually needs to be drawn
-		int firstSampleNumber = minSampleNumber;
-		int lastSampleNumber  = maxSampleNumber;
+		long firstSampleNumber = minSampleNumber;
+		long lastSampleNumber  = maxSampleNumber;
 		if(cacheIsValid) {
 			if(firstSampleNumber == previousMinSampleNumber && lastSampleNumber == previousMaxSampleNumber) {
 				// nothing to draw
@@ -368,46 +334,45 @@ public class PlotMilliseconds extends Plot {
 			} else if(firstSampleNumber < previousMinSampleNumber) {
 				// moving backwards in time
 				lastSampleNumber = previousMinSampleNumber + calculateSamplesNeededAfter(previousMinSampleNumber, plotWidth);
-			} else {
-				// new data but x=0 is still on screen
+			} else if(firstSampleNumber == previousMinSampleNumber && lastSampleNumber > previousMaxSampleNumber) {
+				// moving forward in time while x=0 is still on screen
 				firstSampleNumber = previousMaxSampleNumber;
+			} else {
+				// moving backwards in time while x=0 is still on screen
+				firstSampleNumber = lastSampleNumber;
 			}
 		}
 		
 		// the framebuffer is used as a ring buffer. since the pixels may wrap around from the right edge back to the left edge,
 		// we may need to split the rendering into 2 draw calls (splitting it at the right edge of the framebuffer)
 		long plotMaxMillisecondsElapsed = plotMaxX - datasetsController.getFirstTimestamp();
-		long fbRightTimestamp = (plotMaxMillisecondsElapsed - (plotMaxMillisecondsElapsed % plotDomain)) + datasetsController.getFirstTimestamp();
+		long splittingTimestamp = (plotMaxMillisecondsElapsed - (plotMaxMillisecondsElapsed % plotDomain)) + datasetsController.getFirstTimestamp();
 
 		if(firstSampleNumber == lastSampleNumber) {
 			
 			// nothing to draw
-			draw1.disable();
-			draw2.disable();
+			draw1.enabled = false;
+			draw2.enabled = false;
 			
-		} else if(datasetsController.getTimestamp(lastSampleNumber) <= fbRightTimestamp || datasetsController.getTimestamp(firstSampleNumber) >= fbRightTimestamp) {
+		} else if(datasetsController.getTimestamp((int) lastSampleNumber) <= splittingTimestamp || datasetsController.getTimestamp((int) firstSampleNumber) >= splittingTimestamp) {
 			
 			// only 1 draw call required (no need to wrap around the ring buffer)
-			long leftTimestamp  = Long.max(plotMinX, datasetsController.getTimestamp(firstSampleNumber));
-			long rightTimestamp = Long.min(plotMaxX, datasetsController.getTimestamp(lastSampleNumber));
+			long leftTimestamp  = Long.max(plotMinX, datasetsController.getTimestamp((int) firstSampleNumber));
+			long rightTimestamp = Long.min(plotMaxX, datasetsController.getTimestamp((int) lastSampleNumber));
 			draw1.enableAndAcquire(datasets, firstSampleNumber, lastSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
-			draw2.disable();
+			draw2.enabled = false;
 			
 		} else {
 			
 			// 2 draw calls required because we need to wrap around the ring buffer
-			int midSampleNumber = firstSampleNumber;
-			for(int sampleN = firstSampleNumber + 1; sampleN <= lastSampleNumber; sampleN++) {
-				midSampleNumber++;
-				if(datasetsController.getTimestamp(sampleN) > fbRightTimestamp)
-					break;
-			}
-			long leftTimestamp  = Long.max(plotMinX,         datasetsController.getTimestamp(firstSampleNumber));
-			long rightTimestamp = Long.min(fbRightTimestamp, datasetsController.getTimestamp(midSampleNumber));
-			draw1.enableAndAcquire(datasets, firstSampleNumber, midSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
-			leftTimestamp  = Long.max(fbRightTimestamp, datasetsController.getTimestamp(midSampleNumber - 1));
-			rightTimestamp = Long.min(plotMaxX,         datasetsController.getTimestamp(lastSampleNumber));
-			draw2.enableAndAcquire(datasets, midSampleNumber - 1, lastSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
+			long splittingSampleNumber = datasetsController.getClosestSampleNumberAfter(splittingTimestamp);
+			
+			long leftTimestamp  = Long.max(plotMinX,           datasetsController.getTimestamp((int) firstSampleNumber));
+			long rightTimestamp = Long.min(splittingTimestamp, datasetsController.getTimestamp((int) splittingSampleNumber));
+			draw1.enableAndAcquire(datasets, firstSampleNumber, splittingSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
+			leftTimestamp  = Long.max(splittingTimestamp, datasetsController.getTimestamp((int) splittingSampleNumber - 1));
+			rightTimestamp = Long.min(plotMaxX,           datasetsController.getTimestamp((int) lastSampleNumber));
+			draw2.enableAndAcquire(datasets, splittingSampleNumber - 1, lastSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
 			
 		}
 		
@@ -427,29 +392,29 @@ public class PlotMilliseconds extends Plot {
 	}
 	
 	/**
-	 * Calculates the (x,y,w,h) arguments for glScissor() based on what region the samples will occupy.
+	 * Calculates the (x,y,w,h) arguments for glScissor() based on what region the samples will occupy on the framebuffer.
 	 * 
-	 * @param firstX        The first UNIX timestamp.
-	 * @param lastX         The last UNIX timestamp.
-	 * @param plotWidth     Width of the plot region, in pixels.
-	 * @param plotHeight    Height of the plot region, in pixels.
-	 * @return              An int[4] of {x,y,w,h}
+	 * @param firstTimestamp    The first UNIX timestamp (inclusive.)
+	 * @param lastTimestamp     The last UNIX timestamp (inclusive.)
+	 * @param plotWidth         Width of the plot region, in pixels.
+	 * @param plotHeight        Height of the plot region, in pixels.
+	 * @return                  An int[4] of {x,y,w,h}
 	 */
-	private int[] calculateScissorArgs(long firstX, long lastX, int plotWidth, int plotHeight) {
+	private int[] calculateScissorArgs(long firstTimestamp, long lastTimestamp, int plotWidth, int plotHeight) {
 		
 		// convert the unix timestamps into milliseconds elapsed.
-		firstX -= datasetsController.getFirstTimestamp();
-		lastX  -= datasetsController.getFirstTimestamp();
+		firstTimestamp -= datasetsController.getFirstTimestamp();
+		lastTimestamp  -= datasetsController.getFirstTimestamp();
 		
 		// convert the time elapsed into a pixel number on the framebuffer, keeping in mind that it's a ring buffer
-		long ringBufferedX = firstX % plotDomain;
-		int pixelX = (int) (ringBufferedX * plotWidth / plotDomain);
+		long rbMillisecondsElapsed = firstTimestamp % plotDomain;
+		int rbPixelX = (int) (rbMillisecondsElapsed * plotWidth / plotDomain);
 		
 		// convert the time span into a pixel count
-		int pixelWidth = (int) Math.ceil((double) (lastX - firstX) * (double) plotWidth / (double) plotDomain);
+		int pixelWidth = (int) Math.ceil((double) (lastTimestamp - firstTimestamp) * (double) plotWidth / (double) plotDomain);
 		
 		int[] args = new int[4];
-		args[0] = pixelX;
+		args[0] = rbPixelX;
 		args[1] = 0;
 		args[2] = pixelWidth;
 		args[3] = plotHeight;
@@ -459,23 +424,37 @@ public class PlotMilliseconds extends Plot {
 	}
 	
 	/**
-	 * glScissor() is quantized to pixels, so we need to draw slightly more samples than theoretically needed to prevent aliasing at the edges.
+	 * We need to draw slightly more samples than theoretically required because adjacent samples can affect the edges of the glScissor'd region.
 	 * 
 	 * @param sampleNumber    Sample number (not the UNIX timestamp!)
 	 * @param plotWidth       Width of the plot region, in pixels.
-	 * @return                Number of extra samples to draw before x.
+	 * @return                Number of extra samples to draw before that sample.
 	 */
-	private int calculateSamplesNeededBefore(int sampleNumber, int plotWidth) {
+	private int calculateSamplesNeededBefore(long sampleNumber, int plotWidth) {
 		
 		double millisecondsPerPixel = (double) plotDomain / (double) plotWidth;
-		long extraMillisecondsNeeded = (int) Math.ceil(millisecondsPerPixel * Theme.lineWidth);
-		long requiredTimestamp = datasetsController.getTimestamp(sampleNumber) - extraMillisecondsNeeded;
+		long extraMillisecondsNeeded = (long) Math.ceil(millisecondsPerPixel * Theme.lineWidth);
+		long requiredTimestamp = datasetsController.getTimestamp((int) sampleNumber) - extraMillisecondsNeeded;
+		
+		final int bufferSizeMinusOne = 100 - 1; // 10 was too small
 		
 		int extraSamplesNeeded = 0;
-		for(int sampleN = sampleNumber; sampleN >= 0; sampleN--) {
-			extraSamplesNeeded++;
-			if(datasetsController.getTimestamp(sampleN) < requiredTimestamp)
-				break;
+		long sampleN = sampleNumber;
+		while(sampleN >= 0) {
+			if(sampleN < bufferSizeMinusOne) {
+				extraSamplesNeeded++;
+				if(datasetsController.getTimestamp((int) sampleN) < requiredTimestamp)
+					return extraSamplesNeeded;
+				sampleN--;
+			} else {
+				FloatBuffer buffer = datasetsController.getTimestampsBuffer((int) (sampleN - bufferSizeMinusOne), (int) sampleN, requiredTimestamp);
+				for(int i = bufferSizeMinusOne; i >= 0; i--) {
+					extraSamplesNeeded++;
+					if(buffer.get(i) < 0)
+						return extraSamplesNeeded;
+					sampleN--;
+				}
+			}
 		}
 		
 		return extraSamplesNeeded;
@@ -483,23 +462,37 @@ public class PlotMilliseconds extends Plot {
 	}
 	
 	/**
-	 * glScissor() is quantized to pixels, so we need to draw slightly more samples than theoretically needed to prevent aliasing at the edges.
+	 * We need to draw slightly more samples than theoretically required because adjacent samples can affect the edges of the glScissor'd region.
 	 * 
 	 * @param sampleNumber    Sample number (not the UNIX timestamp!)
 	 * @param plotWidth       Width of the plot region, in pixels.
-	 * @return                Number of extra samples to draw after x.
+	 * @return                Number of extra samples to draw after that sample.
 	 */
-	private int calculateSamplesNeededAfter(int sampleNumber, int plotWidth) {
+	private int calculateSamplesNeededAfter(long sampleNumber, int plotWidth) {
 		
 		double millisecondsPerPixel = (double) plotDomain / (double) plotWidth;
 		long extraMillisecondsNeeded = (int) Math.ceil(millisecondsPerPixel * Theme.lineWidth);
-		long requiredTimestamp = datasetsController.getTimestamp(sampleNumber) + extraMillisecondsNeeded;
+		long requiredTimestamp = datasetsController.getTimestamp((int) sampleNumber) + extraMillisecondsNeeded;
+		
+		final int bufferSizeMinusOne = 100 - 1; // 10 was too small
 		
 		int extraSamplesNeeded = 0;
-		for(int sampleN = sampleNumber; sampleN <= maxSampleNumber; sampleN++) {
-			extraSamplesNeeded++;
-			if(datasetsController.getTimestamp(sampleN) > requiredTimestamp)
-				break;
+		long sampleN = sampleNumber;
+		while(sampleN <= maxSampleNumber) {
+			if(sampleN + bufferSizeMinusOne > maxSampleNumber) {
+				extraSamplesNeeded++;
+				if(datasetsController.getTimestamp((int) sampleN) > requiredTimestamp)
+					return extraSamplesNeeded;
+				sampleN++;
+			} else {
+				FloatBuffer buffer = datasetsController.getTimestampsBuffer((int) sampleN, (int) (sampleN + bufferSizeMinusOne), requiredTimestamp);
+				for(int i = 0; i <= bufferSizeMinusOne; i++) {
+					extraSamplesNeeded++;
+					if(buffer.get(i) > 0)
+						return extraSamplesNeeded;
+					sampleN++;
+				}
+			}
 		}
 		
 		return extraSamplesNeeded;
@@ -531,7 +524,7 @@ public class PlotMilliseconds extends Plot {
 		// adjust so: x = (x - plotMinX) / domain * plotWidth + xPlotLeft;
 		// adjust so: y = (y - plotMinY) / plotRange * plotHeight + yPlotBottom;
 		// edit: now doing the "x - plotMinX" part before putting data into the buffers, to improve float32 precision when x is very large
-		OpenGL.translateMatrix(plotMatrix, xPlotLeft,            yPlotBottom,          0);
+		OpenGL.translateMatrix(plotMatrix,                    xPlotLeft,                  yPlotBottom, 0);
 		OpenGL.scaleMatrix    (plotMatrix, (float) plotWidth/plotDomain, (float) plotHeight/plotRange, 1);
 		OpenGL.translateMatrix(plotMatrix,                            0,                    -plotMinY, 0);
 		OpenGL.useMatrix(gl, plotMatrix);
@@ -540,18 +533,18 @@ public class PlotMilliseconds extends Plot {
 		if(!datasets.isEmpty() && plotSampleCount >= 2) {
 			for(int i = 0; i < datasets.size(); i++) {
 				
-				// do not draw bitfields
-				if(datasets.get(i).isBitfield)
+				Dataset dataset = datasets.get(i);
+				if(dataset.isBitfield)
 					continue;
 				
-				OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets.get(i).glColor, bufferX, buffersY[i], plotSampleCount);
+				OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, dataset.glColor, bufferX, buffersY[i], (int) plotSampleCount);
 				
 				// also draw points if there are relatively few samples on screen
-				float occupiedPlotWidthPercentage = (float) (datasetsController.getTimestamp(maxSampleNumber) - datasetsController.getTimestamp(minSampleNumber)) / (float) plotDomain;
+				float occupiedPlotWidthPercentage = (float) (datasetsController.getTimestamp((int) maxSampleNumber) - datasetsController.getTimestamp((int) minSampleNumber)) / (float) plotDomain;
 				float occupiedPlotWidth = plotWidth * occupiedPlotWidthPercentage;
 				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointWidth);
 				if(fewSamplesOnScreen)
-					OpenGL.drawPointsX_Y(gl, datasets.get(i).glColor, bufferX, buffersY[i], plotSampleCount);
+					OpenGL.drawPointsX_Y(gl, dataset.glColor, bufferX, buffersY[i], (int) plotSampleCount);
 				
 			}
 		}
@@ -570,6 +563,18 @@ public class PlotMilliseconds extends Plot {
 		
 	}
 	
+	/**
+	 * Step 6: Render the plot on screen.
+	 * 
+	 * @param gl             The OpenGL context.
+	 * @param chartMatrix    The current 4x4 matrix.
+	 * @param xPlotLeft      Bottom-left corner location, in pixels.
+	 * @param yPlotBottom    Bottom-left corner location, in pixels.
+	 * @param plotWidth      Width of the plot region, in pixels.
+	 * @param plotHeight     Height of the plot region, in pixels.
+	 * @param plotMinY       Y-axis value at the bottom of the plot.
+	 * @param plotMaxY       Y-axis value at the top of the plot.
+	 */
 	@Override public void drawCachedMode(GL2ES3 gl, float[] chartMatrix, int xPlotLeft, int yPlotBottom, int plotWidth, int plotHeight, float plotMinY, float plotMaxY) {
 		
 		// create the off-screen framebuffer if this is the first draw call
@@ -597,9 +602,9 @@ public class PlotMilliseconds extends Plot {
 			gl.glClear(GL3.GL_COLOR_BUFFER_BIT);
 			gl.glDisable(GL3.GL_SCISSOR_TEST);
 		}
-		if(plotMaxX > datasetsController.getTimestamp(maxSampleNumber)) {
+		if(plotMaxX > datasetsController.getTimestamp((int) maxSampleNumber)) {
 			// if x>maxTimestamp is on screen, we need to erase the x>maxTimestamp region because it may have old data on it
-			long maxTimestamp = datasetsController.getTimestamp(maxSampleNumber);
+			long maxTimestamp = datasetsController.getTimestamp((int) maxSampleNumber);
 			long firstTimestamp = datasetsController.getFirstTimestamp();
 			gl.glEnable(GL3.GL_SCISSOR_TEST);
 			int[] args = calculateScissorArgs(maxTimestamp, plotMaxX, plotWidth, plotHeight);
@@ -641,29 +646,29 @@ public class PlotMilliseconds extends Plot {
 		if(!datasets.isEmpty() && plotSampleCount >= 2) {
 			for(int i = 0; i < datasets.size(); i++) {
 				
-				// do not draw bitfields
-				if(datasets.get(i).isBitfield)
+				Dataset dataset = datasets.get(i);
+				if(dataset.isBitfield)
 					continue;
 				
-				float occupiedPlotWidthPercentage = (float) (datasetsController.getTimestamp(maxSampleNumber) - datasetsController.getTimestamp(minSampleNumber)) / (float) plotDomain;
+				float occupiedPlotWidthPercentage = (float) (datasetsController.getTimestamp((int) maxSampleNumber) - datasetsController.getTimestamp((int) minSampleNumber)) / (float) plotDomain;
 				float occupiedPlotWidth = plotWidth * occupiedPlotWidthPercentage;
 				boolean fewSamplesOnScreen = (occupiedPlotWidth / plotSampleCount) > (2 * Theme.pointWidth);
 				
 				if(draw1.enabled) {
 					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(draw1.scissorArgs[0], draw1.scissorArgs[1], draw1.scissorArgs[2], draw1.scissorArgs[3]);
-					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets.get(i).glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
+					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, dataset.glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
 					if(fewSamplesOnScreen)
-						OpenGL.drawPointsX_Y(gl, datasets.get(i).glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
+						OpenGL.drawPointsX_Y(gl, dataset.glColor, draw1.bufferX, draw1.buffersY[i], draw1.sampleCount);
 					gl.glDisable(GL3.GL_SCISSOR_TEST);
 				}
 				
 				if(draw2.enabled) {
 					gl.glEnable(GL3.GL_SCISSOR_TEST);
 					gl.glScissor(draw2.scissorArgs[0], draw2.scissorArgs[1], draw2.scissorArgs[2], draw2.scissorArgs[3]);
-					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, datasets.get(i).glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
+					OpenGL.drawLinesX_Y(gl, GL3.GL_LINE_STRIP, dataset.glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
 					if(fewSamplesOnScreen)
-						OpenGL.drawPointsX_Y(gl, datasets.get(i).glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
+						OpenGL.drawPointsX_Y(gl, dataset.glColor, draw2.bufferX, draw2.buffersY[i], draw2.sampleCount);
 					gl.glDisable(GL3.GL_SCISSOR_TEST);
 				}
 				
@@ -729,21 +734,21 @@ public class PlotMilliseconds extends Plot {
 			if(mouseTimestamp < datasetsController.getFirstTimestamp())
 				return new TooltipInfo(false, 0, "", 0);
 			
-			int closestSampleNumberBefore = datasetsController.getClosestSampleNumberAtOrBefore(mouseTimestamp, maxSampleNumber - 1);
-			int closestSampleNumberAfter = closestSampleNumberBefore + 1;
+			long closestSampleNumberBefore = datasetsController.getClosestSampleNumberAtOrBefore(mouseTimestamp, (int) maxSampleNumber - 1);
+			long closestSampleNumberAfter = closestSampleNumberBefore + 1;
 			if(closestSampleNumberAfter > maxSampleNumber)
 				closestSampleNumberAfter = maxSampleNumber;
 
-			double beforeError = (double) ((mouseX / plotWidth) * plotDomain) - (double) (datasetsController.getTimestamp(closestSampleNumberBefore) - plotMinX);
-			double afterError = (double) (datasetsController.getTimestamp(closestSampleNumberAfter) - plotMinX) - (double) ((mouseX / plotWidth) * plotDomain);
+			double beforeError = (double) ((mouseX / plotWidth) * plotDomain) - (double) (datasetsController.getTimestamp((int) closestSampleNumberBefore) - plotMinX);
+			double afterError = (double) (datasetsController.getTimestamp((int) closestSampleNumberAfter) - plotMinX) - (double) ((mouseX / plotWidth) * plotDomain);
 			
-			int closestSampleNumber = (beforeError < afterError) ? closestSampleNumberBefore : closestSampleNumberAfter;
+			long closestSampleNumber = (beforeError < afterError) ? closestSampleNumberBefore : closestSampleNumberAfter;
 			
 			String label = "";
 			if(xAxisMode == Mode.SHOWS_TIMESTAMPS) {
-				label = "Sample " + closestSampleNumber + "\n" + SettingsController.formatTimestampToMilliseconds(datasetsController.getTimestamp(closestSampleNumber));
+				label = "Sample " + closestSampleNumber + "\n" + SettingsController.formatTimestampToMilliseconds(datasetsController.getTimestamp((int) closestSampleNumber));
 			} else {
-				long millisecondsElapsed = datasetsController.getTimestamp(closestSampleNumber) - datasetsController.getFirstTimestamp();
+				long millisecondsElapsed = datasetsController.getTimestamp((int) closestSampleNumber) - datasetsController.getFirstTimestamp();
 				long hours = millisecondsElapsed / 3600000; millisecondsElapsed %= 3600000;
 				long minutes = millisecondsElapsed / 60000; millisecondsElapsed %= 60000;
 				long seconds = millisecondsElapsed / 1000;  millisecondsElapsed %= 1000;
@@ -771,9 +776,9 @@ public class PlotMilliseconds extends Plot {
 	 * @param plotWidth       Width of the plot region, in pixels.
 	 * @return                Corresponding horizontal location on the plot, in pixels, with 0 = left edge of the plot.
 	 */
-	@Override float getPixelXforSampleNumber(int sampleNumber, float plotWidth) {
+	@Override float getPixelXforSampleNumber(long sampleNumber, float plotWidth) {
 		
-		return (float) (datasetsController.getTimestamp(sampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
+		return (float) (datasetsController.getTimestamp((int) sampleNumber) - plotMinX) / (float) plotDomain * plotWidth;
 		
 	}
 	
@@ -791,6 +796,55 @@ public class PlotMilliseconds extends Plot {
 		
 		texHandle = null;
 		fbHandle = null;
+		
+	}
+	
+	private class DrawCallData {
+		
+		boolean enabled;        // if this object contains samples to draw
+		int[] scissorArgs;      // {x,y,w,h} for glScissor() when drawing
+		int sampleCount;        // number of vertices
+		FloatBuffer   bufferX;  // x-axis values for the vertices (common to all datasets.)
+		FloatBuffer[] buffersY; // y-axis values for the vertices (one buffer per dataset.)
+		
+		/**
+		 * Acquires samples and related data so it can be drawn later.
+		 * 
+		 * @param datasets             Datasets to acquire from.
+		 * @param firstSampleNumber    First sample number (inclusive.)
+		 * @param lastSampleNumber     Last sample number (inclusive.)
+		 * @param leftTimestamp        Timestamp corresponding with the left edge of the plot.
+		 * @param rightTimestamp       Timestamp corresponding with the right edge of the plot.
+		 * @param plotWidth            Width of the plot region, in pixels.
+		 * @param plotHeight           Height of the plot region, in pixels.
+		 */
+		void enableAndAcquire(List<Dataset> datasets, long firstSampleNumber, long lastSampleNumber, long leftTimestamp, long rightTimestamp, int plotWidth, int plotHeight) {
+			
+			enabled = true;
+			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
+			scissorArgs = calculateScissorArgs(leftTimestamp, rightTimestamp, plotWidth, plotHeight);
+			
+			// calculate milliseconds offset from the left edge of the plot
+			long xOffset = datasetsController.getFirstTimestamp();
+			xOffset += ((leftTimestamp - datasetsController.getFirstTimestamp()) / plotDomain) * plotDomain;
+			
+			// acquire extra samples before and after, to prevent aliasing
+			firstSampleNumber -= calculateSamplesNeededBefore(firstSampleNumber, plotWidth);
+			lastSampleNumber += calculateSamplesNeededAfter(lastSampleNumber, plotWidth);
+			if(firstSampleNumber < 0)
+				firstSampleNumber = 0;
+			if(lastSampleNumber > maxSampleNumber)
+				lastSampleNumber = maxSampleNumber;
+			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
+			
+			// acquire the samples
+			bufferX = datasetsController.getTimestampsBuffer((int) firstSampleNumber, (int) lastSampleNumber, xOffset);
+			buffersY = new FloatBuffer[datasets.size()];
+			for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
+				if(!datasets.get(datasetN).isBitfield)
+					buffersY[datasetN] = datasets.get(datasetN).getBuffer((int) firstSampleNumber, (int) lastSampleNumber);
+			
+		}
 		
 	}
 

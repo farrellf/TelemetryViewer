@@ -34,8 +34,7 @@ public class StorageTimestamps {
 	private ByteBuffer cacheBytes = Buffers.newDirectByteBuffer(CACHE_SIZE * BYTES_PER_VALUE);
 	private LongBuffer cacheLongs = cacheBytes.asLongBuffer();
 	private int startOfCache = 0;
-	private int firstCachedSampleNumber = startOfCache - 1;
-	private int lastCachedSampleNumber  = startOfCache - 1;
+	private int cachedCount = 0;
 	
 	private ConnectionTelemetry connection;
 
@@ -189,9 +188,8 @@ public class StorageTimestamps {
 		
 		// read from cache if possible
 		updateCacheIfAppropriate(sampleNumber, sampleNumber);
-		if(sampleNumber >= firstCachedSampleNumber && sampleNumber <= lastCachedSampleNumber) {
+		if(sampleNumber >= startOfCache && sampleNumber <= startOfCache + cachedCount - 1)
 			return cacheLongs.get(sampleNumber - startOfCache);
-		}
 		
 		// read from disk
 		while(slot[slotN].flushing);
@@ -221,7 +219,7 @@ public class StorageTimestamps {
 		updateCacheIfAppropriate(firstSampleNumber, lastSampleNumber);
 		
 		// if the entire range is cached, provide it from the cache
-		if(firstSampleNumber >= firstCachedSampleNumber && lastSampleNumber <= lastCachedSampleNumber) {
+		if(firstSampleNumber >= startOfCache && lastSampleNumber <= startOfCache + cachedCount - 1) {
 			for(int i = firstSampleNumber; i <= lastSampleNumber; i++)
 				buffer.put(cacheLongs.get(i - startOfCache) - plotMinX);
 			buffer.rewind();
@@ -250,7 +248,7 @@ public class StorageTimestamps {
 					ByteBuffer temp = Buffers.newDirectByteBuffer(byteCount);
 					file.read(temp, offset);
 					for(int i = 0; i < valueCount; i++)
-						buffer.put(temp.getLong(i) - plotMinX);
+						buffer.put(temp.getLong(i * BYTES_PER_VALUE) - plotMinX);
 				} catch (IOException e) {
 					NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
 					e.printStackTrace();
@@ -291,14 +289,13 @@ public class StorageTimestamps {
 			startOfCache = (firstSampleNumber / SLOT_SIZE) * SLOT_SIZE - SLOT_SIZE; // at least one full slot "before" the requested range
 			if(startOfCache < 0)
 				startOfCache = 0;
-			firstCachedSampleNumber = startOfCache - 1;
-			lastCachedSampleNumber  = startOfCache - 1;
+			cachedCount = 0;
 		}
 		
 		// new range starts before cached range
-		if(firstSampleNumber < firstCachedSampleNumber) {
+		if(firstSampleNumber < startOfCache) {
 			int start = firstSampleNumber;
-			int end   = firstCachedSampleNumber - 1;
+			int end   = startOfCache - 1;
 			
 			int firstSlot = start / SLOT_SIZE;
 			int lastSlot  = end   / SLOT_SIZE;
@@ -328,12 +325,13 @@ public class StorageTimestamps {
 				}
 			}
 			
-			firstCachedSampleNumber = firstSampleNumber;
+			startOfCache = firstSampleNumber;
+			cachedCount += end - firstSampleNumber + 1;
 		}
 		
 		// new range ends after cached range
-		if(lastSampleNumber > lastCachedSampleNumber) {
-			int start = lastCachedSampleNumber + 1;
+		if(lastSampleNumber > startOfCache + cachedCount - 1) {
+			int start = startOfCache + cachedCount;
 			int end   = lastSampleNumber;
 			
 			int slotStart = start / SLOT_SIZE;
@@ -365,9 +363,7 @@ public class StorageTimestamps {
 				}
 			}
 			
-			lastCachedSampleNumber = lastSampleNumber;
-			if(firstCachedSampleNumber == -1)
-				firstCachedSampleNumber = 0;
+			cachedCount += lastSampleNumber - (startOfCache + cachedCount) + 1;
 		}
 		
 	}
@@ -463,8 +459,7 @@ public class StorageTimestamps {
 		
 		// flush the cache
 		startOfCache = 0;
-		firstCachedSampleNumber = -1;
-		lastCachedSampleNumber = -1;
+		cachedCount = 0;
 		
 	}
 	

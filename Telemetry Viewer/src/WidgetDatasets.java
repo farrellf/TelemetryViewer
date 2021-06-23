@@ -86,7 +86,7 @@ public class WidgetDatasets extends Widget {
 		
 		durationSampleCount = 10_000;
 		durationMilliseconds = 10_000;
-		if(!ConnectionsController.telemetryConnections.isEmpty())
+		if(!ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.telemetryConnections.get(0).sampleRate < Integer.MAX_VALUE / 10)
 			durationSampleCount = ConnectionsController.telemetryConnections.get(0).sampleRate * 10L;
 		durationTextfield.setText(Long.toString(durationSampleCount));
 		
@@ -548,7 +548,7 @@ public class WidgetDatasets extends Widget {
 		
 		// duration
 		if(durationEanbled) {
-			lines[3] = "duration = " + ((durationUnit == DurationUnit.SAMPLES) ? durationSampleCount : durationMilliseconds);
+			lines[3] = "duration = " + ((durationUnit == DurationUnit.SAMPLES) ? Long.toString(durationSampleCount) : convertMillisecondsToDuration(durationMilliseconds));
 			lines[4] = "duration unit = " + durationUnit;
 			lines[5] = "time axis shows = " + axisType;
 		}
@@ -810,6 +810,8 @@ public class WidgetDatasets extends Widget {
 			                   !selectedBitfieldEdges.isEmpty()                      ?  selectedBitfieldEdges.get(0).connection.sampleRate :
 			                   !selectedBitfieldLevels.isEmpty()                     ? selectedBitfieldLevels.get(0).connection.sampleRate :
 			                   !ConnectionsController.telemetryConnections.isEmpty() ? ConnectionsController.telemetryConnections.get(0).sampleRate : 1000;
+			if(sampleRateHz == Integer.MAX_VALUE)
+				sampleRateHz = 1000;
 			durationMilliseconds = Math.round((double) durationSampleCount / (double) sampleRateHz * 1000.0);
 			if(axisType == AxisType.SAMPLE_COUNT)
 				axisType = AxisType.TIMESTAMPS;
@@ -819,6 +821,8 @@ public class WidgetDatasets extends Widget {
 			                   !selectedBitfieldEdges.isEmpty()                      ?  selectedBitfieldEdges.get(0).connection.sampleRate :
 			                   !selectedBitfieldLevels.isEmpty()                     ? selectedBitfieldLevels.get(0).connection.sampleRate :
 			                   !ConnectionsController.telemetryConnections.isEmpty() ? ConnectionsController.telemetryConnections.get(0).sampleRate : 1000;
+			if(sampleRateHz == Integer.MAX_VALUE)
+				sampleRateHz = 1000;
 			durationSampleCount = Math.round((double) durationMilliseconds / 1000.0 * (double) sampleRateHz);
 			axisType = AxisType.SAMPLE_COUNT;
 		}
