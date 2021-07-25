@@ -20,7 +20,7 @@ public class DatasetsController {
 	private BinaryChecksumProcessor checksumProcessor = null;
 	private int checksumProcessorOffset = -1;
 	
-	public static final BinaryFieldProcessor[]    binaryFieldProcessors    = new BinaryFieldProcessor[8];
+	public static final BinaryFieldProcessor[]    binaryFieldProcessors    = new BinaryFieldProcessor[10];
 	public static final BinaryChecksumProcessor[] binaryChecksumProcessors = new BinaryChecksumProcessor[2];
 	static {
 		binaryFieldProcessors[0] = new BinaryFieldProcessor() {
@@ -54,6 +54,26 @@ public class DatasetsController {
 			                                                                                 ((0xFF & buffer[0+offset]) << 8)); }
 		};
 		binaryFieldProcessors[4] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint32 LSB First"; }
+			@Override public String getJavaTypeName()                      { return "Int"; }
+			@Override public boolean isLittleEndian()                      { return true; }
+			@Override public int getByteCount()                            { return 4; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float)(int) (((0xFF & buffer[0+offset]) << 0) |
+					                                                                              ((0xFF & buffer[1+offset]) << 8) |
+					                                                                              ((0xFF & buffer[2+offset]) << 16) |
+					                                                                              ((0xFF & buffer[3+offset]) << 24)); }
+		};
+		binaryFieldProcessors[5] = new BinaryFieldProcessor() {
+			@Override public String toString()                             { return "uint32 MSB First"; }
+			@Override public String getJavaTypeName()                      { return "Int"; }
+			@Override public boolean isLittleEndian()                      { return false; }
+			@Override public int getByteCount()                            { return 4; }
+			@Override public float extractValue(byte[] buffer, int offset) { return (float)(int) (((0xFF & buffer[3+offset]) << 0) |
+			                                                                                      ((0xFF & buffer[2+offset]) << 8) |
+			                                                                                      ((0xFF & buffer[1+offset]) << 16) |
+			                                                                                      ((0xFF & buffer[0+offset]) << 24)); }
+		};
+		binaryFieldProcessors[6] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "int16 LSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return true; }
@@ -61,7 +81,7 @@ public class DatasetsController {
 			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[0+offset]) << 0) |
 					                                                                                ((0xFF & buffer[1+offset]) << 8)); }
 		};
-		binaryFieldProcessors[5] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[7] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "int16 MSB First"; }
 			@Override public String getJavaTypeName()                      { return "Short"; }
 			@Override public boolean isLittleEndian()                      { return false; }
@@ -69,7 +89,7 @@ public class DatasetsController {
 			@Override public float extractValue(byte[] buffer, int offset) { return (float)(short) (((0xFF & buffer[1+offset]) << 0) |
 			                                                                                        ((0xFF & buffer[0+offset]) << 8)); }
 		};
-		binaryFieldProcessors[6] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[8] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "float32 LSB First"; }
 			@Override public String getJavaTypeName()                      { return "Float"; }
 			@Override public boolean isLittleEndian()                      { return true; }
@@ -79,7 +99,7 @@ public class DatasetsController {
 			                                                                                             ((0xFF & buffer[2+offset]) << 16) |
 			                                                                                             ((0xFF & buffer[3+offset]) << 24)); }
 		};
-		binaryFieldProcessors[7] = new BinaryFieldProcessor() {
+		binaryFieldProcessors[9] = new BinaryFieldProcessor() {
 			@Override public String toString()                             { return "float32 MSB First"; }
 			@Override public String getJavaTypeName()                      { return "Float"; }
 			@Override public boolean isLittleEndian()                      { return false; }
@@ -157,6 +177,12 @@ public class DatasetsController {
 		
 		this.connection = connection;
 		this.timestamps = new StorageTimestamps(connection);
+		
+	}
+	
+	public StorageTimestamps.Cache createTimestampsCache() {
+		
+		return timestamps.createCache();
 		
 	}
 	
@@ -261,25 +287,20 @@ public class DatasetsController {
 		ConfigureView.instance.close();
 		
 		// can't remove what doesn't exist
-		Dataset specifiedDataset = getByLocation(location);
-		if(specifiedDataset == null)
+		Dataset dataset = getByLocation(location);
+		if(dataset == null)
 			return "Error: No field exists at location " + location + ".";
 		
 		// remove charts containing the dataset
 		List<PositionedChart> chartsToRemove = new ArrayList<PositionedChart>();
-		for(PositionedChart chart : ChartsController.getCharts()) {
-			if(chart.datasets.contains(specifiedDataset))
+		ChartsController.getCharts().forEach(chart -> {
+			if(chart.datasets.contains(dataset))
 				chartsToRemove.add(chart);
-			else if(!chart.bitfieldEdges.isEmpty() && chart.bitfieldEdges.get(0).dataset == specifiedDataset)
-				chartsToRemove.add(chart);
-			else if(!chart.bitfieldLevels.isEmpty() && chart.bitfieldLevels.get(0).dataset == specifiedDataset)
-				chartsToRemove.add(chart);
-		}
-		for(PositionedChart chart : chartsToRemove)
-			ChartsController.removeChart(chart);
+		});
+		chartsToRemove.forEach(chart -> ChartsController.removeChart(chart));
 		
 		datasets.remove(location);
-		specifiedDataset.floats.dispose();
+		dataset.floats.dispose();
 		
 		// remove timestamps if nothing is left
 		if(datasets.isEmpty()) {
@@ -289,6 +310,10 @@ public class DatasetsController {
 			
 			CommunicationView.instance.redraw();
 			OpenGLChartsView.instance.switchToLiveView();
+			
+			// if this is the only connection, also remove all charts because a timeline chart may still exist
+			if(ConnectionsController.allConnections.size() == 1)
+				ChartsController.removeAllCharts();
 		}
 		
 		// success
@@ -634,9 +659,9 @@ public class DatasetsController {
 		
 	}
 	
-	public FloatBuffer getTimestampsBuffer(int firstSampleNumber, int lastSampleNumber, long plotMinX) {
+	public FloatBuffer getTimestampsBuffer(int firstSampleNumber, int lastSampleNumber, StorageTimestamps.Cache cache, long plotMinX) {
 		
-		return timestamps.getTampstamps(firstSampleNumber, lastSampleNumber, plotMinX);
+		return timestamps.getTampstamps(firstSampleNumber, lastSampleNumber, cache, plotMinX);
 		
 	}
 	
@@ -646,18 +671,6 @@ public class DatasetsController {
 	public int getSampleCount() {
 		
 		return sampleCount.get();
-		
-	}
-	
-	/**
-	 * Moves older samples and timestamps to disk.
-	 */
-	public void flushOldValues() {
-		
-		for(Dataset d : getList())
-			d.floats.moveOldValuesToDisk();
-		
-		timestamps.moveOldValuesToDisk();
 		
 	}
 	

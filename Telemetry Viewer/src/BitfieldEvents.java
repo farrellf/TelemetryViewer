@@ -14,14 +14,13 @@ public class BitfieldEvents {
 	/**
 	 * Creates a list of all bitfield events that should be displayed on a chart.
 	 * 
-	 * @param showSampleNumbers      True if the sample number should be displayed at the top of each marker.
-	 * @param showTimestamps         True if the date/time should be displayed at the top of each marker.
-	 * @param bitfieldEdgeStates     Bitfield states to check for edge events.
-	 * @param bitfieldLevelStates    Bitfield states to check for levels.
-	 * @param minSampleNumber        Range of samples numbers to check (inclusive.)
-	 * @param maxSampleNumber        Range of samples numbers to check (inclusive.)
+	 * @param showSampleNumbers    True if the sample number should be displayed at the top of each marker.
+	 * @param showTimestamps       True if the date/time should be displayed at the top of each marker.
+	 * @param datasets             Bitfield edges and levels to check for.
+	 * @param minSampleNumber      Range of samples numbers to check (inclusive.)
+	 * @param maxSampleNumber      Range of samples numbers to check (inclusive.)
 	 */
-	public BitfieldEvents(boolean showSampleNumbers, boolean showTimestamps, List<Dataset.Bitfield.State> bitfieldEdgeStates, List<Dataset.Bitfield.State> bitfieldLevelStates, int minSampleNumber, int maxSampleNumber) {
+	public BitfieldEvents(boolean showSampleNumbers, boolean showTimestamps, DatasetsInterface datasets, int minSampleNumber, int maxSampleNumber) {
 		
 		this.showSampleNumbers = showSampleNumbers;
 		this.showTimestamps = showTimestamps;
@@ -31,35 +30,31 @@ public class BitfieldEvents {
 		if(maxSampleNumber <= minSampleNumber)
 			return;
 		
-		// check for edges
-		bitfieldEdgeStates.forEach(state -> {
-			state.getEdgeEventsBetween(minSampleNumber, maxSampleNumber).forEach(eventSampleNumber -> {
-				if(edgeMarkers.containsKey(eventSampleNumber)) {
-					// a marker already exists for this sample number, so append to it
-					EdgeMarker event = edgeMarkers.get(eventSampleNumber);
-					event.text.add(state.name);
-					event.glColors.add(state.glColor);
-				} else {
-					// a marker does not exist, so create a new one
-					edgeMarkers.put(eventSampleNumber, new EdgeMarker(state, eventSampleNumber));
-				}
-			});
+		// check for edge events
+		datasets.forEachEdge(minSampleNumber, maxSampleNumber, (state, eventSampleNumber) -> {
+			if(edgeMarkers.containsKey(eventSampleNumber)) {
+				// a marker already exists for this sample number, so append to it
+				EdgeMarker event = edgeMarkers.get(eventSampleNumber);
+				event.text.add(state.name);
+				event.glColors.add(state.glColor);
+			} else {
+				// a marker does not exist, so create a new one
+				edgeMarkers.put(eventSampleNumber, new EdgeMarker(state, eventSampleNumber));
+			}
 		});
 		
 		// check for levels
-		bitfieldLevelStates.forEach(state -> {
-			state.getLevelsBetween(minSampleNumber, maxSampleNumber).forEach(range -> {
-				LevelMarker marker;
-				if(levelMarkers.containsKey(state.bitfield)) {
-					marker = levelMarkers.get(state.bitfield);
-				} else {
-					marker = new LevelMarker(state.bitfield);
-					levelMarkers.put(state.bitfield, marker);
-				}
-				marker.ranges.add(new int[] {range[0], range[1]});
-				marker.labels.add(state.name);
-				marker.glColors.add(state.glColor);
-			});
+		datasets.forEachLevel(minSampleNumber, maxSampleNumber, (state, range) -> {
+			LevelMarker marker;
+			if(levelMarkers.containsKey(state.bitfield)) {
+				marker = levelMarkers.get(state.bitfield);
+			} else {
+				marker = new LevelMarker(state.bitfield);
+				levelMarkers.put(state.bitfield, marker);
+			}
+			marker.ranges.add(new int[] {range[0], range[1]});
+			marker.labels.add(state.name);
+			marker.glColors.add(state.glColor);
 		});
 		
 	}

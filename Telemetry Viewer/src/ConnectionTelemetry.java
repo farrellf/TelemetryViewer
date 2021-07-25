@@ -16,6 +16,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,8 +25,12 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Scanner;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
@@ -305,16 +310,14 @@ public class ConnectionTelemetry extends Connection {
 				return;
 			}
 
-			// if leaving demo mode or stress test mode, reset the data structure
-			Mode oldMode = mode;
-			if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST)
-				datasets.removeAll();
-			
-			// change to the new connection
+			// change to the new connection and reset the data structure if changing modes
 			// only UARTs should have a transmit GUI
+			Mode oldMode = mode;
 			name = newConnectionName;
 			if(name.startsWith("UART")) {
 				mode = Mode.UART;
+				if(mode != oldMode)
+					datasets.removeAll();
 				transmit = new TransmitController(this);
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
@@ -322,6 +325,8 @@ public class ConnectionTelemetry extends Connection {
 				}
 			} else if(name.equals("TCP")) {
 				mode = Mode.TCP;
+				if(mode != oldMode)
+					datasets.removeAll();
 				transmit = null;
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
@@ -329,6 +334,8 @@ public class ConnectionTelemetry extends Connection {
 				}
 			} else if(name.equals("UDP")) {
 				mode = Mode.UDP;
+				if(mode != oldMode)
+					datasets.removeAll();
 				transmit = null;
 				if(oldMode == Mode.DEMO || oldMode == Mode.STRESS_TEST) {
 					sampleRate = 1000;
@@ -336,11 +343,15 @@ public class ConnectionTelemetry extends Connection {
 				}
 			} else if(name.equals("Demo Mode")) {
 				mode = Mode.DEMO;
+				if(mode != oldMode)
+					datasets.removeAll();
 				transmit = null;
 				sampleRate = 10000;
 				packetType = PacketType.CSV;
 			} else {
 				mode = Mode.STRESS_TEST;
+				if(mode != oldMode)
+					datasets.removeAll();
 				transmit = null;
 				sampleRate = Integer.MAX_VALUE;
 				packetType = PacketType.BINARY;
@@ -415,21 +426,13 @@ public class ConnectionTelemetry extends Connection {
 		};
 		if(connected)
 			connectButton.setText("Disconnect");
-		if(ConnectionsController.importing && ConnectionsController.realtimeImporting)
-			connectButton.setText("Finish");
-		if(ConnectionsController.importing && !ConnectionsController.realtimeImporting)
-			connectButton.setText("Abort");
 		
 		connectButton.addActionListener(event -> {
 			if(connectButton.getText().equals("Connect"))
 				connect(true);
 			else if(connectButton.getText().equals("Disconnect"))
 				disconnect(null);
-			else if(connectButton.getText().equals("Finish") || connectButton.getText().equals("Abort"))
-				finishImportingFile();
 		});
-		if(ConnectionsController.importing && ConnectionsController.allConnections.size() > 1)
-			connectButton.setVisible(false);
 		
 		// remove connection button
 		JButton removeButton = new JButton(Theme.removeSymbol);
@@ -466,12 +469,13 @@ public class ConnectionTelemetry extends Connection {
 		}
 		
 		// disable widgets if appropriate
-		sampleRateTextfield.setEnabled(!ConnectionsController.importing && !connected && mode != Mode.DEMO && mode != Mode.STRESS_TEST);
-		packetTypeCombobox.setEnabled(!ConnectionsController.importing && !connected && mode != Mode.DEMO && mode != Mode.STRESS_TEST);
-		connectionNamesCombobox.setEnabled(!ConnectionsController.importing && !connected);
-		baudRateCombobox.setEnabled(!ConnectionsController.importing && !connected);
-		portNumberCombobox.setEnabled(!ConnectionsController.importing && !connected);
-		connectButton.setEnabled(!ConnectionsController.exporting);
+		boolean importingOrExporting = ConnectionsController.importing || ConnectionsController.exporting;
+		sampleRateTextfield.setEnabled(!importingOrExporting && !connected && mode != Mode.DEMO && mode != Mode.STRESS_TEST);
+		packetTypeCombobox.setEnabled(!importingOrExporting && !connected && mode != Mode.DEMO && mode != Mode.STRESS_TEST);
+		connectionNamesCombobox.setEnabled(!importingOrExporting && !connected);
+		baudRateCombobox.setEnabled(!importingOrExporting && !connected);
+		portNumberCombobox.setEnabled(!importingOrExporting && !connected);
+		connectButton.setEnabled(!importingOrExporting);
 		
 		return panel;
 		
@@ -949,8 +953,6 @@ public class ConnectionTelemetry extends Connection {
 	
 	private void connectStressTest(boolean showGui) {
 		
-		datasets.removeAll();
-		
 		SettingsController.setTileColumns(6);
 		SettingsController.setTileRows(6);
 		SettingsController.setTimeFormat("Only Time");
@@ -977,6 +979,7 @@ public class ConnectionTelemetry extends Connection {
 				processor = p;
 		
 		datasets.removeAll();
+		datasets.insertSyncWord((byte) 0xAA);
 		datasets.insert(1, processor, "a", Color.RED,   "", 1, 1);
 		datasets.insert(3, processor, "b", Color.GREEN, "", 1, 1);
 		datasets.insert(5, processor, "c", Color.BLUE,  "", 1, 1);
@@ -1129,6 +1132,18 @@ public class ConnectionTelemetry extends Connection {
 			if(saveCount < 0)
 				throw new AssertionError("Invalid save count.");
 			
+			mode = Mode.UART;
+			name = "UART: " + portName;
+			baudRate = baud;
+			packetType = packetTypeString.equals("CSV")    ? PacketType.CSV :
+			             packetTypeString.equals("Binary") ? PacketType.BINARY :
+			                                                 PacketType.TC66;
+			sampleRate = hz;
+			
+			transmit = new TransmitController(this);
+			transmitQueue = new ConcurrentLinkedQueue<byte[]>();
+			previousRepititionTimestamp = 0;
+			
 			transmit.setTransmitText(transmitData, null);
 			transmit.setAppendCR(appendsCR);
 			transmit.setAppendLF(appendsLF);
@@ -1147,14 +1162,6 @@ public class ConnectionTelemetry extends Connection {
 					throw new AssertionError("Invalid save.");
 				}
 			}
-			
-			mode = Mode.UART;
-			name = "UART: " + portName;
-			baudRate = baud;
-			packetType = packetTypeString.equals("CSV")    ? PacketType.CSV :
-			             packetTypeString.equals("Binary") ? PacketType.BINARY :
-			                                                 PacketType.TC66;
-			sampleRate = hz;
 			
 		} else if(type.equals("TCP") || type.equals("UDP")) {
 			
@@ -1214,6 +1221,12 @@ public class ConnectionTelemetry extends Connection {
 			
 			int location            = ChartUtils.parseInteger(lines.remove(), "dataset location = %d");
 			String processorName    = ChartUtils.parseString (lines.remove(), "binary processor = %s");
+			DatasetsController.BinaryFieldProcessor processor = null;
+			for(DatasetsController.BinaryFieldProcessor p : DatasetsController.binaryFieldProcessors)
+				if(p.toString().equals(processorName))
+					processor = p;
+			if(packetType == PacketType.BINARY && processor == null)
+				throw new AssertionError("Invalid binary processor.");
 			String name             = ChartUtils.parseString (lines.remove(), "name = %s");
 			String colorText        = ChartUtils.parseString (lines.remove(), "color = 0x%s");
 			String unit             = ChartUtils.parseString (lines.remove(), "unit = %s");
@@ -1221,10 +1234,6 @@ public class ConnectionTelemetry extends Connection {
 			float conversionFactorB = ChartUtils.parseFloat  (lines.remove(), "conversion factor b = %f");
 			
 			Color color = new Color(Integer.parseInt(colorText, 16));
-			DatasetsController.BinaryFieldProcessor processor = null;
-			for(DatasetsController.BinaryFieldProcessor p : DatasetsController.binaryFieldProcessors)
-				if(p.toString().equals(processorName))
-					processor = p;
 			
 			datasets.insert(location, processor, name, color, unit, conversionFactorA, conversionFactorB);
 			
@@ -1388,7 +1397,15 @@ public class ConnectionTelemetry extends Connection {
 		
 	}
 
-	@Override public void importDataFile(String path, long firstTimestamp, AtomicLong completedByteCount) {
+	/**
+	 * Reads CSV samples from a file, instead of a live connection.
+	 * 
+	 * @param path                       Path to the file.
+	 * @param firstTimestamp             Timestamp when the first sample from ANY connection was acquired. This is used to allow importing to happen in real time.
+	 * @param beginImportingTimestamp    Timestamp when all import threads should begin importing.
+	 * @param completedByteCount         Variable to increment as progress is made (this is periodically queried by a progress bar.)
+	 */
+	@Override public void importDataFile(String path, long firstTimestamp, long beginImportingTimestamp, AtomicLong completedByteCount) {
 
 		removeAllData();
 		
@@ -1443,17 +1460,22 @@ public class ConnectionTelemetry extends Connection {
 				// parse the lines of data
 				String line = file.nextLine();
 				completedByteCount.addAndGet((long) (line.length() + 2));
-				long startTimeThread = System.currentTimeMillis();
 				int sampleNumber = getSampleCount();
 				while(true) {
 					tokens = line.split(",");
 					if(ConnectionsController.realtimeImporting) {
 						if(Thread.interrupted()) {
 							ConnectionsController.realtimeImporting = false;
+							CommunicationView.instance.redraw();
 						} else {
-							long delay = (Long.parseLong(tokens[1]) - firstTimestamp) - (System.currentTimeMillis() - startTimeThread);
+							long delay = (Long.parseLong(tokens[1]) - firstTimestamp) - (System.currentTimeMillis() - beginImportingTimestamp);
 							if(delay > 0)
-								try { Thread.sleep(delay); } catch(Exception e) { ConnectionsController.realtimeImporting = false; }
+								try {
+									Thread.sleep(delay);
+								} catch(Exception e) {
+									ConnectionsController.realtimeImporting = false;
+									CommunicationView.instance.redraw();
+								}
 						}
 					} else if(Thread.interrupted()) {
 						break; // not real-time, and interrupted again, so abort
@@ -1488,21 +1510,24 @@ public class ConnectionTelemetry extends Connection {
 		receiverThread.start();
 
 	}
-
+	
 	/**
 	 * Exports all samples to a CSV file.
 	 * 
 	 * @param path                  Full path with file name but without the file extension.
 	 * @param completedByteCount    Variable to increment as progress is made (this is periodically queried by a progress bar.)
 	 */
-	@Override public void exportDataFile(String path, AtomicLong completedByteCount) { // FIXME improve exporting to use getValues()!
+	@Override public void exportDataFile(String path, AtomicLong completedByteCount) {
 		
-		int datasetsCount = datasets.getCount();
+		List<Dataset> list = datasets.getList();
+		int datasetsCount = list.size();
 		int sampleCount = getSampleCount();
 		
 		try {
 			
 			PrintWriter logFile = new PrintWriter(path + ".csv", "UTF-8");
+			
+			// first line is the header
 			logFile.print("Sample Number (" + sampleRate + " samples per second),UNIX Timestamp (Milliseconds since 1970-01-01)");
 			for(int i = 0; i < datasetsCount; i++) {
 				Dataset d = datasets.getByIndex(i);
@@ -1510,15 +1535,49 @@ public class ConnectionTelemetry extends Connection {
 			}
 			logFile.println();
 			
-			for(int i = 0; i < sampleCount; i++) {
+			// remaining lines are the samples
+			// split the work into one worker thread per CSV column, with each thread processing up to 8192 samples at a time
+			// worker threads return the corresponding text that belongs in their CSV column
+			// this thread then collects the data and outputs it to the CSV file
+			int startingSampleNumber = 0;
+			final int MAX_SAMPLE_COUNT_PER_THREAD = 8192;
+			ExecutorService pool = Executors.newCachedThreadPool();
+			List<Future<String[]>> futures = new ArrayList<Future<String[]>>(datasetsCount + 2);
+			List<String[]> results = new ArrayList<String[]>(datasetsCount + 2);
+			
+			// submit first batch
+			int count = Integer.min(MAX_SAMPLE_COUNT_PER_THREAD, sampleCount - startingSampleNumber);
+			for(int columnN = 0; columnN < datasetsCount + 2; columnN++)
+				futures.add(pool.submit(new ExportWorker(columnN, startingSampleNumber, count)));
+			
+			while(startingSampleNumber < sampleCount) {
 				
-				logFile.print(i + "," + datasets.getTimestamp(i));
-				for(int n = 0; n < datasetsCount; n++)
-					logFile.print("," + Float.toString(datasets.getByIndex(n).getSample(i)));
-				logFile.println();
+				// get results
+				for(int i = 0; i < datasetsCount + 2; i++)
+					results.add(futures.get(i).get());
+				futures.clear();
+				startingSampleNumber += count;
 				
-				if(i % 1024 == 1023)
-					completedByteCount.addAndGet(1024L); // periodically update the progress tracker
+				// if more samples to export, submit another batch BEFORE processing the above results
+				int nextCount = Integer.min(MAX_SAMPLE_COUNT_PER_THREAD, sampleCount - startingSampleNumber);
+				if(startingSampleNumber < sampleCount) {
+					for(int columnN = 0; columnN < datasetsCount + 2; columnN++)
+						futures.add(pool.submit(new ExportWorker(columnN, startingSampleNumber, nextCount)));
+				}
+				
+				// process above results
+				for(int rowN = 0; rowN < count; rowN++) {
+					logFile.print(results.get(0)[rowN]);
+					for(int columnN = 1; columnN < datasetsCount + 2; columnN++)
+						logFile.print("," + results.get(columnN)[rowN]);
+					logFile.println();
+				}
+				results.clear();
+				
+				// update the progress tracker
+				completedByteCount.addAndGet(count);
+				
+				count = nextCount;
 				
 			}
 			
@@ -1528,11 +1587,69 @@ public class ConnectionTelemetry extends Connection {
 		
 	}
 	
+	private class ExportWorker implements Callable<String[]> {
+		
+		private final int csvColumnNumber;
+		private final int firstSampleNumber;
+		private final int sampleCount;
+		
+		/**
+		 * Prepares a "worker thread" that will generate text values for one CSV column.
+		 * This allows splitting up the work of exporting into multiple threads (one thread per CSV column.)
+		 * Since a massive amount of samples may be exported, the work may be further split by having each thread only process a certain range of samples (so we don't run out of memory.)
+		 * 
+		 * @param csvColumnNumber      Which CSV column this thread will generate text values for.
+		 * @param firstSampleNumber    First sample number to process, inclusive.
+		 * @param sampleCount          Total number of samples to process.
+		 */
+		public ExportWorker(int csvColumnNumber, int firstSampleNumber, int sampleCount) {
+			this.csvColumnNumber = csvColumnNumber;
+			this.firstSampleNumber = firstSampleNumber;
+			this.sampleCount = sampleCount;
+		}
+
+		/**
+		 * Generates the text values for this CSV column.
+		 * 
+		 * @return    A String[] containing the lines of text corresponding with this CSV column.
+		 */
+		@Override public String[] call() throws Exception {
+
+			String[] text = new String[sampleCount];
+			
+			if(csvColumnNumber == 0) {
+				// first column is the sample number
+				for(int i = 0; i < sampleCount; i++)
+					text[i] = Integer.toString(firstSampleNumber + i);
+			} else if(csvColumnNumber == 1) {
+				// second column is the UNIX timestamp
+				for(int i = 0; i < sampleCount; i++)
+					text[i] = Long.toString(datasets.getTimestamp(firstSampleNumber + i));
+			} else {
+				// other columns are the datasets
+				Dataset dataset = datasets.getByIndex(csvColumnNumber - 2);
+				StorageFloats.Cache cache = dataset.createCache();
+				FloatBuffer buffer = dataset.getSamplesBuffer(firstSampleNumber, firstSampleNumber + sampleCount - 1, cache);
+				for(int i = 0; i < sampleCount; i++)
+					text[i] = Float.toString(buffer.get());
+			}
+			
+			return text;
+			
+		}
+		
+	}
+	
 	@Override public void dispose() {
 		
 		if(connected)
 			disconnect(null);
+		
 		datasets.dispose();
+		
+		// if this is the only connection, remove all charts, because there may be a timeline chart
+		if(ConnectionsController.allConnections.size() == 1)
+			ChartsController.removeAllCharts();
 		
 	}
 	
@@ -1714,7 +1831,7 @@ public class ConnectionTelemetry extends Connection {
 				
 			} else if(packetType == PacketType.TC66) {
 				
-				int packetLength = 192;
+				int packetLength = 64;
 				stream.setPacketSize(packetLength);
 				
 				// for some reason the TC66/TC66C uses AES encryption when sending measurements to the PC
@@ -1740,7 +1857,11 @@ public class ConnectionTelemetry extends Connection {
 					                                                                      ((long) (array[offset+3] & 0xFF) << 24); };
 				
 				boolean firstPacket = true;
-				byte[] previousPacket = null;
+				byte[] currentPacket = new byte[3*packetLength]; // a full packet is actually 3 "sub packets" that start with "pac1", "pac2", or "pac3".
+				byte[] previousPacket = new byte[3*packetLength];
+				boolean waitingForPac1 = true;
+				boolean waitingForPac2 = false;
+				boolean waitingForPac3 = false;
 					                                                                      
 				while(true) {
 					
@@ -1755,61 +1876,84 @@ public class ConnectionTelemetry extends Connection {
 						// process the received telemetry packets
 						while(packets.count > 0) {
 							
-							// decrypt the packet and ignore it if it contains the same data as the previous packet
+							// decrypt the "sub packet"
 							byte[] packet = aes.doFinal(packets.buffer, packets.offset, packetLength);
-							if(Arrays.equals(packet, previousPacket)) {
+							if(waitingForPac1 && packet[0] == 'p' && packet[1] == 'a' && packet[2] == 'c' && packet[3] == '1') {
+								// got the first part
+								System.arraycopy(packet, 0, currentPacket, 0, packetLength);
+								waitingForPac1 = false;
+								waitingForPac2 = true;
+								packets.count--;
+								packets.offset += packetLength;
+								continue;
+							} else if(waitingForPac2 && packet[0] == 'p' && packet[1] == 'a' && packet[2] == 'c' && packet[3] == '2') {
+								// got the second part
+								System.arraycopy(packet, 0, currentPacket, packetLength, packetLength);
+								waitingForPac2 = false;
+								waitingForPac3 = true;
+								packets.count--;
+								packets.offset += packetLength;
+								continue;
+							} else if(waitingForPac3 && packet[0] == 'p' && packet[1] == 'a' && packet[2] == 'c' && packet[3] == '3') {
+								// got the third part. if this packet isn't a duplicate, parse it.
+								System.arraycopy(packet, 0, currentPacket, packetLength*2, packetLength);
+								waitingForPac3 = false;
+								waitingForPac1 = true;
+								packets.count--;
+								packets.offset += packetLength;
+								if(Arrays.equals(currentPacket, previousPacket))
+									continue;
+								System.arraycopy(currentPacket, 0, previousPacket, 0, currentPacket.length);
+								
+								// log some info to the terminal
+								if(firstPacket) {
+									firstPacket = false;
+									String device          = new String(new char[] {(char) currentPacket[4], (char) currentPacket[5], (char) currentPacket[6],  (char) currentPacket[7]});
+									String firmwareVersion = new String(new char[] {(char) currentPacket[8], (char) currentPacket[9], (char) currentPacket[10], (char) currentPacket[11]});
+									long serialNumber      = getUint32.apply(currentPacket, 12);
+									long powerOnCount      = getUint32.apply(currentPacket, 44);
+									NotificationsController.showVerboseForMilliseconds(String.format("Device: %s, Firmware Version: %s, Serial Number: %d, Power On Count: %d", device, firmwareVersion, serialNumber, powerOnCount), 5000, true);
+								}
+								
+								// extract data
+								float voltage          = getUint32.apply(currentPacket, 48) / 10000f;  // converting to volts
+								float current          = getUint32.apply(currentPacket, 52) / 100000f; // converting to amps
+								float power            = getUint32.apply(currentPacket, 56) / 10000f;  // converting to watts
+								float resistance       = getUint32.apply(currentPacket, 68) / 10f;     // converting to ohms
+								long group0mah         = getUint32.apply(currentPacket, 72);
+								long group0mwh         = getUint32.apply(currentPacket, 76);
+								long group1mah         = getUint32.apply(currentPacket, 80);
+								long group1mwh         = getUint32.apply(currentPacket, 84);
+								boolean temperatureNeg = getUint32.apply(currentPacket, 88) == 1;
+								long temperature       = getUint32.apply(currentPacket, 92) * (temperatureNeg ? -1 : 1); // degrees, C or F (set by user)
+								float dPlusVoltage    = getUint32.apply(currentPacket, 96)  / 100f; // converting to volts
+								float dMinusVoltage   = getUint32.apply(currentPacket, 100) / 100f; // converting to volts
+								
+								// populate the datasets
+								int sampleNumber = getSampleCount();
+								if(sampleNumber + 1 < 0) { // <0 because of overflow
+									SwingUtilities.invokeLater(() -> disconnect("Reached maximum sample count. Disconnected.")); // invokeLater to prevent deadlock
+									throw new InterruptedException();
+								}
+								
+								list.get(0).setConvertedSample (sampleNumber, voltage);
+								list.get(1).setConvertedSample (sampleNumber, current);
+								list.get(2).setConvertedSample (sampleNumber, power);
+								list.get(3).setConvertedSample (sampleNumber, resistance);
+								list.get(4).setConvertedSample (sampleNumber, (float) group0mah);
+								list.get(5).setConvertedSample (sampleNumber, (float) group0mwh);
+								list.get(6).setConvertedSample (sampleNumber, (float) group1mah);
+								list.get(7).setConvertedSample (sampleNumber, (float) group1mwh);
+								list.get(8).setConvertedSample (sampleNumber, (float) temperature);
+								list.get(9).setConvertedSample (sampleNumber, dPlusVoltage);
+								list.get(10).setConvertedSample(sampleNumber, dMinusVoltage);
+								datasets.incrementSampleCount();
+							} else {
+								// got a sub packet that is out of order, so skip over it so we can re-align
 								packets.count--;
 								packets.offset += packetLength;
 								continue;
 							}
-							previousPacket = packet;
-							
-							// log some info to the terminal
-							if(firstPacket) {
-								firstPacket = false;
-								String device          = new String(new char[] {(char) packet[4], (char) packet[5], (char) packet[6],  (char) packet[7]});
-								String firmwareVersion = new String(new char[] {(char) packet[8], (char) packet[9], (char) packet[10], (char) packet[11]});
-								long serialNumber      = getUint32.apply(packet, 12);
-								long powerOnCount      = getUint32.apply(packet, 44);
-								NotificationsController.showVerboseForMilliseconds(String.format("Device: %s, Firmware Version: %s, Serial Number: %d, Power On Count: %d", device, firmwareVersion, serialNumber, powerOnCount), 5000, true);
-							}
-							
-							// extract data
-							float voltage          = getUint32.apply(packet, 48) / 10000f;  // converting to volts
-							float current          = getUint32.apply(packet, 52) / 100000f; // converting to amps
-							float power            = getUint32.apply(packet, 56) / 10000f;  // converting to watts
-							float resistance       = getUint32.apply(packet, 68) / 10f;     // converting to ohms
-							long group0mah         = getUint32.apply(packet, 72);
-							long group0mwh         = getUint32.apply(packet, 76);
-							long group1mah         = getUint32.apply(packet, 80);
-							long group1mwh         = getUint32.apply(packet, 84);
-							boolean temperatureNeg = getUint32.apply(packet, 88) == 1;
-							long temperature       = getUint32.apply(packet, 92) * (temperatureNeg ? -1 : 1); // degrees, C or F (set by user)
-							float dPlusVoltage    = getUint32.apply(packet, 96)  / 100f; // converting to volts
-							float dMinusVoltage   = getUint32.apply(packet, 100) / 100f; // converting to volts
-							
-							// populate the datasets
-							int sampleNumber = getSampleCount();
-							if(sampleNumber + packets.count < 0) { // <0 because of overflow
-								SwingUtilities.invokeLater(() -> disconnect("Reached maximum sample count. Disconnected.")); // invokeLater to prevent deadlock
-								throw new InterruptedException();
-							}
-							
-							list.get(0).setConvertedSample (sampleNumber, voltage);
-							list.get(1).setConvertedSample (sampleNumber, current);
-							list.get(2).setConvertedSample (sampleNumber, power);
-							list.get(3).setConvertedSample (sampleNumber, resistance);
-							list.get(4).setConvertedSample (sampleNumber, (float) group0mah);
-							list.get(5).setConvertedSample (sampleNumber, (float) group0mwh);
-							list.get(6).setConvertedSample (sampleNumber, (float) group1mah);
-							list.get(7).setConvertedSample (sampleNumber, (float) group1mwh);
-							list.get(8).setConvertedSample (sampleNumber, (float) temperature);
-							list.get(9).setConvertedSample (sampleNumber, dPlusVoltage);
-							list.get(10).setConvertedSample(sampleNumber, dMinusVoltage);
-							datasets.incrementSampleCount();
-							
-							packets.count--;
-							packets.offset += packetLength;
 							
 						}
 						

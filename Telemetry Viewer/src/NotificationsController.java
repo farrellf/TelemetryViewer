@@ -89,7 +89,7 @@ public class NotificationsController {
 	private static List<Notification> notifications = Collections.synchronizedList(new ArrayList<Notification>());
 	
 	/**
-	 * @return    Notifications to show the user. If >5 exist, the oldest ones will fade away.
+	 * @return    Notifications to show the user. If >5 exist, the oldest non-progress-bar notifications will fade away.
 	 */
 	public static List<Notification> getNotifications() {
 		
@@ -108,7 +108,7 @@ public class NotificationsController {
 			long now = System.currentTimeMillis();
 			for(int i = 0; i < notifications.size() - 5; i++) {
 				Notification n = notifications.get(i);
-				if(!n.expiresAtTimestamp || n.expirationTimestamp > now) {
+				if(!n.isProgressBar && (!n.expiresAtTimestamp || n.expirationTimestamp > now)) {
 					n.expiresAtTimestamp = true;
 					n.expirationTimestamp = now;
 				}

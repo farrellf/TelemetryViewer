@@ -13,10 +13,9 @@ public abstract class PositionedChart {
 	
 	int duration;
 	boolean sampleCountMode;
-	List<Dataset> datasets                      = new ArrayList<Dataset>();
-	List<Dataset.Bitfield.State> bitfieldEdges  = new ArrayList<Dataset.Bitfield.State>();
-	List<Dataset.Bitfield.State> bitfieldLevels = new ArrayList<Dataset.Bitfield.State>();
+	
 	Widget[] widgets;
+	DatasetsInterface datasets = new DatasetsInterface();
 	
 	public PositionedChart(int x1, int y1, int x2, int y2) {
 		

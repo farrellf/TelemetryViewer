@@ -21,8 +21,7 @@ import com.jogamp.opengl.GL2ES3;
  */
 public class OpenGLStatisticsChart extends PositionedChart {
 	
-	// data
-	Samples[] samplesFromDataset;
+	// duration
 	int durationSampleCount;
 	long durationMilliseconds;
 	
@@ -58,25 +57,19 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		
 		super(x1, y1, x2, y2);
 		
-		samplesFromDataset = new Samples[0];
-		
-		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> { datasets = newDatasets;
-		                                                                samplesFromDataset = new Samples[datasets.size()];
-		                                                                for(int i = 0; i < datasets.size(); i++)
-		                                                                    samplesFromDataset[i] = new Samples();
-		                                                              },
+		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> datasets.setNormals(newDatasets),
 		                                               null,
 		                                               null,
-		                                               (newType, newDuration) -> { showAs = newType.toString();
-		                                                                           SwingUtilities.invokeLater(() -> {
-		                                                                               sampleCountMode = newType.toString().equals("Sample Count");
-		                                                   	                           if(sampleCountMode)
-		                                               		                               durationSampleCount = (int) (long) newDuration;
-		                                               	                               else
-		                                               		                               durationMilliseconds = newDuration;
-		                                               	                           });
-		                                                                           return newDuration;
-		                                                                         },
+		                                               (newType, newDuration) -> {
+		                                                   showAs = newType.toString();
+		                                                   SwingUtilities.invokeLater(() -> {
+		                                                       if(newType.toString().equals("Sample Count"))
+		                                                           durationSampleCount = (int) (long) newDuration;
+		                                                       else
+		                                                           durationMilliseconds = newDuration;
+		                                                   });
+		                                                   return newDuration;
+		                                                 },
 		                                               false,
 		                                               null);
 		
@@ -107,7 +100,7 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		
 		EventHandler handler = null;
 		
-		int datasetsCount = datasets.size();
+		int datasetsCount = datasets.normalsCount();
 		
 		// done if no datasets are selected
 		if(datasetsCount < 1) {
@@ -119,15 +112,16 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		}
 		
 		// get the samples
-		int trueLastSampleNumber = datasets.get(0).connection.getSampleCount() - 1;
+		int trueLastSampleNumber = datasets.connection.getSampleCount() - 1;
+		DatasetsController controller = datasets.getNormal(0).controller;
 		int lastSampleNumber = -1;
 		int firstSampleNumber = -1;
 		if(sampleCountMode) {
 			lastSampleNumber = Integer.min(endSampleNumber, trueLastSampleNumber);
 			firstSampleNumber = endSampleNumber - (int) Math.round(durationSampleCount * zoomLevel) + 1;
 		} else {
-			lastSampleNumber = datasets.get(0).controller.getClosestSampleNumberAtOrBefore(endTimestamp, trueLastSampleNumber);
-			firstSampleNumber = datasets.get(0).controller.getClosestSampleNumberAfter(endTimestamp - Math.round(durationMilliseconds * zoomLevel));
+			lastSampleNumber = controller.getClosestSampleNumberAtOrBefore(endTimestamp, trueLastSampleNumber);
+			firstSampleNumber = controller.getClosestSampleNumberAfter(endTimestamp - Math.round(durationMilliseconds * zoomLevel));
 		}
 		
 		// done if no telemetry
@@ -148,12 +142,8 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		if(lastSampleNumber < 0)
 			sampleCount = 0;
 		String durationLabel = sampleCountMode             ? "(" + sampleCount + " Samples)" :
-		                       showAs.equals("Timestamps") ? "(" + SettingsController.formatTimestampToMilliseconds(datasets.get(0).controller.getTimestamp(firstSampleNumber)).replace('\n', ' ') + " to " + SettingsController.formatTimestampToMilliseconds(datasets.get(0).controller.getTimestamp(lastSampleNumber)).replace('\n', ' ') + ")" :
-		                                                     "(" + (datasets.get(0).controller.getTimestamp(lastSampleNumber) - datasets.get(0).controller.getTimestamp(firstSampleNumber)) + " ms)";
-		
-		if(sampleCount > 0)
-			for(int i = 0; i < datasetsCount; i++)
-				datasets.get(i).getSamples(firstSampleNumber, lastSampleNumber, samplesFromDataset[i]);
+		                       showAs.equals("Timestamps") ? "(" + SettingsController.formatTimestampToMilliseconds(controller.getTimestamp(firstSampleNumber)).replace('\n', ' ') + " to " + SettingsController.formatTimestampToMilliseconds(controller.getTimestamp(lastSampleNumber)).replace('\n', ' ') + ")" :
+		                                                     "(" + (controller.getTimestamp(lastSampleNumber) - controller.getTimestamp(firstSampleNumber)) + " ms)";
 		
 		// determine the text to display
 		int lineCount = 1; // always show the dataset labels
@@ -180,19 +170,21 @@ public class OpenGLStatisticsChart extends PositionedChart {
 		// subsequent columns of text are the dataset names and numeric values
 		if(sampleCount > 0)
 			for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
-				Dataset dataset = datasets.get(datasetN);
-				Samples samples = samplesFromDataset[datasetN];
-				double[] doubles = new double[samples.buffer.capacity()];
-				for(int i = 0; i < samples.buffer.capacity(); i++)
-					doubles[i] = (double) samples.buffer.get(i);
+				Dataset dataset = datasets.getNormal(datasetN);
+				float[] samples = datasets.getSamplesArray(dataset, firstSampleNumber, lastSampleNumber);
+				float[] range   = datasets.getRange(dataset, firstSampleNumber, lastSampleNumber);
+				
+				double[] doubles = new double[samples.length];
+				for(int i = 0; i < samples.length; i++)
+					doubles[i] = (double) samples[i];
 				DescriptiveStatistics stats = new DescriptiveStatistics(doubles);
 				
 				int column = datasetN + 1;
 				line = 0;
 				text[column][line++] = dataset.name;
-				if(showCurrentValues)      text[column][line++] = ChartUtils.formattedNumber(samples.buffer.get(samples.buffer.capacity() - 1), 5) + " " + dataset.unit;
-				if(showMinimums)           text[column][line++] = ChartUtils.formattedNumber(samples.min, 5) + " " + dataset.unit;
-				if(showMaximums)           text[column][line++] = ChartUtils.formattedNumber(samples.max, 5) + " " + dataset.unit;
+				if(showCurrentValues)      text[column][line++] = ChartUtils.formattedNumber(samples[samples.length - 1], 5) + " " + dataset.unit;
+				if(showMinimums)           text[column][line++] = ChartUtils.formattedNumber(range[0], 5) + " " + dataset.unit;
+				if(showMaximums)           text[column][line++] = ChartUtils.formattedNumber(range[1], 5) + " " + dataset.unit;
 				if(showMeans)              text[column][line++] = ChartUtils.formattedNumber(stats.getMean(), 5) + " " + dataset.unit;
 				if(showMedians)            text[column][line++] = ChartUtils.formattedNumber(stats.getPercentile(50), 5) + " " + dataset.unit;
 				if(showStandardDeviations) text[column][line++] = ChartUtils.formattedNumber(stats.getStandardDeviation(), 5) + " " + dataset.unit;

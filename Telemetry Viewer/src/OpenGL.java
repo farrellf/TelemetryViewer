@@ -34,7 +34,7 @@ public class OpenGL {
 		gl.glUseProgram(PointsY.programHandle);
 		gl.glBindVertexArray(PointsY.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, PointsY.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(PointsY.matrixHandle, 1, false, currentMatrix, 0);
 		gl.glUniform4fv(PointsY.colorHandle, 1, color, 0);
 		gl.glUniform1i(PointsY.xOffsetHandle, xOffset);
@@ -63,7 +63,7 @@ public class OpenGL {
 		gl.glUseProgram(PointsXY.programHandle);
 		gl.glBindVertexArray(PointsXY.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, PointsXY.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(PointsXY.matrixHandle, 1, false, currentMatrix, 0);
 		gl.glUniform4fv(PointsXY.colorHandle, 1, color, 0);
 		gl.glUniform1f(PointsXY.pointWidthHandle, Theme.pointWidth);
@@ -92,9 +92,9 @@ public class OpenGL {
 		gl.glUseProgram(PointsX_Y.programHandle);
 		gl.glBindVertexArray(PointsX_Y.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, PointsX_Y.vboXhandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferX.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferX, GL3.GL_DYNAMIC_DRAW);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, PointsX_Y.vboYhandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferY.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferY, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(PointsX_Y.matrixHandle, 1, false, currentMatrix, 0);
 		gl.glUniform4fv(PointsX_Y.colorHandle, 1, color, 0);
 		gl.glUniform1f(PointsX_Y.pointWidthHandle, Theme.pointWidth);
@@ -126,7 +126,7 @@ public class OpenGL {
 			gl.glUseProgram(ThinLinesY.programHandle);
 			gl.glBindVertexArray(ThinLinesY.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThinLinesY.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThinLinesY.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform4fv(ThinLinesY.colorHandle, 1, color, 0);
 			gl.glUniform1i(ThinLinesY.xOffsetHandle, xOffset);
@@ -134,7 +134,7 @@ public class OpenGL {
 			gl.glUseProgram(ThickLinesY.programHandle);
 			gl.glBindVertexArray(ThickLinesY.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThickLinesY.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThickLinesY.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform4fv(ThickLinesY.colorHandle, 1, color, 0);
 			gl.glUniform1i(ThickLinesY.xOffsetHandle, xOffset);
@@ -166,14 +166,14 @@ public class OpenGL {
 			gl.glUseProgram(ThinLinesXY.programHandle);
 			gl.glBindVertexArray(ThinLinesXY.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThinLinesXY.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThinLinesXY.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform4fv(ThinLinesXY.colorHandle, 1, color, 0);
 		} else {
 			gl.glUseProgram(ThickLinesXY.programHandle);
 			gl.glBindVertexArray(ThickLinesXY.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThickLinesXY.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThickLinesXY.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform4fv(ThickLinesXY.colorHandle, 1, color, 0);
 			gl.glUniform1f(ThickLinesXY.lineWidthHandle, Theme.lineWidth);
@@ -203,13 +203,13 @@ public class OpenGL {
 			gl.glUseProgram(ThinLinesXYRGBA.programHandle);
 			gl.glBindVertexArray(ThinLinesXYRGBA.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThinLinesXYRGBA.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThinLinesXYRGBA.matrixHandle, 1, false, currentMatrix, 0);
 		} else {
 			gl.glUseProgram(ThickLinesXYRGBA.programHandle);
 			gl.glBindVertexArray(ThickLinesXYRGBA.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThickLinesXYRGBA.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThickLinesXYRGBA.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform1f(ThickLinesXYRGBA.lineWidthHandle, Theme.lineWidth);
 			int[] viewportDimensions = new int[4]; // x,y,w,h
@@ -240,18 +240,18 @@ public class OpenGL {
 			gl.glUseProgram(ThinLinesX_Y.programHandle);
 			gl.glBindVertexArray(ThinLinesX_Y.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThinLinesX_Y.vboXhandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferX.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferX, GL3.GL_DYNAMIC_DRAW);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThinLinesX_Y.vboYhandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferY.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferY, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThinLinesX_Y.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform4fv(ThinLinesX_Y.colorHandle, 1, color, 0);
 		} else {
 			gl.glUseProgram(ThickLinesX_Y.programHandle);
 			gl.glBindVertexArray(ThickLinesX_Y.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThickLinesX_Y.vboXhandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferX.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferX, GL3.GL_DYNAMIC_DRAW);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThickLinesX_Y.vboYhandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferY.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4, bufferY, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(ThickLinesX_Y.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glUniform4fv(ThickLinesX_Y.colorHandle, 1, color, 0);
 			gl.glUniform1f(ThickLinesX_Y.lineWidthHandle, Theme.lineWidth);
@@ -281,7 +281,7 @@ public class OpenGL {
 		gl.glUseProgram(TrianglesXY.programHandle);
 		gl.glBindVertexArray(TrianglesXY.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, TrianglesXY.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 2 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(TrianglesXY.matrixHandle, 1, false, currentMatrix, 0);
 		gl.glUniform4fv(TrianglesXY.colorHandle, 1, color, 0);
 		
@@ -304,7 +304,7 @@ public class OpenGL {
 		gl.glUseProgram(ThinLinesXYRGBA.programHandle);
 		gl.glBindVertexArray(ThinLinesXYRGBA.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, ThinLinesXYRGBA.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(ThinLinesXYRGBA.matrixHandle, 1, false, currentMatrix, 0);
 		
 		// draw
@@ -326,7 +326,7 @@ public class OpenGL {
 		gl.glUseProgram(TrianglesXYZUVW.programHandle);
 		gl.glBindVertexArray(TrianglesXYZUVW.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, TrianglesXYZUVW.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 6 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(TrianglesXYZUVW.matrixHandle, 1, false, currentMatrix, 0);
 		
 		// draw
@@ -376,14 +376,14 @@ public class OpenGL {
 			gl.glUseProgram(TrianglesXYSTmultisample.programHandle);
 			gl.glBindVertexArray(TrianglesXYSTmultisample.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, TrianglesXYSTmultisample.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 			gl.glUniformMatrix4fv(TrianglesXYSTmultisample.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glBindTexture(GL3.GL_TEXTURE_2D_MULTISAMPLE, textureHandle);
 		} else {
 			gl.glUseProgram(TrianglesXYST.programHandle);
 			gl.glBindVertexArray(TrianglesXYST.vaoHandle);
 			gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, TrianglesXYST.vboHandle);
-			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4 * 4, buffer.position(0), GL3.GL_STATIC_DRAW);
+			gl.glBufferData(GL3.GL_ARRAY_BUFFER, vertexCount * 4 * 4, buffer, GL3.GL_STATIC_DRAW);
 			gl.glUniformMatrix4fv(TrianglesXYST.matrixHandle, 1, false, currentMatrix, 0);
 			gl.glBindTexture(GL3.GL_TEXTURE_2D, textureHandle);
 		}
@@ -551,7 +551,7 @@ public class OpenGL {
 		gl.glUseProgram(FontRenderer.programHandle);
 		gl.glBindVertexArray(FontRenderer.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, FontRenderer.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, text.length() * 5 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, text.length() * 5 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(FontRenderer.matrixHandle, 1, false, degrees == 0 ? currentMatrix : rotatedMatrix, 0);
 		gl.glUniform1f(FontRenderer.lineHeightHandle, smallFontMaxCharHeight);
 		gl.glBindTexture(GL3.GL_TEXTURE_2D, FontRenderer.smallFontTextureHandle[0]);
@@ -629,7 +629,7 @@ public class OpenGL {
 		gl.glUseProgram(FontRenderer.programHandle);
 		gl.glBindVertexArray(FontRenderer.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, FontRenderer.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, text.length() * 5 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, text.length() * 5 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(FontRenderer.matrixHandle, 1, false, degrees == 0 ? currentMatrix : rotatedMatrix, 0);
 		gl.glUniform1f(FontRenderer.lineHeightHandle, mediumFontMaxCharHeight);
 		gl.glBindTexture(GL3.GL_TEXTURE_2D, FontRenderer.mediumFontTextureHandle[0]);
@@ -707,7 +707,7 @@ public class OpenGL {
 		gl.glUseProgram(FontRenderer.programHandle);
 		gl.glBindVertexArray(FontRenderer.vaoHandle);
 		gl.glBindBuffer(GL3.GL_ARRAY_BUFFER, FontRenderer.vboHandle);
-		gl.glBufferData(GL3.GL_ARRAY_BUFFER, text.length() * 5 * 4, buffer.position(0), GL3.GL_DYNAMIC_DRAW);
+		gl.glBufferData(GL3.GL_ARRAY_BUFFER, text.length() * 5 * 4, buffer, GL3.GL_DYNAMIC_DRAW);
 		gl.glUniformMatrix4fv(FontRenderer.matrixHandle, 1, false, degrees == 0 ? currentMatrix : rotatedMatrix, 0);
 		gl.glUniform1f(FontRenderer.lineHeightHandle, largeFontMaxCharHeight);
 		gl.glBindTexture(GL3.GL_TEXTURE_2D, FontRenderer.largeFontTextureHandle[0]);

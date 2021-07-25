@@ -18,7 +18,9 @@ public class PlotSampleCount extends Plot {
 	int[]     fbHandle;
 	int[]     texHandle;
 	boolean   cacheIsValid;
-	List<Dataset> previousDatasets;
+	List<Dataset> previousNormalDatasets;
+	List<Dataset.Bitfield.State> previousEdgeStates;
+	List<Dataset.Bitfield.State> previousLevelStates;
 	long          previousMinSampleNumber;
 	long          previousMaxSampleNumber;
 	float         previousPlotMinY;
@@ -34,18 +36,15 @@ public class PlotSampleCount extends Plot {
 	 * @param endTimestamp      Ignored. This is only used by PlotMilliseconds.
 	 * @param endSampleNumber   Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
 	 * @param zoomLevel         Current zoom level. 1.0 = no zoom.
-	 * @param datasets          Datasets to acquire from.
-	 * @param bitfieldEdges     Bitfield states to show edge events from.
-	 * @param bitfieldLevels    Bitfield states to show levels from.
+	 * @param datasets          Normal/edge/level datasets to acquire from.
+	 * @param timestampCache    Place to cache timestamps.
 	 * @param duration          The sample count, before applying the zoom factor.
 	 * @param cachedMode        True to enable the cache.
 	 * @param showTimestamps    Ignored. This is only used by PlotMilliseconds.
 	 */
-	@Override void initialize(long endTimestamp, long endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override void initialize(long endTimestamp, long endSampleNumber, double zoomLevel, DatasetsInterface datasets, StorageTimestamps.Cache timestampsCache, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
-		this.bitfieldEdges = bitfieldEdges;
-		this.bitfieldLevels = bitfieldLevels;
 		this.cachedMode = cachedMode;
 		xAxisTitle = "Sample Number";
 		
@@ -60,10 +59,7 @@ public class PlotSampleCount extends Plot {
 		plotDomain--;
 		
 		// exit if there are no samples to display
-		long trueLastSampleNumber = !datasets.isEmpty()       ? datasets.get(0).connection.getSampleCount()       - 1 :
-		                            !bitfieldEdges.isEmpty()  ? bitfieldEdges.get(0).connection.getSampleCount()  - 1 :
-		                            !bitfieldLevels.isEmpty() ? bitfieldLevels.get(0).connection.getSampleCount() - 1 :
-		                                                                                                          - 1;
+		long trueLastSampleNumber = datasets.hasAnyType() ? datasets.connection.getSampleCount() - 1 : -1;
 		if(trueLastSampleNumber < 0 || endSampleNumber < 0) {
 			maxSampleNumber = -1;
 			minSampleNumber = -1;
@@ -94,30 +90,10 @@ public class PlotSampleCount extends Plot {
 			return;
 		}
 		
-		// calculate the range
-		// if no samples, use (-1,1)
-		// if all samples are the same value, use (value +/- 0.001)
-		samplesMinY = Float.MAX_VALUE;
-		samplesMaxY = -Float.MAX_VALUE;
-
-		for(Dataset dataset : datasets) {
-			if(!dataset.isBitfield) {
-				StorageFloats.MinMax range = dataset.getRange((int) minSampleNumber, (int) maxSampleNumber);
-				if(range.min < samplesMinY)
-					samplesMinY = range.min;
-				if(range.max > samplesMaxY)
-					samplesMaxY = range.max;
-			}
-		}
-		
-		if(samplesMinY == Float.MAX_VALUE && samplesMaxY == -Float.MAX_VALUE) {
-			samplesMinY = -1;
-			samplesMaxY = 1;
-		} else if(samplesMinY == samplesMaxY) {
-			float value = samplesMinY;
-			samplesMinY = value - 0.001f;
-			samplesMaxY = value + 0.001f;
-		}
+		// get the range
+		float[] range = datasets.getRange((int) minSampleNumber, (int) maxSampleNumber);
+		samplesMinY = range[0];
+		samplesMaxY = range[1];
 		
 	}
 	
@@ -155,12 +131,14 @@ public class PlotSampleCount extends Plot {
 	 */
 	@Override void acquireSamplesNonCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents(true, false, bitfieldEdges, bitfieldLevels, (int) minSampleNumber, (int) maxSampleNumber);
+		events = new BitfieldEvents(true, false, datasets, (int) minSampleNumber, (int) maxSampleNumber);
 		
-		buffersY = new FloatBuffer[datasets.size()];
-		for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
-			if(!datasets.get(datasetN).isBitfield)
-				buffersY[datasetN] = datasets.get(datasetN).getBuffer((int) minSampleNumber, (int) maxSampleNumber);
+		buffersY = new FloatBuffer[datasets.normalsCount()];
+		for(int datasetN = 0; datasetN < datasets.normalsCount(); datasetN++) {
+			Dataset dataset = datasets.getNormal(datasetN);
+			if(!dataset.isBitfield)
+				buffersY[datasetN] = datasets.getSamplesBuffer(dataset, (int) minSampleNumber, (int) maxSampleNumber);
+		}
 		
 	}
 	
@@ -174,10 +152,12 @@ public class PlotSampleCount extends Plot {
 	 */
 	@Override void acquireSamplesCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents(true, false, bitfieldEdges, bitfieldLevels, (int) minSampleNumber, (int) maxSampleNumber);
+		events = new BitfieldEvents(true, false, datasets, (int) minSampleNumber, (int) maxSampleNumber);
 		
 		// check if the cache must be flushed
-		cacheIsValid = (datasets == previousDatasets) &&
+		cacheIsValid = datasets.normalDatasets.equals(previousNormalDatasets) &&
+		               datasets.edgeStates.equals(previousEdgeStates) &&
+		               datasets.levelStates.equals(previousLevelStates) &&
 		               (plotMinY == previousPlotMinY) &&
 		               (plotMaxY == previousPlotMaxY) &&
 		               (plotWidth == previousPlotWidth) &&
@@ -229,6 +209,9 @@ public class PlotSampleCount extends Plot {
 			
 		} else {
 			
+			// to prevent a possible cache flush BETWEEN draw1 and draw2, first ask for the full range so the cache will be flushed if necessary BEFORE we prepare for draw1 and draw2
+			draw1.enableAndAcquire(datasets, firstSampleNumber, lastSampleNumber, plotWidth, plotHeight);
+			
 			// 2 draw calls required because we need to wrap around the ring buffer
 			draw1.enableAndAcquire(datasets, firstSampleNumber, splittingSampleNumber, plotWidth, plotHeight);
 			draw2.enableAndAcquire(datasets, splittingSampleNumber, lastSampleNumber, plotWidth, plotHeight);
@@ -236,7 +219,9 @@ public class PlotSampleCount extends Plot {
 		}
 		
 		// save current state
-		previousDatasets = datasets;
+		previousNormalDatasets = datasets.normalDatasets;
+		previousEdgeStates = datasets.edgeStates;
+		previousLevelStates = datasets.levelStates;
 		previousPlotMinY = plotMinY;
 		previousPlotMaxY = plotMaxY;
 		previousPlotWidth = plotWidth;
@@ -320,10 +305,10 @@ public class PlotSampleCount extends Plot {
 		OpenGL.useMatrix(gl, plotMatrix);
 		
 		// draw each dataset
-		if(!datasets.isEmpty() && plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.size(); i++) {
+		if(plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.normalsCount(); i++) {
 				
-				Dataset dataset = datasets.get(i);
+				Dataset dataset = datasets.getNormal(i);
 				if(dataset.isBitfield)
 					continue;
 
@@ -429,10 +414,10 @@ public class PlotSampleCount extends Plot {
 		OpenGL.useMatrix(gl, offscreenMatrix);
 		
 		// draw each dataset
-		if(!datasets.isEmpty() && plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.size(); i++) {
+		if(plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.normalsCount(); i++) {
 				
-				Dataset dataset = datasets.get(i);
+				Dataset dataset = datasets.getNormal(i);
 				if(dataset.isBitfield)
 					continue;
 				
@@ -564,13 +549,13 @@ public class PlotSampleCount extends Plot {
 		/**
 		 * Acquires samples and related data so it can be drawn later.
 		 * 
-		 * @param datasets             Datasets to acquire from.
+		 * @param datasets             Datasets and corresponding caches to acquire from.
 		 * @param firstSampleNumber    First sample number (inclusive.)
 		 * @param lastSampleNumber     Last sample number (inclusive.)
 		 * @param plotWidth            Width of the plot region, in pixels.
 		 * @param plotHeight           Height of the plot region, in pixels.
 		 */
-		void enableAndAcquire(List<Dataset> datasets, long firstSampleNumber, long lastSampleNumber, int plotWidth, int plotHeight) {
+		void enableAndAcquire(DatasetsInterface datasets, long firstSampleNumber, long lastSampleNumber, int plotWidth, int plotHeight) {
 			
 			enabled = true;
 			xOffset = (int) (firstSampleNumber % plotDomain);
@@ -591,10 +576,12 @@ public class PlotSampleCount extends Plot {
 			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
 			
 			// acquire the samples
-			buffersY = new FloatBuffer[datasets.size()];
-			for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
-				if(!datasets.get(datasetN).isBitfield)
-					buffersY[datasetN] = datasets.get(datasetN).getBuffer((int) firstSampleNumber, (int) lastSampleNumber);
+			buffersY = new FloatBuffer[datasets.normalsCount()];
+			for(int datasetN = 0; datasetN < datasets.normalsCount(); datasetN++) {
+				Dataset dataset = datasets.getNormal(datasetN);
+				if(!dataset.isBitfield)
+					buffersY[datasetN] = datasets.getSamplesBuffer(dataset, (int) firstSampleNumber, (int) lastSampleNumber);
+			}
 			
 		}
 		

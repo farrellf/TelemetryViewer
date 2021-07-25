@@ -16,13 +16,15 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
 public class Main {
 
-	static String versionString = "Telemetry Viewer v0.7 (2020-07-17)";
+	static final String versionString = "Telemetry Viewer v0.7";
+	static final String versionDate   = "2020-07-17";
 	
 	@SuppressWarnings("serial")
 	static JFrame window = new JFrame(versionString) {
@@ -106,21 +108,46 @@ public class Main {
 					for(int i = 0; i < files.size(); i++)
 						filepaths[i] = files.get(i).getAbsolutePath();
 					ConnectionsController.importFiles(filepaths);
-				} catch(Exception e) {}
+				} catch(Exception e) {
+					NotificationsController.showFailureUntil("Error while processing files: " + e.getMessage(), () -> false, true);
+					e.printStackTrace();
+				}
 			}
 		});
 		
-		// remove the caches on exit
+		// handle window close events
 		window.addWindowListener(new WindowAdapter() {
 			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-				for(Connection connection : ConnectionsController.allConnections)
-					connection.dispose();
+				
+				// cancel importing
+				if(ConnectionsController.importing) {
+					if(ConnectionsController.realtimeImporting)
+						ConnectionsController.allConnections.forEach(connection -> connection.finishImporting()); // exit real-time
+					ConnectionsController.allConnections.forEach(connection -> connection.finishImporting()); // abort
+				}
+				
+				// cancel exporting if the user confirms it
+				if(ConnectionsController.exporting) {
+					int result = JOptionPane.showConfirmDialog(window, "Exporting in progress. Exit anyway?", "Confirm", JOptionPane.YES_NO_OPTION);
+					if(result == JOptionPane.YES_OPTION)
+						ConnectionsController.cancelExporting();
+					else
+						return; // don't close
+				}
+				
+				// close connections and remove their cache files
+				ConnectionsController.allConnections.forEach(connection -> connection.dispose());
 				try { Files.deleteIfExists(cacheDir); } catch(Exception e) { }
+				
+				// die
+				window.dispose();
+				System.exit(0);
+				
 			}
 		});
 		
 		// show the window
-		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // so the windowClosing listener can cancel the close
 		window.setVisible(true);
 		
 	}

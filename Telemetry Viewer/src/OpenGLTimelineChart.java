@@ -86,28 +86,28 @@ public class OpenGLTimelineChart extends PositionedChart {
 		super(x1, y1, x2, y2);
 		
 		datasetsWidget = new WidgetDatasets(null,
-		                                    newBitfieldEdges  -> bitfieldEdges = newBitfieldEdges,
-		                                    newBitfieldLevels -> bitfieldLevels = newBitfieldLevels,
+		                                    newBitfieldEdges  -> datasets.setEdges(newBitfieldEdges),
+		                                    newBitfieldLevels -> datasets.setLevels(newBitfieldLevels),
 		                                    null,
 		                                    false,
 		                                    null);
 		
 		showControlsWidget = new WidgetCheckbox("Show Controls", true, isSelected -> {
-		                                                                                 showControls = isSelected;
-		                                                                                 if(!showControls) {
-		                                                                                	 paused = !OpenGLChartsView.instance.isLiveView();
-		                                                                                	 playing = false;
-		                                                                                	 rewinding = false;
-		                                                                                 }
-		                                                                             });
+		                                                                   showControls = isSelected;
+		                                                                   if(!showControls) {
+		                                                                       paused = !OpenGLChartsView.instance.isLiveView();
+		                                                                       playing = false;
+		                                                                       rewinding = false;
+		                                                                   }
+		                                                               });
 		
 		showTimeWidget = new WidgetCheckbox("Show Time", true, isSelected -> showTime = isSelected);
 		
 		showTimelineWidget = new WidgetCheckbox("Show Timeline", true, isSelected -> {
-		                                                                                 showTimeline = isSelected;
-		                                                                                 for(Component widget : datasetsWidget.widgets.keySet())
-		                                                                                     widget.setVisible(showTimeline);
-		                                                                             });
+		                                                                   showTimeline = isSelected;
+		                                                                   for(Component widget : datasetsWidget.widgets.keySet())
+		                                                                       widget.setVisible(showTimeline);
+		                                                               });
 		
 		widgets = new Widget[4];
 		widgets[0] = showControlsWidget;
@@ -400,13 +400,12 @@ public class OpenGLTimelineChart extends PositionedChart {
 			OpenGL.drawBox(gl, Theme.tickLinesColor, x - markerWidth/2, y+markerWidth, markerWidth, markerWidth);
 			
 			// draw any bitfield events
-			if(haveTelemetry && (!bitfieldEdges.isEmpty() || !bitfieldLevels.isEmpty())) {
+			if(haveTelemetry && (datasets.hasEdges() || datasets.hasLevels())) {
 				int[] originalScissorArgs = new int[4];
 				gl.glGetIntegerv(GL3.GL_SCISSOR_BOX, originalScissorArgs, 0);
 				gl.glScissor(originalScissorArgs[0] + (int) xTimelineLeft, originalScissorArgs[1] + (int) (y + 2*markerWidth), (int) timelineWidth, (int) (height - yTimelineBottom));
-				int trueLastSampleNumber = bitfieldEdges.isEmpty() ? bitfieldLevels.get(0).connection.getSampleCount() - 1 :
-				                                                     bitfieldEdges.get(0).connection.getSampleCount() - 1;
-				BitfieldEvents events = new BitfieldEvents(false, false, bitfieldEdges, bitfieldLevels, 0, trueLastSampleNumber);
+				int trueLastSampleNumber = datasets.connection.getSampleCount() - 1;
+				BitfieldEvents events = new BitfieldEvents(false, false, datasets, 0, trueLastSampleNumber);
 				long min = minTimestamp;
 				long max = maxTimestamp;
 				List<BitfieldEvents.EdgeMarker>  edgeMarkers  = events.getEdgeMarkers ((connection, sampleNumber) -> (float) (connection.datasets.getTimestamp(sampleNumber) - min) / (float) (max - min) * timelineWidth);

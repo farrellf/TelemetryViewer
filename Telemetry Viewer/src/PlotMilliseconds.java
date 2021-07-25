@@ -24,7 +24,9 @@ public class PlotMilliseconds extends Plot {
 	int[]     fbHandle;
 	int[]     texHandle;
 	boolean   cacheIsValid;
-	List<Dataset> previousDatasets;
+	List<Dataset> previousNormalDatasets;
+	List<Dataset.Bitfield.State> previousEdgeStates;
+	List<Dataset.Bitfield.State> previousLevelStates;
 	long          previousPlotMinX;
 	long          previousPlotMaxX;
 	float         previousPlotMinY;
@@ -36,24 +38,24 @@ public class PlotMilliseconds extends Plot {
 	long          previousMinSampleNumber;
 	long          previousMaxSampleNumber;
 	
+	StorageTimestamps.Cache timestampsCache;
+	
 	/**
 	 * Step 1: (Required) Calculate the domain and range of the plot.
 	 * 
-	 * @param endTimestamp        Timestamp corresponding with the right edge of a time-domain plot. NOTE: this might be in the future!
-	 * @param endSampleNumber     Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
-	 * @param zoomLevel           Current zoom level. 1.0 = no zoom.
-	 * @param datasets            Datasets to acquire from.
-	 * @param bitfieldEdges       Bitfield states to show edge events from.
-	 * @param bitfieldLevels      Bitfield states to show levels from.
-	 * @param duration            The number of milliseconds to acquire, before applying the zoom factor.
-	 * @param cachedMode          True to enable the cache.
-	 * @param showTimestamps      True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
+	 * @param endTimestamp      Timestamp corresponding with the right edge of a time-domain plot. NOTE: this might be in the future!
+	 * @param endSampleNumber   Sample number corresponding with the right edge of a time-domain plot. NOTE: this sample might not exist yet!
+	 * @param zoomLevel         Current zoom level. 1.0 = no zoom.
+	 * @param datasets          Normal/edge/level datasets to acquire from.
+	 * @param timestampCache    Place to cache timestamps.
+	 * @param duration          The number of milliseconds to acquire, before applying the zoom factor.
+	 * @param cachedMode        True to enable the cache.
+	 * @param showTimestamps    True if the x-axis shows timestamps, false if the x-axis shows elapsed time.
 	 */
-	@Override public void initialize(long endTimestamp, long endSampleNumber, double zoomLevel, List<Dataset> datasets, List<Dataset.Bitfield.State> bitfieldEdges, List<Dataset.Bitfield.State> bitfieldLevels, long duration, boolean cachedMode, boolean showTimestamps) {
+	@Override public void initialize(long endTimestamp, long endSampleNumber, double zoomLevel, DatasetsInterface datasets, StorageTimestamps.Cache timestampsCache, long duration, boolean cachedMode, boolean showTimestamps) {
 		
 		this.datasets = datasets;
-		this.bitfieldEdges = bitfieldEdges;
-		this.bitfieldLevels = bitfieldLevels;
+		this.timestampsCache = timestampsCache;
 		this.cachedMode = cachedMode;
 		xAxisMode = showTimestamps ? Mode.SHOWS_TIMESTAMPS : Mode.SHOWS_SECONDS;
 		xAxisTitle = showTimestamps ? "Time" : "Time Elapsed (Seconds)";
@@ -68,10 +70,7 @@ public class PlotMilliseconds extends Plot {
 		}
 
 		// determine which samples to acquire
-		datasetsController = !datasets.isEmpty()       ? datasets.get(0).controller :
-		                     !bitfieldEdges.isEmpty()  ? bitfieldEdges.get(0).dataset.controller :
-		                     !bitfieldLevels.isEmpty() ? bitfieldLevels.get(0).dataset.controller :
-		                                                 null;
+		datasetsController = datasets.hasAnyType() ? datasets.connection.datasets : null;
 		int sampleCount = datasetsController == null ? 0 : datasetsController.getSampleCount();
 		if(sampleCount > 0) {
 			maxSampleNumber = datasetsController.getClosestSampleNumberAfter(plotMaxX);
@@ -91,28 +90,10 @@ public class PlotMilliseconds extends Plot {
 			return;
 		}
 		
-		// calculate the range
-		samplesMinY = Float.MAX_VALUE;
-		samplesMaxY = -Float.MAX_VALUE;
-
-		for(Dataset dataset : datasets) {
-			if(!dataset.isBitfield) {
-				StorageFloats.MinMax range = dataset.getRange((int) minSampleNumber, (int) maxSampleNumber);
-				if(range.min < samplesMinY)
-					samplesMinY = range.min;
-				if(range.max > samplesMaxY)
-					samplesMaxY = range.max;
-			}
-		}
-		
-		if(samplesMinY == Float.MAX_VALUE && samplesMaxY == -Float.MAX_VALUE) {
-			samplesMinY = -1;
-			samplesMaxY = 1;
-		} else if(samplesMinY == samplesMaxY) {
-			float value = samplesMinY;
-			samplesMinY = value - 0.001f;
-			samplesMaxY = value + 0.001f;
-		}
+		// get the range
+		float[] range = datasets.getRange((int) minSampleNumber, (int) maxSampleNumber);
+		samplesMinY = range[0];
+		samplesMaxY = range[1];
 		
 		// determine the x-axis title if showing time elapsed
 		if(!showTimestamps) {
@@ -285,14 +266,16 @@ public class PlotMilliseconds extends Plot {
 	 */
 	@Override public void acquireSamplesNonCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, (int) minSampleNumber, (int) maxSampleNumber);
+		events = new BitfieldEvents(true, true, datasets, (int) minSampleNumber, (int) maxSampleNumber);
 			
-		bufferX = datasetsController.getTimestampsBuffer((int) minSampleNumber, (int) maxSampleNumber, plotMinX);
+		bufferX = datasetsController.getTimestampsBuffer((int) minSampleNumber, (int) maxSampleNumber, timestampsCache, plotMinX);
 		
-		buffersY = new FloatBuffer[datasets.size()];
-		for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
-			if(!datasets.get(datasetN).isBitfield)
-				buffersY[datasetN] = datasets.get(datasetN).getBuffer((int) minSampleNumber, (int) maxSampleNumber);
+		buffersY = new FloatBuffer[datasets.normalsCount()];
+		for(int datasetN = 0; datasetN < datasets.normalsCount(); datasetN++) {
+			Dataset dataset = datasets.getNormal(datasetN);
+			if(!dataset.isBitfield)
+				buffersY[datasetN] = datasets.getSamplesBuffer(dataset, (int) minSampleNumber, (int) maxSampleNumber);
+		}
 		
 	}
 	
@@ -306,10 +289,12 @@ public class PlotMilliseconds extends Plot {
 	 */
 	@Override void acquireSamplesCachedMode(float plotMinY, float plotMaxY, int plotWidth, int plotHeight) {
 		
-		events = new BitfieldEvents(true, true, bitfieldEdges, bitfieldLevels, (int) minSampleNumber, (int) maxSampleNumber);
+		events = new BitfieldEvents(true, true, datasets, (int) minSampleNumber, (int) maxSampleNumber);
 		
 		// check if the cache must be flushed
-		cacheIsValid = (datasets == previousDatasets) &&
+		cacheIsValid = datasets.normalDatasets.equals(previousNormalDatasets) &&
+		               datasets.edgeStates.equals(previousEdgeStates) &&
+		               datasets.levelStates.equals(previousLevelStates) &&
 		               (plotMinY == previousPlotMinY) &&
 		               (plotMaxY == previousPlotMaxY) &&
 		               (plotWidth == previousPlotWidth) &&
@@ -364,11 +349,16 @@ public class PlotMilliseconds extends Plot {
 			
 		} else {
 			
+			// to prevent a possible cache flush BETWEEN draw1 and draw2, first ask for the full range so the cache will be flushed if necessary BEFORE we prepare for draw1 and draw2
+			long leftTimestamp  = Long.max(plotMinX, datasetsController.getTimestamp((int) firstSampleNumber));
+			long rightTimestamp = Long.min(plotMaxX, datasetsController.getTimestamp((int) lastSampleNumber));
+			draw1.enableAndAcquire(datasets, firstSampleNumber, lastSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
+			
 			// 2 draw calls required because we need to wrap around the ring buffer
 			long splittingSampleNumber = datasetsController.getClosestSampleNumberAfter(splittingTimestamp);
 			
-			long leftTimestamp  = Long.max(plotMinX,           datasetsController.getTimestamp((int) firstSampleNumber));
-			long rightTimestamp = Long.min(splittingTimestamp, datasetsController.getTimestamp((int) splittingSampleNumber));
+			leftTimestamp  = Long.max(plotMinX,           datasetsController.getTimestamp((int) firstSampleNumber));
+			rightTimestamp = Long.min(splittingTimestamp, datasetsController.getTimestamp((int) splittingSampleNumber));
 			draw1.enableAndAcquire(datasets, firstSampleNumber, splittingSampleNumber, leftTimestamp, rightTimestamp, plotWidth, plotHeight);
 			leftTimestamp  = Long.max(splittingTimestamp, datasetsController.getTimestamp((int) splittingSampleNumber - 1));
 			rightTimestamp = Long.min(plotMaxX,           datasetsController.getTimestamp((int) lastSampleNumber));
@@ -377,7 +367,9 @@ public class PlotMilliseconds extends Plot {
 		}
 		
 		// save current state
-		previousDatasets = datasets;
+		previousNormalDatasets = datasets.normalDatasets;
+		previousEdgeStates = datasets.edgeStates;
+		previousLevelStates = datasets.levelStates;
 		previousPlotMinX = plotMinX;
 		previousPlotMaxX = plotMaxX;
 		previousPlotMinY = plotMinY;
@@ -447,7 +439,7 @@ public class PlotMilliseconds extends Plot {
 					return extraSamplesNeeded;
 				sampleN--;
 			} else {
-				FloatBuffer buffer = datasetsController.getTimestampsBuffer((int) (sampleN - bufferSizeMinusOne), (int) sampleN, requiredTimestamp);
+				FloatBuffer buffer = datasetsController.getTimestampsBuffer((int) (sampleN - bufferSizeMinusOne), (int) sampleN, timestampsCache, requiredTimestamp);
 				for(int i = bufferSizeMinusOne; i >= 0; i--) {
 					extraSamplesNeeded++;
 					if(buffer.get(i) < 0)
@@ -485,7 +477,7 @@ public class PlotMilliseconds extends Plot {
 					return extraSamplesNeeded;
 				sampleN++;
 			} else {
-				FloatBuffer buffer = datasetsController.getTimestampsBuffer((int) sampleN, (int) (sampleN + bufferSizeMinusOne), requiredTimestamp);
+				FloatBuffer buffer = datasetsController.getTimestampsBuffer((int) sampleN, (int) (sampleN + bufferSizeMinusOne), timestampsCache, requiredTimestamp);
 				for(int i = 0; i <= bufferSizeMinusOne; i++) {
 					extraSamplesNeeded++;
 					if(buffer.get(i) > 0)
@@ -530,10 +522,10 @@ public class PlotMilliseconds extends Plot {
 		OpenGL.useMatrix(gl, plotMatrix);
 		
 		// draw each dataset
-		if(!datasets.isEmpty() && plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.size(); i++) {
+		if(plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.normalsCount(); i++) {
 				
-				Dataset dataset = datasets.get(i);
+				Dataset dataset = datasets.getNormal(i);
 				if(dataset.isBitfield)
 					continue;
 				
@@ -643,10 +635,10 @@ public class PlotMilliseconds extends Plot {
 		OpenGL.useMatrix(gl, offscreenMatrix);
 		
 		// draw each dataset
-		if(!datasets.isEmpty() && plotSampleCount >= 2) {
-			for(int i = 0; i < datasets.size(); i++) {
+		if(plotSampleCount >= 2) {
+			for(int i = 0; i < datasets.normalsCount(); i++) {
 				
-				Dataset dataset = datasets.get(i);
+				Dataset dataset = datasets.getNormal(i);
 				if(dataset.isBitfield)
 					continue;
 				
@@ -810,7 +802,7 @@ public class PlotMilliseconds extends Plot {
 		/**
 		 * Acquires samples and related data so it can be drawn later.
 		 * 
-		 * @param datasets             Datasets to acquire from.
+		 * @param datasets             Datasets and corresponding caches to acquire from.
 		 * @param firstSampleNumber    First sample number (inclusive.)
 		 * @param lastSampleNumber     Last sample number (inclusive.)
 		 * @param leftTimestamp        Timestamp corresponding with the left edge of the plot.
@@ -818,7 +810,7 @@ public class PlotMilliseconds extends Plot {
 		 * @param plotWidth            Width of the plot region, in pixels.
 		 * @param plotHeight           Height of the plot region, in pixels.
 		 */
-		void enableAndAcquire(List<Dataset> datasets, long firstSampleNumber, long lastSampleNumber, long leftTimestamp, long rightTimestamp, int plotWidth, int plotHeight) {
+		void enableAndAcquire(DatasetsInterface datasets, long firstSampleNumber, long lastSampleNumber, long leftTimestamp, long rightTimestamp, int plotWidth, int plotHeight) {
 			
 			enabled = true;
 			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
@@ -838,11 +830,13 @@ public class PlotMilliseconds extends Plot {
 			sampleCount = (int) (lastSampleNumber - firstSampleNumber + 1);
 			
 			// acquire the samples
-			bufferX = datasetsController.getTimestampsBuffer((int) firstSampleNumber, (int) lastSampleNumber, xOffset);
-			buffersY = new FloatBuffer[datasets.size()];
-			for(int datasetN = 0; datasetN < datasets.size(); datasetN++)
-				if(!datasets.get(datasetN).isBitfield)
-					buffersY[datasetN] = datasets.get(datasetN).getBuffer((int) firstSampleNumber, (int) lastSampleNumber);
+			bufferX = datasetsController.getTimestampsBuffer((int) firstSampleNumber, (int) lastSampleNumber, timestampsCache, xOffset);
+			buffersY = new FloatBuffer[datasets.normalsCount()];
+			for(int datasetN = 0; datasetN < datasets.normalsCount(); datasetN++) {
+				Dataset dataset = datasets.getNormal(datasetN);
+				if(!dataset.isBitfield)
+					buffersY[datasetN] = datasets.getSamplesBuffer(dataset, (int) firstSampleNumber, (int) lastSampleNumber);
+			}
 			
 		}
 		

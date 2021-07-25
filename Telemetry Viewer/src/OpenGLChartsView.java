@@ -211,6 +211,10 @@ public class OpenGLChartsView extends JPanel {
 					for(int i = 1; i < number[0]; i++)                             text.append(", " + gl.glGetStringi(GL3.GL_EXTENSIONS, i));
 					NotificationsController.showDebugMessage("OpenGL Information:\n" + text.toString());
 					
+					// also reset the creation time of any existing notifications, so they properly animate into existence
+					long now = System.currentTimeMillis();
+					NotificationsController.getNotifications().forEach(notification -> notification.creationTimestamp = now);
+					
 				}
 				
 			}
@@ -469,10 +473,8 @@ public class OpenGLChartsView extends JPanel {
 						
 						int lastSampleNumber = -1;
 						synchronized(instance) {
-							lastSampleNumber = !chart.datasets.isEmpty() ?       endSampleNumbers.get(chart.datasets.get(0).connection) :
-							                   !chart.bitfieldEdges.isEmpty() ?  endSampleNumbers.get(chart.bitfieldEdges.get(0).connection) :
-							                   !chart.bitfieldLevels.isEmpty() ? endSampleNumbers.get(chart.bitfieldLevels.get(0).connection) :
-							                                                     -1;
+							if(chart.datasets.connection != null)
+								lastSampleNumber = endSampleNumbers.get(chart.datasets.connection);
 						}
 						
 						// if there is a maximized chart, only draw that chart
@@ -481,11 +483,13 @@ public class OpenGLChartsView extends JPanel {
 							for(Widget widget : chart.widgets)
 								if(widget instanceof WidgetTrigger) {
 									WidgetTrigger trigger = (WidgetTrigger) widget;
-									if(chart.sampleCountMode)
-										trigger.checkForTriggerSampleCountMode(lastSampleNumber, zoomLevel, false);
-									else
-										trigger.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel, false);
-									
+									OpenGLTimeDomainChart c = (OpenGLTimeDomainChart) chart;
+									if(c.triggerEnabled && c.datasets.hasNormals()) {
+										if(chart.sampleCountMode)
+											trigger.checkForTriggerSampleCountMode(lastSampleNumber, zoomLevel, false);
+										else
+											trigger.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel, false);
+									}
 								}
 							continue;
 						}
@@ -659,10 +663,6 @@ public class OpenGLChartsView extends JPanel {
 					}
 					NotificationsController.showDebugMessage(message);
 				}
-				
-				// move old samples and timestamps to disk
-				for(ConnectionTelemetry connection : ConnectionsController.telemetryConnections)
-					connection.datasets.flushOldValues();
 				
 			}
 			
@@ -856,29 +856,21 @@ public class OpenGLChartsView extends JPanel {
 					
 					// should we scroll by sample count?
 					PositionedChart chart = null;
-					if(chartUnderMouse != null && chartUnderMouse.duration > 1 && (!chartUnderMouse.datasets.isEmpty() || !chartUnderMouse.bitfieldEdges.isEmpty() || !chartUnderMouse.bitfieldLevels.isEmpty())) {
+					if(chartUnderMouse != null && chartUnderMouse.duration > 1 && chartUnderMouse.datasets.hasAnyType()) {
 						chart = chartUnderMouse;
 					} else if(activeConnections == 1) {
 						for(PositionedChart c : ChartsController.getCharts())
-							if(c.duration > 1 && (!c.datasets.isEmpty() || !c.bitfieldEdges.isEmpty() || !c.bitfieldLevels.isEmpty()))
+							if(c.duration > 1 && c.datasets.hasAnyType())
 								if(chart == null || chart.duration < c.duration)
 									chart = c;
 					}
-					if(chart != null) {
-						if(!chart.datasets.isEmpty() && chart.datasets.get(0).connection.getSampleCount() < 1)
-							chart = null;
-						else if(!chart.bitfieldEdges.isEmpty() && chart.bitfieldEdges.get(0).connection.getSampleCount() < 1)
-							chart = null;
-						else if(!chart.bitfieldLevels.isEmpty() && chart.bitfieldLevels.get(0).connection.getSampleCount() < 1)
-							chart = null;
-					}
+					if(chart != null && chart.datasets.hasAnyType() && chart.datasets.connection.getSampleCount() < 1)
+						chart = null;
 					
 					if(chart != null && chart.sampleCountMode) {
 						
 						// logic for rewinding and fast-forwarding based on sample count: 10% of the domain per scroll wheel notch
-						ConnectionTelemetry connection = !chart.datasets.isEmpty()      ? chart.datasets.get(0).connection :
-						                                 !chart.bitfieldEdges.isEmpty() ? chart.bitfieldEdges.get(0).dataset.connection :
-						                                                                  chart.bitfieldLevels.get(0).dataset.connection;
+						ConnectionTelemetry connection = chart.datasets.connection;
 						
 						double samplesPerScroll = chart.duration * 0.10;
 						double delta = scrollAmount * samplesPerScroll * zoomLevel;
@@ -951,21 +943,27 @@ public class OpenGLChartsView extends JPanel {
 							delta = 1;
 						long deltaMilliseconds = (long) delta;
 						
-						long newTimestamp = liveView ? ConnectionsController.getLastTimestamp() + deltaMilliseconds :
+						long firstTimestamp = ConnectionsController.getFirstTimestamp();
+						long lastTimestamp = ConnectionsController.getLastTimestamp();
+						long newTimestamp = liveView ? lastTimestamp + deltaMilliseconds :
 						                               pausedTimestamp + deltaMilliseconds;
 						
-						// if the only connection is to a camera, snap to the closest camera frame
-						if(ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.cameraConnections.size() == 1 && newTimestamp < ConnectionsController.getLastTimestamp()) {
-							ConnectionCamera camera = ConnectionsController.cameraConnections.get(0);
-							newTimestamp = camera.getImageAtOrBeforeTimestamp(newTimestamp).timestamp;
-						}
-						
-						long firstTimestamp = ConnectionsController.getFirstTimestamp();
 						if(newTimestamp < firstTimestamp)
 							newTimestamp = firstTimestamp;
+						else if(newTimestamp > lastTimestamp)
+							newTimestamp = lastTimestamp;
+						
+						// if the only connection is to a camera, snap to the closest camera frame
+						if(ConnectionsController.telemetryConnections.isEmpty() && ConnectionsController.cameraConnections.size() == 1) {
+							ConnectionCamera camera = ConnectionsController.cameraConnections.get(0);
+							if(scrollAmount < 0)
+								newTimestamp = camera.getClosestTimestampAtOrBefore(newTimestamp);
+							else
+								newTimestamp = camera.getClosestTimestampAtOrAfter(newTimestamp);
+						}
 						
 						setPausedView(newTimestamp, null, 0, true);
-						if(newTimestamp == ConnectionsController.getLastTimestamp() && scrollAmount > 0)
+						if(newTimestamp == lastTimestamp && scrollAmount > 0)
 							setLiveView();
 						
 					}

@@ -150,7 +150,7 @@ public class CommunicationView extends JPanel {
 		helpButton.addActionListener(event -> {
 			
 			JFrame parentWindow = (JFrame) SwingUtilities.windowForComponent(CommunicationView.instance);
-			String helpText = "<html><b>" + Main.versionString + "</b><br>" +
+			String helpText = "<html><b>" + Main.versionString + " (" + Main.versionDate + ")</b><br>" +
 			                  "A fast and easy tool for visualizing data received over a UART/TCP/UDP connection.<br><br>" +
 			                  "Step 1: Use the controls at the lower-right corner of the window to connect to a serial port or to start a TCP/UDP server.<br>" +
 			                  "Step 2: A \"Data Structure Definition\" screen will appear. Use it to specify how your data is laid out, then click \"Done.\"<br>" +
@@ -218,22 +218,31 @@ public class CommunicationView extends JPanel {
 			for(int i = 0; i < ConnectionsController.allConnections.size(); i++)
 				add(ConnectionsController.allConnections.get(i).getGui(), "align right, cell 5 " + i);
 			
-			if(!ConnectionsController.importing) {
-				connectionButton.setVisible(true);
+			boolean importing = ConnectionsController.importing;
+			boolean exporting = ConnectionsController.exporting;
+			if(!importing && !exporting) {
+				// allow the user to add another connection if not currently importing/exporting
 				connectionButton.setText("New Connection");
 				for(ActionListener listener : connectionButton.getActionListeners())
 					connectionButton.removeActionListener(listener);
 				connectionButton.addActionListener(event -> ConnectionsController.addConnection(new ConnectionTelemetry()));
-			} else if(ConnectionsController.importing && ConnectionsController.allConnections.size() < 2) {
-				connectionButton.setVisible(false);
-			} else if(ConnectionsController.importing && ConnectionsController.allConnections.size() > 1) {
-				connectionButton.setVisible(true);
-				connectionButton.setText(ConnectionsController.realtimeImporting ? "Finish Importing" : "Abort Importing");
+			} else if(importing) {
+				// allow the user to finish or cancel if currently importing
+				connectionButton.setText(ConnectionsController.realtimeImporting ? "Finish Importing" : "Cancel Importing");
 				for(ActionListener listener : connectionButton.getActionListeners())
 					connectionButton.removeActionListener(listener);
 				connectionButton.addActionListener(event -> {
 					for(Connection connection : ConnectionsController.allConnections)
-						connection.finishImportingFile();
+						connection.finishImporting();
+					CommunicationView.instance.redraw();
+				});
+			} else {
+				// allow the user to cancel if currently exporting
+				connectionButton.setText("Cancel Exporting");
+				for(ActionListener listener : connectionButton.getActionListeners())
+					connectionButton.removeActionListener(listener);
+				connectionButton.addActionListener(event -> {
+					ConnectionsController.cancelExporting();
 					CommunicationView.instance.redraw();
 				});
 			}

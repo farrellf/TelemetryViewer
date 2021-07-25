@@ -25,13 +25,6 @@ public class StorageFloats {
 	private final Path filePath;
 	private final FileChannel file;
 	
-	// a cache is used to speed up calls to getRange()
-	private final int CACHE_SIZE = 3 * SLOT_SIZE;
-	private ByteBuffer cacheBytes = Buffers.newDirectByteBuffer(CACHE_SIZE * BYTES_PER_VALUE);
-	private FloatBuffer cacheFloats = cacheBytes.asFloatBuffer();
-	private int startOfCache = 0;
-	private int cachedCount = 0;
-	
 	private ConnectionTelemetry connection;
 
 	/**
@@ -71,8 +64,11 @@ public class StorageFloats {
 		int valueN = sampleNumber % SLOT_SIZE;
 		int blockN = sampleNumber / BLOCK_SIZE;
 		
-		if(valueN == 0)
+		if(valueN == 0) {
 			slot[slotN] = new Slot();
+			if(slotN > 1)
+				slot[slotN - 2].flushToDisk(slotN - 2);
+		}
 		slot[slotN].value[valueN] = value;
 		
 		if(sampleNumber % BLOCK_SIZE == 0) {
@@ -97,8 +93,11 @@ public class StorageFloats {
 		
 		int slotN = sampleNumber / SLOT_SIZE;
 
-		if(slot[slotN] == null)
+		if(slot[slotN] == null) {
 			slot[slotN] = new Slot();
+			if(slotN > 1)
+				slot[slotN - 2].flushToDisk(slotN - 2);
+		}
 		
 		return slot[slotN].value;
 		
@@ -114,7 +113,7 @@ public class StorageFloats {
 	 */
 	public void setRangeOfBlock(int firstSampleNumber, float minValue, float maxValue) {
 
-		int blockN      = firstSampleNumber / BLOCK_SIZE;
+		int blockN = firstSampleNumber / BLOCK_SIZE;
 
 		minimumValueInBlock[blockN] = minValue;
 		maximumValueInBlock[blockN] = maxValue;
@@ -122,204 +121,57 @@ public class StorageFloats {
 	}
 	
 	/**
-	 * Reads one value.
-	 * This method is thread-safe.
+	 * @return    A place to cache samples.
+	 */
+	public Cache createCache() {
+		
+		return new Cache();
+		
+	}
+	
+	/**
+	 * Gets one sample, as a float.
 	 * 
 	 * @param sampleNumber    Which sample number to read. This MUST be a valid sample number.
+	 * @param cache           Place to cache samples.
 	 * @return                The corresponding value.
 	 */
-	public float getValue(int sampleNumber) {
+	public float getSample(int sampleNumber, Cache cache) {
 		
-		int slotN  = sampleNumber / SLOT_SIZE;
-		int valueN = sampleNumber % SLOT_SIZE;
-		
-		// read from memory if possible
-		if(!slot[slotN].flushing && slot[slotN].inRam)
-			return slot[slotN].value[valueN];
-		
-		// read from cache if possible
-		updateCacheIfAppropriate(sampleNumber, sampleNumber);
-		if(sampleNumber >= startOfCache && sampleNumber <= startOfCache + cachedCount - 1) {
-			return cacheFloats.get(sampleNumber - startOfCache);
-		}
-		
-		// read from disk
-		while(slot[slotN].flushing);
-		ByteBuffer buffer = Buffers.newDirectByteBuffer(BYTES_PER_VALUE);
-		long offset = (long) sampleNumber * (long) BYTES_PER_VALUE;
-		try {
-			file.read(buffer, offset);
-		} catch (IOException e) {
-			NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
-			e.printStackTrace();
-		}
-		return buffer.getFloat(0);
+		cache.update(sampleNumber, sampleNumber);
+		cache.cacheFloats.position(sampleNumber - cache.startOfCache);
+		return cache.cacheFloats.get();
 		
 	}
 	
 	/**
-	 * Reads a sequence of values.
-	 * This method is NOT reentrant! Only one thread may call this at a time.
+	 * Gets a sequence of samples, as a FloatBuffer.
 	 * 
-	 * @param firstSampleNumber    The first sample number, inclusive. This MUST be a valid sample number.
-	 * @param lastSampleNumber     The last sample number, inclusive. This MUST be a valid sample number.
-	 * @param calculateMinMix      If true, also calculate the minimum and maximum value in this range.
+	 * @param firstSampleNumber    First sample number to obtain, inclusive.
+	 * @param lastSampleNumber     Last sample number to obtain, inclusive.
+	 * @param cache                Place to cache samples.
+	 * @return                     The samples, as a FloatBuffer, positioned at the first sample number.
 	 */
-	public Values getValues(int firstSampleNumber, int lastSampleNumber, boolean calculateMinMix) {
-		
-		updateCacheIfAppropriate(firstSampleNumber, lastSampleNumber);
-		
-		// if the entire range is cached, provide it from the cache
-		if(firstSampleNumber >= startOfCache && lastSampleNumber <= startOfCache + cachedCount - 1) {
-			cacheFloats.position(firstSampleNumber - startOfCache);
-			if(calculateMinMix) {
-				MinMax mm = getRange(firstSampleNumber, lastSampleNumber);
-				return new Values(cacheFloats.slice(), mm.min, mm.max); // FIXME shouldn't need to slice if OpenGL.*() doesn't set positions!
-			} else {
-				return new Values(cacheFloats.slice(), 0, 0);
-			}
-		}
-		
-		// if the entire range is not cached, provide it from the file and/or memory
-		ByteBuffer buffer = Buffers.newDirectByteBuffer((lastSampleNumber - firstSampleNumber + 1) * BYTES_PER_VALUE);
-		FloatBuffer floats = buffer.asFloatBuffer();
-		int firstSlot = firstSampleNumber / SLOT_SIZE;
-		int lastSlot  = lastSampleNumber  / SLOT_SIZE;
-		int start = firstSampleNumber;
-		int end   = lastSampleNumber;
-		for(int slotN = firstSlot; slotN <= lastSlot; slotN++) {
-			int valueCount = Integer.min(end - start + 1, SLOT_SIZE - (start % SLOT_SIZE));
-			int byteCount  = valueCount * BYTES_PER_VALUE;
-			if(!slot[slotN].flushing && slot[slotN].inRam) {
-				// fill buffer from slot in memory
-				int offset = start % SLOT_SIZE;
-				floats.put(slot[slotN].value, offset, valueCount);
-				buffer.position(buffer.position() + byteCount);
-				start += valueCount;
-			} else {
-				// fill cache from slot on disk
-				while(slot[slotN].flushing);
-				long offset = (long) start * (long) BYTES_PER_VALUE;
-				try {
-					ByteBuffer temp = buffer.slice();
-					temp.limit(temp.position() + byteCount);
-					file.read(temp, offset);
-				} catch (IOException e) {
-					NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
-					e.printStackTrace();
-				}
-				floats.position(floats.position() + valueCount);
-				buffer.position(buffer.position() + byteCount);
-				start += valueCount;
-			}
-		}
-		floats.rewind();
-		if(calculateMinMix) {
-			MinMax mm = getRange(firstSampleNumber, lastSampleNumber);
-			return new Values(floats, mm.min, mm.max);
-		} else {
-			return new Values(floats, 0, 0);
-		}
+	public FloatBuffer getSamplesBuffer(int firstSampleNumber, int lastSampleNumber, Cache cache) {
+
+		cache.update(firstSampleNumber, lastSampleNumber);
+		cache.cacheFloats.position(firstSampleNumber - cache.startOfCache);
+		return cache.cacheFloats.slice(); // must slice, to prevent the position() from changing if getSample() or getSamplesBuffer() is called again before "using" this buffer
 		
 	}
 	
 	/**
-	 * Ensures the cache contains the requested range of samples IF it would be logical for the cache to contain those values.
+	 * Gets the minimum and maximum of a sequence of samples.
 	 * 
-	 * @param firstSampleNumber    The first sample number, inclusive. This MUST be a valid sample number.
-	 * @param lastSampleNumber     The last sample number, inclusive. This MUST be a valid sample number.
+	 * @param firstSampleNumber    First sample number to consider, inclusive.
+	 * @param lastSampleNumber     Last sample number to consider, inclusive.
+	 * @param cache                Place to cache samples.
+	 * @return                     A MinMax object, which has "min" and "max" fields.
 	 */
-	private void updateCacheIfAppropriate(int firstSampleNumber, int lastSampleNumber) {
+	public MinMax getRange(int firstSampleNumber, int lastSampleNumber, Cache cache) {
 		
-		// don't bother caching if the range is larger than one slot
-		if(lastSampleNumber - firstSampleNumber + 1 > SLOT_SIZE)
-			return;
-		
-		// flush cache if necessary
-		if(firstSampleNumber < startOfCache || lastSampleNumber >= startOfCache + CACHE_SIZE) {
-			startOfCache = (firstSampleNumber / SLOT_SIZE) * SLOT_SIZE - SLOT_SIZE; // at least one full slot "before" the requested range
-			if(startOfCache < 0)
-				startOfCache = 0;
-			cachedCount = 0;
-		}
-		
-		// new range starts before cached range
-		if(firstSampleNumber < startOfCache) {
-			int start = firstSampleNumber;
-			int end   = startOfCache - 1;
-			
-			int firstSlot = start / SLOT_SIZE;
-			int lastSlot  = end   / SLOT_SIZE;
-			for(int slotN = firstSlot; slotN <= lastSlot; slotN++) {
-				if(!slot[slotN].flushing && slot[slotN].inRam) {
-					// fill cache from slot in memory
-					int offset = start % SLOT_SIZE;
-					int length = Integer.min(end - start + 1, SLOT_SIZE - offset);
-					cacheFloats.position(start - startOfCache);
-					cacheFloats.put(slot[slotN].value, offset, length);
-					start += length;
-				} else {
-					// fill cache from slot on disk
-					while(slot[slotN].flushing);
-					long offset = (long) start * (long) BYTES_PER_VALUE;
-					int byteCount = Integer.min(end - start + 1, SLOT_SIZE - (start % SLOT_SIZE)) * BYTES_PER_VALUE;
-					cacheBytes.position((start - startOfCache) * BYTES_PER_VALUE);
-					ByteBuffer buffer = cacheBytes.slice();
-					buffer.limit(byteCount);
-					try {
-						file.read(buffer, offset);
-					} catch (IOException e) {
-						NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
-						e.printStackTrace();
-					}
-					start += byteCount / BYTES_PER_VALUE;
-				}
-			}
-			
-			startOfCache = firstSampleNumber;
-			cachedCount += end - firstSampleNumber + 1;
-		}
-		
-		// new range ends after cached range
-		if(lastSampleNumber > startOfCache + cachedCount - 1) {
-			int start = startOfCache + cachedCount;
-			int end   = lastSampleNumber;
-			
-			int slotStart = start / SLOT_SIZE;
-			int slotEnd   = end   / SLOT_SIZE;
-			for(int slotN = slotStart; slotN <= slotEnd; slotN++) {
-				if(!slot[slotN].flushing && slot[slotN].inRam) {
-					// fill cache from slot in memory
-					int offset = start % SLOT_SIZE;
-					int length = Integer.min(end - start + 1, SLOT_SIZE - offset);
-					cacheFloats.position(start - startOfCache);
-					cacheFloats.put(slot[slotN].value, offset, length);
-					start += length;
-				} else {
-					// fill cache from slot on disk
-					while(slot[slotN].flushing);
-					long offset = (long) start * (long) BYTES_PER_VALUE;
-					int byteCount = Integer.min(end - start + 1, SLOT_SIZE - (start % SLOT_SIZE)) * BYTES_PER_VALUE;
-					ByteBuffer buffer = Buffers.newDirectByteBuffer(byteCount);
-					try {
-						file.read(buffer, offset);
-					} catch (IOException e) {
-						NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
-						e.printStackTrace();
-					}
-					buffer.rewind();
-					cacheFloats.position(start - startOfCache);
-					cacheFloats.put(buffer.asFloatBuffer());
-					start += byteCount / BYTES_PER_VALUE;
-				}
-			}
-			
-			cachedCount += lastSampleNumber - (startOfCache + cachedCount) + 1;
-		}
-		
-	}
-	
-	public MinMax getRange(int firstSampleNumber, int lastSampleNumber) {
+		// save the cache's current position, and restore it when done
+		int oldPosition = cache.cacheFloats.position();
 		
 		MinMax range = new MinMax();
 		
@@ -339,7 +191,7 @@ public class StorageFloats {
 				int firstSampleInBlock = Integer.max(firstSampleNumber, block * BLOCK_SIZE);
 				int lastSampleInBlock = Integer.min(lastSampleNumber, (block + 1) * BLOCK_SIZE - 1);
 				for(int sampleN = firstSampleInBlock; sampleN <= lastSampleInBlock; sampleN++) {
-					float value = getValue(sampleN);
+					float value = getSample(sampleN, cache);
 					if(value < range.min)
 						range.min = value;
 					if(value > range.max)
@@ -348,61 +200,11 @@ public class StorageFloats {
 			}
 		}
 		
+		
+		// restore cache position
+		cache.cacheFloats.position(oldPosition);
+		
 		return range;
-		
-	}
-	
-	/**
-	 * Moves all but the newest Slot to disk, freeing up space in memory.
-	 * This method should be called periodically (depending on how fast new values arrive, and how desperate you are for memory.)
-	 * 
-	 * TO PREVENT RACE CONDITIONS, THIS METHOD MUST NOT BE CALLED WHEN getValue() or getValues() ARE IN PROGRESS.
-	 * Any charts on screen might call getValue() or getValues(), and charts are drawn by the Swing EDT.
-	 * Therefore, this method must only be called from the Swing EDT, and only BEFORE or AFTER a chart is being drawn.
-	 * To improve efficiency it is best to call this method AFTER all charts are drawn, because that allows the cache to be updated with values from memory.
-	 */
-	public void moveOldValuesToDisk() {
-		
-		int lastSlotN = (connection.getSampleCount() - SLOT_SIZE) / SLOT_SIZE; // keep the most recent slot in memory
-		
-		for(int slotN = 0; slotN < lastSlotN; slotN++) {
-			
-			// skip this slot if it is already moved to disk
-			if(slot[slotN].flushing || !slot[slotN].inRam)
-				continue;
-			
-			// in stress test mode just delete the data
-			// because even high-end SSDs will become the bottleneck
-			if(connection.mode == ConnectionTelemetry.Mode.STRESS_TEST) {
-				slot[slotN].inRam = false;
-				slot[slotN].value = null;
-				slot[slotN].flushing = false;
-				continue;
-			}
-			
-			// move this slot to disk
-			final int SLOT_N = slotN;
-			slot[SLOT_N].flushing = true;
-			
-			new Thread(() -> {
-				try {
-					ByteBuffer buffer = Buffers.newDirectByteBuffer(SLOT_SIZE * BYTES_PER_VALUE);
-					FloatBuffer temp = buffer.asFloatBuffer();
-					temp.put(slot[SLOT_N].value);
-					long offset = (long) SLOT_N * (long) SLOT_SIZE * (long) BYTES_PER_VALUE;
-					file.write(buffer, offset);
-					file.force(true);
-					
-					slot[SLOT_N].inRam = false;
-					slot[SLOT_N].value = null;
-					slot[SLOT_N].flushing = false;
-				} catch(Exception e) {
-					NotificationsController.showCriticalFault("Error while moving values to the cache file at \"" + filePath.toString() + "\"");
-					e.printStackTrace();
-				}
-			}).start();
-			
-		}
 		
 	}
 	
@@ -440,10 +242,6 @@ public class StorageFloats {
 		minimumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
 		maximumValueInBlock = new float[MAX_SAMPLE_NUMBER / BLOCK_SIZE + 1]; // +1 to round up
 		
-		// flush the cache
-		startOfCache = 0;
-		cachedCount = 0;
-		
 	}
 	
 	/**
@@ -478,12 +276,171 @@ public class StorageFloats {
 		}
 		
 	}
+	
+	public class Cache {
+		
+		private int cacheSize = 1024;
+		private ByteBuffer cacheBytes = Buffers.newDirectByteBuffer(cacheSize * BYTES_PER_VALUE);
+		private FloatBuffer cacheFloats = cacheBytes.asFloatBuffer();
+		private int startOfCache = 0;
+		private int cachedCount = 0;
+		
+		/**
+		 * Updates the contents of the cache.
+		 * The requested range MUST be small enough to fit inside this cache!
+		 * 
+		 * @param firstSampleNumber    Start of range, inclusive. This MUST be a valid sample number.
+		 * @param lastSampleNumber     End of range, inclusive. This MUST be a valid sample number.
+		 */
+		public void update(int firstSampleNumber, int lastSampleNumber) {
+			
+			// grow the cache to 300% if it can't hold 200% the requested range
+			if(cacheSize < 2 * (lastSampleNumber - firstSampleNumber + 1)) {
+				cacheSize = 3 * (lastSampleNumber - firstSampleNumber + 1);
+				cacheBytes = Buffers.newDirectByteBuffer(cacheSize * BYTES_PER_VALUE);
+				cacheFloats = cacheBytes.asFloatBuffer();
+				startOfCache = 0;
+				cachedCount = 0;
+			}
+			
+			// flush cache if necessary
+			if(firstSampleNumber < startOfCache || lastSampleNumber >= startOfCache + cacheSize) {
+				startOfCache = firstSampleNumber - (cacheSize / 3); // reserve a third of the cache before the currently requested range, so the user can rewind a little without needing to flush the cache
+				if(startOfCache < 0)
+					startOfCache = 0;
+				cachedCount = 0;
+				// try to fill the new cache with adjacent samples too
+				firstSampleNumber = startOfCache;
+				lastSampleNumber = startOfCache + cacheSize - 1;
+				int max = connection.getSampleCount() - 1;
+				if(lastSampleNumber > max)
+					lastSampleNumber = max;
+			}
+			
+			// new range starts before cached range
+			if(firstSampleNumber < startOfCache) {
+				int start = firstSampleNumber;
+				int end   = startOfCache - 1;
+				
+				int firstSlot = start / SLOT_SIZE;
+				int lastSlot  = end   / SLOT_SIZE;
+				for(int slotN = firstSlot; slotN <= lastSlot; slotN++) {
+					float[] array = slot[slotN].value; // save a reference to the array BEFORE checking if the array is in memory, to prevent a race condition
+					if(!slot[slotN].flushing && slot[slotN].inRam) {
+						// fill cache from slot in memory
+						int offset = start % SLOT_SIZE;
+						int length = Integer.min(end - start + 1, SLOT_SIZE - offset);
+						cacheFloats.position(start - startOfCache);
+						cacheFloats.put(array, offset, length);
+						start += length;
+					} else {
+						// fill cache from slot on disk
+						while(slot[slotN].flushing);
+						long offset = (long) start * (long) BYTES_PER_VALUE;
+						int byteCount = Integer.min(end - start + 1, SLOT_SIZE - (start % SLOT_SIZE)) * BYTES_PER_VALUE;
+						cacheBytes.position((start - startOfCache) * BYTES_PER_VALUE);
+						ByteBuffer buffer = cacheBytes.slice();
+						buffer.limit(byteCount);
+						try {
+							file.read(buffer, offset);
+						} catch (IOException e) {
+							NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
+							e.printStackTrace();
+						}
+						start += byteCount / BYTES_PER_VALUE;
+					}
+				}
+				
+				startOfCache = firstSampleNumber;
+				cachedCount += end - firstSampleNumber + 1;
+			}
+			
+			// new range ends after cached range
+			if(lastSampleNumber > startOfCache + cachedCount - 1) {
+				int start = startOfCache + cachedCount;
+				int end   = lastSampleNumber;
+				
+				int slotStart = start / SLOT_SIZE;
+				int slotEnd   = end   / SLOT_SIZE;
+				for(int slotN = slotStart; slotN <= slotEnd; slotN++) {
+					float[] array = slot[slotN].value; // save a reference to the array BEFORE checking if the array is in memory, to prevent a race condition
+					if(!slot[slotN].flushing && slot[slotN].inRam) {
+						// fill cache from slot in memory
+						int offset = start % SLOT_SIZE;
+						int length = Integer.min(end - start + 1, SLOT_SIZE - offset);
+						cacheFloats.position(start - startOfCache);
+						cacheFloats.put(array, offset, length);
+						start += length;
+					} else {
+						// fill cache from slot on disk
+						while(slot[slotN].flushing);
+						long offset = (long) start * (long) BYTES_PER_VALUE;
+						int byteCount = Integer.min(end - start + 1, SLOT_SIZE - (start % SLOT_SIZE)) * BYTES_PER_VALUE;
+						ByteBuffer buffer = Buffers.newDirectByteBuffer(byteCount);
+						try {
+							file.read(buffer, offset);
+						} catch (IOException e) {
+							NotificationsController.showCriticalFault("Error while reading a value from the cache file at \"" + filePath.toString() + "\"");
+							e.printStackTrace();
+						}
+						buffer.rewind();
+						cacheFloats.position(start - startOfCache);
+						cacheFloats.put(buffer.asFloatBuffer());
+						start += byteCount / BYTES_PER_VALUE;
+					}
+				}
+				
+				cachedCount += lastSampleNumber - (startOfCache + cachedCount) + 1;
+			}
+			
+		}
+		
+	}
 
 	private class Slot {
 		
 		private volatile boolean inRam = true;
 		private volatile boolean flushing = false;
 		private volatile float[] value = new float[SLOT_SIZE];
+		
+		/**
+		 * Moves this slot's data from memory to disk.
+		 * 
+		 * @param slotN    Which slot number this object represents.
+		 */
+		public void flushToDisk(int slotN) {
+						
+			// in stress test mode just delete the data
+			// because even high-end SSDs will become the bottleneck
+			if(connection.mode == ConnectionTelemetry.Mode.STRESS_TEST) {
+				inRam = false;
+				value = null;
+				flushing = false;
+				return;
+			}
+			
+			// move this slot to disk
+			flushing = true;
+			
+			new Thread(() -> {
+				try {
+					ByteBuffer buffer = Buffers.newDirectByteBuffer(SLOT_SIZE * BYTES_PER_VALUE);
+					FloatBuffer temp = buffer.asFloatBuffer();
+					temp.put(value);
+					long offset = (long) slotN * (long) SLOT_SIZE * (long) BYTES_PER_VALUE;
+					file.write(buffer, offset);
+					file.force(true);
+					
+					inRam = false;
+					value = null;
+					flushing = false;
+				} catch(Exception e) {
+					NotificationsController.showCriticalFault("Error while moving values to the cache file at \"" + filePath.toString() + "\"");
+					e.printStackTrace();
+				}
+			}).start();
+			
+		}
 		
 	}
 	

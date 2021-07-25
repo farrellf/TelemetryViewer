@@ -81,6 +81,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	Plot plot;
 	boolean cachedMode;
 	List<Dataset> allDatasets; // normal and bitfields
+	StorageTimestamps.Cache timestampsCache;
 
 	static final float yAxisMinimumDefault = -1.0f;
 	static final float yAxisMaximumDefault =  1.0f;
@@ -113,21 +114,22 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 	}
 	
 	/**
-	 * Updates the List of bitfield datasets, which is used by the legend and tooltip code.
+	 * Updates the List of all datasets, and creates new corresponding caches.
 	 */
 	private void updateAllDatasetsList() {
 		
-		allDatasets = new ArrayList<Dataset>(datasets);
+		allDatasets = new ArrayList<Dataset>(datasets.normalDatasets);
 		
-		if(bitfieldEdges != null)
-			for(Dataset.Bitfield.State state : bitfieldEdges)
-				if(!allDatasets.contains(state.dataset))
-					allDatasets.add(state.dataset);
+		datasets.edgeStates.forEach(state -> {
+			if(!allDatasets.contains(state.dataset))
+				allDatasets.add(state.dataset);
+		});
+		datasets.levelStates.forEach(state -> {
+			if(!allDatasets.contains(state.dataset))
+				allDatasets.add(state.dataset);
+		});
 		
-		if(bitfieldLevels != null)
-			for(Dataset.Bitfield.State state : bitfieldLevels)
-				if(!allDatasets.contains(state.dataset))
-					allDatasets.add(state.dataset);
+		timestampsCache = allDatasets.isEmpty() ? null : allDatasets.get(0).controller.createTimestampsCache();
 		
 	}
 	
@@ -139,18 +141,18 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		
 		// create the control widgets and event handlers
 		datasetsAndDurationWidget = new WidgetDatasets(newDatasets -> {
-		                                                   boolean previouslyNoDatasets = datasets.isEmpty();
-		                                                   datasets = newDatasets;
+		                                                   boolean previouslyNoDatasets = !datasets.hasNormals();
+		                                                   datasets.setNormals(newDatasets);
 		                                                   updateAllDatasetsList();
 		                                                   if(previouslyNoDatasets && triggerWidget != null)
-		                                                	   triggerWidget.setDefaultChannel(datasets.get(0));
+		                                                	   triggerWidget.setDefaultChannel(datasets.getNormal(0));
 		                                               },
 		                                               newBitfieldEdges -> {
-		                                                   bitfieldEdges = newBitfieldEdges;
+		                                                   datasets.setEdges(newBitfieldEdges);
 		                                                   updateAllDatasetsList();
 		                                               },
 		                                               newBitfieldLevels -> {
-		                                                   bitfieldLevels = newBitfieldLevels;
+		                                                   datasets.setLevels(newBitfieldLevels);
 		                                                   updateAllDatasetsList();
 		                                               },
 		                                               (newDurationType, newDuration) -> {
@@ -230,19 +232,19 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		EventHandler handler = null;
 		
 		// trigger logic
-		if(triggerEnabled && !datasets.isEmpty()) {
+		if(triggerEnabled && datasets.hasNormals()) {
 			if(sampleCountMode && triggeringPaused) {
 				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(earlierEndSampleNumber, zoomLevel, true);
 			} else if(sampleCountMode && !triggeringPaused) {
 				if(!OpenGLChartsView.instance.isPausedView())
-					endSampleNumber = datasets.get(0).connection.getSampleCount() - 1;
+					endSampleNumber = datasets.connection.getSampleCount() - 1;
 				endSampleNumber = triggerWidget.checkForTriggerSampleCountMode(endSampleNumber, zoomLevel, false);
 				earlierEndSampleNumber = endSampleNumber;
 			} else if(!sampleCountMode && triggeringPaused) {
 				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(earlierEndTimestamp, zoomLevel, true);
 			} else {
 				if(!OpenGLChartsView.instance.isPausedView())
-					endTimestamp = datasets.get(0).connection.getTimestamp(datasets.get(0).connection.getSampleCount() - 1);
+					endTimestamp = datasets.connection.getTimestamp(datasets.connection.getSampleCount() - 1);
 				endTimestamp = triggerWidget.checkForTriggerMillisecondsMode(endTimestamp, zoomLevel, false);
 				earlierEndTimestamp = endTimestamp;
 			}
@@ -251,7 +253,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 		boolean haveDatasets = allDatasets != null && !allDatasets.isEmpty();
 		int datasetsCount = haveDatasets ? allDatasets.size() : 0;
 		
-		plot.initialize(endTimestamp, endSampleNumber, zoomLevel, datasets, bitfieldEdges, bitfieldLevels, duration, cachedMode, isTimestampsMode);
+		plot.initialize(endTimestamp, endSampleNumber, zoomLevel, datasets, timestampsCache, duration, cachedMode, isTimestampsMode);
 		
 		// calculate the plot range
 		StorageFloats.MinMax requiredRange = plot.getRange();
@@ -553,6 +555,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 				OpenGL.buffer.put(xRight);  OpenGL.buffer.put(yBottom);  OpenGL.buffer.put(Theme.tickLinesColor, 0, 3);  OpenGL.buffer.put(0.2f);
 				OpenGL.buffer.put(xRight);  OpenGL.buffer.put(yTop);     OpenGL.buffer.put(Theme.tickLinesColor);
 				OpenGL.buffer.put(xRight);  OpenGL.buffer.put(yBottom);  OpenGL.buffer.put(Theme.tickLinesColor, 0, 3);  OpenGL.buffer.put(0.2f);
+				OpenGL.buffer.rewind();
 				OpenGL.drawLinesXyrgba(gl, GL3.GL_LINES, OpenGL.buffer, 4);
 			}
 			
@@ -569,9 +572,10 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 					text[i] = tooltipLines[i];
 					colors[i] = null;
 				}
-				for(int i = 0; i < datasetsCount; i++) {
-					text[i + tooltipLines.length] = allDatasets.get(i).getSampleAsString(tooltip.sampleNumber);
-					colors[i + tooltipLines.length] = allDatasets.get(i).color;
+				for(int datasetN = 0; datasetN < datasetsCount; datasetN++) {
+					Dataset dataset = allDatasets.get(datasetN);
+					text[datasetN + tooltipLines.length] = datasets.getSampleAsString(dataset, tooltip.sampleNumber);
+					colors[datasetN + tooltipLines.length] = dataset.color;
 				}
 				float anchorX = tooltip.pixelX + xPlotLeft;
 				if(anchorX >= 0 && datasetsCount > 1) {
@@ -582,7 +586,7 @@ public class OpenGLTimeDomainChart extends PositionedChart {
 					OpenGL.drawLinesXy(gl, GL3.GL_LINES, Theme.tooltipVerticalBarColor, OpenGL.buffer, 2);
 					ChartUtils.drawTooltip(gl, text, colors, anchorX, mouseY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				} else if(anchorX >= 0) {
-					float anchorY = (allDatasets.get(0).getSample(tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom;
+					float anchorY = (datasets.getSample(allDatasets.get(0), tooltip.sampleNumber) - plotMinY) / plotRange * plotHeight + yPlotBottom;
 					ChartUtils.drawTooltip(gl, text, colors, anchorX, anchorY, xPlotLeft, yPlotTop, xPlotRight, yPlotBottom);
 				}
 			}

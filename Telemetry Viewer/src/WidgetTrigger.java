@@ -34,6 +34,7 @@ public class WidgetTrigger extends Widget {
 	private boolean triggerAffectsEveryChart = false;
 	private Type    triggerType = Type.RISING_EDGE;
 	private Dataset triggerChannel = null;
+	private StorageFloats.Cache samplesCache = null;
 	private float   triggerLevel = 0;
 	private float   triggerHysteresis = 0;
 	private int     triggerPrePostRatio = 20;
@@ -109,6 +110,8 @@ public class WidgetTrigger extends Widget {
 		
 		// update the model
 		triggerChannel = newChannel;
+		if(triggerChannel != null)
+			samplesCache = triggerChannel.createCache();
 		resetTrigger(true);
 		if(userSpecified)
 			userSpecifiedTheChannel = true;
@@ -485,7 +488,7 @@ public class WidgetTrigger extends Widget {
 		boolean triggerOnFallingEdge = (triggerType == Type.FALLING_EDGE) || (triggerType == Type.RISING_FALLING_EDGES);
 		boolean risingEdgeArmed = false;
 		boolean fallingEdgeArmed = false;
-		FloatBuffer buffer = triggerChannel.getBuffer(minSampleNumber, maxSampleNumber);
+		FloatBuffer buffer = triggerChannel.getSamplesBuffer(minSampleNumber, maxSampleNumber, samplesCache);
 		for(int sampleNumber = minSampleNumber; sampleNumber <= maxSampleNumber; sampleNumber++) {
 			float value = buffer.get(sampleNumber - minSampleNumber);
 			if(triggerOnRisingEdge && value < triggerLevel - triggerHysteresis)
@@ -570,7 +573,7 @@ public class WidgetTrigger extends Widget {
 		boolean triggerOnFallingEdge = (triggerType == Type.FALLING_EDGE) || (triggerType == Type.RISING_FALLING_EDGES);
 		boolean risingEdgeArmed = false;
 		boolean fallingEdgeArmed = false;
-		FloatBuffer buffer = triggerChannel.getBuffer(minSampleNumber, maxSampleNumber);
+		FloatBuffer buffer = triggerChannel.getSamplesBuffer(minSampleNumber, maxSampleNumber, samplesCache);
 		for(int sampleNumber = minSampleNumber; sampleNumber <= maxSampleNumber; sampleNumber++) {
 			float value = buffer.get(sampleNumber - minSampleNumber);
 			if(triggerOnRisingEdge && value < triggerLevel - triggerHysteresis)

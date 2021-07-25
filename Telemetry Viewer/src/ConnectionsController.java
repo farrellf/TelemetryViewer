@@ -23,6 +23,7 @@ public class ConnectionsController {
 	public static volatile boolean exporting = false;
 	public static volatile boolean realtimeImporting = true; // false = importing files as fast as possible
 	public static volatile boolean previouslyImported = false; // true = the Connections contain imported data
+	private static Thread exportThread;
 	
 	public static List<Connection>                allConnections = new ArrayList<Connection>();
 	public static List<ConnectionTelemetry> telemetryConnections = new ArrayList<ConnectionTelemetry>();
@@ -90,6 +91,7 @@ public class ConnectionsController {
 		cameraConnections.clear();
 		
 		CommunicationView.instance.redraw();
+		OpenGLChartsView.instance.setLiveView();
 		
 	}
 	
@@ -222,10 +224,10 @@ public class ConnectionsController {
 		// import the settings file if requested
 		if(settingsFileCount == 1) {
 			removeAllConnections();
-			ChartsController.removeAllCharts();
 			for(String filepath : filepaths)
 				if(filepath.endsWith(".txt"))
 					if(!importSettingsFile(filepath, csvFileCount + mkvFileCount == 0)) {
+						ConnectionsController.removeAllConnections();
 						ConnectionsController.addConnection(new ConnectionTelemetry());
 						return;
 					}
@@ -241,7 +243,7 @@ public class ConnectionsController {
 			} else if(filepath.endsWith(".mkv")) {
 				for(int connectionN = 0; connectionN < ConnectionsController.allConnections.size(); connectionN++) {
 					Connection connection = ConnectionsController.allConnections.get(connectionN);
-					if(filepath.endsWith(" - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "") + ".mkv"))
+					if(filepath.endsWith(" - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "_") + ".mkv"))
 						imports.put(connection, filepath);
 				}
 			}
@@ -249,7 +251,7 @@ public class ConnectionsController {
 		
 		// allow importing an MKV file by itself
 		boolean moviePlayerMode = false;
-		if(settingsFileCount == 0 && csvFileCount == 0 && mkvFileCount == 1 && imports.isEmpty()) {
+		if(settingsFileCount == 0 && csvFileCount == 0 && mkvFileCount == 1) {
 			String cameraName = Paths.get(filepaths[0]).getFileName().toString(); // remove directories
 			cameraName = cameraName.substring(0, cameraName.lastIndexOf(".")); // remove file extension
 			int index = cameraName.lastIndexOf("- ");
@@ -257,7 +259,7 @@ public class ConnectionsController {
 				cameraName = cameraName.substring(index + 2); // remove the leading "user provided text here - connection n - "
 			
 			removeAllConnections();
-			ChartsController.removeAllCharts();
+			imports.clear();
 			
 			SettingsController.setTileColumns(6);
 			SettingsController.setTileRows(6);
@@ -303,16 +305,18 @@ public class ConnectionsController {
 				if(timestamp < firstTimestamp)
 					firstTimestamp = timestamp;
 			}
+			long now = System.currentTimeMillis();
 			if(firstTimestamp != Long.MAX_VALUE)
 				for(Entry<Connection, String> entry : imports.entrySet())
-					entry.getKey().importDataFile(entry.getValue(), firstTimestamp, completedByteCount);
+					entry.getKey().importDataFile(entry.getValue(), firstTimestamp, now, completedByteCount);
 			
 			// when importing an MKV file by itself, "finish" importing it, then rewind, then play (so the timeline shows the entire amount of time)
 			if(moviePlayerMode) {
-				ConnectionsController.cameraConnections.get(0).finishImportingFile();
+				ConnectionsController.cameraConnections.get(0).finishImporting();
 				OpenGLChartsView.instance.setPausedView(firstTimestamp, null, 0, false);
 				OpenGLTimelineChart timeline = (OpenGLTimelineChart) ChartsController.getCharts().get(1);
 				timeline.playing = true;
+				timeline.playingSpeed = 1;
 				timeline.previousFrameTimestamp = System.currentTimeMillis();
 			}
 
@@ -352,7 +356,7 @@ public class ConnectionsController {
 	 */
 	public static void exportFiles(String filepath, boolean exportSettingsFile, List<ConnectionTelemetry> telemetryToExport, List<ConnectionCamera> camerasToExport) {
 		
-		Thread exportThread = new Thread(() -> {
+		exportThread = new Thread(() -> {
 			
 			exporting = true;
 			CommunicationView.instance.redraw();
@@ -379,7 +383,7 @@ public class ConnectionsController {
 	
 			for(ConnectionCamera connection : camerasToExport) {
 				int connectionN = ConnectionsController.allConnections.indexOf(connection);
-				String filename = filepath + " - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "");
+				String filename = filepath + " - connection " + connectionN + " - " + connection.name.replaceAll(filenameSanitizer, "_");
 				connection.exportDataFile(filename, completedSampleCount);
 			}
 			
@@ -393,6 +397,22 @@ public class ConnectionsController {
 		exportThread.setPriority(Thread.MIN_PRIORITY); // exporting is not critical
 		exportThread.setName("File Export Thread");
 		exportThread.start();
+		
+	}
+	
+	/**
+	 * Aborts the file exporting process. This may leave incomplete files on disk.
+	 */
+	static void cancelExporting() {
+		
+		if(exportThread != null && exportThread.isAlive()) {
+			NotificationsController.showDebugMessage("Exporting... Canceled");
+			exportThread.interrupt();
+			while(exportThread.isAlive()); // wait
+			
+			exporting = false;
+			CommunicationView.instance.redraw();
+		}
 		
 	}
 	

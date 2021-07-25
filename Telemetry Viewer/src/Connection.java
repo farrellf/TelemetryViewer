@@ -77,18 +77,21 @@ public abstract class Connection {
 	/**
 	 * Reads data (samples or images or ...) from a file, instead of a live connection.
 	 * 
-	 * @param path                  Path to the file.
-	 * @param firstTimestamp        Timestamp when the first sample from ANY connection was acquired. This is used to allow importing to happen in real time.
-	 * @param completedByteCount    Variable to increment as progress is made (this is periodically queried by a progress bar.)
+	 * @param path                       Path to the file.
+	 * @param firstTimestamp             Timestamp when the first sample from ANY connection was acquired. This is used to allow importing to happen in real time.
+	 * @param beginImportingTimestamp    Timestamp when all import threads should begin importing.
+	 * @param completedByteCount         Variable to increment as progress is made (this is periodically queried by a progress bar.)
 	 */
-	public abstract void importDataFile(String path, long firstTimestamp, AtomicLong completedByteCount);
-	
-
+	public abstract void importDataFile(String path, long firstTimestamp, long beginImportingTimestamp, AtomicLong completedByteCount);
 	
 	/**
 	 * Causes the file import thread to finish importing the file as fast as possible (instead of using a real-time playback speed.)
+	 * If it is already importing as fast as possible, this will instead cancel the process.
 	 */
-	public final void finishImportingFile() {
+	public final void finishImporting() {
+		
+		if(!ConnectionsController.realtimeImporting)
+			NotificationsController.showDebugMessage("Importing... Canceled");
 		
 		if(receiverThread != null && receiverThread.isAlive())
 			receiverThread.interrupt();

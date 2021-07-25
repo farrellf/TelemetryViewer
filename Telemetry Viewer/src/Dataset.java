@@ -3,8 +3,6 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.jogamp.common.nio.Buffers;
-
 /**
  * Defines all of the details about one CSV column or Binary packet field, stores all of its samples, and provides several ways to get the samples.
  */
@@ -108,26 +106,37 @@ public class Dataset {
 	}
 	
 	/**
-	 * Gets one specific sample.
-	 * 
-	 * @param index    Which sample to obtain.
-	 * @return         The sample.
+	 * @return    A place to cache samples.
 	 */
-	public float getSample(int index) {
+	public StorageFloats.Cache createCache() {
 		
-		return floats.getValue(index);
+		return floats.createCache();
 		
 	}
 	
 	/**
-	 * Gets a String representation of one specific sample.
+	 * Gets one sample, as a float.
 	 * 
-	 * @param index    Which sample to obtain.
-	 * @return         The sample formatted as a String.
+	 * @param sampleNumber    Sample number to obtain.
+	 * @param cache           Place to cache samples.
+	 * @return                The sample, as a float.
 	 */
-	public String getSampleAsString(int index) {
+	public float getSample(int sampleNumber, StorageFloats.Cache cache) {
 		
-		float value = getSample(index);
+		return floats.getSample(sampleNumber, cache);
+		
+	}
+	
+	/**
+	 * Gets one sample, as a String.
+	 * 
+	 * @param sampleNumber    Sample number to obtain.
+	 * @param cache           Place to cache samples.
+	 * @return                The sample, formatted as a String.
+	 */
+	public String getSampleAsString(int sampleNumber, StorageFloats.Cache cache) {
+		
+		float value = getSample(sampleNumber, cache);
 		
 		if(isBitfield)
 			return "0b" + String.format("%8s", Integer.toBinaryString((int) value)).replace(' ', '0');
@@ -137,53 +146,32 @@ public class Dataset {
 	}
 	
 	/**
-	 * Gets a series of samples as a float[].
+	 * Gets a sequence of samples, as a FloatBuffer.
 	 * 
-	 * @param startIndex    Index of the first sample (inclusive.)
-	 * @param endIndex      Index of the last sample (inclusive.)
-	 * @return              The samples as a float[].
+	 * @param firstSampleNumber    First sample number to obtain, inclusive.
+	 * @param lastSampleNumber     Last sample number to obtain, inclusive.
+	 * @param cache                Place to cache samples.
+	 * @return                     The samples, as a FloatBuffer, positioned at the first sample number.
 	 */
-	public float[] getSamplesArray(int startIndex, int endIndex) {
+	public FloatBuffer getSamplesBuffer(int firstSampleNumber, int lastSampleNumber, StorageFloats.Cache cache) {
 		
-		int sampleCount = endIndex - startIndex + 1;
-		float[] samples = new float[sampleCount];
-		
-		for(int i = 0; i < sampleCount; i++)
-			samples[i] = getSample(i + startIndex);
-		
-		return samples;
+		return floats.getSamplesBuffer(firstSampleNumber, lastSampleNumber, cache);
 		
 	}
 	
 	/**
-	 * Gets a series of samples by updating a existing Samples object:
+	 * Gets a sequence of samples, as a float[].
 	 * 
-	 * The buffer[] is updated with the requested series of samples.
-	 * The min/max values are updated to reflect the new series of samples.
-	 * The color/name/unit are updated. 
-	 * 
-	 * @param startIndex    Index of the first sample (inclusive.)
-	 * @param endIndex      Index of the last sample (inclusive.)
-	 * @param samples       Samples object to be filled with samples.
+	 * @param firstSampleNumber    First sample number to obtain, inclusive.
+	 * @param lastSampleNumber     Last sample number to obtain, inclusive.
+	 * @param cache                Place to cache samples.
+	 * @return                     The samples, as a float[].
 	 */
-	public void getSamples(int startIndex, int endIndex, Samples samples) {
+	public float[] getSamplesArray(int firstSampleNumber, int lastSampleNumber, StorageFloats.Cache cache) {
 		
-		int sampleCount = endIndex - startIndex + 1;
-		
-		if(samples.buffer == null || samples.buffer.capacity() != sampleCount)
-			samples.buffer = Buffers.newDirectFloatBuffer(sampleCount);
-		
-		samples.min = getSample(startIndex);
-		samples.max = getSample(startIndex);
-		
-		samples.buffer.rewind();
-		for(int i = 0; i < sampleCount; i++) {
-			float value = getSample(i + startIndex);
-			samples.buffer.put(value);
-			if(value < samples.min) samples.min = value;
-			if(value > samples.max) samples.max = value;
-		}
-		samples.buffer.rewind();
+		float[] array = new float[lastSampleNumber - firstSampleNumber + 1];
+		floats.getSamplesBuffer(firstSampleNumber, lastSampleNumber, cache).get(array);
+		return array;
 		
 	}
 	
@@ -238,25 +226,16 @@ public class Dataset {
 	}
 	
 	/**
-	 * @param firstSampleNumber    First sample number, inclusive.
-	 * @param lastSampleNumber     Last sample number, inclusive.
-	 * @return                     Range occupied by that sequence of samples.
+	 * Gets the minimum and maximum of a sequence of samples.
+	 * 
+	 * @param firstSampleNumber    First sample number to consider, inclusive.
+	 * @param lastSampleNumber     Last sample number to consider, inclusive.
+	 * @param cache                Place to cache samples.
+	 * @return                     A MinMax object, which has "min" and "max" fields.
 	 */
-	public StorageFloats.MinMax getRange(int firstSampleNumber, int lastSampleNumber) {
+	public StorageFloats.MinMax getRange(int firstSampleNumber, int lastSampleNumber, StorageFloats.Cache cache) {
 	
-		return floats.getRange(firstSampleNumber, lastSampleNumber);
-		
-	}
-	
-	/**
-	 * @param firstSampleNumber    First sample number, inclusive.
-	 * @param lastSampleNumber     Last sample number, inclusive.
-	 * @return                     Corresponding FloatBuffer containing the sequence of samples.
-	 */
-	public FloatBuffer getBuffer(int firstSampleNumber, int lastSampleNumber) {
-		
-		StorageFloats.Values values = floats.getValues(firstSampleNumber, lastSampleNumber, false);
-		return values.buffer;
+		return floats.getRange(firstSampleNumber, lastSampleNumber, cache);
 		
 	}
 	
@@ -290,10 +269,11 @@ public class Dataset {
 		
 		/**
 		 * @param sampleNumber    Sample number.
+		 * @param cache           Place to cache samples.
 		 * @return                State of this bitfield at the specified sample number.
 		 */
-		int getStateAt(int sampleNumber) {
-			int value = (int) Dataset.this.getSample(sampleNumber);
+		int getStateAt(int sampleNumber, StorageFloats.Cache cache) {
+			int value = (int) Dataset.this.getSample(sampleNumber, cache);
 			int state = (value >> LSBit) & bitmask;
 			return state;
 		}
@@ -343,11 +323,12 @@ public class Dataset {
 			}
 			
 			/**
-			 * Updates the cache if necessary.
+			 * Updates the edges cache if necessary.
 			 * 
 			 * @param maxSampleNumber    Ensure the cache has all edge events that occurred until at least this sample number.
+			 * @param samplesCache       Place to cache raw dataset samples.
 			 */
-			private void updateCache(int maxSampleNumber) {
+			private void updateEdgesCache(int maxSampleNumber, StorageFloats.Cache samplesCache) {
 				
 				if(maxSampleNumber <= lastSampleNumberInCache || maxSampleNumber == 0)
 					return;
@@ -356,11 +337,11 @@ public class Dataset {
 				if(minSampleNumber < 0)
 					minSampleNumber = 0;
 				
-				int previousValue = (int) dataset.getSample(minSampleNumber);
+				int previousValue = (int) dataset.getSample(minSampleNumber, samplesCache);
 				int previousState = (previousValue >> bitfield.LSBit) & bitfield.bitmask;
 				
 				for(int sampleNumber = minSampleNumber + 1; sampleNumber <= maxSampleNumber; sampleNumber++) {
-					int currentValue = (int) dataset.getSample(sampleNumber);
+					int currentValue = (int) dataset.getSample(sampleNumber, samplesCache);
 					if(currentValue != previousValue) {
 						int currentState = (currentValue >> bitfield.LSBit) & bitfield.bitmask;
 						if(currentState != previousState && currentState == value)
@@ -379,11 +360,12 @@ public class Dataset {
 			 * 
 			 * @param minimumSampleNumber    First sample number to test, inclusive.
 			 * @param maximumSampleNumber    Last sample number to test, inclusive.
+			 * @param samplesCache           Place to cache raw dataset samples.
 			 * @return                       List of sample numbers for when this Bitfield State occurred.
 			 */
-			public List<Integer> getEdgeEventsBetween(int minimumSampleNumber, int maximumSampleNumber) {
+			public List<Integer> getEdgeEventsBetween(int minimumSampleNumber, int maximumSampleNumber, StorageFloats.Cache samplesCache) {
 				
-				updateCache(maximumSampleNumber);
+				updateEdgesCache(maximumSampleNumber, samplesCache);
 				
 				List<Integer> edges = new ArrayList<Integer>();
 				for(int sampleNumber : edgesCache) {
@@ -402,17 +384,18 @@ public class Dataset {
 			 * 
 			 * @param minimumSampleNumber    First sample number to test, inclusive.
 			 * @param maximumSampleNumber    Last sample number to test, inclusive.
+			 * @param samplesCache           Place to cache raw dataset samples.
 			 * @return                       List of ranges ([0] minSampleNumber, [1] maxSampleNumber) for when this Bitfield State existed.
 			 */
-			public List<int[]> getLevelsBetween(int minimumSampleNumber, int maximumSampleNumber) {
+			public List<int[]> getLevelsBetween(int minimumSampleNumber, int maximumSampleNumber, StorageFloats.Cache samplesCache) {
 				
-				updateCache(maximumSampleNumber);
+				updateEdgesCache(maximumSampleNumber, samplesCache);
 				
 				List<int[]> levels = new ArrayList<int[]>();
-				List<Integer> edges = getEdgeEventsBetween(minimumSampleNumber, maximumSampleNumber - 1);
+				List<Integer> edges = getEdgeEventsBetween(minimumSampleNumber, maximumSampleNumber - 1, samplesCache);
 				
 				if(edges.isEmpty() || edges.get(0) != minimumSampleNumber) {
-					int firstValue = (int) dataset.getSample(minimumSampleNumber);
+					int firstValue = (int) dataset.getSample(minimumSampleNumber, samplesCache);
 					int firstState = (firstValue >> bitfield.LSBit) & bitfield.bitmask;
 					if(firstState == value)
 						edges.add(0, minimumSampleNumber);
@@ -426,7 +409,7 @@ public class Dataset {
 						for(State s : bitfield.states) {
 							if(s == this)
 								continue;
-							List<Integer> edgesOfOtherState = s.getEdgeEventsBetween(levelBegin + 1, levelEnd - 1);
+							List<Integer> edgesOfOtherState = s.getEdgeEventsBetween(levelBegin + 1, levelEnd - 1, samplesCache);
 							if(!edgesOfOtherState.isEmpty())
 								levelEnd = edgesOfOtherState.get(0);
 						}
