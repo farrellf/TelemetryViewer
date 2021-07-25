@@ -156,14 +156,15 @@ public class CommunicationView extends JPanel {
 			                  "Step 2: A \"Data Structure Definition\" screen will appear. Use it to specify how your data is laid out, then click \"Done.\"<br>" +
 			                  "Step 3: Click-and-drag in the tiles region to place a chart.<br>" +
 			                  "Step 4: A chart configuration panel will appear. Use it to specify the type of chart and its settings, then click \"Done.\"<br>" +
-			                  "Repeat steps 3 and 4 to create more charts if desired.<br><br>" +
+			                  "Repeat steps 3 and 4 to create more charts if desired.<br>" +
+			                  "If multiple telemetry streams will be used, click \"New Connection\" then repeat steps 1-4 as needed.<br><br>" +
 			                  "Use your scroll wheel to rewind or fast forward.<br>" +
 			                  "Use your scroll wheel while holding down Ctrl to zoom in or out.<br>" +
 			                  "Use your scroll wheel while holding down Shift to adjust display scaling.<br><br>" +
 			                  "Click the x icon at the top-right corner of any chart to remove it.<br>" +
 			                  "Click the box icon at the top-right corner of any chart to maximize it.<br>" +
 			                  "Click the gear icon at the top-right corner of any chart to change its settings.<br><br>" +
-			                  "Click the \"Settings\" button to adjust options related to the GUI.<br>" +
+			                  "Click the \"Settings\" button to adjust options related to the GUI, or to transmit data to connected UARTs.<br>" +
 			                  "Click the \"Import\" button to open previously saved files.<br>" +
 			                  "Click the \"Export\" button to save your settings and/or data to files.<br>" +
 			                  "Files can also be imported via drag-n-drop.<br><br>" +

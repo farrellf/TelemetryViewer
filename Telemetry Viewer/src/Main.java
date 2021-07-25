@@ -23,8 +23,8 @@ import javax.swing.UIManager;
 
 public class Main {
 
-	static final String versionString = "Telemetry Viewer v0.7";
-	static final String versionDate   = "2020-07-17";
+	static final String versionString = "Telemetry Viewer v0.8";
+	static final String versionDate   = "2021-07-24";
 	
 	@SuppressWarnings("serial")
 	static JFrame window = new JFrame(versionString) {
