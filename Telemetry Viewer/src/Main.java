@@ -115,6 +115,9 @@ public class Main {
 			}
 		});
 		
+		// allow load settings/CSV/camera files at startup
+		if (args.length>0) ConnectionsController.importFiles(args);
+		
 		// handle window close events
 		window.addWindowListener(new WindowAdapter() {
 			@Override public void windowClosing(java.awt.event.WindowEvent windowEvent) {
