@@ -49,7 +49,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import com.fazecast.jSerialComm.SerialPort;
 import net.miginfocom.swing.MigLayout;
-
+//test
 public class ConnectionTelemetry extends Connection {
 	
 	static List<String> names = new ArrayList<String>();
