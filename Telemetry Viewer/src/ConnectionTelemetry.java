@@ -49,7 +49,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import com.fazecast.jSerialComm.SerialPort;
 import net.miginfocom.swing.MigLayout;
-//test
+
 public class ConnectionTelemetry extends Connection {
 	
 	static List<String> names = new ArrayList<String>();
@@ -693,6 +693,108 @@ public class ConnectionTelemetry extends Connection {
 		}
 		
 	}
+	
+	//this is how we grab data from InfluxDB
+	private void connectInfluxDB(boolean showGui) {
+		
+		//add InfluxDB initiation stuff
+		
+		connected = true;
+		CommunicationView.instance.redraw();
+		
+		if(showGui && packetType != PacketType.TC66)
+			Main.showConfigurationGui(packetType == PacketType.CSV ? new DataStructureCsvView(this) :
+			                                                         new DataStructureBinaryView(this));
+		
+		receiverThread = new Thread(() -> {
+			
+			//InputStream uart = uartPort.getInputStream();
+			SharedByteStream stream = new SharedByteStream(ConnectionTelemetry.this);
+			startProcessingTelemetry(stream);
+			
+			/*
+			// listen for packets
+			while(true) {
+
+				try {
+					
+					//query stuff
+					
+				} catch(IOException ioe) {
+					
+					// an IOException can occur if an InterruptedException occurs while receiving data
+					// let this be detected by the connection test in the loop
+					if(!connected)
+						continue;
+					//add actual exception
+					return;
+					
+				}  catch(InterruptedException ie) {
+					
+					//add actual exception
+					return;
+					
+				}
+			
+			}
+			*/
+			
+		});
+		
+		receiverThread.setPriority(Thread.MAX_PRIORITY);
+		receiverThread.setName("UART Receiver Thread");
+		receiverThread.start();
+		
+		// for the TC66/TC66C: populate the datasets and configure the transmit GUI to poll the device periodically
+		if(packetType == PacketType.TC66) {
+			
+			sampleRate = 2;
+			boolean datasetsAlreadyExist = datasets.getCount() == 11 &&
+			                               datasets.getByIndex(0) .name.equals("Voltage") &&
+			                               datasets.getByIndex(1) .name.equals("Current") &&
+			                               datasets.getByIndex(2) .name.equals("Power") &&
+			                               datasets.getByIndex(3) .name.equals("Resistance") &&
+			                               datasets.getByIndex(4) .name.equals("Group 0 Capacity") &&
+			                               datasets.getByIndex(5) .name.equals("Group 0 Energy") &&
+			                               datasets.getByIndex(6) .name.equals("Group 1 Capacity") &&
+			                               datasets.getByIndex(7) .name.equals("Group 1 Energy") &&
+			                               datasets.getByIndex(8) .name.equals("PCB Temperature") &&
+			                               datasets.getByIndex(9) .name.equals("D+ Voltage") &&
+			                               datasets.getByIndex(10).name.equals("D- Voltage");
+			
+			if(!datasetsAlreadyExist) {
+				datasets.removeAll();
+				datasets.removeSyncWord();
+				DatasetsController.BinaryFieldProcessor fake = DatasetsController.binaryFieldProcessors[0];
+				datasets.insert(0,  fake, "Voltage",          new Color(0x00FF00), "V",       1, 1);
+				datasets.insert(1,  fake, "Current",          new Color(0x00FFFF), "A",       1, 1);
+				datasets.insert(2,  fake, "Power",            new Color(0xFF00FF), "W",       1, 1);
+				datasets.insert(3,  fake, "Resistance",       new Color(0x00FFFF), "\u2126",  1, 1);
+				datasets.insert(4,  fake, "Group 0 Capacity", new Color(0xFF0000), "mAh",     1, 1);
+				datasets.insert(5,  fake, "Group 0 Energy",   new Color(0xFFFF00), "mWh",     1, 1);
+				datasets.insert(6,  fake, "Group 1 Capacity", new Color(0xFF0000), "mAh",     1, 1);
+				datasets.insert(7,  fake, "Group 1 Energy",   new Color(0xFFFF00), "mWh",     1, 1);
+				datasets.insert(8,  fake, "PCB Temperature",  new Color(0xFFFF00), "Degrees", 1, 1);
+				datasets.insert(9,  fake, "D+ Voltage",       new Color(0x8000FF), "V",       1, 1);
+				datasets.insert(10, fake, "D- Voltage",       new Color(0x0000FF), "V",       1, 1);
+			}
+			
+			transmit.setTransmitType("Text");
+			transmit.setTransmitText("getva", null);
+			transmit.setAppendCR(false);
+			transmit.setAppendLF(false);
+			transmit.setRepeats(true);
+			transmit.setRepititionInterval(200);
+			transmit.savePacket(new TransmitController.SavedPacket("rotat".getBytes(), "Rotate Display"));
+			transmit.savePacket(new TransmitController.SavedPacket("lastp".getBytes(), "Previous Screen"));
+			transmit.savePacket(new TransmitController.SavedPacket("nextp".getBytes(), "Next Screen"));
+			
+			dataStructureDefined = true;
+			
+		}
+		
+	}
+	//end of connectInfluxDB()
 	
 	private void connectTcp(boolean showGui) {
 		
