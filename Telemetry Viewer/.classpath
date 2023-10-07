@@ -56,5 +56,27 @@
 	<classpathentry kind="lib" path="lib/jogl-all-natives-macosx-universal.jar"/>
 	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-amd64.jar"/>
 	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-i586.jar"/>
+	<classpathentry kind="lib" path="lib/influxdb-client-java-6.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/adapter-rxjava3-2.9.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/annotations-13.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/commons-csv-1.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/converter-gson-2.9.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/converter-scalars-2.9.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/gson-2.10.1.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/influxdb-client-core-6.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/influxdb-client-java-6.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/influxdb-client-utils-6.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/jsr305-3.0.2.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/kotlin-stdlib-1.6.20.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/kotlin-stdlib-common-1.6.20.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/kotlin-stdlib-jdk7-1.8.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/kotlin-stdlib-jdk8-1.8.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/logging-interceptor-4.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/okhttp-4.10.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/okio-3.4.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/okio-jvm-3.4.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/reactive-streams-1.0.4.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/retrofit-2.9.0.jar"/>
+	<classpathentry kind="lib" path="/home/kxr/Downloads/jar_files/rxjava-3.1.6.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
